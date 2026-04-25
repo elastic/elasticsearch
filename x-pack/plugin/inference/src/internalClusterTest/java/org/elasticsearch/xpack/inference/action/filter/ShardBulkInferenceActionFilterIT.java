@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -22,6 +23,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -34,9 +37,12 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -65,7 +71,10 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     private final boolean useSyntheticSource;
     private ModelRegistry modelRegistry;
 
-    public ShardBulkInferenceActionFilterIT(boolean useLegacyFormat, boolean useSyntheticSource) {
+    public ShardBulkInferenceActionFilterIT(
+        @Name("useLegacyFormat") boolean useLegacyFormat,
+        @Name("useSyntheticSource") boolean useSyntheticSource
+    ) {
         this.useLegacyFormat = useLegacyFormat;
         this.useSyntheticSource = useSyntheticSource;
     }
@@ -83,7 +92,10 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     @Before
     public void setup() throws Exception {
         modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
-        DenseVectorFieldMapper.ElementType elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        DenseVectorFieldMapper.ElementType elementType = randomValueOtherThan(
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
+        );
         // dot product means that we need normalized vectors; it's not worth doing that in this test
         SimilarityMeasure similarity = randomValueOtherThan(
             SimilarityMeasure.DOT_PRODUCT,
@@ -92,6 +104,12 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
         Utils.storeSparseModel("sparse-endpoint", modelRegistry);
         Utils.storeDenseModel("dense-endpoint", modelRegistry, dimensions, similarity, elementType);
+    }
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // For setting index version
+        return false;
     }
 
     @Override
@@ -114,6 +132,28 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         var builder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat);
+        if (useLegacyFormat) {
+            IndexVersion legacyVersion;
+            if (useSyntheticSource) {
+                // Must be in a range that supports both legacy format and synthetic source recovery.
+                if (randomBoolean()) {
+                    // 9.x overlap: USE_SYNTHETIC_SOURCE_FOR_RECOVERY → before SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN
+                    legacyVersion = IndexVersionUtils.randomVersionBetween(
+                        IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY,
+                        IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+                    );
+                } else {
+                    // 8.x overlap: USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT → before UPGRADE_TO_LUCENE_10_0_0
+                    legacyVersion = IndexVersionUtils.randomVersionBetween(
+                        IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT,
+                        IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+                    );
+                }
+            } else {
+                legacyVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(true);
+            }
+            builder.put(IndexMetadata.SETTING_VERSION_CREATED, legacyVersion);
+        }
         if (useSyntheticSource) {
             builder.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true);
             builder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name());
@@ -215,7 +255,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         storeModel(modelRegistry, model2);
 
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
-        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart");
+        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart", InferenceSecretsIndex.INDEX_NAME);
 
         assertRandomBulkOperations("index_restart", isIndexRequest -> {
             Map<String, Object> map = new HashMap<>();
@@ -225,7 +265,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         });
 
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
-        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart");
+        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart", InferenceSecretsIndex.INDEX_NAME);
 
         assertRandomBulkOperations("index_restart", isIndexRequest -> {
             Map<String, Object> map = new HashMap<>();

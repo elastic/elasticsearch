@@ -25,7 +25,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -69,8 +68,8 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
      * @param toSeqNo              Ending sequence number.
      * @param requiredFullRange    Whether the full range is required.
      * @param accessStats          If true, enable access statistics for counting total operations.
-     * @param indexVersionCreated  Version of the index when it was created.
      */
+    @SuppressWarnings("this-escape")
     protected SearchBasedChangesSnapshot(
         MapperService mapperService,
         Engine.Searcher engineSearcher,
@@ -78,8 +77,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         long fromSeqNo,
         long toSeqNo,
         boolean requiredFullRange,
-        boolean accessStats,
-        IndexVersion indexVersionCreated
+        boolean accessStats
     ) throws IOException {
 
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
@@ -230,8 +228,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         if (values.isEmpty()) {
             return originalSource;
         }
-        originalSource.source().put(InferenceMetadataFieldsMapper.NAME, values.get(0));
-        return Source.fromMap(originalSource.source(), originalSource.sourceContentType());
+        return originalSource.withMutations(map -> map.put(InferenceMetadataFieldsMapper.NAME, values.get(0)));
     }
 
     static IndexSearcher newIndexSearcher(Engine.Searcher engineSearcher) throws IOException {

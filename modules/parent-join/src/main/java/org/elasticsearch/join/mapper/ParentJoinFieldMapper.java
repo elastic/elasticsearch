@@ -25,6 +25,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -116,6 +117,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public ParentJoinFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
                 DEPRECATION_LOGGER.warn(
@@ -151,7 +157,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         private final Joiner joiner;
 
         private JoinFieldType(String name, Joiner joiner, Map<String, String> meta) {
-            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, IndexType.terms(true, true), false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.joiner = joiner;
         }
 

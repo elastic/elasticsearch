@@ -9,27 +9,20 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -44,172 +37,71 @@ import java.util.List;
  * as valid bytes inside a binary value.
  */
 public class TopNOperator implements Operator, Accountable {
-    private static final byte SMALL_NULL = 0x01; // "null" representation for "nulls first"
-    private static final byte BIG_NULL = 0x02; // "null" representation for "nulls last"
+    static final byte SMALL_NULL = 0x01; // "null" representation for "nulls first"
+    static final byte BIG_NULL = 0x02; // "null" representation for "nulls last"
+
+    public enum InputOrdering {
+        SORTED,
+        NOT_SORTED
+    }
 
     /**
-     * Internal row to be used in the PriorityQueue instead of the full blown Page.
-     * It mirrors somehow the Block build in the sense that it keeps around an array of offsets and a count of values (to account for
-     * multivalues) to reference each position in each block of the Page.
+     * Fills {@link TopNRow}s from page data. Handles both sort-key encoding and value
+     * extraction, and tracks pre-allocation sizes for key and value buffers.
      */
-    static final class Row implements Accountable, Releasable {
-        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Row.class);
-
-        private final CircuitBreaker breaker;
-
-        /**
-         * The sort key.
-         */
-        final BreakingBytesRefBuilder keys;
-
-        /**
-         * A true/false value (bit set/unset) for each byte in the BytesRef above corresponding to an asc/desc ordering.
-         * For ex, if a Long is represented as 8 bytes, each of these bytes will have the same value (set/unset) if the respective Long
-         * value is used for sorting ascending/descending.
-         */
-        final BytesOrder bytesOrder;
-
-        /**
-         * Values to reconstruct the row. Sort of. When we reconstruct the row we read
-         * from both the {@link #keys} and the {@link #values}. So this only contains
-         * what is required to reconstruct the row that isn't already stored in {@link #values}.
-         */
-        final BreakingBytesRefBuilder values;
-
-        /**
-         * Reference counter for the shard this row belongs to, used for rows containing a {@link DocVector} to ensure that the shard
-         * context before we build the final result.
-         */
-        @Nullable
-        RefCounted shardRefCounter;
-
-        Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
-            breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
-            this.breaker = breaker;
-            boolean success = false;
-            try {
-                keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
-                values = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedValueSize);
-                bytesOrder = new BytesOrder(sortOrders, breaker, "topn");
-                success = true;
-            } finally {
-                if (success == false) {
-                    close();
-                }
-            }
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return SHALLOW_SIZE + keys.ramBytesUsed() + bytesOrder.ramBytesUsed() + values.ramBytesUsed();
-        }
-
-        @Override
-        public void close() {
-            clearRefCounters();
-            Releasables.closeExpectNoException(() -> breaker.addWithoutBreaking(-SHALLOW_SIZE), keys, values, bytesOrder);
-        }
-
-        public void clearRefCounters() {
-            if (shardRefCounter != null) {
-                shardRefCounter.decRef();
-            }
-            shardRefCounter = null;
-        }
-
-        void setShardRefCounted(RefCounted shardRefCounted) {
-            if (this.shardRefCounter != null) {
-                this.shardRefCounter.decRef();
-            }
-            this.shardRefCounter = shardRefCounted;
-            this.shardRefCounter.mustIncRef();
-        }
-    }
-
-    static final class BytesOrder implements Releasable, Accountable {
-        private static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOfInstance(BytesOrder.class);
-        private final CircuitBreaker breaker;
-        final List<SortOrder> sortOrders;
-        final int[] endOffsets;
-
-        BytesOrder(List<SortOrder> sortOrders, CircuitBreaker breaker, String label) {
-            this.breaker = breaker;
-            this.sortOrders = sortOrders;
-            breaker.addEstimateBytesAndMaybeBreak(memoryUsed(sortOrders.size()), label);
-            this.endOffsets = new int[sortOrders.size()];
-        }
-
-        /**
-         * Returns true if the byte at the given position is ordered ascending; otherwise, return false
-         */
-        boolean isByteOrderAscending(int bytePosition) {
-            int index = Arrays.binarySearch(endOffsets, bytePosition);
-            if (index < 0) {
-                index = -1 - index;
-            }
-            return sortOrders.get(index).asc();
-        }
-
-        private long memoryUsed(int numKeys) {
-            // sortOrders is global and its memory is accounted at the top level TopNOperator
-            return BASE_RAM_USAGE + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * numKeys
-            );
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return memoryUsed(sortOrders.size());
-        }
-
-        @Override
-        public void close() {
-            breaker.addWithoutBreaking(-ramBytesUsed());
-        }
-    }
-
-    record KeyFactory(KeyExtractor extractor, boolean ascending) {}
-
     static final class RowFiller {
         private final ValueExtractor[] valueExtractors;
-        private final KeyFactory[] keyFactories;
+        private final KeyExtractor[] keyExtractors;
 
-        RowFiller(List<ElementType> elementTypes, List<TopNEncoder> encoders, List<SortOrder> sortOrders, Page page) {
+        private int keyPreAllocSize = 0;
+        private int valuePreAllocSize = 0;
+
+        RowFiller(
+            List<ElementType> elementTypes,
+            List<TopNEncoder> encoders,
+            List<SortOrder> sortOrders,
+            boolean[] channelInKey,
+            Page page
+        ) {
             valueExtractors = new ValueExtractor[page.getBlockCount()];
             for (int b = 0; b < valueExtractors.length; b++) {
                 valueExtractors[b] = ValueExtractor.extractorFor(
                     elementTypes.get(b),
                     encoders.get(b).toUnsortable(),
-                    channelInKey(sortOrders, b),
+                    channelInKey[b],
                     page.getBlock(b)
                 );
             }
-            keyFactories = new KeyFactory[sortOrders.size()];
-            for (int k = 0; k < keyFactories.length; k++) {
+            keyExtractors = new KeyExtractor[sortOrders.size()];
+            for (int k = 0; k < keyExtractors.length; k++) {
                 SortOrder so = sortOrders.get(k);
-                KeyExtractor extractor = KeyExtractor.extractorFor(
+                keyExtractors[k] = KeyExtractor.extractorFor(
                     elementTypes.get(so.channel),
-                    encoders.get(so.channel).toSortable(),
+                    encoders.get(so.channel),
                     so.asc,
                     so.nul(),
                     so.nonNul(),
                     page.getBlock(so.channel)
                 );
-                keyFactories[k] = new KeyFactory(extractor, so.asc);
             }
         }
 
-        void writeKey(int position, Row row) {
-            int orderByCompositeKeyCurrentPosition = 0;
-            for (int i = 0; i < keyFactories.length; i++) {
-                int valueAsBytesSize = keyFactories[i].extractor.writeKey(row.keys, position);
-                assert valueAsBytesSize > 0 : valueAsBytesSize;
-                orderByCompositeKeyCurrentPosition += valueAsBytesSize;
-                row.bytesOrder.endOffsets[i] = orderByCompositeKeyCurrentPosition - 1;
-            }
+        int preAllocatedKeysSize() {
+            return keyPreAllocSize;
         }
 
-        void writeValues(int position, Row destination) {
+        int preAllocatedValueSize() {
+            return valuePreAllocSize;
+        }
+
+        void writeKey(int position, TopNRow row) {
+            for (KeyExtractor keyExtractor : keyExtractors) {
+                keyExtractor.writeKey(row.keys, position);
+            }
+            keyPreAllocSize = newPreAllocSize(row.keys, keyPreAllocSize);
+        }
+
+        void writeValues(int position, TopNRow destination) {
             for (ValueExtractor e : valueExtractors) {
                 var refCounted = e.getRefCountedForShard(position);
                 if (refCounted != null) {
@@ -217,6 +109,15 @@ public class TopNOperator implements Operator, Accountable {
                 }
                 e.writeValue(destination.values, position);
             }
+            valuePreAllocSize = newPreAllocSize(destination.values, valuePreAllocSize);
+        }
+
+        /**
+         * Pre-allocation size heuristic: use the larger of the current builder length and half
+         * the previous pre-alloc size, so the size decays after a single unusually large row.
+         */
+        private static int newPreAllocSize(BreakingBytesRefBuilder builder, int sparePreAllocSize) {
+            return Math.max(builder.length(), sparePreAllocSize / 2);
         }
     }
 
@@ -230,19 +131,11 @@ public class TopNOperator implements Operator, Accountable {
         }
 
         byte nul() {
-            if (nullsFirst) {
-                return asc ? SMALL_NULL : BIG_NULL;
-            } else {
-                return asc ? BIG_NULL : SMALL_NULL;
-            }
+            return nullsFirst ? SMALL_NULL : BIG_NULL;
         }
 
         byte nonNul() {
-            if (nullsFirst) {
-                return asc ? BIG_NULL : SMALL_NULL;
-            } else {
-                return asc ? SMALL_NULL : BIG_NULL;
-            }
+            return nullsFirst ? BIG_NULL : SMALL_NULL;
         }
     }
 
@@ -251,9 +144,14 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize
+        int maxPageRows,
+        long jumboPageBytes,
+        InputOrdering inputOrdering,
+        @Nullable SharedMinCompetitive.Supplier minCompetitive
     ) implements OperatorFactory {
-        public TopNOperatorFactory {
+        public TopNOperatorFactory
+
+        {
             for (ElementType e : elementTypes) {
                 if (e == null) {
                     throw new IllegalArgumentException("ElementType not known");
@@ -270,7 +168,10 @@ public class TopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
-                maxPageSize
+                maxPageRows,
+                jumboPageBytes,
+                inputOrdering,
+                minCompetitive
             );
         }
 
@@ -284,6 +185,8 @@ public class TopNOperator implements Operator, Accountable {
                 + encoders
                 + ", sortOrders="
                 + sortOrders
+                + ", inputOrdering="
+                + inputOrdering
                 + "]";
         }
     }
@@ -291,18 +194,36 @@ public class TopNOperator implements Operator, Accountable {
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
 
-    private final int maxPageSize;
+    /**
+     * Maximum number of rows per output page.
+     */
+    private final int maxPageRows;
+    /**
+     * If a page has more than this many bytes we stop after the current row and
+     * emit that page. Then start a new page for the next row.
+     */
+    private final long jumboPageBytes;
 
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
+    private final boolean[] channelInKey;
 
-    private Queue inputQueue;
-    private Row spare;
-    private int spareValuesPreAllocSize = 0;
-    private int spareKeysPreAllocSize = 0;
+    /**
+     * Tracker for the minimum competitive value. If this is null no one is listening
+     * for the min competitive so we don't track it.
+     */
+    @Nullable
+    private final SharedMinCompetitive minCompetitive;
+    /**
+     * How many times {@link #minCompetitive} was updated.
+     */
+    private int minCompetitiveUpdates;
 
-    private Iterator<Page> output;
+    private TopNQueue inputQueue;
+    private TopNRow spare;
+
+    private ReleasableIterator<Page> output;
 
     private long receiveNanos;
     private long emitNanos;
@@ -327,6 +248,8 @@ public class TopNOperator implements Operator, Accountable {
      */
     private long rowsEmitted;
 
+    private final InputOrdering inputOrdering;
+
     public TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
@@ -334,48 +257,36 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize
+        int maxPageRows,
+        long jumboPageBytes,
+        InputOrdering inputOrdering,
+        @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier
     ) {
+        TopNQueue inputQueue = null;
+        SharedMinCompetitive minCompetitive = null;
+        boolean success = false;
+        try {
+            inputQueue = TopNQueue.build(breaker, topCount);
+            minCompetitive = minCompetitiveSupplier == null ? null : minCompetitiveSupplier.get();
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(inputQueue, minCompetitive);
+            }
+        }
+        this.inputQueue = inputQueue;
+        this.minCompetitive = minCompetitive;
         this.blockFactory = blockFactory;
         this.breaker = breaker;
-        this.maxPageSize = maxPageSize;
+        this.maxPageRows = maxPageRows;
+        this.jumboPageBytes = jumboPageBytes;
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
-        this.inputQueue = Queue.build(breaker, topCount);
-    }
-
-    static int compareRows(Row r1, Row r2) {
-        // This is similar to r1.key.compareTo(r2.key) but stopping somewhere in the middle so that
-        // we check the byte that mismatched
-        BytesRef br1 = r1.keys.bytesRefView();
-        BytesRef br2 = r2.keys.bytesRefView();
-        int mismatchedByteIndex = Arrays.mismatch(
-            br1.bytes,
-            br1.offset,
-            br1.offset + br1.length,
-            br2.bytes,
-            br2.offset,
-            br2.offset + br2.length
-        );
-        if (mismatchedByteIndex < 0) {
-            // the two rows are equal
-            return 0;
-        }
-
-        int length = Math.min(br1.length, br2.length);
-        // one value is the prefix of the other
-        if (mismatchedByteIndex == length) {
-            // the value with the greater length is considered greater than the other
-            if (length == br1.length) {// first row is less than the second row
-                return r2.bytesOrder.isByteOrderAscending(length) ? 1 : -1;
-            } else {// second row is less than the first row
-                return r1.bytesOrder.isByteOrderAscending(length) ? -1 : 1;
-            }
-        } else {
-            // compare the byte that mismatched accounting for that respective byte asc/desc ordering
-            int c = Byte.compareUnsigned(br1.bytes[br1.offset + mismatchedByteIndex], br2.bytes[br2.offset + mismatchedByteIndex]);
-            return r1.bytesOrder.isByteOrderAscending(mismatchedByteIndex) ? -c : c;
+        this.inputOrdering = inputOrdering;
+        this.channelInKey = new boolean[elementTypes.size()];
+        for (SortOrder so : sortOrders) {
+            channelInKey[so.channel] = true;
         }
     }
 
@@ -387,6 +298,7 @@ public class TopNOperator implements Operator, Accountable {
     @Override
     public void addInput(Page page) {
         long start = System.nanoTime();
+        boolean modified = false;
         /*
          * Since row tracks memory we have to be careful to close any unused rows,
          * including any rows that fail while constructing because they allocate
@@ -398,39 +310,52 @@ public class TopNOperator implements Operator, Accountable {
          * inputQueue or because we hit an allocation failure while building it.
          */
         try {
-            RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
+            if (inputQueue.topCount <= 0) {
+                return;
+            }
+            RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, channelInKey, page);
 
             for (int i = 0; i < page.getPositionCount(); i++) {
                 if (spare == null) {
-                    spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
+                    spare = new TopNRow(breaker, rowFiller.preAllocatedKeysSize(), rowFiller.preAllocatedValueSize());
                 } else {
-                    spare.keys.clear();
-                    spare.values.clear();
-                    spare.clearRefCounters();
+                    spare.clear();
                 }
                 rowFiller.writeKey(i, spare);
 
-                // When rows are very long, appending the values one by one can lead to lots of allocations.
-                // To avoid this, pre-allocate at least as much size as in the last seen row.
-                // Let the pre-allocation size decay in case we only have 1 huge row and smaller rows otherwise.
-                spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
-
-                // This is `inputQueue.insertWithOverflow` with followed by filling in the value only if we inserted.
+                // This is `inputQueue.insertWithOverflow` followed by filling in the value only if we inserted.
+                // We must write values BEFORE modifying the queue so that if writeValues throws (e.g. circuit
+                // breaker), spare is not left in both the queue and the spare field (which would double-close).
                 if (inputQueue.size() < inputQueue.topCount) {
                     // Heap not yet full, just add elements
                     rowFiller.writeValues(i, spare);
-                    spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
                     inputQueue.add(spare);
                     spare = null;
+                    modified = true;
                 } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
-                    // Heap full AND this node fit in it.
-                    Row nextSpare = inputQueue.top();
+                    // Heap full AND this node fits in it.
+                    TopNRow nextSpare = inputQueue.top();
                     rowFiller.writeValues(i, spare);
-                    spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
                     inputQueue.updateTop(spare);
                     spare = nextSpare;
+                    modified = true;
+                } else if (inputOrdering == InputOrdering.SORTED) {
+                    /*
+                     The queue (min-heap) is full and we have sorted input for the input page. Any other element that comes after the one
+                     we just compared will be greater or equal than any other one in the queue, so we can short circuit the execution here.
+
+                     Note we always need to check whether the min-heap top's is greater or equal than the current element. For example: we
+                     could have processed all the data from a first data node, have a full queue (a partial result), but a page from a
+                     second data node could interleave with our partial result in arbitrary ways.
+                     */
+                    break;
                 }
             }
+
+            if (modified) {
+                updateMinCompetitive();
+            }
+
         } finally {
             page.releaseBlocks();
             pagesReceived++;
@@ -439,126 +364,35 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
+    /**
+     * Offer an update to {@link #minCompetitive} if it is non-null.
+     */
+    private void updateMinCompetitive() {
+        if (minCompetitive == null || inputQueue == null || inputQueue.size() < inputQueue.topCount) {
+            return;
+        }
+        if (minCompetitive.offer(inputQueue.top().keys.bytesRefView())) {
+            minCompetitiveUpdates++;
+        }
+    }
+
     @Override
     public void finish() {
         if (output == null) {
             long start = System.nanoTime();
-            output = toPages();
+            output = buildResult();
             emitNanos += System.nanoTime() - start;
         }
-    }
-
-    private Iterator<Page> toPages() {
-        if (spare != null) {
-            // Remove the spare, we're never going to use it again.
-            spare.close();
-            spare = null;
-        }
-        if (inputQueue.size() == 0) {
-            return Collections.emptyIterator();
-        }
-        List<Row> list = new ArrayList<>(inputQueue.size());
-        List<Page> result = new ArrayList<>();
-        ResultBuilder[] builders = null;
-        boolean success = false;
-        try {
-            while (inputQueue.size() > 0) {
-                list.add(inputQueue.pop());
-            }
-            Collections.reverse(list);
-            inputQueue.close();
-            inputQueue = null;
-
-            int p = 0;
-            int size = 0;
-            for (int i = 0; i < list.size(); i++) {
-                if (builders == null) {
-                    size = Math.min(maxPageSize, list.size() - i);
-                    builders = new ResultBuilder[elementTypes.size()];
-                    for (int b = 0; b < builders.length; b++) {
-                        builders[b] = ResultBuilder.resultBuilderFor(
-                            blockFactory,
-                            elementTypes.get(b),
-                            encoders.get(b).toUnsortable(),
-                            channelInKey(sortOrders, b),
-                            size
-
-                        );
-                    }
-                    p = 0;
-                }
-
-                try (Row row = list.get(i)) {
-                    BytesRef keys = row.keys.bytesRefView();
-                    for (SortOrder so : sortOrders) {
-                        if (keys.bytes[keys.offset] == so.nul()) {
-                            keys.offset++;
-                            keys.length--;
-                            continue;
-                        }
-                        keys.offset++;
-                        keys.length--;
-                        builders[so.channel].decodeKey(keys);
-                    }
-                    if (keys.length != 0) {
-                        throw new IllegalArgumentException("didn't read all keys");
-                    }
-
-                    BytesRef values = row.values.bytesRefView();
-                    for (ResultBuilder builder : builders) {
-                        builder.decodeValue(values);
-                    }
-                    if (values.length != 0) {
-                        throw new IllegalArgumentException("didn't read all values");
-                    }
-
-                    list.set(i, null);
-
-                    p++;
-                    if (p == size) {
-                        Block[] blocks = new Block[builders.length];
-                        try {
-                            for (int b = 0; b < blocks.length; b++) {
-                                blocks[b] = builders[b].build();
-                            }
-                        } finally {
-                            if (blocks[blocks.length - 1] == null) {
-                                Releasables.closeExpectNoException(blocks);
-                            }
-                        }
-                        result.add(new Page(blocks));
-                        Releasables.closeExpectNoException(builders);
-                        builders = null;
-                    }
-                }
-            }
-            assert builders == null;
-            success = true;
-            return result.iterator();
-        } finally {
-            if (success == false) {
-                List<Releasable> close = new ArrayList<>(list);
-                for (Page p : result) {
-                    close.add(p::releaseBlocks);
-                }
-                Collections.addAll(close, builders);
-                Releasables.closeExpectNoException(Releasables.wrap(close));
-            }
-        }
-    }
-
-    private static boolean channelInKey(List<SortOrder> sortOrders, int channel) {
-        for (SortOrder so : sortOrders) {
-            if (so.channel == channel) {
-                return true;
-            }
-        }
-        return false;
     }
 
     @Override
     public boolean isFinished() {
         return output != null && output.hasNext() == false;
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return output != null && output.hasNext();
     }
 
     @Override
@@ -588,10 +422,14 @@ public class TopNOperator implements Operator, Accountable {
             inputQueue,
             /*
              * If we're in the process of outputting pages then output will contain all
-             * allocated but un-emitted pages.
+             * allocated but un-emitted rows.
              */
-            output == null ? null : Releasables.wrap(() -> Iterators.map(output, p -> p::releaseBlocks))
+            output,
+            minCompetitive
         );
+        // Aggressively null these so they can be GCed more quickly.
+        inputQueue = null;
+        output = null;
     }
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator
@@ -624,7 +462,8 @@ public class TopNOperator implements Operator, Accountable {
             pagesReceived,
             pagesEmitted,
             rowsReceived,
-            rowsEmitted
+            rowsEmitted,
+            minCompetitiveUpdates
         );
     }
 
@@ -638,66 +477,118 @@ public class TopNOperator implements Operator, Accountable {
             + encoders
             + ", sortOrders="
             + sortOrders
+            + ", inputOrdering="
+            + inputOrdering
             + "]";
     }
 
-    private static class Queue extends PriorityQueue<Row> implements Accountable, Releasable {
-        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Queue.class);
-        private final CircuitBreaker breaker;
-        private final int topCount;
-
-        /**
-         * Track memory usage in the breaker then build the {@link Queue}.
-         */
-        static Queue build(CircuitBreaker breaker, int topCount) {
-            breaker.addEstimateBytesAndMaybeBreak(Queue.sizeOf(topCount), "esql engine topn");
-            return new Queue(breaker, topCount);
+    /**
+     * Build the result iterator. Moves all rows from the {@link #inputQueue} and
+     * {@link #close}s it.
+     */
+    private ReleasableIterator<Page> buildResult() {
+        if (spare != null) {
+            // Remove the spare, we're never going to use it again.
+            spare.close();
+            spare = null;
         }
 
-        private Queue(CircuitBreaker breaker, int topCount) {
-            super(topCount);
-            this.breaker = breaker;
-            this.topCount = topCount;
+        if (inputQueue.size() == 0) {
+            return ReleasableIterator.empty();
+        }
+
+        List<TopNRow> rows = new ArrayList<>(inputQueue.size());
+        inputQueue.popAllInto(rows);
+        Collections.reverse(rows);
+        inputQueue.close();
+        inputQueue = null;
+        return new Result(rows);
+    }
+
+    private class Result implements ReleasableIterator<Page> {
+        private final List<TopNRow> rows;
+        private int r;
+
+        private Result(List<TopNRow> rows) {
+            this.rows = rows;
         }
 
         @Override
-        protected boolean lessThan(Row r1, Row r2) {
-            return compareRows(r1, r2) < 0;
+        public boolean hasNext() {
+            return r < rows.size();
         }
 
         @Override
-        public String toString() {
-            return size() + "/" + topCount;
+        public Page next() {
+            long start = System.nanoTime();
+            int size = Math.min(maxPageRows, rows.size() - r);
+            if (size <= 0) {
+                throw new IllegalStateException("can't make empty pages. " + size + " must be > 0");
+            }
+            ResultBuilder[] builders = new ResultBuilder[elementTypes.size()];
+            try {
+                for (int b = 0; b < builders.length; b++) {
+                    builders[b] = ResultBuilder.resultBuilderFor(blockFactory, elementTypes.get(b), encoders.get(b), channelInKey[b], size);
+                }
+                int rEnd = r + size;
+                while (r < rEnd) {
+                    try (TopNRow row = rows.set(r++, null)) {
+                        readKeys(builders, row.keys.bytesRefView());
+                        readValues(builders, row.values.bytesRefView());
+                    }
+                    if (totalSize(builders) > jumboPageBytes) {
+                        break;
+                    }
+                }
+                return new Page(ResultBuilder.buildAll(builders));
+            } finally {
+                Releasables.close(builders);
+                emitNanos += System.nanoTime() - start;
+            }
         }
 
-        @Override
-        public long ramBytesUsed() {
-            long total = SHALLOW_SIZE;
-            total += RamUsageEstimator.alignObjectSize(
-                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
-            );
-            for (Row r : this) {
-                total += r == null ? 0 : r.ramBytesUsed();
+        private long totalSize(ResultBuilder[] builders) {
+            long total = 0;
+            for (ResultBuilder b : builders) {
+                total += b.estimatedBytes();
             }
             return total;
         }
 
         @Override
         public void close() {
-            Releasables.close(
-                // Release all entries in the topn
-                Releasables.wrap(this),
-                // Release the array itself
-                () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount))
-            );
+            Releasables.close(rows);
         }
 
-        public static long sizeOf(int topCount) {
-            long total = SHALLOW_SIZE;
-            total += RamUsageEstimator.alignObjectSize(
-                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
-            );
-            return total;
+        /**
+         * Read keys into the results. See {@link KeyExtractor} for the key layout.
+         */
+        private void readKeys(ResultBuilder[] builders, BytesRef keys) {
+            for (SortOrder so : sortOrders) {
+                if (keys.bytes[keys.offset] == so.nul()) {
+                    // Discard the null byte.
+                    keys.offset++;
+                    keys.length--;
+                    continue;
+                }
+                // Discard the non_null byte.
+                keys.offset++;
+                keys.length--;
+                // Read the key. This will modify offset and length for the next iteration.
+                builders[so.channel].decodeKey(keys, so.asc);
+            }
+            if (keys.length != 0) {
+                throw new IllegalArgumentException("didn't read all keys");
+            }
+        }
+
+        private void readValues(ResultBuilder[] builders, BytesRef values) {
+            for (ResultBuilder builder : builders) {
+                builder.decodeValue(values);
+            }
+            if (values.length != 0) {
+                throw new IllegalArgumentException("didn't read all values");
+            }
         }
     }
 }

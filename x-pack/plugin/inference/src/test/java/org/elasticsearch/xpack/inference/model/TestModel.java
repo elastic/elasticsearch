@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -54,7 +53,12 @@ public class TestModel extends Model {
 
     public static TestModel createRandomInstance(TaskType taskType, List<SimilarityMeasure> excludedSimilarities, int maxDimensions) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
-            var elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+            // TODO: bfloat16
+            var elementType = randomFrom(
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                DenseVectorFieldMapper.ElementType.BYTE,
+                DenseVectorFieldMapper.ElementType.BIT
+            );
             var dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, maxDimensions);
 
             List<SimilarityMeasure> supportedSimilarities = new ArrayList<>(
@@ -148,9 +152,7 @@ public class TestModel extends Model {
                 );
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestServiceSettings(model, null, null, null);
         }
@@ -270,7 +272,7 @@ public class TestModel extends Model {
 
         @Override
         public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-            return TestTaskSettings.fromMap(new HashMap<>(newSettings));
+            return TestTaskSettings.fromMap(newSettings);
         }
     }
 
@@ -287,9 +289,7 @@ public class TestModel extends Model {
                 validationException.addValidationError(InferenceUtils.missingSettingErrorMsg("api_key", ModelSecrets.SECRET_SETTINGS));
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestSecretSettings(apiKey);
         }

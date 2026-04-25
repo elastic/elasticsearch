@@ -101,7 +101,7 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"))
             .addAggregator(AggregationBuilders.max("timestamp_rt").field("timestamp-5m"));
         TransformConfig config = createTransformConfigBuilder(transformId, destIndexName, QueryConfig.matchAll(), "dummy").setSource(
-            new SourceConfig(new String[] { REVIEWS_INDEX_NAME }, QueryConfig.matchAll(), runtimeMappings)
+            new SourceConfig(new String[] { REVIEWS_INDEX_NAME }, QueryConfig.matchAll(), runtimeMappings, null)
         ).setPivotConfig(createPivotConfig(groups, aggs)).build();
 
         var previewResponse = previewTransform(Strings.toString(config), RequestOptions.DEFAULT);
@@ -175,7 +175,7 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"))
             .addAggregator(AggregationBuilders.max("timestamp_rt").field("timestamp-5m"));
         TransformConfig config = createTransformConfigBuilder(transformId, destIndexName, QueryConfig.matchAll(), "dummy").setSource(
-            new SourceConfig(new String[] { REVIEWS_INDEX_NAME }, QueryConfig.matchAll(), runtimeMappings)
+            new SourceConfig(new String[] { REVIEWS_INDEX_NAME }, QueryConfig.matchAll(), runtimeMappings, null)
         ).setPivotConfig(createPivotConfig(groups, aggs)).build();
 
         Exception e = expectThrows(Exception.class, () -> previewTransform(Strings.toString(config), RequestOptions.DEFAULT));
@@ -197,7 +197,7 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
         String transformId = "transform-with-st-rt-fields-latest";
         Map<String, Object> runtimeMappings = createRuntimeMappings();
 
-        SourceConfig sourceConfig = new SourceConfig(new String[] { REVIEWS_INDEX_NAME }, QueryConfig.matchAll(), runtimeMappings);
+        SourceConfig sourceConfig = new SourceConfig(new String[] { REVIEWS_INDEX_NAME }, QueryConfig.matchAll(), runtimeMappings, null);
         TransformConfig configWithOrdinaryFields = createTransformConfigBuilder(transformId, destIndexName, QueryConfig.matchAll(), "dummy")
             .setSource(sourceConfig)
             .setLatestConfig(new LatestConfig(List.of("user_id"), "timestamp"))
@@ -270,7 +270,7 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
             )
         );
 
-        SourceConfig sourceConfig = new SourceConfig(new String[] { REVIEWS_INDEX_NAME }, QueryConfig.matchAll(), runtimeMappings);
+        SourceConfig sourceConfig = new SourceConfig(new String[] { REVIEWS_INDEX_NAME }, QueryConfig.matchAll(), runtimeMappings, null);
         TransformConfig configWithRuntimeFields = createTransformConfigBuilder(transformId, destIndexName, QueryConfig.matchAll(), "dummy")
             .setSource(sourceConfig)
             .setLatestConfig(new LatestConfig(List.of("user-upper"), "timestamp"))

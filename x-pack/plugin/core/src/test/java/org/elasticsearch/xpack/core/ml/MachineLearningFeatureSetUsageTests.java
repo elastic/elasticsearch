@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 
@@ -57,19 +56,6 @@ public class MachineLearningFeatureSetUsageTests extends AbstractBWCWireSerializ
 
     @Override
     protected MachineLearningFeatureSetUsage mutateInstanceForVersion(MachineLearningFeatureSetUsage instance, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_16_0)) {
-            return new MachineLearningFeatureSetUsage(
-                instance.available(),
-                instance.enabled(),
-                instance.getJobsUsage(),
-                instance.getDatafeedsUsage(),
-                instance.getAnalyticsUsage(),
-                instance.getInferenceUsage(),
-                Collections.emptyMap(),
-                instance.getNodeCount()
-            );
-        }
-
         return instance;
     }
 }

@@ -255,6 +255,64 @@ public class SliceBuilderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that slicing on the {@code _id} field with a point-in-time request produces a {@link TermsSliceQuery}.
+     */
+    public void testToFilterWithIdFieldAndPointInTime() throws IOException {
+        Directory dir = new ByteBuffersDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
+            writer.commit();
+        }
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            SearchExecutionContext context = createShardContext(IndexVersion.current(), reader, "_id", null);
+            SliceBuilder builder = new SliceBuilder("_id", 5, 10);
+            // Force toFilter to take the numShards == 1 path
+            Query query = builder.toFilter(createPointInTimeRequest(0, 1), context);
+
+            assertThat(query, instanceOf(TermsSliceQuery.class));
+            assertThat(builder.toFilter(createPointInTimeRequest(0, 1), context), equalTo(query));
+        }
+    }
+
+    /**
+     * Verifies that slicing on the {@code _id} field with a scroll request produces a {@link TermsSliceQuery}.
+     */
+    public void testToFilterWithIdFieldAndScroll() throws IOException {
+        Directory dir = new ByteBuffersDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
+            writer.commit();
+        }
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            SearchExecutionContext context = createShardContext(IndexVersion.current(), reader, "_id", null);
+            SliceBuilder builder = new SliceBuilder("_id", 5, 10);
+            // Force toFilter to take the numShards == 1 path
+            Query query = builder.toFilter(createScrollRequest(0, 1), context);
+
+            assertThat(query, instanceOf(TermsSliceQuery.class));
+            assertThat(builder.toFilter(createScrollRequest(0, 1), context), equalTo(query));
+        }
+    }
+
+    /**
+     * Verifies that slicing on the {@code _id} field with a point-in-time request produces a {@link TermsSliceQuery}
+     * when {@code max > numShards}, exercising the multi-shard path in {@link SliceBuilder#toFilter}.
+     */
+    public void testToFilterWithIdFieldAndPointInTimeWithMultipleShards() throws IOException {
+        Directory dir = new ByteBuffersDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
+            writer.commit();
+        }
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            SearchExecutionContext context = createShardContext(IndexVersion.current(), reader, "_id", null);
+            SliceBuilder builder = new SliceBuilder("_id", 0, 4);
+            // Force toFilter to take the max > numShards path
+            Query query = builder.toFilter(createPointInTimeRequest(0, 2), context);
+
+            assertThat(query, instanceOf(TermsSliceQuery.class));
+            assertThat(builder.toFilter(createPointInTimeRequest(0, 2), context), equalTo(query));
+        }
+    }
+
     public void testToFilterRandom() throws IOException {
         Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {

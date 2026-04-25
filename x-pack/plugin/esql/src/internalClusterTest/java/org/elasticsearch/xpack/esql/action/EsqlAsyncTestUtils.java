@@ -69,8 +69,7 @@ public final class EsqlAsyncTestUtils {
         TimeValue waitCompletionTime,
         @Nullable Map<String, Object> pragmas
     ) {
-        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
-        request.query(query);
+        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest(query);
         request.pragmas(randomPragmasWithOverride(pragmas));
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());

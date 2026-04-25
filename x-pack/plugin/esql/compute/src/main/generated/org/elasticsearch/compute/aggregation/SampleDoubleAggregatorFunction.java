@@ -35,17 +35,11 @@ public final class SampleDoubleAggregatorFunction implements AggregatorFunction 
 
   private final int limit;
 
-  public SampleDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SampleDoubleAggregator.SingleState state, int limit) {
+  SampleDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit) {
+    this.limit = limit;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.limit = limit;
-  }
-
-  public static SampleDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit) {
-    return new SampleDoubleAggregatorFunction(driverContext, channels, SampleDoubleAggregator.initSingle(driverContext.bigArrays(), limit), limit);
+    this.state = SampleDoubleAggregator.initSingle(driverContext.bigArrays(), limit);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -72,6 +66,18 @@ public final class SampleDoubleAggregatorFunction implements AggregatorFunction 
     DoubleBlock valueBlock = page.getBlock(channels.get(0));
     DoubleVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
+      if (valueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(valueBlock, mask);
       return;
     }
@@ -82,6 +88,18 @@ public final class SampleDoubleAggregatorFunction implements AggregatorFunction 
     DoubleBlock valueBlock = page.getBlock(channels.get(0));
     DoubleVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
+      if (valueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(valueBlock);
       return;
     }
@@ -144,11 +162,20 @@ public final class SampleDoubleAggregatorFunction implements AggregatorFunction 
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block sampleUncast = page.getBlock(channels.get(0));
     if (sampleUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
     assert sample.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     SampleDoubleAggregator.combineIntermediate(state, sample);
   }
 

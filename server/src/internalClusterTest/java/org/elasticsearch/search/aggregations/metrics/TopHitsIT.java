@@ -133,6 +133,8 @@ public class TopHitsIT extends ESIntegTestCase {
             prepareCreate("idx").setMapping(TERMS_AGGS_FIELD, "type=keyword", "text", "type=text,store=true"),
             prepareCreate("field-collapsing").setMapping("group", "type=keyword"),
             prepareCreate("empty"),
+            prepareCreate("top_hits_float").setMapping("brand_id", "type=float"),
+            prepareCreate("top_hits_long").setMapping("brand_id", "type=long"),
             prepareCreate("articles").setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -170,7 +172,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     .endObject()
             )
         );
-        ensureGreen("idx", "empty", "articles");
+        ensureGreen("idx", "empty", "top_hits_float", "top_hits_long", "articles");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
@@ -310,6 +312,11 @@ public class TopHitsIT extends ESIntegTestCase {
         );
 
         indexRandom(true, builders);
+
+        prepareIndex("top_hits_float").setId("1").setSource("brand_id", 1.5).get();
+        prepareIndex("top_hits_long").setId("1").setSource("brand_id", 1).get();
+        refresh("top_hits_float", "top_hits_long");
+
         ensureSearchable();
     }
 
@@ -347,6 +354,18 @@ public class TopHitsIT extends ESIntegTestCase {
 
                     assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(5));
                 }
+            }
+        );
+    }
+
+    public void testMixedSortFieldTypes() {
+        assertNoFailuresAndResponse(
+            prepareSearch("top_hits_float", "top_hits_long").setSize(0)
+                .addAggregation(topHits("hits").sort(SortBuilders.fieldSort("brand_id").order(SortOrder.ASC)).size(2)),
+            response -> {
+                TopHits topHits = response.getAggregations().get("hits");
+                assertThat(topHits.getHits().getTotalHits().value(), equalTo(2L));
+                assertThat(topHits.getHits().getHits().length, equalTo(2));
             }
         );
     }

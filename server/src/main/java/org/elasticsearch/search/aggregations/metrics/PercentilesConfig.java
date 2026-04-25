@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -129,12 +128,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         }
 
         TDigest(StreamInput in) throws IOException {
-            this(
-                in.readDouble(),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
-                    ? in.readOptionalWriteable(TDigestExecutionHint::readFrom)
-                    : TDigestExecutionHint.HIGH_ACCURACY
-            );
+            this(in.readDouble(), in.readOptionalWriteable(TDigestExecutionHint::readFrom));
         }
 
         public void setCompression(double compression) {
@@ -236,9 +230,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeDouble(compression);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeOptionalWriteable(executionHint);
-            }
+            out.writeOptionalWriteable(executionHint);
         }
 
         @Override

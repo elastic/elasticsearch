@@ -59,8 +59,28 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling with vector_operations_count")
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.collector.0.name", "TopScoreDocCollector", "dfs knn vector profiling")
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.collector.0.name", "TopScoreDocCollector", "dfs knn vector profiling with vector_operations_count")
+  task.replaceValueInMatch("test_index.mappings.properties.embedding.index_options.confidence_interval", null)
   task.skipTest("cat.aliases/10_basic/Deprecated local parameter", "CAT APIs not covered by compatibility policy")
   task.skipTest("cat.shards/10_basic/Help", "sync_id is removed in 9.0")
+  if (System.getProperty("java.net.preferIPv6Addresses", "") == "true") {
+    task.skipTest("cat.allocation/10_basic/All Nodes", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.allocation/10_basic/Bytes", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.allocation/10_basic/Column headers", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.allocation/10_basic/Node ID", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.allocation/10_basic/One index", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.nodeattrs/10_basic/Test cat nodes attrs output", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.nodes/10_basic/Test cat nodes output", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.recovery/10_basic/Test cat recovery output for closed index", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.recovery/10_basic/Test cat recovery output", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.segments/10_basic/Test cat segments output", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.segments/10_basic/tsdb", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.shards/10_basic/Test cat shards output", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.tasks/10_basic/Test cat tasks output", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("cat.thread_pool/10_basic/Test cat thread_pool output", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("indices.recovery/10_basic/Indices recovery test for closed index", "IP/Host regexes in tests on old versions don't support IPV6")
+    task.skipTest("indices.recovery/10_basic/Indices recovery test", "IP/Host regexes in tests on old versions don't support IPV6")
+  }
+  task.skipTest("search/330_fetch_fields/Test with subobjects: auto", "subobjects auto removed")
   task.skipTest("search/500_date_range/from, to, include_lower, include_upper deprecated", "deprecated parameters are removed in 9.0")
   task.skipTest("search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL", "semantics of test has changed")
   task.skipTest("search.vectors/70_dense_vector_telemetry/Field mapping stats with field details", "default dense vector field mapping has changed")
@@ -72,9 +92,15 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("range/20_synthetic_source/Date range Rounding Fixes", "_source.mode mapping attribute is no-op since 9.0.0")
   task.skipTest("index/92_metrics_auto_subobjects/Metrics object indexing with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
   task.skipTest("index/92_metrics_auto_subobjects/Root without subobjects with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("index/92_metrics_auto_subobjects/Root with metrics", "subobjects auto removed")
+  task.skipTest("index/92_metrics_auto_subobjects/Metrics object indexing", "subobjects auto removed")
   task.skipTest("index/91_metrics_no_subobjects/Metrics object indexing with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
   task.skipTest("index/91_metrics_no_subobjects/Root without subobjects with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("indices.create/20_synthetic_source/subobjects auto", "subobjects auto removed")
   task.skipTest("indices.create/20_synthetic_source/synthetic_source with copy_to inside nested object", "temporary until backported")
+  task.skipTest("indices.create/20_synthetic_source/synthetic_source with copy_to pointing to ambiguous field and subobjects auto", "subobjects auto removed")
+  task.skipTest("indices.put_index_template/15_composition/Composable index templates that include subobjects: auto on arbitrary field", "subobjects auto removed")
+  task.skipTest("indices.put_index_template/15_composition/Composable index templates that include subobjects: auto at root", "subobjects auto removed")
   task.skipTest(
     "cluster.desired_nodes/10_basic/Test delete desired nodes with node_version generates a warning",
     "node_version warning is removed in 9.0"
@@ -83,6 +109,8 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
     "cluster.desired_nodes/10_basic/Test update desired nodes with node_version generates a warning",
     "node_version warning is removed in 9.0"
   )
+  task.skipTest("tsdb/05_dimension_and_metric_in_non_tsdb_index/can't shadow dimensions", "Dimensions can be shadowed in non tsdb indices")
+  task.skipTest("tsdb/05_dimension_and_metric_in_non_tsdb_index/can't shadow metrics", "Metrics can be shadowed in non tsdb indices")
   task.skipTest("tsdb/20_mapping/nested fields", "nested field support in tsdb indices is now supported")
   task.skipTest("logsdb/10_settings/routing path allowed in logs mode with routing on sort fields", "Unknown feature routing.logsb_route_on_sort_fields")
   task.skipTest("indices.create/21_synthetic_source_stored/index param - field ordering", "Synthetic source keep arrays now stores leaf arrays natively")
@@ -103,6 +131,47 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("logsdb/10_settings/override sort order settings", "we changed the error message")
   task.skipTest("tsdb/10_settings/set start_time and end_time without timeseries mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
   task.skipTest("tsdb/10_settings/set start_time, end_time and routing_path via put settings api without time_series mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
+  task.skipTest("search/140_pre_filter_search_shards/prefilter on non-indexed date fields", "prefiltering can now use skippers on dv-only fields")
+  task.skipTest("search.vectors/42_knn_search_bbq_flat/Vector rescoring has same scoring as exact search for kNN section", "rescoring is now bulk, floating point values are slightly different")
   // Expected deprecation warning to compat yaml tests:
   task.addAllowedWarningRegex("Use of the \\[max_size\\] rollover condition has been deprecated in favour of the \\[max_primary_shard_size\\] condition and will be removed in a later version")
+  task.addAllowedWarningRegex(
+    "Parameter \\[confidence_interval\\] in \\[index_options\\] for dense_vector field \\[[^\\]]+\\] is deprecated and will be removed in a future version"
+  )
+  task.skipTest("search.vectors/42_knn_search_bbq_flat/Vector rescoring has same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
+  task.skipTest("search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
+  task.skipTest("search.vectors/41_knn_search_half_byte_quantized/Vector rescoring has the same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
+  task.skipTest("search.vectors/41_knn_search_byte_quantized/Vector rescoring has the same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
+  task.skipTest("search.vectors/42_knn_search_int4_flat/Vector rescoring has the same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
+  task.skipTest("search.vectors/42_knn_search_int8_flat/Vector rescoring has the same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
+  task.skipTest("search.vectors/41_knn_search_byte_quantized/KNN Vector similarity search only", "min similarity score changed with Lucene 10.4")
+  task.skipTest("search.vectors/42_knn_search_int8_flat/KNN Vector similarity search only", "min similarity score changed with Lucene 10.4")
+  task.skipTest(
+    "search.vectors/180_update_dense_vector_type/Allowed dense vector updates on same type but different other index_options, int8_hnsw",
+    "confidence_interval handling differs between old/new versions during compat runs"
+  )
+  task.skipTest(
+    "search.vectors/180_update_dense_vector_type/Allowed dense vector updates on same type but different other index_options, int8_flat",
+    "confidence_interval handling differs between old/new versions during compat runs"
+  )
+  task.skipTest(
+    "search.vectors/180_update_dense_vector_type/Allowed dense vector updates on same type but different other index_options, int4_flat",
+    "confidence_interval handling differs between old/new versions during compat runs"
+  )
+  task.skipTest(
+    "get/100_synthetic_source/fields with ignore_malformed",
+    "Malformed values are now stored in binary doc values which sort differently than stored fields"
+  )
+  task.skipTest("delete/70_tsdb/basic tsdb delete", "ids have changed after introduction of synthetic id")
+  task.skipTest("tsdb/25_id_generation/routing_path matches object", "ids have changed after introduction of synthetic id")
+  task.skipTest("tsdb/25_id_generation/ids query", "ids have changed after introduction of synthetic id")
+  task.skipTest("tsdb/25_id_generation/create operation on top of old document fails over bulk", "ids have changed after introduction of synthetic id")
+  task.skipTest("tsdb/25_id_generation/delete over _bulk", "ids have changed after introduction of synthetic id")
+  task.skipTest("tsdb/25_id_generation/delete", "ids have changed after introduction of synthetic id")
+  task.skipTest("tsdb/25_id_generation/index a new document on top of an old one", "ids have changed after introduction of synthetic id")
+  task.skipTest("tsdb/25_id_generation/generates a consistent id", "ids have changed after introduction of synthetic id")
+  task.skipTest("tsdb/25_id_generation/create operation on top of old document fails", "ids have changed after introduction of synthetic id")
+  task.skipTest("tsdb/25_id_generation/get", "ids have changed after introduction of synthetic id")
+  task.skipTest("tsdb/25_id_generation/routing_path matches deep object", "ids have changed after introduction of synthetic id")
+  task.skipTest("tsdb/25_id_generation/index a new document on top of an old one over bulk", "ids have changed after introduction of synthetic id")
 })

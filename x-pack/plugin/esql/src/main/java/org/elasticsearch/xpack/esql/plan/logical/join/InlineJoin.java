@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -47,7 +48,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * This dedicated instance handles that by replacing the source of the right with a StubRelation that simplifies copies the output of the
  * source, making it easy to serialize/deserialize as well as traversing the plan.
  */
-public class InlineJoin extends Join {
+public class InlineJoin extends Join implements SortPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "InlineJoin",
@@ -203,6 +204,18 @@ public class InlineJoin extends Join {
             tuple = new LogicalPlanTuple(plan, originalSubPlanHolder.get());
         }
         return tuple;
+    }
+
+    public static LogicalPlan newMainPlan(LogicalPlan optimizedPlan, InlineJoin.LogicalPlanTuple subPlans, LocalRelation resultWrapper) {
+        LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
+            InlineJoin.class,
+            // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
+            // and equals would have ignored name IDs anyway
+            ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
+        );
+        // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
+        newLogicalPlan.setOptimized();
+        return newLogicalPlan;
     }
 
     public InlineJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {

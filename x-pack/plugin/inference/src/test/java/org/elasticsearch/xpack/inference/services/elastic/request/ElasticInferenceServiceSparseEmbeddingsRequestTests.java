@@ -15,7 +15,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.io.IOException;
@@ -23,6 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,7 +40,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var modelId = "my-model-id";
 
         var request = createRequest(url, modelId, input, InputType.SEARCH);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -56,7 +59,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var modelId = "my-model-id";
 
         var request = createRequest(url, modelId, input, InputType.UNSPECIFIED);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -76,7 +79,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var request = createRequest(url, modelId, input, InputType.UNSPECIFIED);
         var truncatedRequest = request.truncate();
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -109,11 +112,12 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                 new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
                 ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata"),
-                inputType
+                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata", "1.2.3"),
+                inputType,
+                CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
 
-            var httpRequest = request.createHttpRequest();
+            var httpRequest = RequestTests.getHttpRequestSync(request);
 
             assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
             var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -122,6 +126,34 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
             assertThat(headers.length, is(2));
             assertThat(headers[0].getValue(), is(inputType.toString()));
             assertThat(headers[1].getValue(), is("my-product-use-case-from-metadata"));
+        }
+    }
+
+    public void testDecorate_HttpRequest_WithAuthorizationHeader() {
+        var input = "elastic";
+        var modelId = "my-model-id";
+        var url = "http://eis-gateway.com";
+        var secret = "secret";
+
+        for (var inputType : List.of(InputType.INTERNAL_SEARCH, InputType.INTERNAL_INGEST, InputType.UNSPECIFIED)) {
+            var request = new ElasticInferenceServiceSparseEmbeddingsRequest(
+                TruncatorTests.createTruncator(),
+                new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+                ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId),
+                new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata", "1.2.3"),
+                inputType,
+                new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(secret)
+            );
+
+            var httpRequest = RequestTests.getHttpRequestSync(request);
+
+            assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+            var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+            var headers = httpPost.getHeaders(HttpHeaders.AUTHORIZATION);
+            assertThat(headers.length, is(1));
+            assertThat(headers[0].getValue(), is(apiKey(secret)));
         }
     }
 
@@ -134,7 +166,8 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
             embeddingsModel,
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomElasticInferenceServiceRequestMetadata(),
-            inputType
+            inputType,
+            CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
     }
 }

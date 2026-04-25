@@ -1,5 +1,0 @@
-pr: 132675
-summary: Add second max queue latency stat to `ClusterInfo`
-area: Allocation
-type: enhancement
-issues: []

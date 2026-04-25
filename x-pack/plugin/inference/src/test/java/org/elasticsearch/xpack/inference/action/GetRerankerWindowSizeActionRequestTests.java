@@ -26,6 +26,6 @@ public class GetRerankerWindowSizeActionRequestTests extends AbstractWireSeriali
 
     @Override
     protected GetRerankerWindowSizeAction.Request mutateInstance(GetRerankerWindowSizeAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new GetRerankerWindowSizeAction.Request(randomValueOtherThan(instance.getInferenceEntityId(), () -> randomAlphaOfLength(8)));
     }
 }

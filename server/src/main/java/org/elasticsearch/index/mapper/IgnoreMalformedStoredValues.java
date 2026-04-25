@@ -10,9 +10,17 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,10 +30,75 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 
 /**
- * Saves malformed values to stored fields so they can be loaded for synthetic
- * {@code _source}.
+ * Saves malformed values to stored fields or binary doc values so they can be loaded for synthetic {@code _source}.
  */
 public abstract class IgnoreMalformedStoredValues {
+
+    public static final String IGNORE_MALFORMED_FIELD_NAME_SUFFIX = "._ignore_malformed";
+
+    /**
+     * Stores a malformed value in binary doc values (new indices) or in stored fields (old indices) in order to support synthetic source.
+     */
+    public static void storeMalformedValueForSyntheticSource(DocumentParserContext context, String fieldPath, XContentParser parser)
+        throws IOException {
+        IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
+        if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
+            BytesRef encoded = XContentDataHelper.encodeToken(parser);
+            saveToBinaryDocValues(context, fieldPath, encoded);
+        } else {
+            context.doc().add(storedField(fieldPath, parser));
+        }
+    }
+
+    /**
+     * Stores a malformed value in binary doc values (new indices) or in stored fields (old indices) in order to support synthetic source.
+     */
+    public static void storeMalformedValueForSyntheticSource(DocumentParserContext context, String fieldPath, XContentBuilder builder)
+        throws IOException {
+        IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
+        if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
+            BytesRef encoded = encodeBuilderAsJson(builder);
+            saveToBinaryDocValues(context, fieldPath, encoded);
+        } else {
+            context.doc().add(storedField(fieldPath, builder));
+        }
+    }
+
+    /**
+     * Encodes an XContentBuilder's content, normalizing to JSON regardless of the builder's original content type.
+     *
+     * Malformed values are sorted by their encoded {@link BytesRef}. The encoding prefix byte is content-type-specific ('j' for
+     * JSON, 'c' for CBOR, etc.), so without normalization the sort order would depend on which content type the client used when
+     * indexing — an implementation detail that should not affect user-visible {@code _source} output. Normalizing to JSON is cheap in
+     * practice: the extra parse/serialize round-trip only runs when the content type is non-JSON AND the document has a malformed value,
+     * both of which are rare conditions.
+     */
+    private static BytesRef encodeBuilderAsJson(XContentBuilder builder) throws IOException {
+        XContentType originalType = builder.contentType();
+        if (originalType == XContentType.JSON) {
+            return XContentDataHelper.encodeXContentBuilder(builder);
+        }
+        BytesReference rawBytes = BytesReference.bytes(builder);
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, rawBytes, originalType)) {
+            XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
+            parser.nextToken();
+            jsonBuilder.copyCurrentStructure(parser);
+            return XContentDataHelper.encodeXContentBuilder(jsonBuilder);
+        }
+    }
+
+    private static void saveToBinaryDocValues(DocumentParserContext context, String fieldPath, BytesRef encoded) {
+        final String fieldName = name(fieldPath);
+        IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+            context.doc(),
+            fieldName,
+            encoded,
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED,
+            indexVersion
+        );
+    }
+
     /**
      * Creates a stored field that stores malformed data to be used in synthetic source.
      * Name of the stored field is original name of the field with added conventional suffix.
@@ -65,10 +138,30 @@ public abstract class IgnoreMalformedStoredValues {
     }
 
     /**
+     * Build the appropriate {@link IgnoreMalformedStoredValues} for loading malformed values during synthetic source reconstruction.
+     * Uses binary doc values for new indices and stored fields for old indices.
+     */
+    public static IgnoreMalformedStoredValues forSyntheticSource(String fieldName, IndexVersion indexVersion) {
+        if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
+            return new DocValues(fieldName, indexVersion);
+        } else {
+            return new Stored(fieldName);
+        }
+    }
+
+    /**
      * A {@link Stream} mapping stored field paths to a place to put them
      * so they can be included in the next document.
      */
     public abstract Stream<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders();
+
+    /**
+     * Create a doc values loader for loading malformed values from binary doc values.
+     * Returns {@code null} if this implementation does not use doc values or if there are no doc values to load.
+     */
+    public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader reader) throws IOException {
+        return null;
+    }
 
     /**
      * How many values has this field loaded for this document?
@@ -142,7 +235,46 @@ public abstract class IgnoreMalformedStoredValues {
         }
     }
 
+    private static class DocValues extends IgnoreMalformedStoredValues {
+
+        private final BinaryDocValuesSyntheticFieldLoaderLayer delegate;
+
+        DocValues(String fieldName, IndexVersion indexVersion) {
+            this.delegate = new BinaryDocValuesSyntheticFieldLoaderLayer(name(fieldName), indexVersion) {
+                @Override
+                protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                    XContentDataHelper.decodeAndWrite(b, value);
+                }
+            };
+        }
+
+        @Override
+        public Stream<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.empty();
+        }
+
+        @Override
+        public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader reader) throws IOException {
+            return delegate.docValuesLoader(reader, null);
+        }
+
+        @Override
+        public int count() {
+            return (int) delegate.valueCount();
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            delegate.write(b);
+        }
+
+        @Override
+        public void reset() {
+            // no-op: BinaryDocValuesSyntheticFieldLoaderLayer resets state on advanceToDoc
+        }
+    }
+
     public static String name(String fieldName) {
-        return fieldName + "._ignore_malformed";
+        return fieldName + IGNORE_MALFORMED_FIELD_NAME_SUFFIX;
     }
 }

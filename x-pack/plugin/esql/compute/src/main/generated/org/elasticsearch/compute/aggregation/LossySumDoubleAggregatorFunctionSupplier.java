@@ -31,13 +31,13 @@ public final class LossySumDoubleAggregatorFunctionSupplier implements Aggregato
   @Override
   public LossySumDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return LossySumDoubleAggregatorFunction.create(driverContext, channels);
+    return new LossySumDoubleAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public LossySumDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return LossySumDoubleGroupingAggregatorFunction.create(channels, driverContext);
+    return new LossySumDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

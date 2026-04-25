@@ -155,7 +155,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // Put fist job. This should create the results index as it's the first job.
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job1)).actionGet();
 
-        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         Map<String, Object> mappingProperties = getIndexMappingProperties(sharedResultsIndex);
 
         // Assert mappings have a few fields from the template
@@ -208,7 +209,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
 
-        String customIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar";
+        String customIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar-000001";
         Map<String, Object> mappingProperties = getIndexMappingProperties(customIndex);
 
         // Assert mappings have a few fields from the template
@@ -226,7 +227,6 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40134")
     public void testMultipleSimultaneousJobCreations() {
 
         int numJobs = randomIntBetween(4, 7);
@@ -256,13 +256,15 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         }
 
         // Assert that the mappings contain all the additional fields: field1, field2, field3, etc.
-        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sharedResultsIndex);
+        String sharedResultsPattern = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
+            + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + "*";
+        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sharedResultsPattern);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
         Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
-        MappingMetadata typeMappings = indexMappings.get(sharedResultsIndex);
-        assertNotNull("expected " + sharedResultsIndex + " in " + indexMappings, typeMappings);
+        assertFalse("expected at least one index matching " + sharedResultsPattern, indexMappings.isEmpty());
+        MappingMetadata typeMappings = indexMappings.values().iterator().next();
         Map<String, Object> mappings = typeMappings.getSourceAsMap();
         assertNotNull(mappings);
         @SuppressWarnings("unchecked")

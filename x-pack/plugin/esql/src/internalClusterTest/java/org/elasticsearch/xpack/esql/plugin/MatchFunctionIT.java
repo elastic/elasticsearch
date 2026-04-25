@@ -296,6 +296,36 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
     }
 
+    public void testMatchAfterMvExpand() {
+        var query = """
+            FROM test
+            | MV_EXPAND content
+            | WHERE match(content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after MV_EXPAND"));
+    }
+
+    public void testMatchAfterMvExpandWithIntermediateCommands() {
+        var error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | EVAL upper_content = to_upper(content)
+            | WHERE match(content, "fox")
+            """));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after MV_EXPAND"));
+
+        error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | SORT id
+            | KEEP id, content
+            | WHERE match(content, "fox")
+            """));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after MV_EXPAND"));
+    }
+
     public void testMatchWithLookupJoin() {
         var query = """
             FROM test
@@ -311,6 +341,94 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                     + "in non-STANDARD mode [lookup]"
             )
         );
+    }
+
+    public void testMatchOnJoinFieldWithLookupJoin() {
+        var query = """
+            FROM test
+            | EVAL x = 123
+            | RENAME x AS id
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE id > 0 AND MATCH(id, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString("line 5:26: [MATCH] function cannot operate on [id], which is not a field from an index mapping")
+        );
+    }
+
+    public void testWhereFalseBeforeInlineStatsWithMatch() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+    }
+
+    public void testImpossibleFilterBeforeInlineStatsWithMatch() {
+        var query = """
+            FROM test
+            | EVAL a = 1, b = a + 1, c = b + a
+            | WHERE c > 10
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+    }
+
+    public void testWhereFalseBeforeInlineStatsWithMatchAndStats() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            | STATS c = COUNT(*)
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+    }
+
+    public void testWhereFalseBeforeGroupedInlineStatsWithMatch() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE match(content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+    }
+
+    public void testMatchWithLookupJoinOnMatch() {
+        var query = """
+            FROM test
+            | rename id as id_left
+            | LOOKUP JOIN test_lookup ON id_left == id and MATCH(lookup_content, "fox")
+            | WHERE id > 0
+            | SORT id, id_left, content, lookup_content
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content", "id_left", "id", "lookup_content"));
+            assertColumnTypes(resp.columns(), List.of("text", "integer", "integer", "text"));
+            // Should return rows where lookup_content matches "fox" (ids 1 and 6)
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("This is a brown fox", 1, 1, "This is a brown fox"),
+                    List.of("The quick brown fox jumps over the lazy dog", 6, 6, "The quick brown fox jumps over the lazy dog")
+                )
+            );
+        }
     }
 
     static void createAndPopulateIndex(Consumer<String[]> ensureYellow) {
@@ -341,5 +459,19 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
             .setMapping("id", "type=integer", "lookup_content", "type=text");
         assertAcked(createRequest);
+
+        // Populate the lookup index with test data
+        client().prepareBulk()
+            .add(new IndexRequest(lookupIndexName).id("1").source("id", 1, "lookup_content", "This is a brown fox"))
+            .add(new IndexRequest(lookupIndexName).id("2").source("id", 2, "lookup_content", "This is a brown dog"))
+            .add(new IndexRequest(lookupIndexName).id("3").source("id", 3, "lookup_content", "This dog is really brown"))
+            .add(
+                new IndexRequest(lookupIndexName).id("4")
+                    .source("id", 4, "lookup_content", "The dog is brown but this document is very very long")
+            )
+            .add(new IndexRequest(lookupIndexName).id("5").source("id", 5, "lookup_content", "There is also a white cat"))
+            .add(new IndexRequest(lookupIndexName).id("6").source("id", 6, "lookup_content", "The quick brown fox jumps over the lazy dog"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
     }
 }

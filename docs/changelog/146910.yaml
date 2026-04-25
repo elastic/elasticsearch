@@ -1,0 +1,7 @@
+area: Machine Learning
+issues:
+ - 146806
+pr: 146910
+summary: Preserve zero-allocation trained-model deployments in cluster state during
+  ML-node shutdown rebalances
+type: bug

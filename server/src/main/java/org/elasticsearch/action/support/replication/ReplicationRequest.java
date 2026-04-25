@@ -102,7 +102,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
         } else {
             if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
-                this.reshardSplitShardCountSummary = SplitShardCountSummary.fromInt(in.readVInt());
+                this.reshardSplitShardCountSummary = new SplitShardCountSummary(in);
             } else if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
                 this.reshardSplitShardCountSummary = SplitShardCountSummary.fromInt(in.readInt());
             } else {
@@ -237,7 +237,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
         if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
-            out.writeVInt(reshardSplitShardCountSummary.asInt());
+            reshardSplitShardCountSummary.writeTo(out);
         } else if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
             out.writeInt(reshardSplitShardCountSummary.asInt());
         }
@@ -278,11 +278,17 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         return toString();
     }
 
-    /**
-     * This method is called before this replication request is retried
-     * the first time.
-     */
     public void onRetry() {
+        onRetry(true);
+    }
+
+    /**
+     * Called before this replication request is retried.
+     * <p>
+     * {@code possiblyExecuted} controls whether request should be marked as retry or not. For some retry paths (for example
+     * relocation handoff), we know that the request is not executed and can be retried more efficiently (and safely).
+     */
+    public void onRetry(boolean possiblyExecuted) {
         // nothing by default
     }
 }

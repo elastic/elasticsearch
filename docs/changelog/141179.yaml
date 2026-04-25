@@ -1,0 +1,5 @@
+pr: 141179
+summary: Add `SparseFileTracker.getAbsentBytesWithin`
+area: Searchable Snapshots
+type: enhancement
+issues: []

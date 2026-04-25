@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.search.DoubleValues;
+
 import java.io.IOException;
 
 /**
@@ -18,14 +20,14 @@ import java.io.IOException;
  * that works for single or multi-valued types.
  */
 final class SingletonSortedNumericDoubleValues extends SortedNumericDoubleValues {
-    private final NumericDoubleValues in;
+    private final DoubleValues in;
 
-    SingletonSortedNumericDoubleValues(NumericDoubleValues in) {
+    SingletonSortedNumericDoubleValues(DoubleValues in) {
         this.in = in;
     }
 
-    /** Return the wrapped {@link NumericDoubleValues} */
-    public NumericDoubleValues getNumericDoubleValues() {
+    /** Return the wrapped {@link DoubleValues} */
+    public DoubleValues getNumericDoubleValues() {
         return in;
     }
 

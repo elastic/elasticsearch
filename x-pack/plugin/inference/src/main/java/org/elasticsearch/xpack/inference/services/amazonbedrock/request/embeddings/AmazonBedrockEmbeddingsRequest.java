@@ -16,8 +16,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
+public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest implements DenseEmbeddingRequest {
     private final AmazonBedrockEmbeddingsModel embeddingsModel;
     private final ToXContent requestEntity;
     private final Truncator truncator;
@@ -68,7 +68,7 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
                 .body(SdkBytes.fromString(bodyAsString, StandardCharsets.UTF_8))
                 .build();
 
-            SocketAccess.doPrivileged(() -> client.invokeModel(invokeModelRequest, listener));
+            client.invokeModel(invokeModelRequest, listener);
         } catch (IOException e) {
             listener.onFailure(new RuntimeException(e));
         }
@@ -89,8 +89,8 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     }
 
     @Override
-    public TaskType taskType() {
-        return TaskType.TEXT_EMBEDDING;
+    public TaskType getTaskType() {
+        return embeddingsModel.getTaskType();
     }
 
     public void executeEmbeddingsRequest(

@@ -21,7 +21,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -43,6 +42,10 @@ public abstract class AbstractBaseReindexRestHandler<
         throws IOException {
         // Build the internal request
         Request internal = setCommonOptions(request, buildRequest(request));
+
+        // Only requests supporting remote indices can have IndicesOptions allowing cross-project index expressions
+        assert internal.supportsRemoteIndicesSearch()
+            || internal.getSearchRequest().indicesOptions().resolveCrossProjectIndexExpression() == false;
 
         // Executes the request and waits for completion
         if (request.paramAsBoolean("wait_for_completion", true)) {
@@ -66,7 +69,7 @@ public abstract class AbstractBaseReindexRestHandler<
         }
         final var responseListener = new SubscribableListener<BulkByScrollResponse>();
         final var task = client.executeLocally(action, internal, responseListener);
-        responseListener.addListener(new LoggingTaskListener<>(task));
+        responseListener.addListener(new LoggingReindexTaskListener(task));
         return sendTask(client.getLocalNodeId(), task);
     }
 

@@ -47,7 +47,7 @@ public class VoyageAIRerankModel extends VoyageAIModel {
             service,
             VoyageAIRerankServiceSettings.fromMap(serviceSettings, context),
             VoyageAIRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets),
+            DefaultSecretSettings.fromMap(secrets, context),
             buildUri(VoyageAIService.NAME, VoyageAIRerankModel::buildRequestUri)
         );
     }
@@ -85,6 +85,16 @@ public class VoyageAIRerankModel extends VoyageAIModel {
             secretSettings,
             serviceSettings.getCommonSettings(),
             uri
+        );
+    }
+
+    public VoyageAIRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            ((VoyageAIRerankServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            buildUri(VoyageAIService.NAME, VoyageAIRerankModel::buildRequestUri)
         );
     }
 

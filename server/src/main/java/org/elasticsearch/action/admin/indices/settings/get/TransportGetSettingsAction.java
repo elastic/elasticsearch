@@ -48,7 +48,7 @@ public class TransportGetSettingsAction extends TransportLocalProjectMetadataAct
      * NB prior to 9.1 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     @SuppressWarnings("this-escape")
     @Inject
     public TransportGetSettingsAction(
@@ -127,7 +127,7 @@ public class TransportGetSettingsAction extends TransportLocalProjectMetadataAct
 
             indexToSettings.put(concreteIndex.getName(), indexSettings);
             if (indexToDefaultSettings != null) {
-                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(indexSettings, Settings.EMPTY));
+                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(indexMetadata.getSettings(), Settings.EMPTY));
                 if (isFilteredRequest(request)) {
                     defaultSettings = defaultSettings.filter(k -> Regex.simpleMatch(request.names(), k));
                 }

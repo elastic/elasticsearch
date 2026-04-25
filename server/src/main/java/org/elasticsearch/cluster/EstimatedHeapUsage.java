@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 
 /**
- * Record representing an estimate of the heap used by allocated shards and ongoing merges on a particular node
+ * Represents an estimate of the heap used by allocated shards and ongoing merges on a particular node
  */
 public record EstimatedHeapUsage(String nodeId, long totalBytes, long estimatedUsageBytes) implements Writeable {
 
@@ -50,5 +50,9 @@ public record EstimatedHeapUsage(String nodeId, long totalBytes, long estimatedU
 
     public double estimatedUsageAsRatio() {
         return estimatedUsageBytes / (double) totalBytes;
+    }
+
+    public EstimatedHeapUsage updateEstimatedUsage(long bytes) {
+        return new EstimatedHeapUsage(nodeId, totalBytes, estimatedUsageBytes + bytes);
     }
 }

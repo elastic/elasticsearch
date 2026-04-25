@@ -18,9 +18,11 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -30,11 +32,23 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
-public class Queries {
+public final class Queries {
 
-    public static Query newMatchAllQuery() {
+    @SuppressForbidden(reason = "Providing instance")
+    private static MatchNoDocsQuery noDocs() {
+        return new MatchNoDocsQuery();
+    }
+
+    @SuppressForbidden(reason = "Providing instance")
+    private static MatchAllDocsQuery allDocs() {
         return new MatchAllDocsQuery();
     }
+
+    public static final MatchNoDocsQuery NO_DOCS_INSTANCE = noDocs();
+    public static final MatchNoDocsQuery NO_MAPPINGS = new MatchNoDocsQuery("No mappings yet");
+    public static final MatchAllDocsQuery ALL_DOCS_INSTANCE = allDocs();
+
+    private Queries() {}
 
     /** Return a query that matches no document. */
     public static Query newMatchNoDocsQuery(String reason) {
@@ -93,7 +107,7 @@ public class Queries {
 
     /** Return a query that matches all documents but those that match the given query. */
     public static Query not(Query q) {
-        return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST).add(q, Occur.MUST_NOT).build();
+        return new BooleanQuery.Builder().add(ALL_DOCS_INSTANCE, Occur.MUST).add(q, Occur.MUST_NOT).build();
     }
 
     static boolean isNegativeQuery(Query q) {
@@ -104,14 +118,15 @@ public class Queries {
         return clauses.isEmpty() == false && clauses.stream().allMatch(BooleanClause::isProhibited);
     }
 
-    public static Query fixNegativeQueryIfNeeded(Query q) {
+    public static Query fixNegativeQueryIfNeeded(Query q, QueryVisitor queryVisitor) {
         if (isNegativeQuery(q)) {
             BooleanQuery bq = (BooleanQuery) q;
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (BooleanClause clause : bq) {
                 builder.add(clause);
             }
-            builder.add(newMatchAllQuery(), BooleanClause.Occur.FILTER);
+            builder.add(ALL_DOCS_INSTANCE, BooleanClause.Occur.FILTER);
+            ALL_DOCS_INSTANCE.visit(queryVisitor);
             return builder.build();
         }
         return q;

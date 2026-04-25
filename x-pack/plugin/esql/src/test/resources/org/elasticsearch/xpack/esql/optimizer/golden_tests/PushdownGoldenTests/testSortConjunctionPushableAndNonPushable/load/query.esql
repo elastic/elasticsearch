@@ -1,0 +1,4 @@
+SET unmapped_fields="load"; FROM sample_data
+| KEEP message, does_not_exist
+| SORT message, does_not_exist
+| LIMIT 5

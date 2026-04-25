@@ -326,6 +326,10 @@ setup:
             index.query.parse.allow_unmapped_fields: false
 
   - do:
+      indices.refresh:
+        index: test_nonexistent
+
+  - do:
       catch: bad_request
       search:
         index: test_nonexistent

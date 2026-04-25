@@ -1,0 +1,7 @@
+Limit[10000[INTEGER],false,false]
+\_Limit[1[INTEGER],false,false]
+  \_OrderBy[[Order[similarity{r}#0,DESC,FIRST], Order[keyword{r}#1,ASC,LAST]]]
+    \_Eval[[COSINESIMILARITY(dense_vector{f}#2,TODENSEVECTOR([0.78354394, 0.089722395, 0.88437265][DOUBLE])) AS similarity#0]]
+      \_MvExpand[keyword{f}#3,keyword{r}#1]
+        \_Project[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, dense_vector{f}#2, double{f}#9, float{f}#10, half_float{f}#11, integer{f}#12, ip{f}#13, keyword{f}#3, long{f}#14, scaled_float{f}#15, semantic_text{f}#16, short{f}#17, text{f}#18, unsigned_long{f}#19, version{f}#20, wildcard{f}#21]]
+          \_EsRelation[all_types][!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, dense_vector{f}#2, double{f}#9, float{f}#10, half_float{f}#11, integer{f}#12, ip{f}#13, keyword{f}#3, long{f}#14, scaled_float{f}#15, semantic_text{f}#16, short{f}#17, text{f}#18, unsigned_long{f}#19, version{f}#20, wildcard{f}#21]

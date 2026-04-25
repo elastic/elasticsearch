@@ -26,7 +26,7 @@ public class SystemAliasIT extends AbstractSystemIndicesIT {
 
     @After
     public void resetFeatures() throws Exception {
-        client().performRequest(new Request("POST", "/_features/_reset"));
+        performPostFeaturesReset(client());
     }
 
     public void testCreatingSystemIndexWithAlias() throws Exception {

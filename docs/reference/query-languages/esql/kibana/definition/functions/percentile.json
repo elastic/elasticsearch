@@ -62,6 +62,60 @@
       "params" : [
         {
           "name" : "number",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "percentile",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "percentile",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "percentile",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
           "type" : "integer",
           "optional" : false,
           "description" : ""
@@ -153,6 +207,60 @@
         {
           "name" : "number",
           "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "percentile",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "percentile",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "percentile",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "tdigest",
           "optional" : false,
           "description" : ""
         },
@@ -169,7 +277,9 @@
   ],
   "examples" : [
     "FROM employees\n| STATS p0 = PERCENTILE(salary,  0)\n     , p50 = PERCENTILE(salary, 50)\n     , p99 = PERCENTILE(salary, 99)",
-    "FROM employees\n| STATS p80_max_salary_change = PERCENTILE(MV_MAX(salary_change), 80)"
+    "FROM employees\n| STATS p80_max_salary_change = PERCENTILE(MV_MAX(salary_change), 80)",
+    "TS exp_histo_sample\n| WHERE instance == \"instance-0\"\n| STATS p99 = ROUND(PERCENTILE(responseTime, 99), 4)",
+    "TS histogram_timeseries_index\n| WHERE instance == \"instance-0\"\n| STATS p95 = ROUND(PERCENTILE(responseTime::tdigest, 95), 2)"
   ],
   "preview" : false,
   "snapshot_only" : false

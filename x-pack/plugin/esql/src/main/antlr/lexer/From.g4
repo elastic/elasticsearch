@@ -14,6 +14,9 @@ FROM : 'from'                 -> pushMode(FROM_MODE);
 // TS command
 TS : 'ts' -> pushMode(FROM_MODE);
 
+// EXTERNAL command (gated by esql_external_datasources feature flag)
+DEV_EXTERNAL : {this.isExternalDataSourcesEnabled()}? 'external' -> pushMode(FROM_MODE);
+
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
 FROM_COLON : COLON -> type(COLON);
@@ -22,8 +25,19 @@ FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA : 'metadata';
 
+// Support for EXTERNAL command WITH clause - transitions to EXPRESSION_MODE for map parsing
+FROM_WITH : WITH -> type(WITH), popMode, pushMode(EXPRESSION_MODE);
+
+// Support for EXTERNAL command parameters
+FROM_PARAM : PARAM -> type(PARAM);
+FROM_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
+
 // we need this for EXPLAIN
-FROM_RP : RP -> type(RP), popMode;
+// change to double popMode to accommodate subquerys in FROM, when see ')' pop out of subquery(default) mode and from mode
+FROM_RP : RP -> type(RP), popMode, popMode;
+
+// accommodate subQuery inside FROM
+FROM_LP : LP -> type(LP), pushMode(DEFAULT_MODE);
 
 // in 8.14 ` were not allowed
 // this has been relaxed in 8.15 since " is used for quoting

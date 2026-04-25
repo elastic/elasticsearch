@@ -27,7 +27,6 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -74,7 +73,7 @@ class ES816BinaryFlatRWVectorsScorer implements FlatVectorsScorer {
                 VectorUtil.l2normalize(copy);
                 target = copy;
             }
-            byte[] quantized = new byte[BQSpaceUtils.B_QUERY * discretizedDimensions / 8];
+            byte[] quantized = new byte[BinaryQuantizer.B_QUERY * discretizedDimensions / 8];
             BinaryQuantizer.QueryFactors factors = quantizer.quantizeForQuery(target, quantized, centroid);
             BinaryQueryVector queryVector = new BinaryQueryVector(quantized, factors);
             return new BinarizedRandomVectorScorer(queryVector, binarizedVectors, similarityFunction);

@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -91,7 +92,7 @@ public class RetryTests extends ESIntegTestCase {
     final Settings nodeSettings() {
         return Settings.builder()
             // whitelist reindexing from the HTTP host we're going to use
-            .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*")
+            .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*,[::1]:*")
             .build();
     }
 
@@ -118,9 +119,10 @@ public class RetryTests extends ESIntegTestCase {
             assertNotNull(masterNode);
 
             TransportAddress address = masterNode.getInfo(HttpInfo.class).getAddress().publishAddress();
+            String host = InetAddresses.toUriString(address.address().getAddress());
             RemoteInfo remote = new RemoteInfo(
                 "http",
-                address.getAddress(),
+                host,
                 address.getPort(),
                 null,
                 new BytesArray("{\"match_all\":{}}"),

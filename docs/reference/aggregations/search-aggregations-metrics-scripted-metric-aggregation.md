@@ -2,6 +2,11 @@
 navigation_title: "Scripted metric"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-scripted-metric-aggregation.html
+applies_to:
+  stack: ga
+  serverless: unavailable
+products:
+  - id: elasticsearch
 ---
 
 # Scripted metric aggregation [search-aggregations-metrics-scripted-metric-aggregation]
@@ -59,8 +64,8 @@ The response for the above aggregation:
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 218/"took": $body.took/]
-%  TESTRESPONSE[s/\.\.\./"_shards": $body._shards, "hits": $body.hits, "timed_out": false,/]
+% TESTRESPONSE[s/"took": 218/"took": $body.took/]
+% TESTRESPONSE[s/\.\.\./"_shards": $body._shards, "hits": $body.hits, "timed_out": false,/]
 
 The above example can also be specified using stored scripts as follows:
 

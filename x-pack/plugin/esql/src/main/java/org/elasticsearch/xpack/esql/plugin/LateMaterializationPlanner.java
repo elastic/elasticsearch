@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
@@ -30,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -95,8 +99,9 @@ class LateMaterializationPlanner {
         }
 
         LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_TOP_N_REPLACEMENT);
-        List<Attribute> expectedDataOutput = toPhysical(topN, context).output();
-        Attribute doc = expectedDataOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
+
+        List<Attribute> physicalPlanOutput = toNonOptimizedPhysicalDataPlan(topN, context).output();
+        Attribute doc = physicalPlanOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
         if (doc == null) {
             return Optional.empty();
         }
@@ -106,7 +111,7 @@ class LateMaterializationPlanner {
                 return r;
             }
             List<Attribute> attributes = CollectionUtils.prependToCopy(doc, r.output());
-            return new EsRelation(r.source(), r.indexPattern(), r.indexMode(), r.indexNameWithModes(), attributes);
+            return r.withAttributes(attributes);
         });
         if (withAddedDocToRelation.output().stream().noneMatch(EsQueryExec::isDocAttribute)) {
             // Defensive check: if any intermediate projects (or possibly another operator) removed the doc field, just abort this
@@ -114,33 +119,52 @@ class LateMaterializationPlanner {
             return Optional.empty();
         }
 
-        // We need to add the doc attribute to the project since otherwise when the fragment is converted to a physical plan for the data
-        // driver, the resulting ProjectExec won't have the doc attribute in its output, which is needed by the reduce driver.
+        AttributeSet orderRefsSet = AttributeSet.of(topN.order().stream().flatMap(o -> o.references().stream()).toList());
+        // Get the output from the physical plan below the TopN, and filter it to only the attributes needed for the final output (either
+        // because they are in the top-level Project's output, or because they are needed for ordering)
+        List<Attribute> expectedDataOutput = new ArrayList<>();
+        for (Attribute a : physicalPlanOutput) {
+            if (topLevelProject.outputSet().contains(a) || orderRefsSet.contains(a) || EsQueryExec.isDocAttribute(a)) {
+                expectedDataOutput.add(a);
+            }
+        }
         var updatedFragment = new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput);
         FragmentExec updatedFragmentExec = fragmentExec.withFragment(updatedFragment);
-        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChild(updatedFragmentExec);
+        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
 
         // Replace the TopN child with the data driver as the source.
-        PhysicalPlan reductionPlan = toPhysical(fragmentExec.fragment(), context).transformDown(
-            TopNExec.class,
-            t -> t.replaceChild(new ExchangeSourceExec(topN.source(), expectedDataOutput, false /* isIntermediateAgg */))
-        );
-        ExchangeSinkExec reductionPlanWithSize = originalPlan.replaceChild(
-            EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan)
-        );
+        PhysicalPlan reductionPlan = toNonOptimizedPhysicalDataPlan(fragmentExec.fragment(), context).transformDown(TopNExec.class, t -> {
+            PhysicalPlan exchangeExec = new ExchangeSourceExec(topN.source(), expectedDataOutput, false /* isIntermediateAgg */);
+            // If the fragment is already sorted, tell the node-reduce TopN that its input will be sorted already
+            boolean fragmentIsSorted = updatedFragment.child() instanceof TopN;
+            return fragmentIsSorted ? t.replaceChild(exchangeExec).withSortedInput() : t.replaceChild(exchangeExec);
+        });
+        PhysicalPlan sizedReductionPlan = EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan);
+        ExchangeSinkExec reductionPlanWithSize = originalPlan.replaceChild(sizedReductionPlan);
 
-        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan));
+        // The TopN reduction plan should not be further optimized locally on the node reduce driver, since we took great pains to
+        // preplan in advance, including all the necessary field extractions!
+        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan, LocalPhysicalOptimization.DISABLED));
     }
 
-    private static PhysicalPlan toPhysical(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
-        return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(new LocalMapper().map(plan)), context);
+    /**
+     * A stripped-down version of {@link org.elasticsearch.xpack.esql.planner.PlannerUtils#localPlan}, doing just the bare minimum to
+     * translate the logical plan to a physical one. This is needed here since we need to solidify the expected output between the data
+     * drivers and node-reduce one.
+     */
+    private static PhysicalPlan toNonOptimizedPhysicalDataPlan(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
+        var logicalContext = new LocalLogicalOptimizerContext(context.configuration(), context.foldCtx(), context.searchStats());
+        // Replace NULL-typed fields (from UNMAPPED_FIELDS="NULLIFY") with constant nulls in the *data* node using
+        // ReplaceFieldWithConstantOrNull, so that InsertFieldExtraction in the *node-reduce* driver won't try to load them from the index.
+        // TODO: Do this in InsertFieldExtraction (See #146068) in the node-reduce driver instead.
+        LogicalPlan optimized = new ReplaceFieldWithConstantOrNull().apply(plan, logicalContext);
+        return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized)), context);
     }
 
     private LateMaterializationPlanner() { /* static class */ }
 
-    // A hack to avoid the ReplaceFieldWithConstantOrNull optimization, since we don't have search stats during the reduce planning phase.
-    // This sidesteps the issue by just assuming all fields exist and have no other meaningful stats. The local data optimizer will use the
-    // real statistics.
+    // We don't have real search stats during the reduce planning phase, so we assume all fields exist and have no other meaningful stats.
+    // The local data optimizer will use the real statistics.
     private static final SearchStats SEARCH_STATS_TOP_N_REPLACEMENT = new SearchStats.UnsupportedSearchStats() {
         @Override
         public boolean exists(FieldAttribute.FieldName field) {

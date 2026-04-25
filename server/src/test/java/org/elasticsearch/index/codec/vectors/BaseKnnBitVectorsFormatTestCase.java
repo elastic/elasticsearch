@@ -34,7 +34,7 @@ import java.io.IOException;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-abstract class BaseKnnBitVectorsFormatTestCase extends BaseIndexFileFormatTestCase {
+public abstract class BaseKnnBitVectorsFormatTestCase extends BaseIndexFileFormatTestCase {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
@@ -51,7 +51,7 @@ abstract class BaseKnnBitVectorsFormatTestCase extends BaseIndexFileFormatTestCa
         return VectorSimilarityFunction.values()[random().nextInt(VectorSimilarityFunction.values().length)];
     }
 
-    byte[] randomVector(int dims) {
+    protected byte[] randomVector(int dims) {
         byte[] vector = new byte[dims];
         random().nextBytes(vector);
         return vector;

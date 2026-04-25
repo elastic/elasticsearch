@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapperTests;
 import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.SyntheticSourceMalformedValueSorter;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
@@ -55,6 +57,12 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
+    protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
+        ScaledFloatFieldMapper mapper = (ScaledFloatFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        return mapper.docValuesParameters();
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         return 123;
     }
@@ -74,7 +82,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
     }
 
     @Override
@@ -410,10 +419,14 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             List<Object> in = values.stream().map(Value::input).toList();
 
             List<Double> outputFromDocValues = values.stream().filter(v -> v.malformedOutput == null).map(Value::output).sorted().toList();
-            Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+            List<Object> malformedOutput = values.stream()
+                .filter(v -> v.malformedOutput != null)
+                .map(Value::malformedOutput)
+                .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                .toList();
 
-            // Malformed values are always last in the implementation.
-            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
+            // Malformed values are always last in the implementation (sorted by encoded BytesRef).
+            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
 
             return new SyntheticSourceExample(in, out, this::mapping);
@@ -648,5 +661,13 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     private static double randomValue() {
         return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            // TODO doubles currently disable pruning, can we re-enable?
+            new SortShortcutSupport(this::minimalMapping, this::writeField, false)
+        );
     }
 }

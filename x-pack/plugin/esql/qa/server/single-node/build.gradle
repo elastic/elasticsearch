@@ -1,3 +1,6 @@
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'java'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 // Necessary to use tests in Serverless
@@ -16,26 +19,20 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
 
-  javaRestTestImplementation('org.apache.arrow:arrow-vector:18.3.0')
-  javaRestTestImplementation('org.apache.arrow:arrow-format:18.3.0')
-  javaRestTestImplementation('org.apache.arrow:arrow-memory-core:18.3.0')
-  javaRestTestImplementation('org.checkerframework:checker-qual:3.42.0')
-  javaRestTestImplementation('com.google.flatbuffers:flatbuffers-java:23.5.26')
-  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
-  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
-  javaRestTestImplementation("org.slf4j:slf4j-api:${versions.slf4j}")
-  javaRestTestImplementation("org.slf4j:slf4j-nop:${versions.slf4j}")
-  javaRestTestImplementation('org.apache.arrow:arrow-memory-unsafe:18.3.0')
+  javaRestTestImplementation project(':libs:arrow')
 
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+  clusterPlugins project(xpackModule('esql-datasource-csv'))
+  clusterPlugins project(xpackModule('esql-datasource-ndjson'))
+  clusterPlugins project(xpackModule('esql-datasource-http'))
+  clusterPlugins project(xpackModule('esql-datasource-s3'))
 }
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities', 'index'
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities', 'index', 'search'
   }
   restTests {
     includeXpack 'esql'
@@ -48,7 +45,30 @@ tasks.named('javaRestTest') {
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
+// Second rest-test variant: runs EsqlSpecIT against a cluster with xpack security enabled and
+// the REST client authenticated as a superuser. The cluster reads the tests.cluster.security.enabled
+// system property (see Clusters.java); ESRestTestCase.restClientSettings() reads the two auth
+// system properties. No test classes are modified.
+tasks.register('javaRestTestSecure', StandaloneRestIntegTestTask) {
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    // We can expand this task to support more test classes by removing this filter
+    includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT'
+  }
+  systemProperty 'tests.cluster.security.enabled', 'true'
+  systemProperty 'tests.rest.cluster.username', 'test-admin'
+  systemProperty 'tests.rest.cluster.password', 'x-pack-test-password'
+}
+
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
 }
+
+// Uncomment this to start automatically running this as part of CI
+// Otherwise run explicitly with: ./gradlew ":x-pack:plugin:esql:qa:server:single-node:javaRestTestSecure"
+// tasks.named('check').configure { dependsOn 'javaRestTestSecure' }

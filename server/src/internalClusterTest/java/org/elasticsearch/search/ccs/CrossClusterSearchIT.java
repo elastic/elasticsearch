@@ -18,10 +18,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -31,20 +27,16 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.SlowRunningQueryBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -53,30 +45,11 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
-
-    private static final String REMOTE_CLUSTER = "cluster_a";
-    private static long EARLIEST_TIMESTAMP = 1691348810000L;
-    private static long LATEST_TIMESTAMP = 1691348820000L;
-
-    @Override
-    protected List<String> remoteClusterAlias() {
-        return List.of(REMOTE_CLUSTER);
-    }
-
-    @Override
-    protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        return Map.of(REMOTE_CLUSTER, randomBoolean());
-    }
-
-    @Override
-    protected boolean reuseClusters() {
-        return false;
-    }
+public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), CrossClusterSearchIT.TestQueryBuilderPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), TestQueryBuilderPlugin.class);
     }
 
     public static class TestQueryBuilderPlugin extends Plugin implements SearchPlugin {
@@ -436,7 +409,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 assertNull(remoteClusterSearchInfo.getTook());
                 assertFalse(remoteClusterSearchInfo.isTimedOut());
                 ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-                assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+                assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
             });
         }
     }
@@ -654,7 +627,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 assertNull(remoteClusterSearchInfo.getTook());
                 assertFalse(remoteClusterSearchInfo.isTimedOut());
                 ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-                assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+                assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
             });
         }
     }
@@ -824,76 +797,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertThat(cluster.getFailures().size(), equalTo(1));
         assertThat(cluster.getTook().millis(), greaterThan(0L));
         ShardSearchFailure remoteShardSearchFailure = cluster.getFailures().get(0);
-        assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
     }
 
-    private Map<String, Object> setupTwoClusters(String[] localIndices, String[] remoteIndices) {
-        int numShardsLocal = randomIntBetween(2, 10);
-        Settings localSettings = indexSettings(numShardsLocal, randomIntBetween(0, 1)).build();
-        for (String localIndex : localIndices) {
-            assertAcked(
-                client(LOCAL_CLUSTER).admin()
-                    .indices()
-                    .prepareCreate(localIndex)
-                    .setSettings(localSettings)
-                    .setMapping("@timestamp", "type=date", "f", "type=text")
-            );
-            indexDocs(client(LOCAL_CLUSTER), localIndex);
-        }
-
-        int numShardsRemote = randomIntBetween(2, 10);
-        final InternalTestCluster remoteCluster = cluster(REMOTE_CLUSTER);
-        remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
-        for (String remoteIndex : remoteIndices) {
-            assertAcked(
-                client(REMOTE_CLUSTER).admin()
-                    .indices()
-                    .prepareCreate(remoteIndex)
-                    .setSettings(indexSettings(numShardsRemote, randomIntBetween(0, 1)))
-                    .setMapping("@timestamp", "type=date", "f", "type=text")
-            );
-            assertFalse(
-                client(REMOTE_CLUSTER).admin()
-                    .cluster()
-                    .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex)
-                    .setWaitForYellowStatus()
-                    .setTimeout(TimeValue.timeValueSeconds(10))
-                    .get()
-                    .isTimedOut()
-            );
-            indexDocs(client(REMOTE_CLUSTER), remoteIndex);
-        }
-
-        String skipUnavailableKey = Strings.format("cluster.remote.%s.skip_unavailable", REMOTE_CLUSTER);
-        Setting<?> skipUnavailableSetting = cluster(REMOTE_CLUSTER).clusterService().getClusterSettings().get(skipUnavailableKey);
-        boolean skipUnavailable = (boolean) cluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).clusterService()
-            .getClusterSettings()
-            .get(skipUnavailableSetting);
-
-        Map<String, Object> clusterInfo = new HashMap<>();
-        clusterInfo.put("local.num_shards", numShardsLocal);
-        clusterInfo.put("remote.num_shards", numShardsRemote);
-        clusterInfo.put("remote.skip_unavailable", skipUnavailable);
-        return clusterInfo;
-    }
-
-    private Map<String, Object> setupTwoClusters() {
-        var clusterInfo = setupTwoClusters(new String[] { "demo" }, new String[] { "prod" });
-        clusterInfo.put("local.index", "demo");
-        clusterInfo.put("remote.index", "prod");
-        return clusterInfo;
-    }
-
-    private int indexDocs(Client client, String index) {
-        int numDocs = between(500, 1200);
-        for (int i = 0; i < numDocs; i++) {
-            long ts = EARLIEST_TIMESTAMP + i;
-            if (i == numDocs - 1) {
-                ts = LATEST_TIMESTAMP;
-            }
-            client.prepareIndex(index).setSource("f", "v", "@timestamp", ts).get();
-        }
-        client.admin().indices().prepareRefresh(index).get();
-        return numDocs;
-    }
 }

@@ -1,5 +1,0 @@
-pr: 131940
-summary: Allow remote enrich after LOOKUP JOIN
-area: ES|QL
-type: enhancement
-issues: []

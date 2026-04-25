@@ -18,6 +18,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -29,9 +30,12 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Arrays;
@@ -42,7 +46,8 @@ public class ReindexValidator {
     static final String SORT_DEPRECATED_MESSAGE = "The sort option in reindex is deprecated. "
         + "Instead consider using query filtering to find the desired subset of data.";
 
-    private final CharacterRunAutomaton remoteWhitelist;
+    private final CharacterRunAutomaton allowedRemotes;
+    private final boolean remoteBlocklistSettingInUse;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexResolver;
     private final ProjectResolver projectResolver;
@@ -55,7 +60,10 @@ public class ReindexValidator {
         ProjectResolver projectResolver,
         AutoCreateIndex autoCreateIndex
     ) {
-        this.remoteWhitelist = buildRemoteWhitelist(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings));
+        List<String> remoteWhitelist = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings);
+        List<String> remoteBlocklist = TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST.get(settings);
+        this.allowedRemotes = buildAllowedRemotes(remoteWhitelist, remoteBlocklist);
+        this.remoteBlocklistSettingInUse = !TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST.get(settings).isEmpty();
         this.clusterService = clusterService;
         this.indexResolver = indexResolver;
         this.projectResolver = projectResolver;
@@ -63,43 +71,81 @@ public class ReindexValidator {
     }
 
     public void initialValidation(ReindexRequest request) {
-        checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
+        checkAllowedRemote(allowedRemotes, remoteBlocklistSettingInUse, request.getRemoteInfo());
         ClusterState state = clusterService.state();
+        SearchRequest source = request.getSearchRequest();
+
+        if (source.indicesOptions().resolveCrossProjectIndexExpression() == false
+            && request.getRemoteInfo() == null
+            && source.getProjectRouting() != null) {
+            ActionRequestValidationException e = new ActionRequestValidationException();
+            e.addValidationError(
+                "reindex doesn't support project routing [" + source.getProjectRouting() + "] when cross-project search is disabled"
+            );
+            throw e;
+        }
         validateAgainstAliases(
-            request.getSearchRequest(),
+            source,
             request.getDestination(),
             request.getRemoteInfo(),
             indexResolver,
             autoCreateIndex,
             projectResolver.getProjectMetadata(state)
         );
-        SearchSourceBuilder searchSource = request.getSearchRequest().source();
+        SearchSourceBuilder searchSource = source.source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
             deprecationLogger.warn(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);
         }
     }
 
-    static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {
+    /**
+     * Applies reindex-specific defaults to the request before task initialization. When manual slicing is used without a
+     * {@link SliceBuilder#getField() field}, defaults the slice to {@link IdFieldMapper#NAME} for consistent behavior with PIT
+     * (see paginate-search-results documentation).
+     */
+    public void normalize(ReindexRequest request) {
+        SearchSourceBuilder source = request.getSearchRequest().source();
+        assert source != null : "The search request source field was null";
+        SliceBuilder sliceBuilder = source.slice();
+        // When manual slicing is used without a field, default to _id for consistent behavior with PIT (see paginate-search-results docs)
+        if (sliceBuilder != null && sliceBuilder.getField() == null) {
+            source.slice(new SliceBuilder(IdFieldMapper.NAME, sliceBuilder.getId(), sliceBuilder.getMax()));
+        }
+    }
+
+    static void checkAllowedRemote(CharacterRunAutomaton allowedRemotes, boolean remoteBlocklistSettingInUse, RemoteInfo remoteInfo) {
         if (remoteInfo == null) {
             return;
         }
         String check = remoteInfo.getHost() + ':' + remoteInfo.getPort();
-        if (whitelist.run(check)) {
+        if (allowedRemotes.run(check)) {
             return;
         }
-        String whiteListKey = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey();
-        throw new IllegalArgumentException('[' + check + "] not whitelisted in " + whiteListKey);
+        throw new IllegalArgumentException(
+            remoteBlocklistSettingInUse
+                ? Strings.format(
+                    "[%s] either not whitelisted in %s or blocked in %s",
+                    check,
+                    TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(),
+                    TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST.getKey()
+                )
+                : Strings.format("[%s] not whitelisted in %s", check, TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey())
+        );
     }
 
     /**
-     * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote whitelist and make sure that it doesn't whitelist
-     * the world.
+     * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote whitelist and blocklist and make sure that it doesn't
+     * whitelist the world.
      */
-    static CharacterRunAutomaton buildRemoteWhitelist(List<String> whitelist) {
+    static CharacterRunAutomaton buildAllowedRemotes(List<String> whitelist, List<String> blocklist) {
         if (whitelist.isEmpty()) {
             return new CharacterRunAutomaton(Automata.makeEmpty());
         }
-        Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(Strings.EMPTY_ARRAY));
+        Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(String[]::new));
+        if (!blocklist.isEmpty()) {
+            Automaton toBlock = Regex.simpleMatchToAutomaton(blocklist.toArray(String[]::new));
+            automaton = Operations.minus(automaton, toBlock, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        }
         automaton = Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         return new CharacterRunAutomaton(automaton);
     }
@@ -151,10 +197,15 @@ public class ReindexValidator {
     }
 
     private static SearchRequest skipRemoteIndexNames(SearchRequest source) {
+        IndicesOptions indicesOptions = source.indicesOptions();
+        if (indicesOptions.resolveCrossProjectIndexExpression()) {
+            indicesOptions = CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions);
+        }
         // An index expression that references a remote cluster uses ":" to separate the cluster-alias from the index portion of the
         // expression, e.g., cluster0:index-name
-        return new SearchRequest(source).indices(
-            Arrays.stream(source.indices()).filter(name -> RemoteClusterAware.isRemoteIndexName(name) == false).toArray(String[]::new)
-        );
+        return new SearchRequest(source).indicesOptions(indicesOptions)
+            .indices(
+                Arrays.stream(source.indices()).filter(name -> RemoteClusterAware.isRemoteIndexName(name) == false).toArray(String[]::new)
+            );
     }
 }

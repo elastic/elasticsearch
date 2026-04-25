@@ -1,0 +1,2 @@
+FROM employees
+| LIMIT 3 BY 1, "constant", false

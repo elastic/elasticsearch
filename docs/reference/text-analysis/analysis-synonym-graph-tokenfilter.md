@@ -9,7 +9,7 @@ mapped_pages:
 
 The `synonym_graph` token filter allows to easily handle [synonyms](docs-content://solutions/search/full-text/search-with-synonyms.md), including multi-word synonyms correctly during the analysis process.
 
-In order to properly handle multi-word synonyms this token filter creates a [graph token stream](docs-content://manage-data/data-store/text-analysis/token-graphs.md) during processing. For more information on this topic and its various complexities, please read the [Lucene’s TokenStreams are actually graphs](http://blog.mikemccandless.com/2012/04/lucenes-tokenstreams-are-actually.md) blog post.
+In order to properly handle multi-word synonyms this token filter creates a [graph token stream](docs-content://manage-data/data-store/text-analysis/token-graphs.md) during processing. For more information, refer to [Synonym token filter](/reference/text-analysis/analysis-synonym-tokenfilter.md).
 
 ::::{note}
 :name: synonym-graph-index-note
@@ -233,3 +233,19 @@ For example, a synonym rule like `foo, bar => baz` and a stop filter that remove
 
 If the stop filter removed `foo` instead, then searching for `foo` would get expanded to `baz`, which is not removed by the stop filter thus potentially providing matches for `baz`.
 
+
+## Memory circuit breaker [synonym-graph-tokenizer-circuit-breaker]
+
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+When building the synonyms map, {{es}} checks available heap memory using a circuit breaker to prevent synonym graph token filters from causing out-of-memory errors when processing large numbers of synonym rules. By default, the circuit breaker trips when more than 95% of heap memory is in use.
+
+The threshold is configurable using the [`indices.breaker.total.limit` parent circuit breaker setting](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#parent-circuit-breaker). {applies_to}`serverless: unavailable`
+
+When the circuit breaker trips, the behavior is determined by the `lenient` parameter:
+
+* If `lenient` is `true`, an empty synonyms map is used and the event is logged in the {{es}} logs.
+* If `lenient` is `false`, the affected index enters a red state.

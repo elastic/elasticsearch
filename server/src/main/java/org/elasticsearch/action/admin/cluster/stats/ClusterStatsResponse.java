@@ -55,15 +55,16 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         AnalysisStats analysisStats,
         VersionStats versionStats,
         ClusterSnapshotStats clusterSnapshotStats,
-        Map<String, RemoteClusterStats> remoteClustersStats
+        Map<String, RemoteClusterStats> remoteClustersStats,
+        boolean skipMRT
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
-        ccsMetrics = new CCSTelemetrySnapshot();
-        esqlMetrics = new CCSTelemetrySnapshot().setUseMRT(false);
+        ccsMetrics = new CCSTelemetrySnapshot(skipMRT == false);
+        esqlMetrics = new CCSTelemetrySnapshot(false);
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status

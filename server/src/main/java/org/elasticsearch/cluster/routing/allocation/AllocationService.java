@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -55,7 +57,9 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -89,6 +93,7 @@ public class AllocationService {
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
+    private final ShardChangesObserver shardChangesObserver;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     @SuppressWarnings("this-escape")
@@ -100,7 +105,7 @@ public class AllocationService {
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy);
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy, MeterRegistry.NOOP);
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -109,13 +114,15 @@ public class AllocationService {
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
-        ShardRoutingRoleStrategy shardRoutingRoleStrategy
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy,
+        MeterRegistry meterRegistry
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
+        this.shardChangesObserver = new ShardChangesObserver(meterRegistry);
     }
 
     /**
@@ -125,13 +132,6 @@ public class AllocationService {
         assert this.existingShardsAllocators == null : "cannot set allocators " + existingShardsAllocators + " twice";
         assert existingShardsAllocators.isEmpty() == false : "must add at least one ExistingShardsAllocator";
         this.existingShardsAllocators = Collections.unmodifiableMap(existingShardsAllocators);
-    }
-
-    /**
-     * @return The allocation deciders that the allocation service has been configured with.
-     */
-    public AllocationDeciders getAllocationDeciders() {
-        return allocationDeciders;
     }
 
     public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
@@ -153,7 +153,7 @@ public class AllocationService {
         if (startedShards.isEmpty()) {
             return clusterState;
         }
-        RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
+        RoutingAllocation allocation = createMutableRoutingAllocation(clusterState, currentNanoTime());
         // as starting a primary relocation target can reinitialize replica shards, start replicas first
         startedShards = new ArrayList<>(startedShards);
         startedShards.sort(Comparator.comparing(ShardRouting::primary));
@@ -213,7 +213,7 @@ public class AllocationService {
         ClusterState tmpState = IndexMetadataUpdater.removeStaleIdsWithoutRoutings(clusterState, staleShards, logger);
 
         long currentNanoTime = currentNanoTime();
-        RoutingAllocation allocation = createRoutingAllocation(tmpState, currentNanoTime);
+        RoutingAllocation allocation = createMutableRoutingAllocation(tmpState, currentNanoTime);
 
         for (FailedShard failedShardEntry : failedShards) {
             ShardRouting shardToFail = failedShardEntry.routingEntry();
@@ -287,7 +287,7 @@ public class AllocationService {
      * Unassign any shards that are associated with nodes that are no longer part of the cluster, potentially promoting replicas if needed.
      */
     public ClusterState disassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
-        RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
+        RoutingAllocation allocation = createMutableRoutingAllocation(clusterState, currentNanoTime());
 
         // first, clear from the shards any node id they used to belong to that is now dead
         disassociateDeadNodes(allocation);
@@ -308,7 +308,7 @@ public class AllocationService {
      */
     public ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {
         final LazyInitializable<RoutingAllocation, RuntimeException> lazyAllocation = new LazyInitializable<>(
-            () -> new RoutingAllocation(
+            () -> new ImmutableRoutingAllocation(
                 allocationDeciders,
                 clusterState,
                 clusterInfoService.getClusterInfo(),
@@ -425,7 +425,7 @@ public class AllocationService {
         boolean dryRun,
         ActionListener<Void> reroute
     ) {
-        RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
+        RoutingAllocation allocation = createMutableRoutingAllocation(clusterState, currentNanoTime());
         var explanations = shardsAllocator.execute(allocation, commands, explain, retryFailed);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
@@ -465,7 +465,7 @@ public class AllocationService {
      */
     public ClusterState executeWithRoutingAllocation(ClusterState clusterState, String reason, RerouteStrategy rerouteStrategy) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
-        RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
+        RoutingAllocation allocation = createMutableRoutingAllocation(fixedClusterState, currentNanoTime());
         reroute(allocation, rerouteStrategy);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;
@@ -698,7 +698,7 @@ public class AllocationService {
     }
 
     private ClusterState rerouteWithResetFailedCounter(ClusterState clusterState) {
-        RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
+        RoutingAllocation allocation = createMutableRoutingAllocation(clusterState, currentNanoTime());
         allocation.routingNodes().resetFailedCounter(allocation);
         reroute(allocation, routingAllocation -> shardsAllocator.allocate(routingAllocation, ActionListener.noop()));
         return buildResultAndLogHealthChange(clusterState, allocation, "reroute with reset failed counter");
@@ -761,14 +761,49 @@ public class AllocationService {
         }
     }
 
-    private RoutingAllocation createRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
-        return new RoutingAllocation(
+    /**
+     * Create a query context useful for making multiple allocation queries for a particular cluster state
+     *
+     * @param clusterState The cluster state to use as the basis for the queries
+     * @param clusterInfo The cluster info to use as the basis for the queries
+     * @param snapshotShardSizeInfo The snapshot shard size info to use as the basis for the queries
+     * @return An {@link AllocationQueryContext}
+     */
+    public AllocationQueryContext createAllocationQueryContext(
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo snapshotShardSizeInfo
+    ) {
+        final RoutingAllocation allocation = new ImmutableRoutingAllocation(
+            allocationDeciders,
+            clusterState,
+            clusterInfo,
+            snapshotShardSizeInfo,
+            System.nanoTime()
+        );
+        return new AllocationQueryContext(allocation, allocationDeciders);
+    }
+
+    private RoutingAllocation createImmutableRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
+        return new ImmutableRoutingAllocation(
+            allocationDeciders,
+            clusterState,
+            clusterInfoService.getClusterInfo(),
+            snapshotsInfoService.snapshotShardSizes(),
+            currentNanoTime
+        );
+    }
+
+    private RoutingAllocation createMutableRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
+        return new MutableRoutingAllocation(
             allocationDeciders,
             clusterState.mutableRoutingNodes(),
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime
+            currentNanoTime,
+            false,
+            shardChangesObserver
         );
     }
 
@@ -787,6 +822,16 @@ public class AllocationService {
         return existingShardsAllocators.values().stream().mapToInt(ExistingShardsAllocator::getNumberOfInFlightFetches).sum();
     }
 
+    public ShardAllocationDecision explainShardAllocation(
+        ShardRouting shardRouting,
+        ClusterState clusterState,
+        RoutingAllocation.DebugMode debugMode
+    ) {
+        RoutingAllocation immutableRoutingAllocation = createImmutableRoutingAllocation(clusterState, System.nanoTime());
+        immutableRoutingAllocation.setDebugMode(debugMode);
+        return explainShardAllocation(shardRouting, immutableRoutingAllocation);
+    }
+
     public ShardAllocationDecision explainShardAllocation(ShardRouting shardRouting, RoutingAllocation allocation) {
         assert allocation.debugDecision();
         AllocateUnassignedDecision allocateDecision = shardRouting.unassigned()
@@ -795,7 +840,26 @@ public class AllocationService {
         if (allocateDecision.isDecisionTaken()) {
             return new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         } else {
-            return shardsAllocator.decideShardAllocation(shardRouting, allocation);
+            return shardsAllocator.explainShardAllocation(shardRouting, allocation);
+        }
+    }
+
+    public Function<ShardRouting, ShardAllocationDecision> explainAssignedShardAllocationFunction(
+        ClusterState clusterState,
+        RoutingAllocation.DebugMode debugMode
+    ) {
+        assert debugMode == RoutingAllocation.DebugMode.ON || debugMode == RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
+        RoutingAllocation allocation = createImmutableRoutingAllocation(clusterState, System.nanoTime());
+        allocation.setDebugMode(debugMode);
+        assert allocation.debugDecision();
+        final Function<ShardRouting, ShardAllocationDecision> explainFunction = shardsAllocator.explainShardAllocationFunction(allocation);
+        if (Assertions.ENABLED) {
+            return shard -> {
+                assert shard.unassigned() == false;
+                return explainFunction.apply(shard);
+            };
+        } else {
+            return explainFunction;
         }
     }
 

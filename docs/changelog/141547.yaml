@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 141547
+summary: Add embedding task support to `ElasticInferenceService`
+type: enhancement

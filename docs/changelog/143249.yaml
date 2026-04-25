@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 143121
+pr: 143249
+summary: Forbid MV_EXPAND before full text functions
+type: bug

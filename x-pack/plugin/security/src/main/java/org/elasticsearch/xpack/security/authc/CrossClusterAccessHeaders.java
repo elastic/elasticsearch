@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
 import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
@@ -17,6 +18,8 @@ import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+
+import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 
@@ -84,8 +87,18 @@ public final class CrossClusterAccessHeaders {
         );
     }
 
-    public ApiKeyService.ApiKeyCredentials credentials() {
-        return parseCredentialsHeader(credentialsHeader);
+    public ApiKeyCredentials credentials() {
+        return parseCredentialsHeader(credentialsHeader, getCertificateIdentity(signature));
+    }
+
+    public static String getCertificateIdentity(X509CertificateSignature signature) {
+        if (signature != null) {
+            if (signature.certificates().length == 0) {
+                throw new IllegalArgumentException("Provided signature does not contain any certificates");
+            }
+            return signature.leafCertificate().getSubjectX500Principal().getName(X500Principal.RFC2253);
+        }
+        return null;
     }
 
     public X509CertificateSignature signature() {
@@ -96,9 +109,15 @@ public final class CrossClusterAccessHeaders {
         return signablePayload;
     }
 
-    static ApiKeyService.ApiKeyCredentials parseCredentialsHeader(final String header) {
+    static ApiKeyCredentials parseCredentialsHeader(String credentialsHeader) {
+        return parseCredentialsHeader(credentialsHeader, null);
+    }
+
+    static ApiKeyCredentials parseCredentialsHeader(final String header, @Nullable String expectedCertificateIdentity) {
         try {
-            return Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(header, ApiKey.Type.CROSS_CLUSTER));
+            return Objects.requireNonNull(
+                ApiKeyService.getCredentialsFromHeader(header, expectedCertificateIdentity, ApiKey.Type.CROSS_CLUSTER)
+            );
         } catch (Exception ex) {
             throw new IllegalArgumentException(
                 "cross cluster access header ["

@@ -10,7 +10,13 @@
           "name" : "field",
           "type" : "counter_double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
         }
       ],
       "variadic" : false,
@@ -22,7 +28,13 @@
           "name" : "field",
           "type" : "counter_integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
         }
       ],
       "variadic" : false,
@@ -34,7 +46,13 @@
           "name" : "field",
           "type" : "counter_long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
         }
       ],
       "variadic" : false,
@@ -44,9 +62,51 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
         }
       ],
       "variadic" : false,
@@ -56,9 +116,33 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "exponential_histogram"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
         }
       ],
       "variadic" : false,
@@ -68,18 +152,96 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
         }
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "tdigest"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
     }
   ],
   "examples" : [
     "TS k8s\n| STATS max_cost=MAX(FIRST_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

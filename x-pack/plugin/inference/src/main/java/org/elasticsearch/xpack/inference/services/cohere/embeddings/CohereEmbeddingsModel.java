@@ -41,11 +41,11 @@ public class CohereEmbeddingsModel extends CohereModel {
             CohereEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             CohereEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
-    // should only be used for testing
+    // should be used directly only for testing
     CohereEmbeddingsModel(
         String modelId,
         CohereEmbeddingsServiceSettings serviceSettings,
@@ -53,11 +53,18 @@ public class CohereEmbeddingsModel extends CohereModel {
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
-        super(
+        this(
             new ModelConfigurations(modelId, TaskType.TEXT_EMBEDDING, CohereService.NAME, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings.getCommonSettings()
+            new ModelSecrets(secretSettings)
+        );
+    }
+
+    public CohereEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            ((CohereEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
         );
     }
 

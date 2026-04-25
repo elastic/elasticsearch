@@ -12,8 +12,10 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.ValidatingSubstitutor;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -29,8 +31,8 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.REQUEST;
-import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.URL;
 
 public class CustomRequest implements Request {
 
@@ -91,13 +93,13 @@ public class CustomRequest implements Request {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpRequest = new HttpPost(uri);
 
         setHeaders(httpRequest);
         setRequestContent(httpRequest);
 
-        return new HttpRequest(httpRequest, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpRequest, getInferenceEntityId()));
     }
 
     private void setHeaders(HttpRequestBase httpRequest) {
@@ -141,5 +143,10 @@ public class CustomRequest implements Request {
     @Override
     public boolean[] getTruncationInfo() {
         return null;
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

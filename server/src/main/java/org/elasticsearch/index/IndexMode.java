@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -128,11 +127,6 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.STORED;
         }
-
-        @Override
-        public boolean useDefaultPostingsFormat() {
-            return true;
-        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -147,6 +141,17 @@ public enum IndexMode {
                 if (false == Objects.equals(unsupported.getDefault(settingsWithIndexMode), settings.get(unsupported))) {
                     throw new IllegalArgumentException(error(unsupported));
                 }
+            }
+            if (Boolean.TRUE.equals(settings.get(IndexSettings.SLICE_ENABLED))) {
+                throw new IllegalArgumentException(
+                    "The setting ["
+                        + IndexSettings.SLICE_ENABLED.getKey()
+                        + "] cannot be used with ["
+                        + IndexSettings.MODE.getKey()
+                        + "="
+                        + IndexMode.TIME_SERIES.getName()
+                        + "]."
+                );
             }
             Setting<List<String>> routingPath = IndexMetadata.INDEX_ROUTING_PATH;
             if (isEmpty(settings, routingPath) && isEmpty(settings, IndexMetadata.INDEX_DIMENSIONS)) {
@@ -246,6 +251,16 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.SYNTHETIC;
         }
+
+        @Override
+        public boolean useTimeSeriesDocValuesCodec() {
+            return true;
+        }
+
+        @Override
+        public boolean useEs812PostingsFormat() {
+            return true;
+        }
     },
     LOGSDB("logsdb") {
         @Override
@@ -330,6 +345,16 @@ public enum IndexMode {
         @Override
         public String getDefaultCodec() {
             return CodecService.BEST_COMPRESSION_CODEC;
+        }
+
+        @Override
+        public boolean useTimeSeriesDocValuesCodec() {
+            return true;
+        }
+
+        @Override
+        public boolean useEs812PostingsFormat() {
+            return true;
         }
     },
     LOOKUP("lookup") {
@@ -468,6 +493,7 @@ public enum IndexMode {
                 IndexMetadata.INDEX_ROUTING_PATH,
                 IndexMetadata.INDEX_DIMENSIONS,
                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
+                IndexSettings.SLICE_ENABLED,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME
             ),
@@ -565,9 +591,17 @@ public enum IndexMode {
     }
 
     /**
-     * Whether the default posting format (for inverted indices) from Lucene should be used.
+     * Whether by default to use the ES 8.12 {@link org.apache.lucene.codecs.PostingsFormat}. This is a historical PostingsFormat we used
+     * for all indices by default. However, starting with Lucene 10.3, we began using a new, more modern format, for standard indices.
      */
-    public boolean useDefaultPostingsFormat() {
+    public boolean useEs812PostingsFormat() {
+        return false;
+    }
+
+    /**
+     * Whether by default to use the time series doc values codec.
+     */
+    public boolean useTimeSeriesDocValuesCodec() {
         return false;
     }
 
@@ -575,7 +609,7 @@ public enum IndexMode {
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {
-        return switch (value) {
+        return switch (value.toLowerCase(Locale.ROOT)) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
             case "logsdb" -> IndexMode.LOGSDB;
@@ -588,6 +622,15 @@ public enum IndexMode {
                     + "]"
             );
         };
+    }
+
+    /**
+     * Retrieves the `index.mode` setting and parses it to {@link IndexMode}. When missing, it defaults to standard.
+     * Note: This should be used only in cases where it is not relevant to validate the index settings.
+     */
+    public static IndexMode fromIndexSettingsWithoutValidation(Settings settings) {
+        String indexModeLabel = settings.get(IndexSettings.MODE.getKey());
+        return indexModeLabel == null ? IndexMode.STANDARD : IndexMode.fromString(indexModeLabel);
     }
 
     public static IndexMode readFrom(StreamInput in) throws IOException {
@@ -606,7 +649,7 @@ public enum IndexMode {
             case STANDARD -> 0;
             case TIME_SERIES -> 1;
             case LOGSDB -> 2;
-            case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0) ? 3 : 0;
+            case LOOKUP -> 3;
         };
         out.writeByte((byte) code);
     }

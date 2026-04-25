@@ -20,8 +20,8 @@
           ],
           "parts": {
             "transform_id": {
-              "type": "string",
-              "description": "The id or comma delimited list of id expressions of the transforms to get, '_all' or '*' implies get all transforms"
+              "type": "list",
+              "description": "Comma-separated list of transform identifiers or wildcard expressions. You can get information for all transforms by using `_all`, by specifying `*` as the `<transform_id>`, or by omitting the `<transform_id>`."
             }
           }
         },

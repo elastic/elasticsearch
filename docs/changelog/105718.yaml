@@ -1,6 +1,0 @@
-pr: 105718
-summary: Add option for Append Processor to skip/allow empty values
-area: Ingest Node
-type: enhancement
-issues:
- - 104813

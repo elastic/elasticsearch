@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Text"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/text.html

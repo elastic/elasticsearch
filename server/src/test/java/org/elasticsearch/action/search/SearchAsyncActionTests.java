@@ -20,6 +20,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
@@ -28,6 +32,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -78,10 +83,12 @@ public class SearchAsyncActionTests extends ESTestCase {
             replicaNode
         );
         int numSkipped = 0;
+        List<SearchShardIterator> filteredShardsIter = new ArrayList<>();
         for (SearchShardIterator iter : shardsIter) {
             if (iter.shardId().id() % 2 == 0) {
-                iter.skip(true);
                 numSkipped++;
+            } else {
+                filteredShardsIter.add(iter);
             }
         }
         CountDownLatch latch = new CountDownLatch(1);
@@ -99,6 +106,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             logger,
             null,
             transportService,
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node);
@@ -108,14 +116,17 @@ public class SearchAsyncActionTests extends ESTestCase {
             null,
             request,
             responseListener,
-            shardsIter,
+            filteredShardsIter,
+            new HashMap<>(Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, numSkipped)),
             new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
             ClusterState.EMPTY_STATE,
             null,
-            new ArraySearchPhaseResults<>(shardsIter.size()),
+            new ArraySearchPhaseResults<>(filteredShardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            mock(SearchResponseMetrics.class)
+            mock(SearchResponseMetrics.class),
+            Map.of(),
+            false
         ) {
 
             @Override
@@ -207,6 +218,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 null,
                 transportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
                     return lookup.get(node);
@@ -217,13 +229,16 @@ public class SearchAsyncActionTests extends ESTestCase {
                 request,
                 ActionTestUtils.assertNoFailureListener(response -> {}),
                 shardsIter,
+                Collections.emptyMap(),
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
                 null,
                 results,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of(),
+                false
             ) {
 
                 @Override
@@ -324,6 +339,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 null,
                 transportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
                     return lookup.get(node);
@@ -334,13 +350,16 @@ public class SearchAsyncActionTests extends ESTestCase {
                 request,
                 responseListener,
                 shardsIter,
+                Collections.emptyMap(),
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
                 null,
                 results,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of(),
+                false
             ) {
 
                 @Override
@@ -455,6 +474,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 null,
                 transportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
                     return lookup.get(node);
@@ -465,13 +485,16 @@ public class SearchAsyncActionTests extends ESTestCase {
                 request,
                 responseListener,
                 shardsIter,
+                Collections.emptyMap(),
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of(),
+                false
             ) {
                 @Override
                 protected void executePhaseOnShard(
@@ -564,6 +587,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 null,
                 transportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
                     return lookup.get(node);
@@ -574,13 +598,16 @@ public class SearchAsyncActionTests extends ESTestCase {
                 request,
                 ActionTestUtils.assertNoFailureListener(response -> {}),
                 shardsIter,
+                Collections.emptyMap(),
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
                 null,
                 results,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of(),
+                false
             ) {
 
                 @Override
@@ -641,20 +668,6 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         final int numUnavailableSkippedShards = randomIntBetween(1, 10);
         List<SearchShardIterator> searchShardIterators = new ArrayList<>(numUnavailableSkippedShards);
-        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
-        for (int i = 0; i < numUnavailableSkippedShards; i++) {
-            Index index = new Index("idx", "_na_");
-            SearchShardIterator searchShardIterator = new SearchShardIterator(
-                null,
-                new ShardId(index, 0),
-                Collections.emptyList(),
-                originalIndices,
-                SplitShardCountSummary.UNSET
-            );
-            // Skip all the shards
-            searchShardIterator.skip(true);
-            searchShardIterators.add(searchShardIterator);
-        }
         Map<String, Transport.Connection> lookup = Map.of(primaryNode.getId(), new MockConnection(primaryNode));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -664,6 +677,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             logger,
             null,
             new SearchTransportService(null, null, null),
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node);
@@ -674,13 +688,16 @@ public class SearchAsyncActionTests extends ESTestCase {
             request,
             responseListener,
             searchShardIterators,
+            Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, numUnavailableSkippedShards),
             new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
             ClusterState.EMPTY_STATE,
             null,
-            new ArraySearchPhaseResults<>(searchShardIterators.size()),
+            new ArraySearchPhaseResults<>(0),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            mock(SearchResponseMetrics.class)
+            mock(SearchResponseMetrics.class),
+            Map.of(),
+            false
         ) {
 
             @Override
@@ -711,7 +728,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertNotNull(searchResponse.get());
         assertThat(searchResponse.get().getSkippedShards(), equalTo(numUnavailableSkippedShards));
         assertThat(searchResponse.get().getFailedShards(), equalTo(0));
-        assertThat(searchResponse.get().getSuccessfulShards(), equalTo(searchShardIterators.size()));
+        assertThat(searchResponse.get().getSuccessfulShards(), equalTo(numUnavailableSkippedShards));
     }
 
     static List<SearchShardIterator> getShardsIter(
@@ -794,6 +811,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 0L,
                 ShardSearchFailure.EMPTY_ARRAY,
                 Clusters.EMPTY,
+                null,
+                null,
                 null
             );
         }
@@ -807,6 +826,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             this.node = node;
         }
 
+        @Override
+        public void writeTo(StreamOutput out) {}
     }
 
     public static final class MockConnection implements Transport.Connection {

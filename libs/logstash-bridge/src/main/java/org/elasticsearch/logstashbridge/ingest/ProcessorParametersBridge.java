@@ -19,6 +19,7 @@ import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
 import org.elasticsearch.logstashbridge.threadpool.ThreadPoolBridge;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.useragent.UserAgentPlugin;
 
 public interface ProcessorParametersBridge extends StableBridgeAPI<Processor.Parameters> {
 
@@ -41,7 +42,8 @@ public interface ProcessorParametersBridge extends StableBridgeAPI<Processor.Par
             null,
             null,
             threadPool.generic()::execute,
-            IngestService.createGrokThreadWatchdog(environment, threadPool)
+            IngestService.createGrokThreadWatchdog(environment, threadPool),
+            UserAgentPlugin.createRegistry(environment, environment.settings())
         );
         return new ProxyInternal(processorParameters);
     }

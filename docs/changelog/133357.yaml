@@ -1,7 +1,0 @@
-pr: 133357
-summary: Switch to Sending a Bad Request User When Function Score Query Generates
-  Negative Scores
-area: Search
-type: bug
-issues: 
- - 133358

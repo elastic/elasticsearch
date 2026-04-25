@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -21,14 +20,18 @@ import java.io.IOException;
  * Block that stores boolean values.
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock, BooleanBigArrayBlock {
+public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock, BooleanBigArrayBlock,
+    org.elasticsearch.compute.data.arrow.BooleanArrowBufBlock {
 
     /**
      * Retrieves the boolean value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
      * @param valueIndex the value index
      * @return the data value (as a boolean)
      */
@@ -63,7 +66,19 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     ToMask toMask();
 
     @Override
-    BooleanBlock filter(int... positions);
+    default BooleanBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (BooleanBlock.Builder builder = blockFactory().newBooleanBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
+    BooleanBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockJsonBuilder;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddings.AmazonBedrockCohereEmbeddingsRequestEntity;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,11 +52,11 @@ public class AmazonBedrockCohereEmbeddingsRequestEntityTests extends ESTestCase 
         assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"search_document\"}"));
     }
 
-    public void testRequestEntity_GeneratesExpectedJsonBody_WithCohereTruncation() throws IOException {
+    public void testRequestEntity_GeneratesExpectedJsonBody_WithTruncation() throws IOException {
         var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(
             List.of("test input"),
             null,
-            new AmazonBedrockEmbeddingsTaskSettings(CohereTruncation.START)
+            new AmazonBedrockEmbeddingsTaskSettings(Truncation.START)
         );
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();

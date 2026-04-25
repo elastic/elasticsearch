@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -69,11 +68,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     public InferenceFieldMetadata(StreamInput input) throws IOException {
         this.name = input.readString();
         this.inferenceId = input.readString();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.searchInferenceId = input.readString();
-        } else {
-            this.searchInferenceId = this.inferenceId;
-        }
+        this.searchInferenceId = input.readString();
         this.sourceFields = input.readStringArray();
         if (input.getTransportVersion().supports(SEMANTIC_TEXT_CHUNKING_CONFIG)) {
             this.chunkingSettings = input.readGenericMap();
@@ -86,9 +81,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(inferenceId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeString(searchInferenceId);
-        }
+        out.writeString(searchInferenceId);
         out.writeStringArray(sourceFields);
         if (out.getTransportVersion().supports(SEMANTIC_TEXT_CHUNKING_CONFIG)) {
             out.writeGenericMap(chunkingSettings);

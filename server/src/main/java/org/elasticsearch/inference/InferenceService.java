@@ -51,32 +51,25 @@ public interface InferenceService extends Closeable {
     void parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, ActionListener<Model> parsedModelListener);
 
     /**
-     * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that
-     * secrets and service settings be in two separate maps.
+     * Parse model from an {@link UnparsedModel} and return the fully parsed {@link Model}.
      * This function modifies {@code config map}, fields are removed from the map as they are read.
+     * <p>
+     * If the map contains unrecognized configuration option an
+     * {@code ElasticsearchStatusException} is thrown.
      *
-     * If the map contains unrecognized configuration options, no error is thrown.
-     *
-     * @param modelId Model Id
-     * @param taskType The model task type
-     * @param config Configuration options
-     * @param secrets Sensitive configuration options (e.g. api key)
-     * @return The parsed {@link Model}
+     * @param unparsedModel the unparsed model
+     * @return the fully parsed model
      */
-    Model parsePersistedConfigWithSecrets(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets);
+    Model parsePersistedConfig(UnparsedModel unparsedModel);
 
     /**
-     * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}.
-     * This function modifies {@code config map}, fields are removed from the map as they are read.
-     *
-     * If the map contains unrecognized configuration options, no error is thrown.
-     *
-     * @param modelId Model Id
-     * @param taskType The model task type
-     * @param config Configuration options
-     * @return The parsed {@link Model}
+     * Create a new model from {@link ModelConfigurations} and {@link ModelSecrets} objects.
+     * This method is used for creating updated model instances.
+     * @param config The model configurations
+     * @param secrets The model secrets
+     * @return The created model
      */
-    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config);
+    Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets);
 
     InferenceServiceConfiguration getConfiguration();
 
@@ -139,6 +132,16 @@ public interface InferenceService extends Closeable {
     );
 
     /**
+     * Perform multimodal embedding inference on the model using the embedding schema.
+     *
+     * @param model The model
+     * @param request Parameters for the request
+     * @param timeout The timeout for the request
+     * @param listener Inference result listener
+     */
+    void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
+
+    /**
      * Chunk long text.
      *
      * @param model            The model
@@ -185,15 +188,6 @@ public interface InferenceService extends Closeable {
      * @return The model with updated embedding details
      */
     default Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
-        return model;
-    }
-
-    /**
-     * Update a chat completion model's max tokens if required. The default behaviour is to just return the model.
-     * @param model The original model without updated embedding details
-     * @return The model with updated chat completion details
-     */
-    default Model updateModelWithChatCompletionDetails(Model model) {
         return model;
     }
 

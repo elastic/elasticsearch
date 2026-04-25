@@ -20,7 +20,7 @@
 
 ARG BASE_REGISTRY=registry1.dso.mil
 ARG BASE_IMAGE=ironbank/redhat/ubi/ubi9
-ARG BASE_TAG=9.6
+ARG BASE_TAG=9.7
 
 ################################################################################
 # Build stage 1 `builder`:
@@ -60,8 +60,8 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     mv config/log4j2.properties config/log4j2.file.properties && \\
     mv config/log4j2.docker.properties config/log4j2.properties && \\
     find . -type d -exec chmod 0555 {} + && \\
-    find . -type f -exec chmod 0444 {} + && \\
-    chmod 0555 bin/* jdk/bin/* jdk/lib/jspawnhelper modules/x-pack-ml/platform/linux-*/bin/* && \\
+    find . -type f -perm /111 -exec chmod 0555 {} + && \\
+    find . -type f ! -perm /111 -exec chmod 0444 {} + && \\
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} +
 

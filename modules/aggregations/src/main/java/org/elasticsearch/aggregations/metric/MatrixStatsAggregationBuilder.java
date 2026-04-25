@@ -9,7 +9,6 @@
 package org.elasticsearch.aggregations.metric;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.MultiValueMode;
@@ -57,16 +56,12 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
      */
     public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            multiValueMode = MultiValueMode.readMultiValueModeFrom(in);
-        }
+        multiValueMode = MultiValueMode.readMultiValueModeFrom(in);
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            multiValueMode.writeTo(out);
-        }
+        multiValueMode.writeTo(out);
     }
 
     public MatrixStatsAggregationBuilder multiValueMode(MultiValueMode multiValueMode) {

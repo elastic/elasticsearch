@@ -53,7 +53,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
 
         // only setup tests to build
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        final SourceSet testSourceSet = sourceSets.create("test");
+        final SourceSet testSourceSet = sourceSets.maybeCreate("test");
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             test.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
@@ -61,7 +61,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
         });
 
         // create a compileOnly configuration as others might expect it
-        project.getConfigurations().create("compileOnly");
+        project.getConfigurations().maybeCreate("compileOnly");
         RestTestUtil.setupJavaRestTestDependenciesDefaults(project, testSourceSet);
 
         EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);

@@ -57,6 +57,7 @@ import java.util.stream.Collectors;
  * Context-aware extension of {@link IndexSearcher}.
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
+    private static final MatchNoDocsQuery REWRITE_TIMEOUT = new MatchNoDocsQuery("rewrite timed out");
 
     /**
      * The interval at which we check for search cancellation when we cannot use
@@ -203,11 +204,22 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (profiler != null) {
             rewriteTimer = profiler.startRewriteTime();
         }
+
+        /**
+         * We override rewrite because this is where the superclass checks the max clause count.
+         * Overriding allows us to customize this limit and take full control by using our own
+         * visitor to ensure the query does not exceed our allowed limits.
+         */
         try {
-            return super.rewrite(original);
+            Query query = original;
+            for (Query rewrittenQuery = query.rewrite(this); rewrittenQuery != query; rewrittenQuery = query.rewrite(this)) {
+                query = rewrittenQuery;
+            }
+            verifyQueryLimit(query);
+            return query;
         } catch (TimeExceededException e) {
             timeExceeded = true;
-            return new MatchNoDocsQuery("rewrite timed out");
+            return REWRITE_TIMEOUT;
         } catch (TooManyClauses e) {
             throw new IllegalArgumentException("Query rewrite failed: too many clauses", e);
         } finally {
@@ -546,7 +558,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (termStatistics == null) {
             return totalTermFreq;
         }
-        return termStatistics.docFreq();
+        return termStatistics.totalTermFreq();
     }
 
     private TermStatistics termStatisticsFromDfs(Term term) {
@@ -592,5 +604,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         public void clear() {
             runnables.clear();
         }
+    }
+
+    /**
+     * Verifies that the given query does not exceed the maximum allowed clause count.
+     * Traverses the query upfront to estimate its total cost and fails fast by throwing
+     * {@link TooManyNestedClauses} if the limit is exceeded.
+     */
+    private static void verifyQueryLimit(Query query) {
+        final int maxClauseCount = getMaxClauseCount();
+        query.visit(new MaxClauseCountQueryVisitor(maxClauseCount));
     }
 }

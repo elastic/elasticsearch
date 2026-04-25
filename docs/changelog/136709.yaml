@@ -1,5 +1,0 @@
-pr: 136709
-summary: Fix log formatting in `SnapshotLifecycleTask`
-area: ILM+SLM
-type: bug
-issues: []

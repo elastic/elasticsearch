@@ -1,5 +1,0 @@
-pr: 133720
-summary: Support querying multiple indices with the simplified linear retriever
-area: Relevance
-type: enhancement
-issues: []

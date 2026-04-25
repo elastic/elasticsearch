@@ -44,6 +44,11 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return NAME;
+        }
+
+        @Override
         public SizeFieldMapper build() {
             return new SizeFieldMapper(enabled.getValue(), new SizeFieldType());
         }
@@ -76,10 +81,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new SizeFieldMapper(Explicit.IMPLICIT_FALSE, new SizeFieldType()),
-        c -> new Builder()
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder());
 
     private final Explicit<Boolean> enabled;
 
@@ -104,7 +106,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
             return;
         }
         final int value = context.sourceToParse().source().length();
-        NumberType.INTEGER.addFields(context.doc(), fullPath(), value, true, true, true);
+        NumberType.INTEGER.addFields(context.doc(), fullPath(), value, IndexType.points(true, true), true);
     }
 
     @Override

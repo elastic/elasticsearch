@@ -50,8 +50,8 @@ public record AmazonBedrockCohereEmbeddingsRequestEntity(
             builder.field(INPUT_TYPE_FIELD, SEARCH_DOCUMENT);
         }
 
-        if (taskSettings.cohereTruncation() != null) {
-            builder.field(TRUNCATE, taskSettings.cohereTruncation().name());
+        if (taskSettings.truncation() != null) {
+            builder.field(TRUNCATE, taskSettings.truncation().name());
         }
 
         builder.endObject();

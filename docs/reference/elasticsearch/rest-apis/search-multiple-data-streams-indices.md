@@ -26,8 +26,8 @@ GET /my-index-000001,my-index-000002/_search
   }
 }
 ```
-%  TEST[setup:my_index]
-%  TEST[s/^/PUT my-index-000002\n/]
+% TEST[setup:my_index]
+% TEST[s/^/PUT my-index-000002\n/]
 
 You can also search multiple data streams and indices using an index pattern.
 

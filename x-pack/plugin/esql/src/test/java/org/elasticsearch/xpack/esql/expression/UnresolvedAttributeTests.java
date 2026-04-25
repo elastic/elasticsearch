@@ -22,8 +22,7 @@ public class UnresolvedAttributeTests extends AbstractNamedExpressionSerializati
         String name = randomAlphaOfLength(5);
         NameId id = randomBoolean() ? null : new NameId();
         String unresolvedMessage = randomUnresolvedMessage();
-        Object resolutionMetadata = new Object();
-        return new UnresolvedAttribute(source, qualifier, name, id, unresolvedMessage, resolutionMetadata);
+        return new UnresolvedAttribute(source, qualifier, name, id, unresolvedMessage);
     }
 
     /**
@@ -46,16 +45,14 @@ public class UnresolvedAttributeTests extends AbstractNamedExpressionSerializati
         String qualifier = instance.qualifier();
         NameId id = instance.id();
         String unresolvedMessage = instance.unresolvedMessage();
-        Object resolutionMetadata = instance.resolutionMetadata();
 
-        switch (between(0, 4)) {
+        switch (between(0, 3)) {
             case 0 -> name = randomValueOtherThan(name, () -> randomBoolean() ? null : randomAlphaOfLength(5));
             case 1 -> qualifier = randomAlphaOfLength(qualifier == null ? 3 : qualifier.length() + 1);
             case 2 -> id = new NameId();
             case 3 -> unresolvedMessage = randomValueOtherThan(unresolvedMessage, UnresolvedAttributeTests::randomUnresolvedMessage);
-            case 4 -> resolutionMetadata = new Object();
         }
-        return new UnresolvedAttribute(source, qualifier, name, id, unresolvedMessage, resolutionMetadata);
+        return new UnresolvedAttribute(source, qualifier, name, id, unresolvedMessage);
     }
 
     @Override
@@ -66,8 +63,7 @@ public class UnresolvedAttributeTests extends AbstractNamedExpressionSerializati
             instance.qualifier(),
             instance.name(),
             instance.id(),
-            instance.unresolvedMessage(),
-            instance.resolutionMetadata()
+            instance.unresolvedMessage()
         );
     }
 
@@ -86,26 +82,20 @@ public class UnresolvedAttributeTests extends AbstractNamedExpressionSerializati
 
         String newName = randomValueOtherThan(a.name(), () -> randomAlphaOfLength(5));
         assertEquals(
-            new UnresolvedAttribute(a.source(), a.qualifier(), newName, a.id(), a.unresolvedMessage(), a.resolutionMetadata()),
+            new UnresolvedAttribute(a.source(), a.qualifier(), newName, a.id(), a.unresolvedMessage()),
             a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.name()) ? newName : v)
         );
 
         NameId newId = new NameId();
         assertEquals(
-            new UnresolvedAttribute(a.source(), a.qualifier(), a.name(), newId, a.unresolvedMessage(), a.resolutionMetadata()),
+            new UnresolvedAttribute(a.source(), a.qualifier(), a.name(), newId, a.unresolvedMessage()),
             a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.id()) ? newId : v)
         );
 
         String newMessage = randomValueOtherThan(a.unresolvedMessage(), UnresolvedAttributeTests::randomUnresolvedMessage);
         assertEquals(
-            new UnresolvedAttribute(a.source(), a.qualifier(), a.name(), a.id(), newMessage, a.resolutionMetadata()),
+            new UnresolvedAttribute(a.source(), a.qualifier(), a.name(), a.id(), newMessage),
             a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.unresolvedMessage()) ? newMessage : v)
-        );
-
-        Object newMeta = new Object();
-        assertEquals(
-            new UnresolvedAttribute(a.source(), a.qualifier(), a.name(), a.id(), a.unresolvedMessage(), newMeta),
-            a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.resolutionMetadata()) ? newMeta : v)
         );
     }
 }

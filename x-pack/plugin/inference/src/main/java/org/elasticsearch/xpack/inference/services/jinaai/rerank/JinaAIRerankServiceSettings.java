@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,14 +26,10 @@ import java.util.Objects;
 public class JinaAIRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, JinaAIRateLimitServiceSettings {
     public static final String NAME = "jinaai_rerank_service_settings";
 
-    private static final Logger logger = LogManager.getLogger(JinaAIRerankServiceSettings.class);
-
     public static JinaAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
 
@@ -90,7 +83,7 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_18_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

@@ -7,7 +7,7 @@ applies_to:
 ---
 # Suggester examples [search-suggesters]
 
-The suggest feature suggests similar looking terms based on a provided text by using a suggester. The suggest request part is defined alongside the query part in a `_search` request. If the query part is left out, only suggestions are returned.
+The [suggest parameter of the search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#operation-search-body-application-json-suggest) suggests similar looking terms based on a provided text by using a suggester. The suggest request part is defined alongside the query part in a `_search` request. If the query part is left out, only suggestions are returned.
 
 ::::{note}
 For the most up-to-date details, refer to [Search APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-search).
@@ -47,18 +47,18 @@ The following suggest response example includes the suggestion response for `my-
   "timed_out": false,
   "suggest": {
     "my-suggest-1": [ {
-      "text": "tring",
+      "text": "trying",
       "offset": 0,
-      "length": 5,
-      "options": [ {"text": "trying", "score": 0.8, "freq": 1 } ]
+      "length": 6,
+      "options": []
     }, {
       "text": "out",
-      "offset": 6,
+      "offset": 7,
       "length": 3,
       "options": []
     }, {
       "text": "elasticsearch",
-      "offset": 10,
+      "offset": 11,
       "length": 13,
       "options": []
     } ],
@@ -82,7 +82,7 @@ To avoid repetition of the suggest text, it is possible to define a global text.
 POST _search
 {
   "suggest": {
-    "text" : "tring out Elasticsearch",
+    "text" : "trying out Elasticsearch",
     "my-suggest-1" : {
       "term" : {
         "field" : "message"
@@ -96,8 +96,6 @@ POST _search
   }
 }
 ```
-% TEST[setup:messages]
-% TEST[s/^/PUT my-index-000001\/_mapping\n{"properties":{"user":{"properties":{"id":{"type":"keyword"}}}}}\n/]
 
 The suggest text can in the above example also be specified as suggestion specific option. The suggest text specified on suggestion level override the suggest text on the global level.
 
@@ -250,6 +248,7 @@ POST test/_search
   }
 }
 ```
+% TEST[continued]
 
 The response contains suggestions scored by the most likely spelling correction first. In this case we received the expected correction "nobel prize".
 
@@ -275,8 +274,9 @@ The response contains suggestions scored by the most likely spelling correction 
   }
 }
 ```
+% TEST[continued]
 % TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
-% TESTRESPONSE[s/"hits": \.\.\.​/"hits": "$body.hits",/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": "$body.hits",/]
 % TESTRESPONSE[s/"took": 3,/"took": "$body.took",/]
 
 $$$_basic_phrase_suggest_api_parameters$$$
@@ -348,6 +348,7 @@ POST test/_search
   }
 }
 ```
+% TEST[continued]
 
 1. This query will be run once for every suggestion.
 2. The `{{suggestion}}` variable will be replaced by the text of each suggestion.
@@ -386,7 +387,7 @@ POST test/_search
   }
 }
 ```
-
+% TEST[continued]
 
 ### Candidate generators [_candidate_generators]
 
@@ -461,6 +462,7 @@ POST test/_search
   }
 }
 ```
+% TEST[continued]
 
 `pre_filter` and `post_filter` can also be used to inject synonyms after candidates are generated. For instance for the query `captain usq` we might generate a candidate `usa` for the term `usq`, which is a synonym for `america`. This allows us to present `captain america` to the user if this phrase scores high enough.
 
@@ -518,7 +520,7 @@ PUT music/_doc/1?refresh
   }
 }
 ```
-% TEST
+% TEST[continued]
 
 The supported parameters include:
 
@@ -621,7 +623,7 @@ It returns this response:
   }
 }
 ```
-% TESTRESPONSE[s/"hits": \.\.\.​/"hits": "$body.hits",/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": "$body.hits",/]
 % TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
 
 ::::{important} 
@@ -730,6 +732,7 @@ POST music/_search?pretty
   }
 }
 ```
+% TEST[continued]
 
 ::::{warning} 
 When set to true, this option can slow down search because more suggestions need to be visited to find the top N.
@@ -755,6 +758,7 @@ POST music/_search?pretty
   }
 }
 ```
+% TEST[continued]
 
 Suggestions that share the longest prefix to the query `prefix` will be scored higher.
 
@@ -796,6 +800,7 @@ POST music/_search?pretty
   }
 }
 ```
+% TEST[continued]
 
 The regex query can take specific regex parameters. For example:
 
@@ -896,6 +901,7 @@ PUT place/_doc/1
   }
 }
 ```
+% TEST[continued]
 
 1. These suggestions will be associated with *cafe* and *food* category.
 
@@ -908,6 +914,7 @@ PUT place_path_category/_doc/1
   "cat": ["cafe", "food"] <1>
 }
 ```
+% TEST[continued]
 
 1. These suggestions will be associated with *cafe* and *food* category.
 
@@ -1025,6 +1032,7 @@ PUT place/_doc/1
   }
 }
 ```
+% TEST[continued]
 
 #### Geo location query [_geo_location_query] 
 
@@ -1141,7 +1149,7 @@ POST _search?typed_keys
   }
 }
 ```
-% TEST[continued]
+% TEST[setup:messages]
 
 In the response, the suggester names will be changed to respectively `term#my-first-suggester` and `phrase#my-second-suggester`, reflecting the types of each suggestion:
 

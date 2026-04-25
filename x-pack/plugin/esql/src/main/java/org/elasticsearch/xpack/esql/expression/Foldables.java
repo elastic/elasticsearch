@@ -158,7 +158,9 @@ public abstract class Foldables {
         } else {
             // it is expected that the expression is a literal after folding
             // we fail if it is not a literal
-            validator.invalidIfPostValidation(fail(queryField, "Query must be a valid string in [{}], found [{}]", sourceText, queryField));
+            validator.invalidIfPostValidation(
+                fail(queryField, "Query must be a constant string in [{}], found [{}]", sourceText, queryField)
+            );
         }
         return validator.getResolvedType();
     }
@@ -195,7 +197,7 @@ public abstract class Foldables {
             return n.doubleValue();
         }
         throw new EsqlIllegalArgumentException(
-            Strings.format(null, "[{}] value must be a constant number in [{}], found [{}]", fieldName, sourceText, field)
+            Strings.format("[%s] value must be a constant number in [%s], found [%s]", fieldName, sourceText, field)
         );
     }
 }

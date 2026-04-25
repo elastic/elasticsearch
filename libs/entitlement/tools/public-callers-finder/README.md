@@ -1,4 +1,4 @@
-This tool scans the JDK on which it is running. It takes a list of methods (compatible with the output of the `securitymanager-scanner` and `jdk-api-extractor` tools),
+This tool scans the JDK on which it is running. It takes a list of methods (compatible with the output of the `jdk-api-extractor` tool),
 and looks for the "public surface" of these methods (i.e. any class/method accessible from regular Java code that calls into the original list, directly or transitively).
 
 It acts basically as a recursive "Find Usages" in Intellij, stopping at the first fully accessible point (public method on a public class).
@@ -15,7 +15,7 @@ it treats calls to `super` in `S.m` as regular calls (e.g. `example() -> S.m() -
 
 In order to run the tool, use:
 ```shell
-./gradlew :libs:entitlement:tools:public-callers-finder:run [-Druntime.java=25] --args="<input-file> [--transitive] [--check-instrumentation]"
+./gradlew :libs:entitlement:tools:public-callers-finder:run [-Druntime.java=25] --args="<input-file> [--transitive] [--check-instrumentation] [--include-incubator]"
 ```
 
 - `input-file` is a `TAB`-separated TSV file containing the following columns:
@@ -31,11 +31,13 @@ In order to run the tool, use:
 
 - optional: `--check-instrumentation` to check if methods are instrumented for entitlements.
 
+- optional: `--include-incubator` to include incubator modules (e.g. `jdk.incubator.vector`).
+
 If `-Druntime.java` is not provided, the bundled JDK is used.
 
 Examples:
 ```bash
-./gradlew :libs:entitlement:tools:public-callers-finder:run --args="sensitive-methods.tsv true" --transitive --check-instrumentation"
+./gradlew :libs:entitlement:tools:public-callers-finder:run --args="sensitive-methods.tsv --transitive --check-instrumentation"
 ```
 
 The tool writes the following `TAB`-separated columns to standard out:

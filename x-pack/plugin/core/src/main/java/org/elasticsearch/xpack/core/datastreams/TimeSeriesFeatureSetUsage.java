@@ -50,6 +50,11 @@ import java.util.Objects;
  *            "max": 3,
  *            "average": 2
  *          },
+ *          "sampling_method": {
+ *             "aggregate": 1,
+ *             "last_value": 1,
+ *             "undefined": 0
+ *          },
  *          "phases_in_use": {
  *             "hot": 10,
  *             "warm": 5,
@@ -63,15 +68,21 @@ import java.util.Objects;
  *            "min": 1,
  *            "max": 3,
  *            "average": 2
+ *         },
+ *         "sampling_method": {
+ *            "aggregate": 2,
+ *            "last_value": 1,
+ *            "undefined": 0
  *         }
- *        }
- *      }
+ *       }
+ *     }
  *   }
  * }
  */
 public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
 
     private static final TransportVersion TIME_SERIES_TELEMETRY = TransportVersion.fromName("time_series_telemetry");
+    private static final TransportVersion ADD_DOWNSAMPLING_METHOD_TELEMETRY = TransportVersion.fromName("add_downsample_method_telemetry");
 
     private final long timeSeriesDataStreamCount;
     private final long timeSeriesIndexCount;
@@ -241,19 +252,34 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
         }
     }
 
-    public record DownsamplingFeatureStats(long dataStreamsCount, long indexCount, long minRounds, double averageRounds, long maxRounds)
-        implements
-            Writeable,
-            ToXContentFragment {
+    public record DownsamplingFeatureStats(
+        long dataStreamsCount,
+        long indexCount,
+        long minRounds,
+        double averageRounds,
+        long maxRounds,
+        long aggregateSamplingMethod,
+        long lastValueSamplingMethod,
+        long undefinedSamplingMethod
+    ) implements Writeable, ToXContentFragment {
 
-        static final DownsamplingFeatureStats EMPTY = new DownsamplingFeatureStats(0, 0, 0, 0.0, 0);
+        static final DownsamplingFeatureStats EMPTY = new DownsamplingFeatureStats(0, 0, 0, 0.0, 0, 0, 0, 0);
 
         public static DownsamplingFeatureStats read(StreamInput in) throws IOException {
             long dataStreamsCount = in.readVLong();
             if (dataStreamsCount == 0) {
                 return EMPTY;
             } else {
-                return new DownsamplingFeatureStats(dataStreamsCount, in.readVLong(), in.readVLong(), in.readDouble(), in.readVLong());
+                return new DownsamplingFeatureStats(
+                    dataStreamsCount,
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.readDouble(),
+                    in.readVLong(),
+                    in.getTransportVersion().supports(ADD_DOWNSAMPLING_METHOD_TELEMETRY) ? in.readVLong() : 0,
+                    in.getTransportVersion().supports(ADD_DOWNSAMPLING_METHOD_TELEMETRY) ? in.readVLong() : 0,
+                    in.getTransportVersion().supports(ADD_DOWNSAMPLING_METHOD_TELEMETRY) ? in.readVLong() : 0
+                );
             }
         }
 
@@ -265,6 +291,11 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
                 out.writeVLong(this.minRounds);
                 out.writeDouble(this.averageRounds);
                 out.writeVLong(this.maxRounds);
+                if (out.getTransportVersion().supports(ADD_DOWNSAMPLING_METHOD_TELEMETRY)) {
+                    out.writeVLong(this.aggregateSamplingMethod);
+                    out.writeVLong(this.lastValueSamplingMethod);
+                    out.writeVLong(this.undefinedSamplingMethod);
+                }
             }
         }
 
@@ -277,6 +308,11 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
                 builder.field("min", minRounds);
                 builder.field("average", averageRounds);
                 builder.field("max", maxRounds);
+                builder.endObject();
+                builder.startObject("sampling_method");
+                builder.field("aggregate", aggregateSamplingMethod);
+                builder.field("last_value", lastValueSamplingMethod);
+                builder.field("undefined", undefinedSamplingMethod);
                 builder.endObject();
             }
             return builder;

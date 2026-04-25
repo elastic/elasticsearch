@@ -16,6 +16,9 @@ import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -83,9 +86,6 @@ public abstract class StoredFieldLoader {
      *                              otherwise, uses the heuristic defined in {@link StoredFieldLoader#reader(LeafReaderContext, int[])}.
      */
     public static StoredFieldLoader create(boolean loadSource, Set<String> fields, boolean forceSequentialReader) {
-        if (loadSource == false && fields.isEmpty()) {
-            return StoredFieldLoader.empty();
-        }
         List<String> fieldsToLoad = fieldsToLoad(loadSource, fields);
         return new StoredFieldLoader() {
             @Override
@@ -155,10 +155,10 @@ public abstract class StoredFieldLoader {
 
     private static List<String> fieldsToLoad(boolean loadSource, Set<String> fields) {
         Set<String> fieldsToLoad = new HashSet<>();
-        fieldsToLoad.add("_id");
-        fieldsToLoad.add("_routing");
+        fieldsToLoad.add(IdFieldMapper.NAME);
+        fieldsToLoad.add(RoutingFieldMapper.NAME);
         if (loadSource) {
-            fieldsToLoad.add("_source");
+            fieldsToLoad.add(SourceFieldMapper.NAME);
         }
         fieldsToLoad.addAll(fields);
         return fieldsToLoad.stream().sorted().toList();

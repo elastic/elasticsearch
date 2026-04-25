@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
@@ -33,7 +34,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestSearchAction(new UsageService().getSearchUsageHolder(), nf -> false);
+        action = new RestSearchAction(new UsageService().getSearchUsageHolder(), nf -> false, CrossProjectModeDecider.NOOP);
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> mock(SearchResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(SearchResponse.class));
@@ -51,7 +52,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
-        action.handleRequest(request, new FakeRestChannel(request, randomBoolean(), 1), verifyingClient);
+        action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), verifyingClient);
     }
 
     public void testValidateSearchRequest() {

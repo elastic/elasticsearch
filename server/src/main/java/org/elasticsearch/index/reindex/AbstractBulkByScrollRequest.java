@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -16,15 +17,19 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -39,6 +44,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     public static final int AUTO_SLICES = 0;
     public static final String AUTO_SLICES_VALUE = "auto";
     private static final int DEFAULT_SLICES = 1;
+    private static final TransportVersion BULK_BY_SCROLL_REQUEST_INCLUDES_RELOCATION_FIELD_TRANSPORT_VERSION = TransportVersion.fromName(
+        "bulk_by_scroll_request_includes_relocation_field"
+    );
+    private static final TransportVersion REINDEX_RELOCATION_RESUME = TransportVersion.fromName("reindex_relocation_resume");
+    private static final TransportVersion SOURCE_INDICES_FOR_DESCRIPTION = TransportVersion.fromName(
+        "bulk_by_scroll_source_indices_for_description"
+    );
 
     /**
      * The search to be executed.
@@ -94,10 +106,26 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private boolean shouldStoreResult;
 
+    private boolean eligibleForRelocationOnShutdown;
+
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
     private int slices = DEFAULT_SLICES;
+
+    /**
+     * Resume information for continuing a task from a previous run.
+     */
+    @Nullable
+    private ResumeInfo resumeInfo;
+
+    /**
+     * Source indices to use when building the task description. When using PIT, the search request's
+     * indices are cleared (PIT defines the index context), but we still want the description to show
+     * the original source indices (e.g. "reindex from [reindex_src] to [reindex_dst]").
+     */
+    @Nullable
+    private String[] sourceIndicesForDescription;
 
     public AbstractBulkByScrollRequest(StreamInput in) throws IOException {
         super(in);
@@ -111,6 +139,17 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
         slices = in.readVInt();
+        if (in.getTransportVersion().supports(BULK_BY_SCROLL_REQUEST_INCLUDES_RELOCATION_FIELD_TRANSPORT_VERSION)) {
+            // N.B. Prior to this transport version, shouldStoreResult was not serialized (this does not seem to have caused any problems)
+            shouldStoreResult = in.readBoolean();
+            eligibleForRelocationOnShutdown = in.readBoolean();
+        }
+        if (in.getTransportVersion().supports(REINDEX_RELOCATION_RESUME)) {
+            resumeInfo = in.readOptionalWriteable(ResumeInfo::new);
+        }
+        if (in.getTransportVersion().supports(SOURCE_INDICES_FOR_DESCRIPTION)) {
+            sourceIndicesForDescription = in.readOptionalStringArray();
+        }
     }
 
     /**
@@ -137,11 +176,21 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     protected abstract Self self();
 
+    /**
+     * Whether the request supports remote indices in the search request.
+     */
+    public boolean supportsRemoteIndicesSearch() {
+        return false;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = searchRequest.validate();
         if (searchRequest.source().from() != -1) {
-            e = addValidationError("from is not supported in this context", e);
+            // Allow from=0 when using PIT for search_after compatibility
+            if (searchRequest.source().pointInTimeBuilder() == null || searchRequest.source().from() != 0) {
+                e = addValidationError("from is not supported in this context", e);
+            }
         }
         if (searchRequest.source().storedFields() != null) {
             e = addValidationError("stored_fields is not supported in this context", e);
@@ -159,6 +208,15 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
         if (searchRequest.source().slice() != null && slices != DEFAULT_SLICES) {
             e = addValidationError("can't specify both manual and automatic slicing at the same time", e);
+        }
+        if (supportsRemoteIndicesSearch() == false) {
+            List<String> remoteIndices = RemoteClusterAware.getRemoteIndexExpressions(searchRequest.indices());
+            if (remoteIndices.isEmpty() == false) {
+                e = addValidationError(
+                    "Cross-cluster calls are not supported in this context but remote indices were requested: " + remoteIndices,
+                    e
+                );
+            }
         }
         return e;
     }
@@ -333,7 +391,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
-     * Should this task store its result after it has finished?
+     * Should this task store its result in the tasks index after it has finished?
      */
     public Self setShouldStoreResult(boolean shouldStoreResult) {
         this.shouldStoreResult = shouldStoreResult;
@@ -343,6 +401,21 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Override
     public boolean getShouldStoreResult() {
         return shouldStoreResult;
+    }
+
+    /**
+     * Returns whether we should attempt to relocate this task to another node when the current node is preparing to shut down.
+     */
+    public boolean isEligibleForRelocationOnShutdown() {
+        return eligibleForRelocationOnShutdown;
+    }
+
+    /**
+     * Sets whether we should attempt to relocate this task to another node when the current node is preparing to shut down.
+     */
+    public Self setEligibleForRelocationOnShutdown(boolean eligibleForRelocationOnShutdown) {
+        this.eligibleForRelocationOnShutdown = eligibleForRelocationOnShutdown;
+        return self();
     }
 
     /**
@@ -380,6 +453,37 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
+     * Sets resumption data to continue from a previously-acquired scroll ID.
+     */
+    public Self setResumeInfo(ResumeInfo resumeInfo) {
+        this.resumeInfo = Objects.requireNonNull(resumeInfo);
+        return self();
+    }
+
+    /**
+     * Returns the resumption information for this request, if any.
+     */
+    public Optional<ResumeInfo> getResumeInfo() {
+        return Optional.ofNullable(resumeInfo);
+    }
+
+    /**
+     * Sets the source indices to use when building the task description.
+     */
+    public Self setSourceIndicesForDescription(String[] indices) {
+        this.sourceIndicesForDescription = indices;
+        return self();
+    }
+
+    /**
+     * Returns the source indices used when building the task description, or null if not set.
+     */
+    @Nullable
+    public String[] getSourceIndicesForDescription() {
+        return sourceIndicesForDescription;
+    }
+
+    /**
      * Build a new request for a slice of the parent request.
      */
     public abstract Self forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices);
@@ -404,6 +508,15 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             .setRequestsPerSecond(requestsPerSecond / totalSlices)
             // Sub requests don't have workers
             .setSlices(1);
+        // Copy resume info for the slice from leader to the slice request
+        if (this.getResumeInfo().isPresent()) {
+            ResumeInfo resumeInfo = this.getResumeInfo().get();
+            int sliceId = request.getSearchRequest().source().slice().getId();
+            if (resumeInfo.isSliceCompleted(sliceId) == false) {
+                request.setResumeInfo(new ResumeInfo(resumeInfo.relocationOrigin(), resumeInfo.getSlice(sliceId).get().resumeInfo(), null));
+            }
+        }
+
         if (maxDocs != MAX_DOCS_ALL_MATCHES) {
             // maxDocs is split between workers. This means the maxDocs might round
             // down!
@@ -411,13 +524,27 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
         // Set the parent task so this task is cancelled if we cancel the parent
         request.setParentTask(slicingTask);
+        // Copy source indices for description so sliced requests (which may have empty indices when using PIT)
+        // still produce the correct task description
+        if (sourceIndicesForDescription != null) {
+            request.setSourceIndicesForDescription(sourceIndicesForDescription);
+        }
         // TODO It'd be nice not to refresh on every slice. Instead we should refresh after the sub requests finish.
         return request;
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, headers);
+    public Task createTask(TaskId id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new BulkByScrollTask(
+            id,
+            type,
+            action,
+            getDescription(),
+            parentTaskId,
+            headers,
+            eligibleForRelocationOnShutdown,
+            resumeInfo == null ? null : resumeInfo.relocationOrigin()
+        );
     }
 
     @Override
@@ -433,6 +560,17 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
         out.writeVInt(slices);
+        if (out.getTransportVersion().supports(BULK_BY_SCROLL_REQUEST_INCLUDES_RELOCATION_FIELD_TRANSPORT_VERSION)) {
+            // N.B. Prior to this transport version, shouldStoreResult was not serialized (this does not seem to have caused any problems)
+            out.writeBoolean(shouldStoreResult);
+            out.writeBoolean(eligibleForRelocationOnShutdown);
+        }
+        if (out.getTransportVersion().supports(REINDEX_RELOCATION_RESUME)) {
+            out.writeOptionalWriteable(resumeInfo);
+        }
+        if (out.getTransportVersion().supports(SOURCE_INDICES_FOR_DESCRIPTION)) {
+            out.writeOptionalStringArray(sourceIndicesForDescription);
+        }
     }
 
     /**
@@ -440,8 +578,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * to make toString.
      */
     protected void searchToString(StringBuilder b) {
-        if (searchRequest.indices() != null && searchRequest.indices().length != 0) {
-            b.append(Arrays.toString(searchRequest.indices()));
+        String[] indicesToUse = searchRequest.indices() != null && searchRequest.indices().length != 0
+            ? searchRequest.indices()
+            : sourceIndicesForDescription;
+        if (indicesToUse != null && indicesToUse.length != 0) {
+            b.append(Arrays.toString(indicesToUse));
         } else {
             b.append("[all indices]");
         }

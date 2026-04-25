@@ -40,7 +40,18 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
 
     @Before
     public void createTask() {
-        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        task = new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), 1),
+            "test_type",
+            "test_action",
+            "test",
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false,
+            randomBoolean()
+                ? null
+                : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomNonNegativeLong())
+        );
         task.setWorker(Float.POSITIVE_INFINITY, null);
         workerState = task.getWorkerState();
     }

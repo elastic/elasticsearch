@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +19,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
@@ -36,9 +36,12 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveIntegerLessThanOrEqualToMax;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
 
 public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObject
@@ -48,26 +51,35 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
     public static final String NAME = "google_vertex_ai_embeddings_service_settings";
 
-    public static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
-
     // See online prediction requests per minute: https://cloud.google.com/vertex-ai/docs/quotas.
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(30_000);
 
-    public static GoogleVertexAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+    protected static final TransportVersion GOOGLE_VERTEX_AI_CONFIGURABLE_MAX_BATCH_SIZE = TransportVersion.fromName(
+        "google_vertex_ai_configurable_max_batch_size"
+    );
 
-        String location = extractRequiredString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = extractOptionalPositiveInteger(
+    public static GoogleVertexAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        var validationException = new ValidationException();
+
+        var location = extractRequiredString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        SimilarityMeasure similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxBatchSize = extractOptionalPositiveIntegerLessThanOrEqualToMax(
+            map,
+            MAX_BATCH_SIZE,
+            EMBEDDING_MAX_BATCH_SIZE,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -75,39 +87,74 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
             context
         );
 
-        Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
+        var dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {
                 if (dimensionsSetByUser != null) {
                     validationException.addValidationError(
-                        ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
-                dimensionsSetByUser = dims != null;
+                dimensionsSetByUser = dimensions != null;
             }
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
                     validationException.addValidationError(
-                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        InferenceUtils.missingSettingErrorMsg(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
             }
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiEmbeddingsServiceSettings(
             location,
             projectId,
-            model,
+            modelId,
             dimensionsSetByUser,
             maxInputTokens,
-            dims,
+            dimensions,
+            maxBatchSize,
             similarityMeasure,
             rateLimitSettings
+        );
+    }
+
+    @Override
+    public GoogleVertexAiEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedMaxBatchSize = extractOptionalPositiveIntegerLessThanOrEqualToMax(
+            serviceSettings,
+            MAX_BATCH_SIZE,
+            EMBEDDING_MAX_BATCH_SIZE,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            GoogleVertexAiService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        // Only maxInputTokens, maxBatchSize and rateLimitSettings can be updated in the request, other fields remain unchanged.
+        return new GoogleVertexAiEmbeddingsServiceSettings(
+            this,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedMaxBatchSize != null ? extractedMaxBatchSize : this.maxBatchSize,
+            extractedRateLimitSettings
         );
     }
 
@@ -117,9 +164,12 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
     private final String modelId;
 
-    private final Integer dims;
+    private final Integer dimensions;
+
+    private final Integer maxBatchSize;
 
     private final SimilarityMeasure similarity;
+
     private final Integer maxInputTokens;
 
     private final RateLimitSettings rateLimitSettings;
@@ -132,7 +182,8 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         String modelId,
         Boolean dimensionsSetByUser,
         @Nullable Integer maxInputTokens,
-        @Nullable Integer dims,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxBatchSize,
         @Nullable SimilarityMeasure similarity,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
@@ -141,9 +192,35 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         this.modelId = modelId;
         this.dimensionsSetByUser = dimensionsSetByUser;
         this.maxInputTokens = maxInputTokens;
-        this.dims = dims;
+        this.dimensions = dimensions;
+        this.maxBatchSize = maxBatchSize;
         this.similarity = Objects.requireNonNullElse(similarity, SimilarityMeasure.DOT_PRODUCT);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+    }
+
+    /**
+     * Constructor used for creating updated settings instance
+     * with some fields updated and some remaining the same as the original settings.
+     * @param original the original settings instance to copy unchanged fields from
+     * @param maxInputTokens the new maxInputTokens value, or null to keep the original value
+     * @param maxBatchSize the new maxBatchSize value, or null to keep the original value
+     * @param rateLimitSettings the new rateLimitSettings value, or null to keep the original value
+     */
+    private GoogleVertexAiEmbeddingsServiceSettings(
+        GoogleVertexAiEmbeddingsServiceSettings original,
+        @Nullable Integer maxInputTokens,
+        @Nullable Integer maxBatchSize,
+        @Nullable RateLimitSettings rateLimitSettings
+    ) {
+        this.location = original.location;
+        this.projectId = original.projectId;
+        this.modelId = original.modelId;
+        this.dimensionsSetByUser = original.dimensionsSetByUser;
+        this.maxInputTokens = maxInputTokens;
+        this.dimensions = original.dimensions;
+        this.maxBatchSize = maxBatchSize;
+        this.similarity = original.similarity;
+        this.rateLimitSettings = rateLimitSettings;
     }
 
     public GoogleVertexAiEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -152,7 +229,12 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         this.modelId = in.readString();
         this.dimensionsSetByUser = in.readBoolean();
         this.maxInputTokens = in.readOptionalVInt();
-        this.dims = in.readOptionalVInt();
+        this.dimensions = in.readOptionalVInt();
+        if (in.getTransportVersion().supports(GOOGLE_VERTEX_AI_CONFIGURABLE_MAX_BATCH_SIZE)) {
+            this.maxBatchSize = in.readOptionalVInt();
+        } else {
+            this.maxBatchSize = null;
+        }
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.rateLimitSettings = new RateLimitSettings(in);
     }
@@ -171,6 +253,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         return modelId;
     }
 
+    @Override
     public Boolean dimensionsSetByUser() {
         return dimensionsSetByUser;
     }
@@ -186,7 +269,11 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
     @Override
     public Integer dimensions() {
-        return dims;
+        return dimensions;
+    }
+
+    public Integer maxBatchSize() {
+        return maxBatchSize;
     }
 
     @Override
@@ -204,7 +291,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
-        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+        builder.field(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
         builder.endObject();
         return builder;
@@ -217,7 +304,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -227,7 +314,10 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         out.writeString(modelId);
         out.writeBoolean(dimensionsSetByUser);
         out.writeOptionalVInt(maxInputTokens);
-        out.writeOptionalVInt(dims);
+        out.writeOptionalVInt(dimensions);
+        if (out.getTransportVersion().supports(GOOGLE_VERTEX_AI_CONFIGURABLE_MAX_BATCH_SIZE)) {
+            out.writeOptionalVInt(maxBatchSize);
+        }
         out.writeOptionalEnum(similarity);
         rateLimitSettings.writeTo(out);
     }
@@ -237,21 +327,19 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         builder.field(LOCATION, location);
         builder.field(PROJECT_ID, projectId);
         builder.field(MODEL_ID, modelId);
-
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
-
-        if (dims != null) {
-            builder.field(DIMENSIONS, dims);
+        if (dimensions != null) {
+            builder.field(DIMENSIONS, dimensions);
         }
-
+        if (maxBatchSize != null) {
+            builder.field(MAX_BATCH_SIZE, maxBatchSize);
+        }
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
         }
-
         rateLimitSettings.toXContent(builder, params);
-
         return builder;
     }
 
@@ -263,8 +351,9 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         return Objects.equals(location, that.location)
             && Objects.equals(projectId, that.projectId)
             && Objects.equals(modelId, that.modelId)
-            && Objects.equals(dims, that.dims)
-            && similarity == that.similarity
+            && Objects.equals(dimensions, that.dimensions)
+            && Objects.equals(maxBatchSize, that.maxBatchSize)
+            && Objects.equals(similarity, that.similarity)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings)
             && Objects.equals(dimensionsSetByUser, that.dimensionsSetByUser);
@@ -272,6 +361,16 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
     @Override
     public int hashCode() {
-        return Objects.hash(location, projectId, modelId, dims, similarity, maxInputTokens, rateLimitSettings, dimensionsSetByUser);
+        return Objects.hash(
+            location,
+            projectId,
+            modelId,
+            dimensions,
+            maxBatchSize,
+            similarity,
+            maxInputTokens,
+            rateLimitSettings,
+            dimensionsSetByUser
+        );
     }
 }

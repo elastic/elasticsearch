@@ -44,7 +44,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
     private final long now = System.currentTimeMillis();
     private static final long DAY = Duration.ofDays(1).toMillis();
     private final String jobId = "bulk-failure-retry-job";
-    private final String resultsIndex = ".ml-anomalies-custom-bulk-failure-retry-job";
+    private final String resultsIndex = ".ml-anomalies-custom-bulk-failure-retry-job-000001";
 
     @Before
     public void putPastDataIntoIndex() {

@@ -13,22 +13,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StGeotile}.
+ * {@link ExpressionEvaluator} implementation for {@link StGeotile}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StGeotileFromFieldAndLiteralAndLiteralEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StGeotileFromFieldAndLiteralAndLiteralEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StGeotileFromFieldAndLiteralAndLiteralEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator in;
+  private final ExpressionEvaluator in;
 
   private final StGeotile.GeoTileBoundedGrid bounds;
 
@@ -36,9 +36,8 @@ public final class StGeotileFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
   private Warnings warnings;
 
-  public StGeotileFromFieldAndLiteralAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator in, StGeotile.GeoTileBoundedGrid bounds,
-      DriverContext driverContext) {
+  public StGeotileFromFieldAndLiteralAndLiteralEvaluator(Source source, ExpressionEvaluator in,
+      StGeotile.GeoTileBoundedGrid bounds, DriverContext driverContext) {
     this.source = source;
     this.in = in;
     this.bounds = bounds;
@@ -93,24 +92,19 @@ public final class StGeotileFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory in;
+    private final ExpressionEvaluator.Factory in;
 
     private final Function<DriverContext, StGeotile.GeoTileBoundedGrid> bounds;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
+    public Factory(Source source, ExpressionEvaluator.Factory in,
         Function<DriverContext, StGeotile.GeoTileBoundedGrid> bounds) {
       this.source = source;
       this.in = in;

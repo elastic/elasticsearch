@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.integration;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -19,6 +20,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
@@ -28,6 +30,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
@@ -1021,7 +1024,6 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     // test that docs in same date bucket with a later date than the updated doc are not ignored by the transform.
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98377")
     public void testContinuousDateHistogramPivot() throws Exception {
         String indexName = "continuous_reviews_date_histogram";
 
@@ -1065,6 +1067,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                 "timestamp": "2023-07-24T17:55:00.000Z",
                 "stars": 5
             }""");
+        putRequest.addParameter("refresh", "true");
         client().performRequest(putRequest);
 
         String transformId = "continuous_date_histogram_pivot";
@@ -1118,6 +1121,17 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         startAndWaitForContinuousTransform(transformId, transformIndex, null);
         assertTrue(indexExists(transformIndex));
 
+        // The sync delay means the initial data may take multiple checkpoints to be fully processed.
+        // Wait until the destination reflects the correct initial aggregate before proceeding.
+        assertBusy(() -> {
+            refreshIndex(transformIndex);
+            var response = getAsMap(transformIndex + "/_search");
+            var hitList = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", response);
+            assertFalse("Expected at least one hit in destination index", hitList.isEmpty());
+            var stars = (double) XContentMapValues.extractValue("_source.total_rating", hitList.get(0));
+            assertEquals(10.0, stars, 0);
+        }, 30, TimeUnit.SECONDS);
+
         // update stars field in first doc
         Request updateDoc = new Request("PUT", indexName + "/_doc/1");
         updateDoc.setJsonEntity("""
@@ -1129,14 +1143,17 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         updateDoc.addParameter("refresh", "true");
         client().performRequest(updateDoc);
 
-        waitForTransformCheckpoint(transformId, 2);
-        stopTransform(transformId, false);
-        refreshIndex(transformIndex);
+        // Wait for the transform to pick up the change and recompute the bucket correctly
+        assertBusy(() -> {
+            refreshIndex(transformIndex);
+            var response = getAsMap(transformIndex + "/_search");
+            var hitList = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", response);
+            assertFalse("Expected at least one hit in destination index", hitList.isEmpty());
+            var stars = (double) XContentMapValues.extractValue("_source.total_rating", hitList.get(0));
+            assertEquals(11.0, stars, 0);
+        }, 30, TimeUnit.SECONDS);
 
-        var searchResponse = getAsMap(transformIndex + "/_search");
-        var hits = ((List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", searchResponse)).get(0);
-        var totalStars = (double) XContentMapValues.extractValue("_source.total_rating", hits);
-        assertEquals(11, totalStars, 0);
+        stopTransform(transformId, false);
     }
 
     public void testPreviewTransform() throws Exception {
@@ -1409,6 +1426,54 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
         List<Map<String, Object>> preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
         return preview.stream().map(p -> (String) p.get("by_week")).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPreviewAsIndexRequest() throws Exception {
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        final Request createPreviewRequest = createRequestWithAuth(
+            "POST",
+            getTransformEndpoint() + "_preview?as_index_request",
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        createPreviewRequest.setJsonEntity(Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "user.id": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  },
+                  "by_day": {
+                    "date_histogram": {
+                      "fixed_interval": "1d",
+                      "field": "timestamp"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "user.avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", REVIEWS_INDEX_NAME));
+
+        var previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        var preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
+        preview.forEach(p -> {
+            assertNotNull(XContentMapValues.extractValue("_id", p));
+            assertNotNull(XContentMapValues.extractValue("_source.by_day", p));
+            assertNotNull(XContentMapValues.extractValue("_source.user.id", p));
+            assertNotNull(XContentMapValues.extractValue("_source.user.avg_rating", p));
+        });
     }
 
     public void testPivotWithMaxOnDateField() throws Exception {
@@ -1884,6 +1949,110 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertThat(coordinates.get(2), hasSize(2));
         assertThat(coordinates.get(3), hasSize(2));
         assertThat(coordinates.get(4), hasSize(2));
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/126591
+    @SuppressWarnings("unchecked")
+    public void testGeotileWithMissingBuckets() throws IOException {
+        var sourceIndex = "geotile_with_missing_buckets_source";
+        setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex);
+        createIndex(client(), sourceIndex, Settings.EMPTY, """
+            {
+              "properties": {
+                "username": {
+                  "type": "keyword"
+                },
+                "date": {
+                  "type": "date"
+                },
+                "location": {
+                  "type": "geo_point"
+                }
+              }
+            }
+            """);
+        doBulk(Strings.format("""
+            {"create":{"_index":"%s"}}
+            { "username": "bob", "date": "2025-12-25", "location": "50.62096405029297,5.5580315589904785" }
+            {"create":{"_index":"%s"}}
+            { "username": "bob", "date": "2024-12-25", "location": "50.62096405029297,5.5580315589904785" }
+            {"create":{"_index":"%s"}}
+            { "username": "bob", "date": "2023-12-25" }
+            """, sourceIndex, sourceIndex, sourceIndex), true);
+
+        var createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
+        createPreviewRequest.setJsonEntity(Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "user": {
+                    "terms": {
+                      "field": "username"
+                    }
+                  },
+                  "pings": {
+                    "geotile_grid": {
+                      "field": "location",
+                      "precision": 1,
+                      "missing_bucket": true
+                    }
+                  }
+                },
+                "aggregations": {
+                  "seen_first": {
+                    "min": {
+                      "field": "date"
+                    }
+                  }
+                }
+              }
+            }
+            """, sourceIndex));
+        var previewTransformResponse = EntityUtils.toString(client().performRequest(createPreviewRequest).getEntity());
+
+        assertNotNull(previewTransformResponse);
+        assertThat(previewTransformResponse, containsString(XContentHelper.stripWhitespace("""
+            {
+                  "seen_first": "2023-12-25T00:00:00.000Z",
+                  "pings": null,
+                  "user": "bob"
+                },
+                {
+                  "seen_first": "2024-12-25T00:00:00.000Z",
+                  "pings": {
+                    "type": "polygon",
+                    "coordinates": [
+                      [
+                        [
+                          180.0,
+                          0.0
+                        ],
+                        [
+                          0.0,
+                          0.0
+                        ],
+                        [
+                          0.0,
+                          85.0511287798066
+                        ],
+                        [
+                          180.0,
+                          85.0511287798066
+                        ],
+                        [
+                          180.0,
+                          0.0
+                        ]
+                      ]
+                    ]
+                  },
+                  "user": "bob"
+                }
+            """)));
+        deleteIndex(sourceIndex);
     }
 
     public void testPivotWithWeightedAvgAgg() throws Exception {
@@ -2896,5 +3065,56 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
+    }
+
+    public void testTransformWithProjectRoutingThrowsException() throws Exception {
+        var transformSrc = "failing_project_routing";
+        createReviewsIndex(transformSrc);
+
+        var transformId = "failing_transform_project_routing";
+        var transformDest = transformId;
+
+        var createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
+        var config = org.elasticsearch.core.Strings.format("""
+            {
+              "dest": {
+                "index": "%s"
+              },
+              "source": {
+                "index": "%s",
+                "project_routing": "_alias:_origin"
+              },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "timestamp",
+                  "delay": "1s"
+                }
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", transformDest, transformSrc);
+
+        createTransformRequest.setJsonEntity(config);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createTransformRequest));
+        assertThat(
+            e.getMessage(),
+            containsString("Cross-project calls are not supported, but project_routing was requested: _alias:_origin")
+        );
     }
 }

@@ -418,7 +418,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             this::createParser,
             TransformConfigUpdateTests::randomTransformConfigUpdate,
             this::toXContent,
-            TransformConfigUpdate::fromXContent
+            parser -> TransformConfigUpdate.fromXContent(parser, new TransformParsingContext(false))
         ).supportsUnknownFields(false).assertEqualsConsumer(this::assertEqualInstances).test();
     }
 

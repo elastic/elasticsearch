@@ -1,0 +1,6 @@
+area: Authentication
+issues:
+ - 59304
+pr: 142633
+summary: Add Clone API Key endpoint
+type: enhancement

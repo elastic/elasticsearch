@@ -14,11 +14,13 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -29,6 +31,9 @@ public class SmokeTestPluginsSslClientYamlTestSuiteIT extends ESClientYamlSuiteT
     private static final String USER = "test_user";
     private static final String PASS = "x-pack-test-password";
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = SmokeTestPluginsSslCluster.create();
+
     public SmokeTestPluginsSslClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
@@ -36,6 +41,11 @@ public class SmokeTestPluginsSslClientYamlTestSuiteIT extends ESClientYamlSuiteT
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     static Path certificateAuthorities;

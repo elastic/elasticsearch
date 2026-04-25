@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -25,12 +26,16 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -41,8 +46,14 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
-public class Max extends AggregateFunction implements ToAggregator, SurrogateExpression {
+public class Max extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Max", Max::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Max.class).unary(Max::new).name("max");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeries(Max::new)
+        .description("Returns the maximum value across the input vector.")
+        .example("max(http_requests_total)")
+        .name("max");
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.BOOLEAN, MaxBooleanAggregatorFunctionSupplier::new),
@@ -70,6 +81,18 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                     + "multiple values per row, and use the result with the `MAX` function",
                 file = "stats",
                 tag = "docsStatsMaxNestedExpression"
+            ),
+            @Example(
+                description = "`MAX` can also operate on `exponential_histogram` fields, "
+                    + "returning the maximum of the values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "maxExpHistoForDocs"
+            ),
+            @Example(
+                description = "`MAX` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "returning the maximum of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "maxTDigestForDocs"
             ) }
     )
     public Max(
@@ -88,14 +111,16 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                 "keyword",
                 "text",
                 "unsigned_long",
-                "version" }
+                "version",
+                "exponential_histogram",
+                "tdigest" }
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Max(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Max(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Max(StreamInput in) throws IOException {
@@ -109,24 +134,27 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public Max withFilter(Expression filter) {
-        return new Max(source(), field(), filter);
+        return new Max(source(), field(), filter, window());
     }
 
     @Override
     protected NodeInfo<Max> info() {
-        return NodeInfo.create(this, Max::new, field(), filter());
+        return NodeInfo.create(this, Max::new, field(), filter(), window());
     }
 
     @Override
     public Max replaceChildren(List<Expression> newChildren) {
-        return new Max(source(), newChildren.get(0), newChildren.get(1));
+        return new Max(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            dt -> SUPPLIERS.containsKey(dt) || dt == DataType.AGGREGATE_METRIC_DOUBLE,
+            dt -> SUPPLIERS.containsKey(dt)
+                || dt == DataType.AGGREGATE_METRIC_DOUBLE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
             "boolean",
@@ -135,13 +163,17 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
             "string",
             "version",
             "aggregate_metric_double",
+            "exponential_histogram",
+            "tdigest",
             "numeric except counter types"
         );
     }
 
     @Override
     public DataType dataType() {
-        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
+        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE
+            || field().dataType() == DataType.EXPONENTIAL_HISTOGRAM
+            || field().dataType() == DataType.TDIGEST) {
             return DataType.DOUBLE;
         }
         return field().dataType().noText();
@@ -163,8 +195,12 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
             return new Max(
                 source(),
                 FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MAX),
-                filter()
+                filter(),
+                window()
             );
+        }
+        if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+            return new Max(source(), ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MAX), filter(), window());
         }
         return field().foldable() ? new MvMax(source(), field()) : null;
     }

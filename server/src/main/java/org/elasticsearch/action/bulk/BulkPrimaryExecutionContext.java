@@ -210,7 +210,7 @@ class BulkPrimaryExecutionContext {
             // as no state has changed in the meantime (the mapping version is still the same),
             // we can't expect another retry would yield a different result
             // a possible cause:
-            // maybe we added more dynamic mappers in DocumentParserContext.addDynamicMapper than possible according to the field limit
+            // maybe we added more dynamic mappers in DocumentParserContext.getDynamicMapper than possible according to the field limit
             // the additional fields are then ignored by the mapping merge and the process repeats
             String message = "On retry, this indexing request resulted in another noop mapping update. "
                 + "Failing the indexing operation to prevent an infinite retry loop.";
@@ -332,10 +332,12 @@ class BulkPrimaryExecutionContext {
     /** builds the bulk shard response to return to the user */
     public BulkShardResponse buildShardResponse() {
         assert hasMoreOperationsToExecute() == false;
-        return new BulkShardResponse(
-            request.shardId(),
-            Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new)
-        );
+        final BulkItemRequest[] requests = request.items();
+        final BulkItemResponse[] responses = new BulkItemResponse[requests.length];
+        for (int i = 0; i < responses.length; i++) {
+            responses[i] = requests[i].getPrimaryResponse();
+        }
+        return new BulkShardResponse(request.shardId(), responses);
     }
 
     private boolean assertInvariants(ItemProcessingState... expectedCurrentState) {

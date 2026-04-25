@@ -45,7 +45,7 @@ public class MockFieldMapper extends FieldMapper {
 
     public static class FakeFieldType extends TermBasedFieldType {
         public FakeFieldType(String name) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(name, IndexType.terms(true, false), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -88,6 +88,11 @@ public class MockFieldMapper extends FieldMapper {
         public Builder copyTo(String field) {
             this.copyTo = copyTo.withAddedFields(List.of(field));
             return this;
+        }
+
+        @Override
+        public String contentType() {
+            return null;
         }
 
         @Override

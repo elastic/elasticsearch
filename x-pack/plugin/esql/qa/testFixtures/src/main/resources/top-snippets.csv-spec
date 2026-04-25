@@ -1,0 +1,373 @@
+###############################################
+# Tests for TopSnippets function
+#
+
+topSnippetsDefaults
+required_capability: top_snippets_function
+
+// tag::top-snippets-with-field[]
+FROM books
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien")
+// end::top-snippets-with-field[]
+| KEEP book_no, title, snippets
+| SORT book_no
+| LIMIT 5
+;
+
+// tag::top-snippets-with-field-result[]
+book_no:keyword | title:text                                            | snippets:keyword
+1211            | The brothers Karamazov                                | null
+1463            | Realms of Tolkien: Images of Middle-earth             | Twenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an extraordinary variety of life into 58 different scenes, each of which is accompanied by appropriate passage from The Hobbit and The Lord of the Rings and The Silmarillion
+1502            | Selected Passages from Correspondence with Friends    | null
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | null
+1985            | Brothers Karamazov                                    | null
+// end::top-snippets-with-field-result[]
+;
+
+topSnippetsWithOptions
+required_capability: top_snippets_function
+required_capability: match_function
+
+// tag::top-snippets-with-options[]
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 3, "num_words": 25 })
+// end::top-snippets-with-options[]
+| KEEP book_no, title, snippets;
+ignoreOrder: true
+
+// tag::top-snippets-with-options-result[]
+book_no:keyword | title:text                                                       | snippets:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | [Concluding the story begun in The Hobbit\, this is the final part of Tolkien s epic masterpiece\, The Lord of the Rings\, featuring an exclusive, Tolkien s epic masterpiece\, The Lord of the Rings\, featuring an exclusive cover image from the film\, the definitive text\, and a detailed map of, Tolkien s classic tale of magic and adventure\, begun in The Fellowship of the Ring and The Two Towers\, features the definitive edition of the]
+7350            | Return of the Shadow                                             | [Tolkien for long believed would be a far shorter book\, 'a sequel to The Hobbit'., In The Return of the Shadow (an abandoned title for the first volume) Christopher Tolkien describes\, with full citation of the earliest notes\, outline plans, ) Christopher Tolkien describes\, with full citation of the earliest notes\, outline plans\, and narrative drafts\, the intricate evolution of The Fellowship of the Ring and]
+// end::top-snippets-with-options-result[]
+;
+
+topSnippetsWithOptionsMvExpand
+required_capability: top_snippets_function
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 3, "num_words": 25 })
+| MV_EXPAND snippets
+| KEEP book_no, title, snippets;
+ignoreOrder: true
+
+book_no:keyword | title:text                                                       | snippets:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Tolkien s classic tale of magic and adventure, begun in The Fellowship of the Ring and The Two Towers, features the definitive edition of the
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive cover image from the film, the definitive text, and a detailed map of
+7350            | Return of the Shadow                                             | ) Christopher Tolkien describes, with full citation of the earliest notes, outline plans, and narrative drafts, the intricate evolution of The Fellowship of the Ring and
+7350            | Return of the Shadow                                             | In The Return of the Shadow (an abandoned title for the first volume) Christopher Tolkien describes, with full citation of the earliest notes, outline plans
+7350            | Return of the Shadow                                             | Tolkien for long believed would be a far shorter book, 'a sequel to The Hobbit'.
+;
+
+topSnippetsWithConcatenatedField
+required_capability: top_snippets_function
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL title_description = CONCAT(title, " ", description)
+| EVAL snippets = TOP_SNIPPETS(title_description, "Tolkien", { "num_snippets": 3, "num_words": 25 })
+| MV_EXPAND snippets
+| KEEP book_no, title, snippets;
+ignoreOrder: true
+
+book_no:keyword | title:text                                                       | snippets:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Rings Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of the Rings, featuring an
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Tolkien s classic tale of magic and adventure, begun in The Fellowship of the Ring and The Two Towers, features the definitive edition of the
+2714            | Return of the King Being the Third Part of The Lord of the Rings | of Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive cover image from the film, the definitive text, and a detailed map
+7350            | Return of the Shadow                                             | ) Christopher Tolkien describes, with full citation of the earliest notes, outline plans, and narrative drafts, the intricate evolution of The Fellowship of the Ring and
+7350            | Return of the Shadow                                             | In The Return of the Shadow (an abandoned title for the first volume) Christopher Tolkien describes, with full citation of the earliest notes, outline plans
+7350            | Return of the Shadow                                             | Tolkien for long believed would be a far shorter book, 'a sequel to The Hobbit'.
+;
+
+topSnippetsWithMultivaluedField
+required_capability: top_snippets_mv
+
+ROW positions = ["Senior Team Lead", "Software Engineer"]
+| EVAL snippets = TOP_SNIPPETS(positions, "lead")
+| KEEP snippets
+;
+
+snippets:keyword
+Senior Team Lead
+;
+
+topSnippetsWithMultivaluedFieldFromIndex
+required_capability: top_snippets_mv
+
+FROM employees
+| EVAL snippets = TOP_SNIPPETS(job_positions, "lead")
+| KEEP emp_no, first_name, last_name, snippets
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | snippets:keyword
+10001          | Georgi             | Facello           | null
+10002          | Bezalel            | Simmel            | Senior Team Lead
+10003          | Parto              | Bamford           | null
+10004          | Chirstian          | Koblick           | Tech Lead
+10005          | Kyoichi            | Maliniak          | null
+;
+
+topSnippetsWithMultivaluedFieldMultipleMatches
+required_capability: top_snippets_highlight
+
+ROW positions = ["Senior Team Lead", "Lead Architect"]
+| EVAL snippets = TOP_SNIPPETS(positions, "lead")
+| KEEP snippets
+;
+
+snippets:keyword
+[Lead Architect, Senior Team Lead]
+;
+
+topSnippetsWithGeneratedField
+required_capability: top_snippets_function
+
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth. All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins."
+| EVAL snippets = TOP_SNIPPETS(content, "ring", { "num_snippets": 2, "num_words": 25 })
+| KEEP snippets
+| LIMIT 5
+;
+
+snippets:keyword
+[All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
+;
+
+topSnippetsWithMultivaluedFieldNoMatches
+required_capability: top_snippets_mv
+
+ROW positions = ["Junior Developer", "Intern", "Associate"]
+| EVAL snippets = TOP_SNIPPETS(positions, "Senior")
+| KEEP snippets
+;
+
+snippets:keyword
+null
+;
+
+topSnippetsWithMultivaluedQuery
+required_capability: top_snippets_mv
+
+ROW content = "Senior Team Lead", queries = ["lead", "senior"]
+| EVAL snippets = TOP_SNIPPETS(content, queries)
+| KEEP snippets
+;
+warning:Line 2:19: evaluation of [TOP_SNIPPETS(content, queries)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:19: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+snippets:keyword
+null
+;
+
+topSnippetsWithNullField
+required_capability: top_snippets_function
+
+FROM employees 
+| EVAL snippets = TOP_SNIPPETS(null, "foobar")
+| KEEP snippets
+| LIMIT 5
+;
+
+snippets:keyword
+null
+null
+null
+null
+null
+;
+
+
+topSnippetsStringSnippetsConfig
+required_capability: top_snippets_function_string_config
+
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth. All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins."
+| EVAL snippets = TOP_SNIPPETS(content, "ring", { "num_snippets": "2", "num_words": 25 })
+| KEEP snippets
+| LIMIT 5
+;
+
+snippets:keyword
+[All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
+;
+
+topSnippetsStringWordsConfig
+required_capability: top_snippets_function_string_config
+
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth. All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins."
+| EVAL snippets = TOP_SNIPPETS(content, "ring", { "num_snippets": 2, "num_words": "25" })
+| KEEP snippets
+| LIMIT 5
+;
+
+snippets:keyword
+[All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
+;
+
+topSnippetsHighlightDefaults
+required_capability: top_snippets_highlight
+
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power."
+| EVAL snippets = TOP_SNIPPETS(content, "rings", { "highlight": true })
+| KEEP snippets
+;
+
+snippets:keyword
+Sauron, the Dark Lord, has gathered to him all the <em>Rings</em> of Power.
+;
+
+topSnippetsHighlightCustomTags
+required_capability: top_snippets_highlight
+
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power."
+| EVAL snippets = TOP_SNIPPETS(content, "rings", { "highlight": true, "pre_tag": "<b>", "post_tag": "</b>" })
+| KEEP snippets
+;
+
+snippets:keyword
+Sauron, the Dark Lord, has gathered to him all the <b>Rings</b> of Power.
+;
+
+topSnippetsHighlightMultipleTerms
+required_capability: top_snippets_highlight
+
+ROW content = "The One Ring rules them all. Sauron forged the Ring in Mount Doom."
+| EVAL snippets = TOP_SNIPPETS(content, "ring sauron", { "highlight": true, "num_snippets": 2, "num_words": 300 })
+| KEEP snippets
+;
+
+snippets:keyword
+The One <em>Ring</em> rules them all. <em>Sauron</em> forged the <em>Ring</em> in Mount Doom.
+;
+
+topSnippetsHighlightNoMatch
+required_capability: top_snippets_highlight
+
+ROW content = "A plain text with no matching terms."
+| EVAL snippets = TOP_SNIPPETS(content, "nonexistent", { "highlight": true })
+| KEEP snippets
+;
+
+snippets:keyword
+null
+;
+
+topSnippetsHighlightFalse
+required_capability: top_snippets_highlight
+
+ROW content = "The One Ring was forged by Sauron."
+| EVAL snippets = TOP_SNIPPETS(content, "ring", { "highlight": false })
+| KEEP snippets
+;
+
+snippets:keyword
+The One Ring was forged by Sauron.
+;
+
+topSnippetsHighlightFromIndex
+required_capability: top_snippets_highlight
+required_capability: match_function
+
+// tag::top-snippets-with-highlighting[]
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 1, "num_words": 25, "highlight": true })
+// end::top-snippets-with-highlighting[]
+| KEEP book_no, title, snippets
+;
+ignoreOrder: true
+
+// tag::top-snippets-with-highlighting-result[]
+book_no:keyword | title:text                                                       | snippets:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Concluding the story begun in The Hobbit, this is the final part of <em>Tolkien</em> s epic masterpiece, The Lord of the Rings, featuring an exclusive
+7350            | Return of the Shadow                                             | <em>Tolkien</em> for long believed would be a far shorter book, 'a sequel to The Hobbit'.
+// end::top-snippets-with-highlighting-result[]
+;
+
+topSnippetsHighlightWithHtmlEncoder
+required_capability: top_snippets_highlight
+
+ROW content = "Use <b>bold</b> tags & special chars with the Ring."
+| EVAL snippets = TOP_SNIPPETS(content, "ring", { "highlight": true, "encoder": "html" })
+| KEEP snippets
+;
+
+snippets:keyword
+Use &lt;b&gt;bold&lt;&#x2F;b&gt; tags &amp; special chars with the <em>Ring</em>.
+;
+
+topSnippetsNumWordsZeroSkipsChunking
+required_capability: top_snippets_highlight
+
+// num_words=0 returns the whole value as a single chunk; num_words=20 splits it into pieces.
+ROW chunks = ["Alice was beginning to get very tired of sitting by her sister on the bank. The white rabbit disappeared down a hole and Alice quickly jumped in after it. The rabbit hole went straight on like a tunnel for some way and then dipped suddenly.", "The Queen of Hearts ordered her soldiers to paint the white roses red."]
+| EVAL whole_snippets = TOP_SNIPPETS(chunks, "alice rabbit hole", {"num_words": 0})
+| EVAL chunked_snippets = TOP_SNIPPETS(chunks, "alice rabbit hole", {"num_words": 20})
+| KEEP whole_snippets, chunked_snippets
+;
+
+whole_snippets:keyword | chunked_snippets:keyword
+Alice was beginning to get very tired of sitting by her sister on the bank. The white rabbit disappeared down a hole and Alice quickly jumped in after it. The rabbit hole went straight on like a tunnel for some way and then dipped suddenly. | [The white rabbit disappeared down a hole and Alice quickly jumped in after it., The rabbit hole went straight on like a tunnel for some way and then dipped suddenly., Alice was beginning to get very tired of sitting by her sister on the bank.]
+;
+
+topSnippetsNumWordsZeroWithHighlight
+required_capability: top_snippets_highlight
+
+// tag::top-snippets-num-words-zero-highlight[]
+ROW chunks = ["Alice was beginning to get very tired of sitting by her sister on the bank. The white rabbit disappeared down a hole and Alice quickly jumped in after it. The rabbit hole went straight on like a tunnel for some way and then dipped suddenly.", "The Queen of Hearts ordered her soldiers to paint the white roses red."]
+| EVAL snippets = TOP_SNIPPETS(chunks, "alice rabbit hole", {"num_words": 0, "highlight": true})
+// end::top-snippets-num-words-zero-highlight[]
+| KEEP snippets
+;
+
+// tag::top-snippets-num-words-zero-highlight-result[]
+snippets:keyword
+<em>Alice</em> was beginning to get very tired of sitting by her sister on the bank. The white <em>rabbit</em> disappeared down a <em>hole</em> and <em>Alice</em> quickly jumped in after it. The <em>rabbit</em> <em>hole</em> went straight on like a tunnel for some way and then dipped suddenly.
+// end::top-snippets-num-words-zero-highlight-result[]
+;
+
+topSnippetsWithFoldableConcatQuery
+required_capability: top_snippets_foldable_query_check
+
+FROM books
+| EVAL snippets = TOP_SNIPPETS(description, CONCAT("Tol", "kien"))
+| KEEP book_no, title, snippets
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | title:text                                            | snippets:keyword
+1211            | The brothers Karamazov                                | null
+1463            | Realms of Tolkien: Images of Middle-earth             | Twenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an extraordinary variety of life into 58 different scenes, each of which is accompanied by appropriate passage from The Hobbit and The Lord of the Rings and The Silmarillion
+1502            | Selected Passages from Correspondence with Friends    | null
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | null
+1985            | Brothers Karamazov                                    | null
+;
+
+topSnippetsNumWordsZeroHighlightPrecedingChunk
+required_capability: top_snippets_highlight
+// tag::top-snippets-num-words-zero-highlight-preceding-chunk[]
+ROW content = CONCAT(
+    "# Climate Change Solutions\n\n",
+    "## Renewable Energy\n",
+    "Solar and wind power are becoming cost-competitive with fossil fuels. Investment in clean energy infrastructure creates jobs.\n\n",
+    "## Carbon Capture\n",
+    "Direct air capture technology removes CO2 from the atmosphere. These systems require significant energy input but show promise for large-scale deployment.\n\n",
+    "## Policy Changes\n",
+    "Government regulations can accelerate the transition to clean energy through carbon pricing and renewable energy mandates.")
+| EVAL chunked_content = CHUNK(content, {"strategy": "recursive", "max_chunk_size": 30, "separators": ["##", "\n\n"]})
+| EVAL snippets = TOP_SNIPPETS(chunked_content, "clean energy", {"num_words": 0, "num_snippets": 1, "highlight":true})
+| KEEP snippets 
+// end::top-snippets-num-words-zero-highlight-preceding-chunk[]
+;
+
+// tag::top-snippets-num-words-zero-highlight-preceding-chunk-result[]
+snippets:keyword  
+\## Policy Changes\nGovernment regulations can accelerate the transition to <em>clean</em> <em>energy</em> through carbon pricing and renewable <em>energy</em> mandates.
+// end::top-snippets-num-words-zero-highlight-preceding-chunk-result[]
+;

@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-watcher-condition-context.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -11,7 +14,7 @@ Use a Painless script as a [watch condition](docs-content://explore-analyze/aler
 
 The following variables are available in all watcher contexts.
 
-**Variables**
+## Variables
 
 `params` (`Map`, read-only)
 :   User-defined parameters passed in as part of the query.
@@ -37,98 +40,55 @@ The following variables are available in all watcher contexts.
 `ctx['payload']` (`Map`, read-only)
 :   The accessible watch data based upon the [watch input](docs-content://explore-analyze/alerts-cases/watcher/input.md).
 
-**Return**
+## Return
 
 `boolean`
 :   Expects `true` if the condition is met, and `false` if it is not.
 
-**API**
+## API
 
 The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) is available.
 
-**Example**
+## Example
 
-To run the examples, first follow the steps in [context examples](/reference/scripting-languages/painless/painless-context-examples.md).
+To run the examples, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
-```console
+**Manufacturer revenue anomaly detection**  
+The following script creates a watcher that runs daily to monitor manufacturer revenue anomalies by querying the last seven days of documents and calculating `total_revenue` per `manufacturer.keyword`.
+
+The condition in the script filters manufacturers with `total_revenue.value` either below 200 or above 2000, triggering an alert log when any anomalous manufacturers are detected.
+
+```json
 POST _watcher/watch/_execute
 {
-  "watch" : {
-    "trigger" : { "schedule" : { "interval" : "24h" } },
-    "input" : {
-      "search" : {
-        "request" : {
-          "indices" : [ "seats" ],
-          "body" : {
-            "query" : {
-              "term": { "sold": "true"}
-            },
-            "aggs" : {
-              "theatres" : {
-                "terms" : { "field" : "play" },
-                "aggs" : {
-                  "money" : {
-                    "sum": { "field" : "cost" }
-                  }
+  "watch": {
+    "trigger": {
+      "schedule": {
+        "interval": "24h"
+      }
+    },
+    "input": {
+      "search": {
+        "request": {
+          "indices": ["kibana_sample_data_ecommerce"],
+          "body": {
+            "query": {
+              "range": {
+                "order_date": {
+                  "gte": "now-7d"
                 }
               }
-            }
-          }
-        }
-      }
-    },
-    "condition" : {
-      "script" :
-      """
-        return ctx.payload.aggregations.theatres.buckets.stream()       <1>
-          .filter(theatre -> theatre.money.value < 15000 ||
-                             theatre.money.value > 50000)               <2>
-          .count() > 0                                                  <3>
-      """
-    },
-    "actions" : {
-      "my_log" : {
-        "logging" : {
-          "text" : "The output of the search was : {{ctx.payload.aggregations.theatres.buckets}}"
-        }
-      }
-    }
-  }
-}
-```
-% TEST[setup:seats]
-
-1. The Java Stream API is used in the condition. This API allows manipulation of the elements of the list in a pipeline.
-2. The stream filter removes items that do not meet the filter criteria.
-3. If there is at least one item in the list, the condition evaluates to true and the watch is executed.
-
-
-The following action condition script controls execution of the my_log action based on the value of the seats sold for the plays in the data set. The script aggregates the total sold seats for each play and returns true if there is at least one play that has sold over $10,000.
-
-```console
-POST _watcher/watch/_execute
-{
-  "watch" : {
-    "trigger" : { "schedule" : { "interval" : "24h" } },
-    "input" : {
-      "search" : {
-        "request" : {
-          "indices" : [ "seats" ],
-          "body" : {
-            "query" : {
-              "term": { "sold": "true"}
             },
             "size": 0,
-            "aggs" : {
-              "theatres" : {
-                "terms" : { "field" : "play" },
-                "aggs" : {
-                  "money" : {
+            "aggs": {
+              "manufacturers": {
+                "terms": {
+                  "field": "manufacturer.keyword"
+                },
+                "aggs": {
+                  "total_revenue": {
                     "sum": {
-                      "field" : "cost",
-                      "script": {
-                       "source": "doc.cost.value * doc.number.value"
-                      }
+                      "field": "taxful_total_price"
                     }
                   }
                 }
@@ -138,28 +98,79 @@ POST _watcher/watch/_execute
         }
       }
     },
-    "actions" : {
-      "my_log" : {
-        "condition": {                                                <1>
-          "script" :
-          """
-            return ctx.payload.aggregations.theatres.buckets.stream()
-              .anyMatch(theatre -> theatre.money.value > 10000)       <2>
-          """
-        },
-        "logging" : {
-          "text" : "At least one play has grossed over $10,000: {{ctx.payload.aggregations.theatres.buckets}}"
+    "condition": {
+      "script": """
+        return ctx.payload.aggregations.manufacturers.buckets.stream()
+          .filter(manufacturer -> manufacturer.total_revenue.value < 200 ||
+                                 manufacturer.total_revenue.value > 2000)
+          .count() > 0
+      """
+    },
+    "actions": {
+      "alert_log": {
+        "logging": {
+          "text": "ALERT: Manufacturers with anomalous sales detected: {{ctx.payload.aggregations.manufacturers.buckets}}"
         }
       }
     }
   }
 }
 ```
-% TEST[setup:seats]
 
-This example uses a nearly identical condition as the previous example. The differences below are subtle and are worth calling out.
+**High-value order detection**  
+This example runs hourly to detect high-value orders by filtering orders from the last hour when `taxful_total_price` is more than 150. The script generates a log message when it finds high-value orders.
 
-1. The location of the condition is no longer at the top level, but is within an individual action.
-2. Instead of a filter, `anyMatch` is used to return a boolean value
-
-
+```json
+POST _watcher/watch/_execute
+{
+  "watch": {
+    "trigger": {
+      "schedule": {
+        "interval": "1h"
+      }
+    },
+    "input": {
+      "search": {
+        "request": {
+          "indices": ["kibana_sample_data_ecommerce"],
+          "body": {
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "order_date": {
+                        "gte": "now-1h"
+                      }
+                    }
+                  },
+                  {
+                    "range": {
+                      "taxful_total_price": {
+                        "gte": 150
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "size": 0
+          }
+        }
+      }
+    },
+    "condition": {
+      "script": """
+        return ctx.payload.hits.total > 0
+      """
+    },
+    "actions": {
+      "high_value_notification": {
+        "logging": {
+          "text": "ALERT: {{ctx.payload.hits.total}} high-value orders (over 150 EUR) detected in the last hour"
+        }
+      }
+    }
+  }
+}
+```

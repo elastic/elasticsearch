@@ -185,12 +185,12 @@ final class PerThreadIDVersionAndSeqNoLookup {
     }
 
     /** Return null if id is not found. */
-    DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
+    DocIdAndSeqNo lookupDocIdAndSeqNo(BytesRef id, LeafReaderContext context, boolean loadSeqNo) throws IOException {
         assert readerKey == null || context.reader().getCoreCacheHelper().getKey().equals(readerKey)
             : "context's reader is not the same as the reader class was initialized on.";
         final int docID = getDocID(id, context);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-            final long seqNo = readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID);
+            final long seqNo = loadSeqNo ? readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID) : UNASSIGNED_SEQ_NO;
             return new DocIdAndSeqNo(docID, seqNo, context);
         } else {
             return null;

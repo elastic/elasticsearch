@@ -139,7 +139,7 @@ public abstract class AbstractInferenceServiceParameterizedModelCreationTests ex
                         testConfiguration -> new Utils.ModelConfigAndSecrets(
                             testConfiguration.commonConfig()
                                 .createModelConfigurations(testConfiguration.commonConfig().unsupportedTaskType()),
-                            testConfiguration.commonConfig().createModelSecrets()
+                            testConfiguration.commonConfig().createModelSecrets(ConfigurationParseContext.REQUEST)
                         ),
                         getModelCreator(),
                         // We expect failure, so the expected task type is irrelevant
@@ -160,7 +160,7 @@ public abstract class AbstractInferenceServiceParameterizedModelCreationTests ex
     ) {
         return testConfiguration -> new Utils.ModelConfigAndSecrets(
             testConfiguration.commonConfig().createModelConfigurations(completion),
-            testConfiguration.commonConfig().createModelSecrets()
+            testConfiguration.commonConfig().createModelSecrets(ConfigurationParseContext.REQUEST)
         );
     }
 

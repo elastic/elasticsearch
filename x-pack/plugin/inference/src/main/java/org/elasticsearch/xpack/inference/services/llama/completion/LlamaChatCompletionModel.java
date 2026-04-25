@@ -48,7 +48,7 @@ public class LlamaChatCompletionModel extends LlamaModel {
             taskType,
             service,
             LlamaChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            retrieveSecretSettings(secrets)
+            retrieveSecretSettings(secrets, context)
         );
     }
 

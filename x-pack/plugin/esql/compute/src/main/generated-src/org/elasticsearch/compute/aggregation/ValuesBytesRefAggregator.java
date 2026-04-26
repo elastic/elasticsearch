@@ -13,7 +13,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.common.util.IntArray;

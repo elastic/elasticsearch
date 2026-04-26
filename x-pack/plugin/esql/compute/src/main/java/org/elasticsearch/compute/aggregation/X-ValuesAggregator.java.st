@@ -13,7 +13,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.common.util.$if(BytesRef)$Int$else$$Type$$endif$Array;
@@ -143,14 +142,14 @@ $if(BytesRef)$
         private final BytesRefHash values;
 
 $else$
-        private final LongHash values;
+        private final LongHashTable values;
 
 $endif$
         private SingleState(BigArrays bigArrays) {
 $if(BytesRef)$
             values = new BytesRefHash(1, bigArrays);
 $else$
-            values = new LongHash(1, bigArrays);
+            values = HashImplFactory.newLongHash(bigArrays);
 $endif$
         }
 

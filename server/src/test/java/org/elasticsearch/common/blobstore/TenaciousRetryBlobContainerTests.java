@@ -37,8 +37,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL;
-import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_TOTAL;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_SUCCESS_TOTAL;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_TOTAL;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

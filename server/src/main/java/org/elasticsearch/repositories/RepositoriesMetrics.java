@@ -155,21 +155,13 @@ public record RepositoriesMetrics(
                 "retrying input stream retry attempts histogram",
                 "unit"
             ),
-            meterRegistry.registerLongCounter(
-                METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL,
-                "retrying transient error event total",
-                "unit"
-            ),
+            meterRegistry.registerLongCounter(METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL, "retrying transient error event total", "unit"),
             meterRegistry.registerLongCounter(
                 METRIC_TRANSIENT_ERROR_RETRY_SUCCESS_TOTAL,
                 "retrying transient error success event total",
                 "unit"
             ),
-            meterRegistry.registerLongCounter(
-                METRIC_TRANSIENT_ERROR_RETRY_TOTAL,
-                "retrying transient error failure event total",
-                "unit"
-            )
+            meterRegistry.registerLongCounter(METRIC_TRANSIENT_ERROR_RETRY_TOTAL, "retrying transient error failure event total", "unit")
         );
     }
 

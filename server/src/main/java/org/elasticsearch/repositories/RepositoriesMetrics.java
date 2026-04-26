@@ -157,17 +157,17 @@ public record RepositoriesMetrics(
             ),
             meterRegistry.registerLongCounter(
                 METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL,
-                "retrying allocation transient error event count",
+                "retrying transient error event total",
                 "unit"
             ),
             meterRegistry.registerLongCounter(
                 METRIC_TRANSIENT_ERROR_RETRY_SUCCESS_TOTAL,
-                "retrying allocation transient error success event count",
+                "retrying transient error success event total",
                 "unit"
             ),
             meterRegistry.registerLongCounter(
                 METRIC_TRANSIENT_ERROR_RETRY_TOTAL,
-                "retrying allocation transient error failure event count",
+                "retrying transient error failure event total",
                 "unit"
             )
         );

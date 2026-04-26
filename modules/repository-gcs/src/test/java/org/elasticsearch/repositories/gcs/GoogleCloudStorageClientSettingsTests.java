@@ -265,7 +265,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
                 original.getMegabytesCopiedPerChunk(),
                 () -> randomLongBetween(5, 5000)
             );
-            case 10 -> tenaciousRetriesEnabled = randomBoolean();
+            case 10 -> tenaciousRetriesEnabled = ! original.getTenaciousRetriesEnabled();
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new GoogleCloudStorageClientSettings(

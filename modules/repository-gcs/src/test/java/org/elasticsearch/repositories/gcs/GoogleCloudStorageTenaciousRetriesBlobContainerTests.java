@@ -25,7 +25,6 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @SuppressForbidden(reason = "use a http server")
@@ -101,7 +100,7 @@ public class GoogleCloudStorageTenaciousRetriesBlobContainerTests extends Google
         assertEquals(maxRetries + 1, requestCounters.get("/storage/v1/b/bucket/o").get());
 
         // Infinite retries for children() with INDICES purposes.
-        Thread thread = new Thread(() -> { expectThrows(StorageException.class, () -> blobContainer.children(OperationPurpose.INDICES)); });
+        Thread thread = new Thread(() -> expectThrows(StorageException.class, () -> blobContainer.children(OperationPurpose.INDICES)));
 
         thread.start();
 
@@ -112,10 +111,7 @@ public class GoogleCloudStorageTenaciousRetriesBlobContainerTests extends Google
         try {
             assertBusy(() -> {
                 recordingMeterRegistry.getRecorder().collect();
-                assertThat(
-                    getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM),
-                    greaterThanOrEqualTo(targetRetryCount)
-                );
+                assertThat(getMeasurements(recordingMeterRegistry), greaterThanOrEqualTo(targetRetryCount));
             });
         } catch (Exception e) {
             fail(e);
@@ -123,20 +119,21 @@ public class GoogleCloudStorageTenaciousRetriesBlobContainerTests extends Google
         // Now stop the retries
         stopped.set(true);
         // Wait for thread to finish
-        try {
-            thread.join(TimeValue.timeValueSeconds(30).millis());
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        assertFalse("Thread should have terminated", thread.isAlive());
+        safeJoin(thread);
     }
 
     @Override
     public void testRetriesAreTerminatedWhenClientProviderIsClosed() {
         // TO DO
+
+        final int maxRetries = randomIntBetween(4, 5);
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).build();
+
     }
 
-    private int getMeasurements(RecordingMeterRegistry meterRegistry, String name) {
-        return meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, name).size();
+    private int getMeasurements(RecordingMeterRegistry meterRegistry) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM)
+            .size();
     }
 }

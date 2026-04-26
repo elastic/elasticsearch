@@ -125,11 +125,11 @@ public record RepositoriesMetrics(
      * This metric records the number of retry attempts in response to such events.
      */
     public static final String METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM =
-        "es.repositories.allocation_transient_error.retry.attempts.histogram";
+        "es.repositories.transient_error.retry.attempt.total";
     public static final String METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM =
-        "es.repositories.allocation_transient_error.retry.success.histogram";
+        "es.repositories.transient_error.retry.success.total";
     public static final String METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_FAILURE_HISTOGRAM =
-        "es.repositories.allocation_transient_error.retry.failure.histogram";
+        "es.repositories.transient_error.retry.failure.total";
 
     public RepositoriesMetrics(MeterRegistry meterRegistry) {
         this(

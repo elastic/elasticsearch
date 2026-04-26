@@ -60,7 +60,6 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         Property.Dynamic
     );
     static final Setting<String> CLIENT_NAME = Setting.simpleString("client", "default");
-    static final Setting<Boolean> TENACIOUS_RETRIES_ENABLED = Setting.boolSetting("gcs.client.tenacious_retries.enabled", false);
 
     /**
      * We will retry CASes that fail due to throttling. We use an {@link BackoffPolicy#linearBackoff(TimeValue, int, TimeValue)}
@@ -118,10 +117,10 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
         this.bucket = getSetting(BUCKET, metadata);
         this.clientName = CLIENT_NAME.get(metadata.settings());
-        this.tenaciousRetriesEnabled = TENACIOUS_RETRIES_ENABLED.get(metadata.settings());
         this.retryThrottledCasDelayIncrement = RETRY_THROTTLED_CAS_DELAY_INCREMENT.get(metadata.settings());
         this.retryThrottledCasMaxNumberOfRetries = RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES.get(metadata.settings());
         this.retryThrottledCasMaxDelay = RETRY_THROTTLED_CAS_MAXIMUM_DELAY.get(metadata.settings());
+        this.tenaciousRetriesEnabled = storageService.clientSettings(getProjectId(), clientName).getTenaciousRetriesEnabled();
 
         this.statsCollector = statsCollector;
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());

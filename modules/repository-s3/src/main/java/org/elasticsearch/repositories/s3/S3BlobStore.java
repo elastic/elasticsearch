@@ -156,7 +156,7 @@ class S3BlobStore implements BlobStore {
         this.retryThrottledDeleteBackoffPolicy = retryThrottledDeleteBackoffPolicy;
         this.getRegisterRetryDelay = S3Repository.GET_REGISTER_RETRY_DELAY.get(repositoryMetadata.settings());
         this.addPurposeCustomQueryParameter = service.settings(projectId, repositoryMetadata).addPurposeCustomQueryParameter;
-        this.tenaciousRetriesEnabled = S3Repository.S3_TENACIOUS_RETRIES_ENABLED_SETTING.get(repositoryMetadata.settings());
+        this.tenaciousRetriesEnabled = service.settings(projectId, repositoryMetadata).tenaciousRetriesEnabled;
     }
 
     MetricPublisher getMetricPublisher(Operation operation, OperationPurpose purpose) {

@@ -38,7 +38,7 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
         }
 
         S3Exception exception = (S3Exception) throwable;
-        return exception.statusCode() == FORBIDDEN
+        return exception.statusCode() == FORBIDDEN && "InvalidAccessKeyId".equals(exception.awsErrorDetails().errorCode())
             || exception.statusCode() == SERVICE_UNAVAILABLE
             || exception.statusCode() == THROTTLING
             || exception.statusCode() == REQUEST_TIMEOUT;

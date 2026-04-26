@@ -285,7 +285,7 @@ final class S3ClientSettings {
     final ByteSizeValue maxCopySizeBeforeMultipart;
 
     /** Tenacious retries for transient blob store errors. */
-    private final boolean tenaciousRetriesEnabled;
+    final boolean tenaciousRetriesEnabled;
 
     private S3ClientSettings(
         AwsCredentials credentials,
@@ -381,7 +381,11 @@ final class S3ClientSettings {
             normalizedSettings,
             maxCopySizeBeforeMultipart
         );
-        final boolean newTenaciousRetriesEnabled = getRepoSettingOrDefault(S3_TENACIOUS_RETRIES_ENABLED_SETTING, normalizedSettings, false);
+        final boolean newTenaciousRetriesEnabled = getRepoSettingOrDefault(
+            S3_TENACIOUS_RETRIES_ENABLED_SETTING,
+            normalizedSettings,
+            tenaciousRetriesEnabled
+        );
         if (Objects.equals(protocol, newProtocol)
             && Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
@@ -609,4 +613,5 @@ final class S3ClientSettings {
         static final int RETRY_COUNT = 3;
         static final TimeValue API_CALL_TIMEOUT = TimeValue.MINUS_ONE; // default to no API call timeout
     }
+
 }

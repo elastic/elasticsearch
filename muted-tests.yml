@@ -343,9 +343,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mapping/20_synthetic_source/synthetic_source text with ignored multi-field and multiple values in the same doc}
   issue: https://github.com/elastic/elasticsearch/issues/147064
-- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
-  method: test {yaml=rrf/310_rrf_retriever_simplified/Expansion to equivalent custom sub-retrievers returns the same results}
-  issue: https://github.com/elastic/elasticsearch/issues/146464
 - class: org.elasticsearch.index.mapper.KeywordOffsetDocValuesLoaderTests
   method: testOffsetArrayRandomHighCardinality
   issue: https://github.com/elastic/elasticsearch/issues/147085
@@ -456,6 +453,21 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit}
   issue: https://github.com/elastic/elasticsearch/issues/147494
+- class: org.elasticsearch.compute.operator.topn.GroupedTopNOperatorTests
+  method: testSplitOnSize
+  issue: https://github.com/elastic/elasticsearch/issues/147533
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:external-basic.complexQuery}
+  issue: https://github.com/elastic/elasticsearch/issues/147536
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:spatial-grid.gridGeohexStatsByBoundsEnvelope}
+  issue: https://github.com/elastic/elasticsearch/issues/147537
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:exponential_histogram.Top level date group with no other groups (timeseries index)}
+  issue: https://github.com/elastic/elasticsearch/issues/147538
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:vector-hamming.similarityWithNull}
+  issue: https://github.com/elastic/elasticsearch/issues/147539
 
 # Examples:
 #

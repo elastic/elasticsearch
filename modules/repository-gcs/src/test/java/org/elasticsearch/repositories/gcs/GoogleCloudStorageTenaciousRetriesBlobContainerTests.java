@@ -126,8 +126,8 @@ public class GoogleCloudStorageTenaciousRetriesBlobContainerTests extends Google
     public void testRetriesAreTerminatedWhenClientProviderIsClosed() {
         // TO DO
 
-        //final int maxRetries = randomIntBetween(4, 5);
-        //final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).build();
+        // final int maxRetries = randomIntBetween(4, 5);
+        // final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).build();
 
     }
 

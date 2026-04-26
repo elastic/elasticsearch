@@ -32,13 +32,15 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
     }
 
     @Override
-    protected String getRepositoryType() {
-        return GoogleCloudStorageRepository.TYPE;
-    }
-
-    @Override
     protected Map<String, Object> getMetricsAttributes(RetryMethod method) {
-        return Map.of();
+        return Map.of(
+            "repo_type",
+            GoogleCloudStorageRepository.TYPE,
+            "blob_path",
+            delegate.path().buildAsString(),
+            "method",
+            method.getName()
+        );
     }
 
     @Override

@@ -37,7 +37,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
     private static final int INITIAL_ATTEMPT = 1;
     private static final String REPOSITORY_TYPE = "cloud_provider";
     public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
-    private final BlobContainer delegate;
+    protected final BlobContainer delegate;
 
     public enum RetryMethod {
         LIST_BLOBS("listBlobs()"),
@@ -62,8 +62,6 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
     }
 
     protected abstract boolean isExceptionRetryable(Exception e);
-
-    protected abstract String getRepositoryType();
 
     protected abstract Map<String, Object> getMetricsAttributes(RetryMethod method);
 
@@ -110,7 +108,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
                     if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
                         failures.add(e);
                     }
-                    logRetryAttempt();
+                    logRetryAttempt(method);
                     try {
                         Thread.sleep(getRetryDelayInMillis(attempts));
                     } catch (InterruptedException exception) {
@@ -133,7 +131,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
 
     private void maybeLogSuccessfulRetry(RetryMethod method, int attempts) {
         if (attempts > INITIAL_ATTEMPT) {
-            repositoriesMetrics.allocationTransientErrorRetrySuccessCounter().incrementBy(1, Map.of(REPOSITORY_TYPE, getRepositoryType()));
+            repositoriesMetrics.allocationTransientErrorRetrySuccessCounter().incrementBy(1, getMetricsAttributes(method));
             logger.log(
                 // Log at info level for the 1st retry and then exponentially less
                 Integer.bitCount(attempts) == 1 ? Level.INFO : Level.DEBUG,
@@ -144,8 +142,8 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
         }
     }
 
-    private void logRetryAttempt() {
-        repositoriesMetrics.allocationTransientErrorRetryCounter().incrementBy(1, Map.of(REPOSITORY_TYPE, getRepositoryType()));
+    private void logRetryAttempt(RetryMethod method) {
+        repositoriesMetrics.allocationTransientErrorRetryCounter().incrementBy(1, getMetricsAttributes(method));
     }
 
     private void logRetryFailure(Exception ex, RetryMethod method, int attempts) {
@@ -158,7 +156,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
             ),
             ex
         );
-        repositoriesMetrics.allocationTransientErrorRetryFailureCounter().incrementBy(1, Map.of(REPOSITORY_TYPE, getRepositoryType()));
+        repositoriesMetrics.allocationTransientErrorRetryFailureCounter().incrementBy(1, getMetricsAttributes(method));
     }
 
     protected long getRetryDelayInMillis(int attempt) {

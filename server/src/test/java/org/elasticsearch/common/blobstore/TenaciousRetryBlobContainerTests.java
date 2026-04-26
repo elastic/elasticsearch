@@ -69,11 +69,6 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
             }
 
             @Override
-            protected String getRepositoryType() {
-                return "test";
-            }
-
-            @Override
             protected Map<String, Object> getMetricsAttributes(RetryMethod method) {
                 return Map.of();
             }
@@ -113,19 +108,17 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         final Map<String, BlobMetadata> answer = new HashMap<>();
         final Map<String, BlobContainer> children = new HashMap<>();
         BlobContainer blobContainer = mock(BlobContainer.class);
+        BlobPath blobPath = mock(BlobPath.class);
+        when(blobPath.buildAsString()).thenReturn("/tenacious/retries");
         when(blobContainer.listBlobs(any())).thenThrow(new IOException("listBlobs"));
         when(blobContainer.listBlobsByPrefix(any(), any())).thenThrow(new IOException());
         when(blobContainer.children(any())).thenThrow(new IOException("children"));
+        when(blobContainer.path()).thenReturn(blobPath);
 
         TenaciousRetryBlobContainer tenaciousRetryBlobContainer = new TenaciousRetryBlobContainer(blobContainer, repositoriesMetrics) {
             @Override
             protected boolean isExceptionRetryable(Exception e) {
                 return e instanceof IOException;
-            }
-
-            @Override
-            protected String getRepositoryType() {
-                return "test";
             }
 
             @Override
@@ -167,6 +160,7 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         when(blobContainer.listBlobsByPrefix(any(), any())).thenThrow(new IOException())
             .thenThrow(new IOException())
             .thenThrow(new IllegalArgumentException());
+        when(blobContainer.path()).thenReturn(blobPath);
 
         assertThat(tenaciousRetryBlobContainer.listBlobs(OperationPurpose.INDICES), is(answer));
         verify(blobContainer, times(3)).listBlobs(any());
@@ -190,6 +184,7 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         when(blobContainer.children(any())).thenThrow(new IOException("children"))
             .thenThrow(new IOException("children"))
             .thenReturn(children);
+        when(blobContainer.path()).thenReturn(blobPath);
 
         assertThat(tenaciousRetryBlobContainer.children(OperationPurpose.INDICES), is(children));
         verify(blobContainer, times(3)).children(any());
@@ -204,8 +199,9 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
             .thenThrow(new IOException("children"))
             .thenThrow(new IOException("children"))
             .thenThrow(new IllegalArgumentException());
+        when(blobContainer.path()).thenReturn(blobPath);
         Throwable ex = expectThrows(IllegalArgumentException.class, () -> tenaciousRetryBlobContainer.children(OperationPurpose.INDICES));
-        assertThat(Arrays.stream(ex.getSuppressed()).count(), is(9L));
+        assertThat(Arrays.stream(ex.getSuppressed()).count(), is(3L));
         assertThat(Arrays.stream(ex.getSuppressed()).findFirst().orElseThrow(), instanceOf(IOException.class));
         recordingMeterRegistry.getRecorder().collect();
 

@@ -47,13 +47,17 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
     }
 
     @Override
-    protected String getRepositoryType() {
-        return S3Repository.TYPE;
-    }
-
-    @Override
     protected Map<String, Object> getMetricsAttributes(RetryMethod method) {
-        return Map.of();
+        return Map.of(
+            "repo_type",
+            S3Repository.TYPE,
+            "blob_path",
+            delegate.path().buildAsString(),
+            "operation",
+            S3BlobStore.Operation.LIST_OBJECTS,
+            "method",
+            method.getName()
+        );
     }
 
     @Override

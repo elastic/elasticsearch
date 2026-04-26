@@ -54,7 +54,7 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
             "blob_path",
             delegate.path().buildAsString(),
             "operation",
-            S3BlobStore.Operation.LIST_OBJECTS,
+            S3BlobStore.Operation.LIST_OBJECTS.getKey(),
             "method",
             method.getName()
         );

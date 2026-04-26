@@ -47,7 +47,7 @@ public class VoyageAIRerankModel extends VoyageAIModel {
             service,
             VoyageAIRerankServiceSettings.fromMap(serviceSettings, context),
             VoyageAIRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets),
+            DefaultSecretSettings.fromMap(secrets, context),
             buildUri(VoyageAIService.NAME, VoyageAIRerankModel::buildRequestUri)
         );
     }

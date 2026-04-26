@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 
 import java.util.Map;
 
@@ -22,34 +21,31 @@ import java.util.Map;
  * Abstract base class for {@link ElasticInferenceServiceModel} creator instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
-public abstract class ElasticInferenceServiceModelCreator<M extends ElasticInferenceServiceModel> {
+public abstract class ElasticInferenceServiceModelCreator<M extends ElasticInferenceServiceModel> implements ModelCreator<M> {
 
-    /**
-     * Creates a {@link Model} instance from configuration maps.
-     * @param inferenceId the inference entity ID
-     * @param taskType the task type
-     * @param serviceSettings the service settings map
-     * @param chunkingSettings the chunking settings
-     * @param context the configuration parse context
-     * @param endpointMetadata the endpoint metadata
-     * @return the created {@link Model} instance
-     */
-    public abstract M createFromMaps(
+    @Override
+    public M createFromMaps(
         String inferenceId,
         TaskType taskType,
+        String service,
         Map<String, Object> serviceSettings,
+        @Nullable Map<String, Object> taskSettings,
         @Nullable ChunkingSettings chunkingSettings,
-        ConfigurationParseContext context,
-        @Nullable EndpointMetadata endpointMetadata
-    );
-
-    /**
-     * Creates a {@link Model} instance from {@link ModelConfigurations} and {@link ModelSecrets}.
-     * @param modelConfigurations the model configurations
-     * @param modelSecrets the model secrets
-     * @return the created {@link Model} instance
-     */
-    public abstract M createFromModelConfigurationsAndSecrets(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets);
+        @Nullable Map<String, Object> secretSettings,
+        ConfigurationParseContext context
+    ) {
+        return createFromMaps(
+            inferenceId,
+            taskType,
+            service,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context,
+            null
+        );
+    }
 
     protected final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 

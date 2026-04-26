@@ -177,10 +177,10 @@ public class EirfRowBuilderTests extends ESTestCase {
             assertEquals(3, batch.columnCount());
 
             EirfRowReader row0 = batch.getRowReader(0);
-            assertTrue(row0.isNull(2));
+            assertTrue(row0.isAbsent(2));
 
             EirfRowReader row1 = batch.getRowReader(1);
-            assertTrue(row1.isNull(1));
+            assertTrue(row1.isAbsent(1));
             assertEquals("bob@test.com", row1.getStringValue(2).string());
 
             batch.close();

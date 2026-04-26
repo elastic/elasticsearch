@@ -34,6 +34,12 @@ public final class DatafeedHealthChecker {
      */
     static final int RED_STATUS_FAILURE_COUNT_BOUNDARY = 5;
 
+    /**
+     * Minimum consecutive empty cycles before surfacing an EMPTY_DATA issue.
+     * Mirrors {@code ProblemTracker.EMPTY_DATA_WARN_COUNT}.
+     */
+    static final int EMPTY_DATA_ISSUE_THRESHOLD = 10;
+
     /** Utility class — not instantiable. */
     private DatafeedHealthChecker() {}
 
@@ -132,9 +138,9 @@ public final class DatafeedHealthChecker {
                 maxStatus = max(maxStatus, severity);
             }
 
-            // EMPTY_DATA: YELLOW only after 10 consecutive empty cycles
+            // EMPTY_DATA: YELLOW only after EMPTY_DATA_ISSUE_THRESHOLD consecutive empty cycles
             int emptyCount = problemStats.getEmptyDataCount();
-            if (emptyCount >= 10) {
+            if (emptyCount >= EMPTY_DATA_ISSUE_THRESHOLD) {
                 issues.add(new AnomalyDetectionHealthIssue(IssueType.EMPTY_DATA.type, IssueType.EMPTY_DATA.title, null, emptyCount, null));
                 maxStatus = max(maxStatus, IssueType.EMPTY_DATA.severity);
             }

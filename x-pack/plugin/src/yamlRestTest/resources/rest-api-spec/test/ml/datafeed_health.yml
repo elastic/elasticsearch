@@ -44,8 +44,26 @@ setup:
         body: >
           {
             "job_id": "datafeed-health-job",
-            "indexes": ["datafeed-health-test-index"]
+            "indices": ["datafeed-health-test-index"]
           }
+
+---
+teardown:
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.stop_datafeed:
+        datafeed_id: datafeed-health-df
+        force: true
+        ignore: 404
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.close_job:
+        job_id: datafeed-health-job
+        force: true
+        ignore: 404
 
 ---
 "Test stopped datafeed has green health":
@@ -83,17 +101,3 @@ setup:
 
   - is_true: datafeeds.0.health
   - match: { datafeeds.0.health.status: "green" }
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
-      ml.stop_datafeed:
-        datafeed_id: datafeed-health-df
-        force: true
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2sdGVzdC1wYXNzd29yZA=="
-      ml.close_job:
-        job_id: datafeed-health-job
-        force: true

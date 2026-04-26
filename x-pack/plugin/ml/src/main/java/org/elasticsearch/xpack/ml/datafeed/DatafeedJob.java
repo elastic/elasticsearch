@@ -276,7 +276,7 @@ class DatafeedJob {
                 this.lastDelayedDataBucketEndMs = 0;
             } else {
                 if (this.delayedDataFirstOccurrence == null) {
-                    this.delayedDataFirstOccurrence = Instant.now();
+                    this.delayedDataFirstOccurrence = Instant.ofEpochMilli(currentTimeSupplier.get());
                 }
                 long totalRecordsMissing = missingDataBuckets.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum();
                 Bucket lastBucket = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket();
@@ -311,7 +311,9 @@ class DatafeedJob {
                     if (lastBucket.getEpoch() * 1000 <= (lastDataCheckAnnotationWithId.v2().getEndTimestamp().getTime() + 1)) {
                         consecutiveDelayedDataBuckets++;
                     } else {
+                        // Non-adjacent streak: reset both counter and first-occurrence so they describe the same streak
                         consecutiveDelayedDataBuckets = 0;
+                        this.delayedDataFirstOccurrence = Instant.ofEpochMilli(currentTimeSupplier.get());
                     }
                 } else {
                     consecutiveDelayedDataBuckets = 0;

@@ -138,7 +138,8 @@ public class TransportGetDatafeedsStatsAction extends HandledTransportAction<Req
      * Health is derived from the stats already assembled (state, node, running state, problem stats).
      */
     private static Response enrichWithHealth(Response rawResponse) {
-        List<DatafeedStats> enriched = rawResponse.getResponse().results().stream().map(stats -> {
+        QueryPage<DatafeedStats> page = rawResponse.getResponse();
+        List<DatafeedStats> enriched = page.results().stream().map(stats -> {
             RunningState runningState = stats.getRunningState();
             AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(
                 stats.getDatafeedState(),
@@ -156,6 +157,6 @@ public class TransportGetDatafeedsStatsAction extends HandledTransportAction<Req
                 health
             );
         }).collect(Collectors.toList());
-        return new Response(new QueryPage<>(enriched, enriched.size(), DatafeedConfig.RESULTS_FIELD));
+        return new Response(new QueryPage<>(enriched, page.count(), DatafeedConfig.RESULTS_FIELD));
     }
 }

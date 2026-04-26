@@ -129,7 +129,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
 
         public static class DatafeedStats implements ToXContentObject, Writeable {
 
-            private static final TransportVersion ML_DATAFEED_STATS_HEALTH = TransportVersion.fromName("ml_datafeed_stats_health");
+            public static final TransportVersion ML_DATAFEED_STATS_HEALTH = TransportVersion.fromName("ml_datafeed_stats_health");
 
             private final String datafeedId;
             private final DatafeedState datafeedState;

@@ -16,7 +16,11 @@ import org.elasticsearch.xpack.core.ml.job.AnomalyDetectionHealth;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -207,5 +211,27 @@ public class DatafeedHealthCheckerTests extends ESTestCase {
     public void testNullProblemStatsDoesNotThrow() {
         AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(DatafeedState.STARTED, null, null, null);
         assertThat(health.getStatus(), is(HealthStatus.GREEN));
+    }
+
+    public void testMultipleIssuesOverallStatusIsWorstSeverity() {
+        // YELLOW extraction + RED fatal analysis → overall RED with both issues present
+        DatafeedProblemStats stats = new DatafeedProblemStats(
+            DatafeedHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY,
+            Instant.now(),
+            1,
+            Instant.now(),
+            0,
+            true, // fatal analysis failure → RED immediately
+            0,
+            null,
+            0L,
+            0L
+        );
+        AnomalyDetectionHealth health = DatafeedHealthChecker.checkDatafeed(DatafeedState.STARTED, null, null, stats);
+        assertThat(health.getStatus(), is(HealthStatus.RED));
+        assertThat(health.getIssues(), hasSize(2));
+        List<String> types = health.getIssues().stream().map(i -> i.getType()).collect(Collectors.toList());
+        assertThat(types, hasItem(DatafeedHealthChecker.IssueType.DATA_EXTRACTION_ERROR.type));
+        assertThat(types, hasItem(DatafeedHealthChecker.IssueType.DATA_ANALYSIS_ERROR.type));
     }
 }

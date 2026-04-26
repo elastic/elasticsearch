@@ -152,7 +152,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
 
         public static class JobStats implements ToXContentObject, Writeable {
 
-            private static final TransportVersion ML_JOB_STATS_HEALTH = TransportVersion.fromName("ml_job_stats_health");
+            public static final TransportVersion ML_JOB_STATS_HEALTH = TransportVersion.fromName("ml_job_stats_health");
 
             private final String jobId;
             private final DataCounts dataCounts;

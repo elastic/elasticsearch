@@ -234,7 +234,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         public static class RunningState implements Writeable, ToXContentObject {
 
             private static final TransportVersion CROSS_CLUSTER_STATS_ADDED = TransportVersion.fromName("ml_datafeed_cross_cluster_stats");
-            private static final TransportVersion DATAFEED_RUNNING_STATE_PROBLEM_STATS = TransportVersion.fromName(
+            public static final TransportVersion DATAFEED_RUNNING_STATE_PROBLEM_STATS = TransportVersion.fromName(
                 "ml_datafeed_running_state_problem_stats"
             );
 

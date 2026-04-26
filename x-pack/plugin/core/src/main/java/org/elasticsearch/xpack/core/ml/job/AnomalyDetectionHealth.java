@@ -78,7 +78,7 @@ public class AnomalyDetectionHealth implements Writeable, ToXContentObject {
             return false;
         }
         AnomalyDetectionHealth that = (AnomalyDetectionHealth) other;
-        return this.status.value() == that.status.value() && Objects.equals(this.issues, that.issues);
+        return this.status == that.status && Objects.equals(this.issues, that.issues);
     }
 
     @Override

@@ -123,7 +123,7 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
 
             @Override
             protected Map<String, Object> getMetricsAttributes(RetryMethod method) {
-                return Map.of();
+                return Map.of("repo_type", "test", "blobPath", "/tenacious/retries");
             }
 
             @Override
@@ -177,6 +177,12 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         recordingMeterRegistry.getRecorder().collect();
         assertThat(getMeasurements(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL), equalTo(2));
         assertThat(getMeasurements(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_TOTAL), equalTo(1));
+        assertThat(getAttributes(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL).size(), equalTo(2));
+        assertThat(getAttributes(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL).get("repo_type"), equalTo("test"));
+        assertThat(
+            getAttributes(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL).get("blobPath"),
+            equalTo("/tenacious/retries")
+        );
 
         // Key retryable method children()
         reset(blobContainer);
@@ -207,10 +213,19 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
 
         assertThat(getMeasurements(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL), equalTo(3));
         assertThat(getMeasurements(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_TOTAL), equalTo(1));
+        assertThat(getAttributes(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_TOTAL).get("repo_type"), equalTo("test"));
+        assertThat(
+            getAttributes(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_TOTAL).get("blobPath"),
+            equalTo("/tenacious/retries")
+        );
     }
 
     private int getMeasurements(RecordingMeterRegistry meterRegistry, String name) {
         return meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, name).size();
+    }
+
+    private Map<String, Object> getAttributes(RecordingMeterRegistry meterRegistry, String name) {
+        return meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, name).getFirst().attributes();
     }
 
     private Object[] buildArgs(Method method) {

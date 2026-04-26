@@ -130,42 +130,42 @@ public class GoogleCloudStorageTenaciousRetriesBlobContainerTests extends Google
 
     @Override
     public void testRetriesAreTerminatedWhenClientProviderIsClosed() {
-        // List Operation Only. Not Needed currently.
+        assumeTrue("List Operation only, Not currently needed", true);
     }
 
     @Override
     public void testReadLargeBlobWithRetries() throws Exception {
-        // List Operation Only. Not Needed currently.
+        assumeTrue("List Operation only, Not currently needed", true);
     }
 
     @Override
     public void testWriteBlobWithRetries() throws Exception {
-        // List Operation Only. Not Needed currently.
+        assumeTrue("List Operation only, Not currently needed", true);
     }
 
     @Override
     public void testWriteBlobWithReadTimeouts() {
-        // List Operation Only. Not Needed currently.
+        assumeTrue("List Operation only, Not currently needed", true);
     }
 
     @Override
     public void testWriteLargeBlob() throws IOException {
-        // List Operation Only. Not Needed currently.
+        assumeTrue("List Operation only, Not currently needed", true);
     }
 
     @Override
     public void testDeleteBatchesAreSentIncrementally() throws Exception {
-        // List Operation Only. Not Needed currently.
+        assumeTrue("List Operation only, Not currently needed", true);
     }
 
     @Override
     public void testCompareAndExchangeWhenThrottled() throws IOException {
-        // List Operation Only. Not Needed currently.
+        assumeTrue("List Operation only, Not currently needed", true);
     }
 
     @Override
     public void testContentsChangeWhileStreaming() throws IOException {
-        // List Operation Only. Not Needed currently.
+        assumeTrue("List Operation only, Not currently needed", true);
     }
 
     private int getMeasurements(RecordingMeterRegistry meterRegistry) {

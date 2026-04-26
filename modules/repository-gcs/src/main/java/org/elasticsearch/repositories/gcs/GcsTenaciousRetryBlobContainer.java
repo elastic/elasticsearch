@@ -15,6 +15,7 @@ import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import java.net.UnknownHostException;
+import java.util.Map;
 
 public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 
@@ -33,6 +34,11 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
     @Override
     protected String getRepositoryType() {
         return GoogleCloudStorageRepository.TYPE;
+    }
+
+    @Override
+    protected Map<String, Object> getMetricsAttributes(RetryMethod method) {
+        return Map.of();
     }
 
     @Override

@@ -133,7 +133,7 @@ public class GoogleCloudStorageTenaciousRetriesBlobContainerTests extends Google
 
     private int getMeasurements(RecordingMeterRegistry meterRegistry) {
         return meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM)
+            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
             .size();
     }
 }

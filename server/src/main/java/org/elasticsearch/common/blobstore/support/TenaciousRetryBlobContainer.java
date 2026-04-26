@@ -65,6 +65,8 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
 
     protected abstract String getRepositoryType();
 
+    protected abstract Map<String, Object> getMetricsAttributes(RetryMethod method);
+
     @Override
     public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
         if (shouldRetry(purpose)) {

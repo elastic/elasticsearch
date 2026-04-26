@@ -16,6 +16,8 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 
+import java.util.Map;
+
 import static software.amazon.awssdk.http.HttpStatusCode.FORBIDDEN;
 import static software.amazon.awssdk.http.HttpStatusCode.REQUEST_TIMEOUT;
 import static software.amazon.awssdk.http.HttpStatusCode.SERVICE_UNAVAILABLE;
@@ -47,6 +49,11 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
     @Override
     protected String getRepositoryType() {
         return S3Repository.TYPE;
+    }
+
+    @Override
+    protected Map<String, Object> getMetricsAttributes(RetryMethod method) {
+        return Map.of();
     }
 
     @Override

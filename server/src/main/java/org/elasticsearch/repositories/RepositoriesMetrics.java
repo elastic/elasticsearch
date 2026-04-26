@@ -124,11 +124,11 @@ public record RepositoriesMetrics(
      * including network connectivity and identity authorization issues.
      * This metric records the number of retry attempts in response to such events.
      */
-    public static final String METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM =
+    public static final String METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL =
         "es.repositories.transient_error.retry.attempt.total";
-    public static final String METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM =
+    public static final String METRIC_TRANSIENT_ERROR_RETRY_SUCCESS_TOTAL =
         "es.repositories.transient_error.retry.success.total";
-    public static final String METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_FAILURE_HISTOGRAM =
+    public static final String METRIC_TRANSIENT_ERROR_RETRY_TOTAL =
         "es.repositories.transient_error.retry.failure.total";
 
     public RepositoriesMetrics(MeterRegistry meterRegistry) {
@@ -159,17 +159,17 @@ public record RepositoriesMetrics(
                 "unit"
             ),
             meterRegistry.registerLongCounter(
-                METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM,
+                METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL,
                 "retrying allocation transient error event count",
                 "unit"
             ),
             meterRegistry.registerLongCounter(
-                METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM,
+                METRIC_TRANSIENT_ERROR_RETRY_SUCCESS_TOTAL,
                 "retrying allocation transient error success event count",
                 "unit"
             ),
             meterRegistry.registerLongCounter(
-                METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_FAILURE_HISTOGRAM,
+                METRIC_TRANSIENT_ERROR_RETRY_TOTAL,
                 "retrying allocation transient error failure event count",
                 "unit"
             )

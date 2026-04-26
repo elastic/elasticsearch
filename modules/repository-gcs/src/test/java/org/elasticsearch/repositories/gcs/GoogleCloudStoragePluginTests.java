@@ -20,7 +20,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.Assert;
-import org.mockito.Mock;
 
 import java.util.List;
 

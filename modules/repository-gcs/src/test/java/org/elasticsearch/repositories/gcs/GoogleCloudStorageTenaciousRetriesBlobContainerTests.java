@@ -24,8 +24,10 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @SuppressForbidden(reason = "use a http server")
@@ -113,6 +115,9 @@ public class GoogleCloudStorageTenaciousRetriesBlobContainerTests extends Google
             assertBusy(() -> {
                 recordingMeterRegistry.getRecorder().collect();
                 assertThat(getMeasurements(recordingMeterRegistry), greaterThanOrEqualTo(targetRetryCount));
+                assertThat(getAttributes(recordingMeterRegistry).size(), equalTo(3));
+                assertThat(getAttributes(recordingMeterRegistry).get("repo_type"), equalTo("gcs"));
+                assertThat(getAttributes(recordingMeterRegistry).get("method"), equalTo("children()"));
             });
         } catch (Exception e) {
             fail(e);
@@ -167,5 +172,12 @@ public class GoogleCloudStorageTenaciousRetriesBlobContainerTests extends Google
         return meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
             .size();
+    }
+
+    private Map<String, Object> getAttributes(RecordingMeterRegistry meterRegistry) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
+            .getFirst()
+            .attributes();
     }
 }

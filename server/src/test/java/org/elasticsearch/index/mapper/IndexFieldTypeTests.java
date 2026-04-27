@@ -59,6 +59,16 @@ public class IndexFieldTypeTests extends ConstantFieldTypeTestCase {
         assertEquals(new MatchAllDocsQuery(), ft.wildcardLikeQuery("iNd?x", null, true, context));
     }
 
+    public void testWildcardLikeQueryTooComplex() {
+        IndexFieldMapper.IndexFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
+        SearchExecutionContext context = createContext();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ft.wildcardLikeQuery("*a?????????????", null, false, context)
+        );
+        assertThat(e.getMessage(), containsString("Pattern was too complex to determinize"));
+    }
+
     public void testRegexpQuery() {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 

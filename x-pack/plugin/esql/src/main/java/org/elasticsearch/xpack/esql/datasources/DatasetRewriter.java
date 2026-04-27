@@ -39,14 +39,23 @@ public final class DatasetRewriter {
 
     private DatasetRewriter() {}
 
-    public static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata projectMetadata) {
+    /**
+     * Returns true when this rewriter has any work to do for the current cluster state. Callers should
+     * skip {@link #rewrite} entirely when this returns false, so that index-only `FROM` queries pay
+     * nothing beyond a single feature-flag check + an empty-map lookup on cluster state customs.
+     */
+    public static boolean isApplicable(ProjectMetadata projectMetadata) {
         if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() == false || projectMetadata == null) {
+            return false;
+        }
+        return DatasetMetadata.get(projectMetadata).datasets().isEmpty() == false;
+    }
+
+    public static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata projectMetadata) {
+        if (isApplicable(projectMetadata) == false) {
             return parsed;
         }
         DatasetMetadata datasetMetadata = DatasetMetadata.get(projectMetadata);
-        if (datasetMetadata.datasets().isEmpty()) {
-            return parsed;
-        }
         DataSourceMetadata dataSourceMetadata = DataSourceMetadata.get(projectMetadata);
         return parsed.transformUp(UnresolvedRelation.class, r -> rewriteOne(r, datasetMetadata, dataSourceMetadata));
     }

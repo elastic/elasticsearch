@@ -20,6 +20,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.nativeaccess.CloseableMappedByteBuffer;
+import org.elasticsearch.nativeaccess.MadviseAdvice;
 import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.Closeable;
@@ -338,6 +339,9 @@ public class SharedBytes extends AbstractRefCounted {
         return ios[sharedBytesPos];
     }
 
+    public static final int MADV_NORMAL = MadviseAdvice.NORMAL;
+    public static final int MADV_RANDOM = MadviseAdvice.RANDOM;
+
     public final class IO {
 
         private final long pageStart;
@@ -346,6 +350,8 @@ public class SharedBytes extends AbstractRefCounted {
 
         // Cached reference to the region's ByteBuffer
         private final ByteBuffer mmapBuffer;
+
+        private volatile int currentAdvice = MADV_NORMAL;
 
         private IO(final int sharedBytesPos, CloseableMappedByteBuffer mappedByteBuffer) {
             long physicalOffset = (long) sharedBytesPos * regionSize;
@@ -361,6 +367,24 @@ public class SharedBytes extends AbstractRefCounted {
                 return true;
             }
             return false;
+        }
+
+        /**
+         * Advises the OS about the expected access pattern for this region.
+         * Skips the syscall if the advice matches what was previously set.
+         *
+         * @param advice the posix_madvise access pattern advice constant
+         */
+        public void madvise(int advice) {
+            if (mmap && currentAdvice != advice) {
+                mappedByteBuffer.madvise(0, regionSize, advice);
+                currentAdvice = advice;
+            }
+        }
+
+        // visible for testing
+        int currentAdvice() {
+            return currentAdvice;
         }
 
         @SuppressForbidden(reason = "Use positional reads on purpose")

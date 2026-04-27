@@ -61,4 +61,10 @@ public class JdkCloseableMappedByteBuffer implements CloseableMappedByteBuffer {
         Objects.checkFromIndexSize(offset, length, segment.byteSize());
         // no explicit action, override in subclass if needed.
     }
+
+    @Override
+    public void madvise(long offset, long length, int advice) {
+        Objects.checkFromIndexSize(offset, length, segment.byteSize());
+        // no explicit action, override in subclass if needed.
+    }
 }

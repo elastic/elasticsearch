@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.plan.logical.Distinct;
 
 import java.util.List;
 import java.util.Map;
@@ -29,6 +31,15 @@ public class DistinctGenerator implements CommandGenerator {
     ) {
         if (EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled() == false) {
             return EMPTY_DESCRIPTION;
+        }
+        // DISTINCT runs over every column in scope, so any column with a type the runtime group-key
+        // encoder can't handle would produce a VerificationException. Skip rather than emit a
+        // query we know would be rejected.
+        for (Column c : previousOutput) {
+            DataType dt = DataType.fromTypeName(c.type());
+            if (dt != null && Distinct.UNSUPPORTED_GROUPING_TYPES.contains(dt)) {
+                return EMPTY_DESCRIPTION;
+            }
         }
         return new CommandDescription(DISTINCT, this, " | DISTINCT ", Map.of());
     }

@@ -3952,6 +3952,19 @@ public class VerifierTests extends ESTestCase {
         k8s().error("TS k8s | SORT @timestamp | TS_INFO", containsString("TS_INFO cannot be used after SORT command"));
     }
 
+    public void testDistinctRejectsAggregateMetricDouble() {
+        assumeTrue("requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+        k8sDownsampled().error(
+            "FROM k8s | KEEP network.eth0.tx | DISTINCT",
+            containsString("DISTINCT does not support fields of type [aggregate_metric_double], found field [network.eth0.tx]")
+        );
+    }
+
+    public void testDistinctRejectsAggregateMetricDoubleWhenInSchema() {
+        assumeTrue("requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+        k8sDownsampled().error("FROM k8s | DISTINCT", containsString("DISTINCT does not support fields of type [aggregate_metric_double]"));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         fullText().query("from test | eval similarity = " + functionInvocation);
     }
@@ -4101,6 +4114,10 @@ public class VerifierTests extends ESTestCase {
 
     private static TestAnalyzer k8s() {
         return analyzer().addK8s().stripErrorPrefix(true);
+    }
+
+    private static TestAnalyzer k8sDownsampled() {
+        return analyzer().addK8sDownsampled().stripErrorPrefix(true);
     }
 
     private static TestAnalyzer lookupJoinFullText() {

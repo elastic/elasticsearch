@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -18,7 +20,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
  * Removes duplicate rows from the result set, like SQL {@code DISTINCT}.
@@ -28,7 +34,25 @@ import java.util.List;
  * The node itself does not need to escape the coordinator, so it is not registered
  * with the {@code NamedWriteableRegistry}.
  */
-public class Distinct extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware {
+public class Distinct extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware, PostAnalysisVerificationAware {
+
+    /**
+     * Data types that the runtime {@code GroupKeyEncoder} (used by the {@code GroupedLimitOperator}
+     * that implements {@code LIMIT BY}) cannot encode as group keys. Because DISTINCT is
+     * implemented as {@code LIMIT 1 BY <every column>}, having any of these in the schema would
+     * fail with an opaque {@code IllegalArgumentException} at execution time. We surface a
+     * post-analysis error instead.
+     * <p>
+     * Public so generative tests can consult the same list and avoid producing queries that are
+     * guaranteed to fail.
+     */
+    public static final Set<DataType> UNSUPPORTED_GROUPING_TYPES = EnumSet.of(
+        DataType.AGGREGATE_METRIC_DOUBLE,
+        DataType.EXPONENTIAL_HISTOGRAM,
+        DataType.TDIGEST,
+        DataType.DATE_RANGE,
+        DataType.PARTIAL_AGG
+    );
 
     public Distinct(Source source, LogicalPlan child) {
         super(source, child);
@@ -68,6 +92,17 @@ public class Distinct extends UnaryPlan implements SurrogateLogicalPlan, Telemet
             return new Limit(source(), one, child());
         }
         return new LimitBy(source(), one, child(), groupings);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        for (Attribute attr : child().output()) {
+            if (UNSUPPORTED_GROUPING_TYPES.contains(attr.dataType())) {
+                failures.add(
+                    fail(this, "DISTINCT does not support fields of type [{}], found field [{}]", attr.dataType().typeName(), attr.name())
+                );
+            }
+        }
     }
 
     @Override

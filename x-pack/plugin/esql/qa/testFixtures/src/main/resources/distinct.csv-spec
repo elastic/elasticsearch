@@ -260,3 +260,32 @@ FROM employees, employees_incompatible METADATA _index
 c:long
 4
 ;
+
+
+distinctOverDenseVector
+required_capability: distinct_command
+
+FROM all_types
+| KEEP dense_vector
+| DISTINCT
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;
+
+
+distinctWithMetadataSourceParticipatesInDedup
+required_capability: distinct_command
+
+FROM employees METADATA _source
+| WHERE emp_no IN (10001, 10005)
+| KEEP _source, gender
+| DISTINCT
+| STATS c = COUNT(*)
+;
+
+c:long
+2
+;

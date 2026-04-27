@@ -566,19 +566,18 @@ public class SynonymsManagementAPIService {
     ) {
         // Use GET instead of search to avoid stale results when determining CREATED vs UPDATED.
         // IndexNotFoundException means the index doesn't exist yet — new set, zero existing rules.
-        client.prepareGet(SYNONYMS_ALIAS_NAME, synonymSetId)
-            .execute(ActionListener.wrap(getResponse -> {
-                UpdateSynonymsResultStatus status = getResponse.isExists()
-                    ? UpdateSynonymsResultStatus.UPDATED
-                    : UpdateSynonymsResultStatus.CREATED;
-                countExistingRulesAndAdd(synonymSetId, synonymsSet, refresh, status, listener);
-            }, e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                    bulkAddToSynonymsSet(synonymSetId, synonymsSet, 0, refresh, UpdateSynonymsResultStatus.CREATED, listener);
-                } else {
-                    listener.onFailure(e);
-                }
-            }));
+        client.prepareGet(SYNONYMS_ALIAS_NAME, synonymSetId).execute(ActionListener.wrap(getResponse -> {
+            UpdateSynonymsResultStatus status = getResponse.isExists()
+                ? UpdateSynonymsResultStatus.UPDATED
+                : UpdateSynonymsResultStatus.CREATED;
+            countExistingRulesAndAdd(synonymSetId, synonymsSet, refresh, status, listener);
+        }, e -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                bulkAddToSynonymsSet(synonymSetId, synonymsSet, 0, refresh, UpdateSynonymsResultStatus.CREATED, listener);
+            } else {
+                listener.onFailure(e);
+            }
+        }));
     }
 
     private void countExistingRulesAndAdd(

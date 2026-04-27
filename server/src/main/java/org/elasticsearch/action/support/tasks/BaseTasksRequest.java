@@ -176,7 +176,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     }
 
     public boolean match(Task task) {
-        if (!canMatchAction(task.getAction())) {
+        if (matchesActionAndParent(task) == false) {
             return false;
         }
         if (getTargetTaskId().isSet()) {
@@ -184,12 +184,14 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
                 return false;
             }
         }
-        if (targetParentTaskId.isSet()) {
-            if (targetParentTaskId.equals(task.getParentTaskId()) == false) {
-                return false;
-            }
-        }
         return true;
+    }
+
+    protected final boolean matchesActionAndParent(Task task) {
+        if (canMatchAction(task.getAction()) == false) {
+            return false;
+        }
+        return targetParentTaskId.isSet() == false || targetParentTaskId.equals(task.getParentTaskId());
     }
 
     public boolean canMatchAction(final String action) {

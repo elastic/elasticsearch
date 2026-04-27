@@ -125,6 +125,15 @@ public class QuerySettingsTests extends ESTestCase {
                     + Arrays.toString(values)
             );
         }
+
+        Source settingSource = new Source(3, 10, "SET unmapped_fields = \"UNKNOWN\"");
+        assertInvalidWithSource(
+            setting.name(),
+            settingSource,
+            of("UNKNOWN"),
+            "line 3:11: Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
+                + Arrays.toString(values)
+        );
     }
 
     public void testValidate_Approximation() {
@@ -237,7 +246,12 @@ public class QuerySettingsTests extends ESTestCase {
         assertInvalidWithSource(settingName, Source.EMPTY, ctx, valueExpression, expectedMessage);
     }
 
-    private static void assertInvalidWithSource(String settingName, Source settingSource, Expression valueExpression, String expectedMessage) {
+    private static void assertInvalidWithSource(
+        String settingName,
+        Source settingSource,
+        Expression valueExpression,
+        String expectedMessage
+    ) {
         assertInvalidWithSource(settingName, settingSource, SNAPSHOT_CTX_WITH_CPS_ENABLED, valueExpression, expectedMessage);
     }
 

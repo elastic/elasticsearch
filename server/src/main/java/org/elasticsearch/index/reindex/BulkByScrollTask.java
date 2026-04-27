@@ -10,6 +10,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -36,6 +38,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
@@ -60,6 +63,7 @@ public class BulkByScrollTask extends CancellableTask {
     private final boolean relocatedTask;
     // if task is a slice, RelocationOrigin won't be correct because it won't be the leader here, but it's overridden in the leader state
     private final ResumeInfo.RelocationOrigin relocationOrigin;
+    private final RelocationProgress relocationProgress = new RelocationProgress();
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
     private volatile boolean relocationRequested = false;
@@ -186,6 +190,21 @@ public class BulkByScrollTask extends CancellableTask {
         return workerState;
     }
 
+    /**
+     * Claims cancellation on the task's {@link RelocationProgress}. Throws {@link ElasticsearchStatusException} with
+     * {@link RestStatus#CONFLICT} if the relocation handoff has already committed, since cancelling the source at
+     * that point would leave the resumed task on the destination unaware.
+     */
+    @Override
+    public void ensureCancellable() {
+        if (relocationProgress.tryPrepareCancellation() == false) {
+            throw new ElasticsearchStatusException(
+                "cannot cancel task [" + getId() + "] because it is being relocated",
+                RestStatus.CONFLICT
+            );
+        }
+    }
+
     @Override
     public void onCancelled() {
         /*
@@ -229,6 +248,33 @@ public class BulkByScrollTask extends CancellableTask {
         return relocationRequested;
     }
 
+    /**
+     * Claims the relocation handoff on the task's {@link RelocationProgress}. Returns {@code false} if a concurrent
+     * cancellation has won the race; callers must then abort the handoff. See {@link RelocationProgress#tryInitiateHandoff}.
+     */
+    public boolean tryInitiateRelocationHandoff() {
+        return relocationProgress.tryInitiateHandoff();
+    }
+
+    /** Returns the task's relocation state machine. Visible for tests and diagnostics. */
+    protected RelocationProgress getRelocationProgress() {
+        return relocationProgress;
+    }
+
+    /**
+     * Once the handoff has committed, the destination may have already stored the task result, so the source must
+     * use create-if-absent semantics to avoid overwriting it.
+     */
+    @Override
+    public boolean useCreateSemanticsForResultStorage() {
+        return isRelocationHandoffInitiated();
+    }
+
+    /** Returns {@code true} if the relocation handoff has committed on this task. */
+    public boolean isRelocationHandoffInitiated() {
+        return relocationProgress.current() == RelocationProgress.State.HANDOFF_INITIATED;
+    }
+
     /** Returns the relocation origin if this task is a relocated continuation. */
     public ResumeInfo.RelocationOrigin relocationOrigin() {
         return relocationOrigin;
@@ -241,10 +287,59 @@ public class BulkByScrollTask extends CancellableTask {
 
     @Override
     protected Optional<OriginalTaskInfo> getOriginalTaskInfo() {
-        if (relocatedTask) {
+        if (relocatedTask && getParentTaskId().isSet() == false) { // children have no OriginalTaskInfo
             return Optional.of(new OriginalTaskInfo(relocationOrigin.originalTaskId(), relocationOrigin.originalStartTimeMillis()));
         } else {
             return Optional.empty();
+        }
+    }
+
+    /**
+     * Tracks the relocation progress of this task, essentially a state machine to coordinate the relocation with
+     * other operations.
+     *
+     * For example: cancellation must be mutually exclusive with relocation, committing both sides can leave the source
+     * cancelled while the destination unknowingly runs the resumed task.
+     */
+    public static final class RelocationProgress {
+
+        /** The three possible states. {@link #NOT_STARTED} is the initial state; the other two are terminal. */
+        public enum State {
+            /** Initial state; neither relocation handoff nor cancellation has claimed the task. */
+            NOT_STARTED,
+            /** The resume request has been sent to the destination; the task must not be cancelled on the source. */
+            HANDOFF_INITIATED,
+            /** The task is being cancelled on this node; relocation handoff must not proceed. */
+            TASK_CANCELLED
+        }
+
+        private final AtomicReference<State> state = new AtomicReference<>(State.NOT_STARTED);
+
+        /** Returns the current state. */
+        public State current() {
+            return state.get();
+        }
+
+        /**
+         * CAS the state into {@link State#HANDOFF_INITIATED} so relocation may proceed. Returns {@code false} only
+         * if a concurrent cancellation has already won the race. Idempotent across repeated calls on the same side.
+         */
+        public boolean tryInitiateHandoff() {
+            if (state.compareAndSet(State.NOT_STARTED, State.HANDOFF_INITIATED)) {
+                return true;
+            }
+            return state.get() != State.TASK_CANCELLED;
+        }
+
+        /**
+         * CAS the state into {@link State#TASK_CANCELLED} so cancellation may proceed. Returns {@code false} only
+         * if a concurrent relocation handoff has already committed. Idempotent across repeated calls on the same side.
+         */
+        public boolean tryPrepareCancellation() {
+            if (state.compareAndSet(State.NOT_STARTED, State.TASK_CANCELLED)) {
+                return true;
+            }
+            return state.get() != State.HANDOFF_INITIATED;
         }
     }
 

@@ -700,6 +700,12 @@ public interface BlockLoader {
         Block constantInt(int value, int count);
 
         /**
+         * Build a block that contains {@code value} repeated
+         * {@code count} times.
+         */
+        Block constantLong(long value, int count);
+
+        /**
          * Build a reader for reading {@link SortedDocValues}
          */
         SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense);

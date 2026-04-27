@@ -33,7 +33,6 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
 
     NativeMemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
-        assert dataLength >= 16 : "NativeMemorySegmentScorer requires dataLength >= 16, got " + dataLength;
     }
 
     private MemorySegment querySegment(byte[] q) {

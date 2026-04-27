@@ -22,14 +22,20 @@ import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
 
 import java.io.IOException;
 
-final class PanamaESVectorizationProvider extends ESVectorizationProvider {
+public final class PanamaESVectorizationProvider extends ESVectorizationProvider {
 
     private final ESVectorUtilSupport vectorUtilSupport;
+    private final boolean nativeEnabled;
 
     private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
-    PanamaESVectorizationProvider() {
+    public PanamaESVectorizationProvider() {
+        this(true);
+    }
+
+    public PanamaESVectorizationProvider(boolean nativeEnabled) {
         vectorUtilSupport = new PanamaESVectorUtilSupport();
+        this.nativeEnabled = nativeEnabled;
     }
 
     @Override
@@ -48,7 +54,6 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) {
         if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS
-            && dataLength >= 16
             && ((queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) || (queryBits == 7 && indexBits == 7))) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
@@ -60,7 +65,8 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
                     dimension,
                     dataLength,
                     bulkSize,
-                    int4Encoding
+                    int4Encoding,
+                    nativeEnabled
                 );
             }
         }

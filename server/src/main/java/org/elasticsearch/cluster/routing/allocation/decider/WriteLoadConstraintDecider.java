@@ -30,7 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.function.DoubleSupplier;
 
 /**
  * Decides whether shards can be allocated to cluster nodes, or can remain on cluster nodes, based on the target node's current write thread
@@ -212,7 +212,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             // The maxShardWriteLoadProportion is computed only for hot-spotting nodes, and cached within cluster info so it
             // is only computed once per balancing round.
             final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThreshold();
-            final Supplier<Double> maxShardWriteLoadProportion = () -> allocation.clusterInfo()
+            final DoubleSupplier maxShardWriteLoadProportion = () -> allocation.clusterInfo()
                 .nodeMaxShardWriteLoadProportion(
                     node.nodeId(),
                     // compute cache entry if absent
@@ -223,21 +223,31 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 );
 
             // check that the threshold comparison is enabled (not 0.0) before computing the maxShardWriteLoadProportion
+            final double maxShardWriteLoadProportionCalculated = maxShardWriteLoadThreshold == 0.0
+                ? Double.NaN
+                : maxShardWriteLoadProportion.getAsDouble();
             if (maxShardWriteLoadThreshold == 0.0
-                || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportion.get(), maxShardWriteLoadThreshold) == false) {
+                || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportionCalculated, maxShardWriteLoadThreshold) == false) {
                 if (logger.isDebugEnabled() || allocation.debugDecision()) {
                     final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
                     final String explain = Strings.format(
                         """
                             Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread \
                             pool utilization of [%f] that exceeds the utilization threshold of [%s]. This node is hot-spotting. Shard \
-                            write load [%s]. Should move shard(s) away""",
+                            write load [%s]. %s. Should move shard(s) away""",
                         node.getShortNodeDescription(),
                         nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
                         nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
                         nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
                         writeLoadConstraintSettings.getHotspotUtilizationThresholdString(),
-                        shardWriteLoad == null ? "unknown" : shardWriteLoad
+                        shardWriteLoad == null ? "unknown" : shardWriteLoad,
+                        maxShardWriteLoadThreshold == 0.0
+                            ? "Max shard write-load proportion is disabled"
+                            : Strings.format(
+                                "The max shard write-load proportion on this node is %.1f%%, below the single-hot-shard threshold of %s",
+                                maxShardWriteLoadProportionCalculated,
+                                writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
+                            )
                     );
                     if (logger.isDebugEnabled()) {
                         logCanRemainMessage.maybeExecute(() -> logger.debug(explain));
@@ -252,11 +262,11 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                     NAME,
                     """
                         Node [%s] is hot-spotting due to a single shard executing [%.2f] percent of the writes. But since this is above \
-                        the single shard write load threshold ([%.2f]), moving shards away from this node is not expected to resolve \
+                        the single shard write load threshold ([%s]), moving shards away from this node is not expected to resolve \
                         the hot-spot.""",
                     node.getShortNodeDescription(),
-                    maxShardWriteLoadProportion.get() * 100,
-                    maxShardWriteLoadThreshold * 100
+                    maxShardWriteLoadProportionCalculated * 100,
+                    writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
                 );
             }
         }

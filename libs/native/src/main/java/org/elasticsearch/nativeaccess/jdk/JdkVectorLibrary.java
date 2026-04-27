@@ -26,10 +26,15 @@ import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
@@ -117,10 +122,125 @@ public final class JdkVectorLibrary implements VectorLibrary {
         throw new LinkageError("Native function [" + functionName + "] could not be found");
     }
 
+    private static class NativeFunctions {
+
+        private record NativeFunction<E extends Enum<E>>(OperationSignature<E> op, String typeName, FunctionDescriptor descriptor) {}
+
+        private static final FunctionDescriptor intSingle = FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT);
+        private static final FunctionDescriptor longSingle = FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_INT);
+        private static final FunctionDescriptor floatSingle = FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT);
+        private static final FunctionDescriptor bulk = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS);
+        private static final FunctionDescriptor bulkOffsets = FunctionDescriptor.ofVoid(
+            ADDRESS,
+            ADDRESS,
+            JAVA_INT,
+            JAVA_INT,
+            ADDRESS,
+            JAVA_INT,
+            ADDRESS
+        );
+
+        final List<NativeFunction<?>> nativeFunctions = new ArrayList<>();
+
+        public NativeFunctions add(DataType type, Iterable<Function> functions, Iterable<Operation> operations) {
+            functions.forEach(f -> operations.forEach(op -> {
+                String typeName = switch (type) {
+                    case INT7U -> "i7u";
+                    case INT4 -> "i4";
+                    case INT8 -> "i8";
+                    case FLOAT32 -> "f32";
+                };
+                FunctionDescriptor descriptor = switch (op) {
+                    case SINGLE -> switch (type) {
+                        case INT7U, INT4 -> intSingle;
+                        case INT8, FLOAT32 -> floatSingle;
+                    };
+                    case BULK, BULK_SPARSE -> bulk;
+                    case BULK_OFFSETS -> bulkOffsets;
+                };
+                nativeFunctions.add(new NativeFunction<>(new OperationSignature<>(f, type, op), typeName, descriptor));
+            }));
+            return this;
+        }
+
+        public NativeFunctions addBFloat16(Iterable<Function> functions, Iterable<Operation> operations) {
+            for (BFloat16QueryType type : BFloat16QueryType.values()) {
+                String typeName = switch (type) {
+                    case BFLOAT16 -> "Dbf16Qbf16";
+                    case FLOAT32 -> "Dbf16Qf32";
+                };
+                functions.forEach(f -> operations.forEach(op -> {
+                    FunctionDescriptor descriptor = switch (op) {
+                        case SINGLE -> floatSingle;
+                        case BULK, BULK_SPARSE -> bulk;
+                        case BULK_OFFSETS -> bulkOffsets;
+                    };
+                    nativeFunctions.add(new NativeFunction<>(new OperationSignature<>(f, type, op), typeName, descriptor));
+                }));
+            }
+            return this;
+        }
+
+        public NativeFunctions addBBQ(Iterable<BBQType> bbqTypes, Iterable<Operation> operations) {
+            bbqTypes.forEach(type -> operations.forEach(op -> {
+                String typeName = switch (type) {
+                    case D1Q4 -> "d1q4";
+                    case D2Q4 -> "d2q4";
+                    case D4Q4 -> "d4q4";
+                };
+                FunctionDescriptor descriptor = switch (op) {
+                    case SINGLE -> longSingle;
+                    case BULK, BULK_SPARSE -> bulk;
+                    case BULK_OFFSETS -> bulkOffsets;
+                };
+                nativeFunctions.add(new NativeFunction<>(new OperationSignature<>(Function.DOT_PRODUCT, type, op), typeName, descriptor));
+            }));
+            return this;
+        }
+
+        static Iterable<Function> allFunctions() {
+            return () -> Arrays.stream(Function.values()).iterator();
+        }
+
+        static Iterable<Operation> allOperations() {
+            return () -> Arrays.stream(Operation.values()).iterator();
+        }
+
+        static Iterable<BBQType> allBBQTypes() {
+            return () -> Arrays.stream(BBQType.values()).iterator();
+        }
+
+        private static String getOpName(Operation op) {
+            return switch (op) {
+                case SINGLE -> "";
+                case BULK -> "_bulk";
+                case BULK_OFFSETS -> "_bulk_offsets";
+                case BULK_SPARSE -> "_bulk_sparse";
+            };
+        }
+
+        private static String getFuncName(Function f) {
+            return switch (f) {
+                case COSINE -> "cos";
+                case DOT_PRODUCT -> "dot";
+                case SQUARE_DISTANCE -> "sqr";
+            };
+        }
+
+        public Map<OperationSignature<?>, MethodHandle> build(BiFunction<String, FunctionDescriptor, MethodHandle> binder) {
+            return nativeFunctions.stream()
+                .collect(
+                    Collectors.toUnmodifiableMap(
+                        f -> f.op,
+                        f -> binder.apply("vec_" + getFuncName(f.op.function()) + f.typeName + getOpName(f.op.operation()), f.descriptor)
+                    )
+                );
+        }
+    }
+
     static {
         LoaderHelper.loadLibrary("vec");
         MethodHandle vecCaps$mh = downcallHandle("vec_caps", FunctionDescriptor.of(JAVA_INT));
-        Map<OperationSignature<?>, MethodHandle> handles = new HashMap<>();
 
         try {
             int vecCaps = (int) vecCaps$mh.invokeExact();
@@ -134,111 +254,18 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
 
             if (finalVecCaps > 0) {
-                FunctionDescriptor intSingle = FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT);
-                FunctionDescriptor longSingle = FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_INT);
-                FunctionDescriptor floatSingle = FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT);
-                FunctionDescriptor bulk = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS);
-                FunctionDescriptor bulkOffsets = FunctionDescriptor.ofVoid(
-                    ADDRESS,
-                    ADDRESS,
-                    JAVA_INT,
-                    JAVA_INT,
-                    ADDRESS,
-                    JAVA_INT,
-                    ADDRESS
-                );
 
-                FunctionDescriptor bulkSparse = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS);
-
-                for (Function f : Function.values()) {
-                    String funcName = switch (f) {
-                        case COSINE -> "cos";
-                        case DOT_PRODUCT -> "dot";
-                        case SQUARE_DISTANCE -> "sqr";
-                    };
-
-                    for (Operation op : Operation.values()) {
-                        String opName = switch (op) {
-                            case SINGLE -> "";
-                            case BULK -> "_bulk";
-                            case BULK_OFFSETS -> "_bulk_offsets";
-                            case BULK_SPARSE -> "_bulk_sparse";
-                        };
-
-                        for (DataType type : DataType.values()) {
-                            // Only byte vectors have cosine
-                            // as floats are normalized to unit length to use dot_product instead
-                            if (f == Function.COSINE && type != DataType.INT8) continue;
-                            // Only DOT_PRODUCT is needed for int4 — other functions are computed by
-                            // applying correction terms on top of the raw dot product result.
-                            if (f != Function.DOT_PRODUCT && type == DataType.INT4) continue;
-                            // BULK_SPARSE only for INT7U, INT8, and INT4 — no native sparse functions exist for FLOAT32
-                            if (op == Operation.BULK_SPARSE && type == DataType.FLOAT32) continue;
-
-                            String typeName = switch (type) {
-                                case INT7U -> "i7u";
-                                case INT4 -> "i4";
-                                case INT8 -> "i8";
-                                case FLOAT32 -> "f32";
-                            };
-
-                            FunctionDescriptor descriptor = switch (op) {
-                                case SINGLE -> switch (type) {
-                                    case INT7U, INT4 -> intSingle;
-                                    case INT8, FLOAT32 -> floatSingle;
-                                };
-                                case BULK, BULK_SPARSE -> bulk;
-                                case BULK_OFFSETS -> bulkOffsets;
-                            };
-
-                            MethodHandle handle = bindFunction("vec_" + funcName + typeName + opName, finalVecCaps, descriptor);
-                            handles.put(new OperationSignature<>(f, type, op), handle);
-                        }
-
-                        for (BFloat16QueryType type : BFloat16QueryType.values()) {
-                            // only byte vectors have cosine
-                            if (f == Function.COSINE) continue;
-                            // BULK_SPARSE not yet implemented for bfloat16
-                            if (op == Operation.BULK_SPARSE) continue;
-
-                            String typeName = switch (type) {
-                                case BFLOAT16 -> "Dbf16Qbf16";
-                                case FLOAT32 -> "Dbf16Qf32";
-                            };
-
-                            FunctionDescriptor descriptor = switch (op) {
-                                case SINGLE -> floatSingle;
-                                case BULK, BULK_SPARSE -> bulk;
-                                case BULK_OFFSETS -> bulkOffsets;
-                            };
-
-                            MethodHandle handle = bindFunction("vec_" + funcName + typeName + opName, finalVecCaps, descriptor);
-                            handles.put(new OperationSignature<>(f, type, op), handle);
-                        }
-
-                        for (BBQType type : BBQType.values()) {
-                            // not implemented yet...
-                            if (f == Function.COSINE || f == Function.SQUARE_DISTANCE) continue;
-
-                            String typeName = switch (type) {
-                                case D1Q4 -> "d1q4";
-                                case D2Q4 -> "d2q4";
-                                case D4Q4 -> "d4q4";
-                            };
-
-                            FunctionDescriptor descriptor = switch (op) {
-                                case SINGLE -> longSingle;
-                                case BULK, BULK_SPARSE -> bulk;
-                                case BULK_OFFSETS -> bulkOffsets;
-                            };
-
-                            MethodHandle handle = bindFunction("vec_" + funcName + typeName + opName, finalVecCaps, descriptor);
-                            handles.put(new OperationSignature<>(f, type, op), handle);
-                        }
-                    }
-                }
-
-                HANDLES = Collections.unmodifiableMap(handles);
+                HANDLES = new NativeFunctions()
+                    // Only DOT_PRODUCT is needed for int4 — other functions are computed by applying correction terms on top of the raw
+                    // dot.
+                    .add(DataType.INT4, List.of(Function.DOT_PRODUCT), NativeFunctions.allOperations())
+                    .add(DataType.INT7U, List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
+                    // Only byte vectors have cosine as other types are normalized to unit length to use dot_product instead
+                    .add(DataType.INT8, NativeFunctions.allFunctions(), NativeFunctions.allOperations())
+                    .add(DataType.FLOAT32, List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
+                    .addBFloat16(List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
+                    .addBBQ(NativeFunctions.allBBQTypes(), NativeFunctions.allOperations())
+                    .build((functionName, functionDescriptor) -> bindFunction(functionName, finalVecCaps, functionDescriptor));
 
                 FunctionDescriptor score = FunctionDescriptor.of(
                     JAVA_FLOAT,
@@ -457,6 +484,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             assert validateBulkOffsets(a, offsets, count, length, pitch, result, (long) length * Short.BYTES);
+            return true;
+        }
+
+        static boolean checkBFloat16BulkSparse(
+            int queryElementSize,
+            MemorySegment addresses,
+            MemorySegment b,
+            int length,
+            int count,
+            MemorySegment result
+        ) {
+            Objects.checkFromIndexSize(0L, (long) count * Long.BYTES, addresses.byteSize());
+            Objects.checkFromIndexSize(0L, (long) length * queryElementSize, b.byteSize());
+            Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
+            assert validateBulkSparse(addresses, count, length, 16, result);
             return true;
         }
 
@@ -1120,6 +1162,26 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                     );
                                     yield MethodHandles.guardWithTest(
                                         MethodHandles.insertArguments(checkMethod, 0, bbq.dataBits()),
+                                        op.getValue(),
+                                        MethodHandles.empty(op.getValue().type())
+                                    );
+                                }
+                                case BFloat16QueryType bfq -> {
+                                    MethodHandle checkMethod = lookup.findStatic(
+                                        JdkVectorSimilarityFunctions.class,
+                                        "checkBFloat16BulkSparse",
+                                        MethodType.methodType(
+                                            boolean.class,
+                                            int.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            int.class,
+                                            MemorySegment.class
+                                        )
+                                    );
+                                    yield MethodHandles.guardWithTest(
+                                        MethodHandles.insertArguments(checkMethod, 0, bfq.bytes()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );

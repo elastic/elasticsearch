@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -23,12 +25,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.Math.min;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class BulkByScrollTaskTests extends ESTestCase {
 
@@ -42,11 +47,14 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     private static BulkByScrollTask createTask(boolean eligibleForRelocationOnShutdown, boolean isRelocated) {
+        return createTask(eligibleForRelocationOnShutdown, isRelocated, randomTaskId());
+    }
+
+    private static BulkByScrollTask createTask(boolean eligibleForRelocationOnShutdown, boolean isRelocated, TaskId parentTaskId) {
         TaskId taskId = randomTaskId();
         String type = randomAlphaOfLengthBetween(1, 10);
         String action = randomAlphaOfLengthBetween(1, 10);
         String description = randomAlphaOfLengthBetween(0, 20);
-        TaskId parentTaskId = randomTaskId();
         Map<String, String> headers = randomBoolean() ? Collections.emptyMap() : Map.of("header", randomAlphaOfLength(5));
         ResumeInfo.RelocationOrigin origin = isRelocated
             ? new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong())
@@ -495,12 +503,128 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertThat(info.originalStartTimeMillis(), equalTo(task.getStartTime()));
     }
 
-    public void testTaskInfo_relocated() {
-        BulkByScrollTask task = createTask(true, true);
+    public void testTaskInfo_relocatedParent() {
+        BulkByScrollTask task = createTask(true, true, TaskId.EMPTY_TASK_ID);
         String localNodeId = randomAlphaOfLength(5);
         TaskInfo info = task.taskInfo(localNodeId, true);
         assertThat(info.originalTaskId(), equalTo(task.relocationOrigin().originalTaskId()));
         assertThat(info.originalStartTimeMillis(), equalTo(task.relocationOrigin().originalStartTimeMillis()));
+    }
+
+    public void testTaskInfo_relocatedSliceDoesNotExposeOriginalTaskInfo() {
+        final TaskId parentTaskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        final BulkByScrollTask task = createTask(true, true, parentTaskId);
+        final String localNodeId = randomAlphaOfLength(5);
+        final TaskInfo info = task.taskInfo(localNodeId, true);
+        // Falls back to the task's own identity, not the parent's relocation origin
+        assertThat(info.originalTaskId(), equalTo(new TaskId(localNodeId, task.getId())));
+        assertThat(info.originalTaskId(), not(equalTo(task.relocationOrigin().originalTaskId())));
+        assertThat(info.originalStartTimeMillis(), equalTo(task.getStartTime()));
+    }
+
+    /** A freshly created task's relocation progress is in the NOT_STARTED state. */
+    public void testRelocationProgressStartsNotStarted() {
+        BulkByScrollTask task = createTask(true);
+        assertEquals(BulkByScrollTask.RelocationProgress.State.NOT_STARTED, task.getRelocationProgress().current());
+        assertFalse(task.useCreateSemanticsForResultStorage());
+    }
+
+    /**
+     * {@link BulkByScrollTask#tryInitiateRelocationHandoff()} transitions NOT_STARTED -> HANDOFF_INITIATED on first
+     * call, is idempotent on subsequent calls, and flips {@link BulkByScrollTask#useCreateSemanticsForResultStorage()}.
+     */
+    public void testTryInitiateRelocationHandoff() {
+        BulkByScrollTask task = createTask(true);
+        assertTrue(task.tryInitiateRelocationHandoff());
+        assertEquals(BulkByScrollTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
+        assertTrue(task.useCreateSemanticsForResultStorage());
+        // idempotent
+        assertTrue(task.tryInitiateRelocationHandoff());
+        assertEquals(BulkByScrollTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
+    }
+
+    /**
+     * {@link BulkByScrollTask#ensureCancellable()} transitions NOT_STARTED -> TASK_CANCELLED on first call and is idempotent.
+     */
+    public void testEnsureCancellable() {
+        BulkByScrollTask task = createTask(randomBoolean());
+        task.ensureCancellable();
+        assertEquals(BulkByScrollTask.RelocationProgress.State.TASK_CANCELLED, task.getRelocationProgress().current());
+        // idempotent
+        task.ensureCancellable();
+        assertEquals(BulkByScrollTask.RelocationProgress.State.TASK_CANCELLED, task.getRelocationProgress().current());
+    }
+
+    /**
+     * Once relocation handoff is initiated, a subsequent cancellation attempt must be rejected because the
+     * continuation of this task is being resumed on the destination node; cancelling the source here would leave
+     * the resumed task running on the destination unaware.
+     */
+    public void testCancellationRejectedAfterHandoffInitiated() {
+        BulkByScrollTask task = createTask(true);
+        assertTrue(task.tryInitiateRelocationHandoff());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, task::ensureCancellable);
+        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(e.getMessage(), equalTo("cannot cancel task [" + task.getId() + "] because it is being relocated"));
+        assertEquals(BulkByScrollTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
+        assertTrue(task.useCreateSemanticsForResultStorage());
+    }
+
+    /**
+     * Once cancellation has begun, the relocation handoff must be aborted so the task is not resumed on the
+     * destination node while the source is being cancelled.
+     */
+    public void testHandoffRejectedAfterCancellationBegan() {
+        BulkByScrollTask task = createTask(true);
+        task.ensureCancellable();
+        assertFalse("relocation handoff must be rejected after cancellation began", task.tryInitiateRelocationHandoff());
+        assertEquals(BulkByScrollTask.RelocationProgress.State.TASK_CANCELLED, task.getRelocationProgress().current());
+        assertFalse(task.useCreateSemanticsForResultStorage());
+    }
+
+    /**
+     * Stresses the CAS gate under concurrent relocation and cancellation attempts: exactly one side wins and the
+     * other observes a refusal, never both.
+     */
+    public void testConcurrentHandoffVsCancellationMutuallyExclusive() throws Exception {
+        final BulkByScrollTask task = createTask(true);
+        final CountDownLatch start = new CountDownLatch(1);
+        final AtomicBoolean handoffResult = new AtomicBoolean();
+        final AtomicBoolean cancelResult = new AtomicBoolean();
+        Thread t1 = new Thread(() -> {
+            try {
+                start.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            handoffResult.set(task.tryInitiateRelocationHandoff());
+        });
+        Thread t2 = new Thread(() -> {
+            try {
+                start.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            try {
+                task.ensureCancellable();
+                cancelResult.set(true);
+            } catch (ElasticsearchStatusException e) {
+                cancelResult.set(false);
+            }
+        });
+        t1.start();
+        t2.start();
+        start.countDown();
+        t1.join();
+        t2.join();
+        assertNotSame(
+            "at least one side must win (state cannot remain NOT_STARTED)",
+            BulkByScrollTask.RelocationProgress.State.NOT_STARTED,
+            task.getRelocationProgress().current()
+        );
+        assertTrue("handoff and cancellation are mutually exclusive", handoffResult.get() ^ cancelResult.get());
     }
 
     private static float randomFloatBetween(float min, float max) {

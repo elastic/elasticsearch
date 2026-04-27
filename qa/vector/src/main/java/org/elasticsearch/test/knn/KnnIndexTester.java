@@ -239,7 +239,8 @@ public class KnnIndexTester {
                     mergeWorkers,
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
-                    flatVectorThreshold
+                    flatVectorThreshold,
+                    null
                 );
             }
             case GPU_HNSW -> switch (quantizeBits) {

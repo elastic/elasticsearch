@@ -268,7 +268,7 @@ public final class CsvAssert {
             }
             if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
                 if (value instanceof String s) {
-                    value = s.replaceAll("\\\\n", "\n");
+                    value = s.replaceAll("\\\\n", "\n").replaceAll("\\\\#", "#");
                 }
             }
             if (type == CsvTestUtils.Type.DOUBLE) {

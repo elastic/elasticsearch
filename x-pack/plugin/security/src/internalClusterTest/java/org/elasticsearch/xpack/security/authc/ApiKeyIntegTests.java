@@ -42,6 +42,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -455,6 +456,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(RestStatus.UNAUTHORIZED.getStatus()));
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.security.authc.InactiveApiKeysRemover:DEBUG",
+        reason = "failures can be very difficult to troubleshoot"
+    )
     public void testDynamicDeletionInterval() throws Exception {
         try {
             // Set retention period to be 1 ms, and delete interval to be 1 hour
@@ -476,8 +481,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             awaitApiKeysRemoverCompletion();
             refreshSecurityIndex();
 
-            // Get API keys to make sure remover didn't remove any yet
-            assertThat(getAllApiKeyInfo(client, false).size(), equalTo(3));
+            // The remover runs concurrently with the invalidation.
+            // There is a small risk that it deletes the just-invalidated key, so 2 or 3 keys may remain.
+            assertThat(getAllApiKeyInfo(client, false).size(), in(Set.of(2, 3)));
 
             // Invalidate another key
             listener = new PlainActionFuture<>();
@@ -486,8 +492,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             awaitApiKeysRemoverCompletion();
             refreshSecurityIndex();
 
-            // Get API keys to make sure remover didn't remove any yet (shouldn't be removed because of the long DELETE_INTERVAL)
-            assertThat(getAllApiKeyInfo(client, false).size(), equalTo(3));
+            // Same as above: if the first invalidation's remover deleted a key, only 2 may remain.
+            // The second invalidation should not trigger another remover run (DELETE_INTERVAL is 1 hour),
+            // but the count may already be 2 from the first invalidation.
+            assertThat(getAllApiKeyInfo(client, false).size(), in(Set.of(2, 3)));
 
             // Update DELETE_INTERVAL to every 0 ms
             builder = Settings.builder();

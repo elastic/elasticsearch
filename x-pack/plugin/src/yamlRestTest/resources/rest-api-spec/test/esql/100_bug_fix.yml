@@ -390,3 +390,22 @@
   - match: { values.0.1: null }
   - match: { values.1.0: null }
   - match: { values.1.1: null }
+
+---
+"SET reports correct line/column in validation errors #145873":
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fix_set_wrong_line_column]
+      reason: "fixed SET reporting -1:-1 instead of actual line/column in validation errors"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields = "INVALID"; ROW x = 1'
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - contains: { error.reason: 'line 1:1: Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [INVALID]' }

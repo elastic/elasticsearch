@@ -140,18 +140,18 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                             return new BulkScorer() {
 
                                 @Override
-                                public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+                                public int score(LeafCollector collector, Bits acceptDocs, int min, int maxExclusive) throws IOException {
                                     // make max inclusive
-                                    max = max - 1;
+                                    int max = maxExclusive - 1;
 
                                     // want range [min, max)
                                     System.out.println("min value: " + min + " max value: " + max);
-                                    skipper.advance(min);
 
-                                    // Iterator over first level chunks that intersect the range min/max
-                                    // while: [min, max] has overlap with [minDocID, maxDocID]
-                                    while (skipper.minDocID(0) != NO_MORE_DOCS
-                                            && min <= skipper.maxDocID(0) && max >= skipper.minDocID(0)) {
+                                    int currBlockStart = min;
+                                    while (currBlockStart <= max) {
+                                        if (skipper.maxDocID(0) < currBlockStart) {
+                                            skipper.advance(currBlockStart);
+                                        }
 
                                         int minDoc = skipper.minDocID(0);
                                         int maxDoc = skipper.maxDocID(0);
@@ -161,8 +161,8 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                                         long minVal = skipper.minValue(0);
                                         long maxVal = skipper.maxValue(0);
 
-                                        if (minVal <= lowerValue && upperValue <= maxVal) {
-                                            // Skipper block is entirely contained within range
+                                        if (lowerValue <= minVal && maxVal <= upperValue) {
+                                            // Skipper range is entirely contained within query range
                                             // Collect all accepted Doc
                                             for (int doc = minDocInBlock; doc <= minDocInBlock; doc++) {
                                                 if (acceptDocs == null || acceptDocs.get(doc)) {
@@ -183,13 +183,10 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                                         }
                                         // Else: Skipper block does not intersect range
 
-                                        int nextSkipperStart = skipper.maxDocID(0) + 1;
-                                        System.out.println("nextSkipperStart: " + nextSkipperStart);
-
-
-                                        skipper.advance(nextSkipperStart);
+                                        currBlockStart = maxDocInBlock + 1;
+                                        System.out.println("currBlockStart: " + currBlockStart);
                                     }
-                                    return max;
+                                    return maxExclusive;
                                 }
 
                                 @Override

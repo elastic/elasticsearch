@@ -466,6 +466,22 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         assertEquals(99.9, as(page.getBlock(1), DoubleBlock.class).getDouble(0), 0.001);
     }
 
+    /**
+     * When splits have incompatible stat types (Long + Double), merged stats are cleared
+     * to null and pushdown must NOT produce a misleading constant. The rule should fall
+     * back to the original aggregate.
+     */
+    public void testMinMaxWithIncompatibleLongDoubleStatsDoesNotPushDown() {
+        SplitStats split1 = buildSplitStatsWithMinMax("score", 10L, 50L, 500L, 0L);
+        SplitStats split2 = buildSplitStatsWithMinMax("score", 5.0, 60.0, 500L, 0L);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
+        var agg = aggregateExec(ext, alias("mn", new Min(Source.EMPTY, SCORE)), alias("mx", new Max(Source.EMPTY, SCORE)));
+
+        PhysicalPlan result = applyRule(agg);
+        // Should NOT be pushed down to LocalSourceExec — stats are incompatible and cleared
+        as(result, AggregateExec.class);
+    }
+
     // --- filter tests ---
 
     public void testCountPushedThroughOrFilterAllResolve() {

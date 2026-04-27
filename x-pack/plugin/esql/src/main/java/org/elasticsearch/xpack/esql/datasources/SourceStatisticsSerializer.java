@@ -13,10 +13,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 
 /**
  * Serializes and deserializes {@link SourceStatistics} to/from a flat {@code Map<String, Object>}
@@ -216,6 +218,8 @@ public final class SourceStatisticsSerializer {
         Map<String, Comparable[]> mins = new HashMap<>();
         Map<String, Comparable[]> maxs = new HashMap<>();
         Map<String, long[]> colSizeBytes = new HashMap<>();
+        Set<String> poisonedMins = new HashSet<>();
+        Set<String> poisonedMaxs = new HashSet<>();
 
         for (Map<String, Object> stats : splitStats) {
             if (stats == null || stats.containsKey(STATS_ROW_COUNT) == false) {
@@ -239,33 +243,34 @@ public final class SourceStatisticsSerializer {
                         return a;
                     });
                 } else if (key.endsWith(MIN_SUFFIX) && entry.getValue() instanceof Comparable c) {
-                    mins.merge(key, new Comparable[] { c }, (a, b) -> {
-                        if (a[0].getClass() == b[0].getClass()) {
-                            if (a[0].compareTo(b[0]) > 0) a[0] = b[0];
-                        } else {
-                            Object[] widened = SplitStats.widenNumericPair(a[0], b[0]);
-                            if (widened != null) {
-                                Comparable wA = (Comparable) widened[0];
-                                Comparable wB = (Comparable) widened[1];
-                                a[0] = wA.compareTo(wB) <= 0 ? (Comparable) widened[0] : (Comparable) widened[1];
+                    if (poisonedMins.contains(key) == false) {
+                        // Map.merge removes the entry when the remapping function returns null
+                        mins.merge(key, new Comparable[] { c }, (a, b) -> {
+                            Object merged = SplitStats.mergedMin(a[0], b[0]);
+                            if (merged == null) {
+                                return null;
                             }
+                            a[0] = (Comparable) merged;
+                            return a;
+                        });
+                        if (mins.containsKey(key) == false) {
+                            poisonedMins.add(key);
                         }
-                        return a;
-                    });
+                    }
                 } else if (key.endsWith(MAX_SUFFIX) && entry.getValue() instanceof Comparable c) {
-                    maxs.merge(key, new Comparable[] { c }, (a, b) -> {
-                        if (a[0].getClass() == b[0].getClass()) {
-                            if (a[0].compareTo(b[0]) < 0) a[0] = b[0];
-                        } else {
-                            Object[] widened = SplitStats.widenNumericPair(a[0], b[0]);
-                            if (widened != null) {
-                                Comparable wA = (Comparable) widened[0];
-                                Comparable wB = (Comparable) widened[1];
-                                a[0] = wA.compareTo(wB) >= 0 ? (Comparable) widened[0] : (Comparable) widened[1];
+                    if (poisonedMaxs.contains(key) == false) {
+                        maxs.merge(key, new Comparable[] { c }, (a, b) -> {
+                            Object merged = SplitStats.mergedMax(a[0], b[0]);
+                            if (merged == null) {
+                                return null;
                             }
+                            a[0] = (Comparable) merged;
+                            return a;
+                        });
+                        if (maxs.containsKey(key) == false) {
+                            poisonedMaxs.add(key);
                         }
-                        return a;
-                    });
+                    }
                 } else if (key.endsWith(SIZE_BYTES_SUFFIX) && entry.getValue() instanceof Number sbNum) {
                     colSizeBytes.merge(key, new long[] { sbNum.longValue() }, (a, b) -> {
                         a[0] += b[0];

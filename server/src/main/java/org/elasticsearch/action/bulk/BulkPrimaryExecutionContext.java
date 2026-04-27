@@ -68,13 +68,13 @@ class BulkPrimaryExecutionContext {
     private long noopMappingUpdateRetryForMappingVersion;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
-        this(request, primary, null);
+        this(request, primary, IndexingPressure.PrimaryExpansionTracker.noop());
     }
 
     BulkPrimaryExecutionContext(
         BulkShardRequest request,
         IndexShard primary,
-        @Nullable IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker
+        IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker
     ) {
         this.request = request;
         this.primary = primary;

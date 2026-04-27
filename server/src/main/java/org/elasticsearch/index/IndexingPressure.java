@@ -391,7 +391,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
      */
     public PrimaryExpansionTracker trackPrimaryOperationExpansion(int operations, long expandedBytes, boolean forceExecution) {
         updatePrimaryOperationsAndBytes(operations, expandedBytes, forceExecution, true);
-        return new PrimaryExpansionTracker(operations, expandedBytes, forceExecution);
+        return new PrimaryExpansionTrackerImpl(operations, expandedBytes, forceExecution);
     }
 
     // visible for testing
@@ -455,14 +455,38 @@ public class IndexingPressure implements IndexingPressureMonitor {
         }
     }
 
-    public final class PrimaryExpansionTracker implements Releasable {
+    public interface PrimaryExpansionTracker extends Releasable {
+
+        static PrimaryExpansionTracker noop() {
+            return new PrimaryExpansionTracker() {
+
+                @Override
+                public void addExpandedBytes(long expandedBytes) {
+                }
+
+                @Override
+                public void removeExpandedBytes(long expandedBytes) {
+                }
+
+                @Override
+                public void close() {
+                }
+            };
+        }
+
+        void addExpandedBytes(long expandedBytes);
+
+        void removeExpandedBytes(long expandedBytes);
+    }
+
+    private final class PrimaryExpansionTrackerImpl implements PrimaryExpansionTracker {
 
         private final AtomicBoolean closed = new AtomicBoolean();
         private final int operations;
         private final boolean forceExecution;
         private final AtomicLong expandedBytes;
 
-        private PrimaryExpansionTracker(int operations, long bytes, boolean forceExecution) {
+        private PrimaryExpansionTrackerImpl(int operations, long bytes, boolean forceExecution) {
             this.operations = operations;
             this.forceExecution = forceExecution;
             this.expandedBytes = new AtomicLong(bytes);

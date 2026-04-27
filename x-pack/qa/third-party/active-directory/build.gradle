@@ -26,7 +26,6 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named("test").configure {
-  systemProperty 'tests.security.manager', 'false'
   include '**/*IT.class'
   include '**/*Tests.class'
 }

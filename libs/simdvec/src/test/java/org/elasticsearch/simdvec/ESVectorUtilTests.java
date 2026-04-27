@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
@@ -39,6 +40,20 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[][] docVectors = generateRandomFloatVectors(numDocVectors, dims);
         float[][] queryVectors = generateRandomFloatVectors(numQueryVectors, dims);
         MultiFloatVectorsSource source = new TestMultiFloatVectorsSource(docVectors, encodeFloatVectors(docVectors), dims);
+        float[] defaultScoresScratch = new float[numDocVectors];
+        float[] defOrPanamaScoresScratch = new float[numDocVectors];
+        float expected = defaultedProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defaultScoresScratch);
+        float actual = defOrPanamaProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defOrPanamaScoresScratch);
+        assertEquals(expected, actual, 1e-3f * dims * numQueryVectors);
+    }
+
+    public void testMaxSimDotProductBFloat16DefaultEqualsPanama() {
+        int dims = randomIntBetween(1, 512);
+        int numDocVectors = randomIntBetween(1, 256);
+        int numQueryVectors = randomIntBetween(1, 64);
+        float[][] docVectors = generateRandomBFloat16Vectors(numDocVectors, dims);
+        float[][] queryVectors = generateRandomFloatVectors(numQueryVectors, dims);
+        MultiBFloat16VectorsSource source = new TestMultiBFloat16VectorsSource(docVectors, encodeBFloat16Vectors(docVectors), dims);
         float[] defaultScoresScratch = new float[numDocVectors];
         float[] defOrPanamaScoresScratch = new float[numDocVectors];
         float expected = defaultedProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defaultScoresScratch);
@@ -553,10 +568,20 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         return vectors;
     }
 
+    private float[][] generateRandomBFloat16Vectors(int vectorCount, int dims) {
+        float[][] vectors = new float[vectorCount][dims];
+        for (int i = 0; i < vectorCount; i++) {
+            for (int j = 0; j < dims; j++) {
+                vectors[i][j] = BFloat16.truncateToBFloat16(randomFloat() * 2f - 1f);
+            }
+        }
+        return vectors;
+    }
+
     private byte[][] generateRandomByteVectors(int vectorCount, int dims) {
         byte[][] vectors = new byte[vectorCount][dims];
         for (int i = 0; i < vectorCount; i++) {
-            random().nextBytes(vectors[i]);
+            vectors[i] = randomByteArrayOfLength(dims);
         }
         return vectors;
     }
@@ -564,10 +589,9 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     private static BytesRef encodeFloatVectors(float[][] vectors) {
         int dims = vectors[0].length;
         ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        var floatBuffer = buffer.asFloatBuffer();
         for (float[] vector : vectors) {
-            for (float value : vector) {
-                buffer.putFloat(value);
-            }
+            floatBuffer.put(vector);
         }
         return new BytesRef(buffer.array());
     }
@@ -581,6 +605,17 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             offset += dims;
         }
         return new BytesRef(bytes);
+    }
+
+    private static BytesRef encodeBFloat16Vectors(float[][] vectors) {
+        int dims = vectors[0].length;
+        ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        for (float[] vector : vectors) {
+            for (float value : vector) {
+                buffer.putShort(BFloat16.floatToBFloat16(value));
+            }
+        }
+        return new BytesRef(buffer.array());
     }
 
     private static class TestMultiFloatVectorsSource implements MultiFloatVectorsSource {
@@ -612,6 +647,43 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         @Override
         public int vectorByteSize() {
             return dims * Float.BYTES;
+        }
+
+        @Override
+        public Iterator<float[]> vectorValues() {
+            return Arrays.asList(vectors).iterator();
+        }
+    }
+
+    private static class TestMultiBFloat16VectorsSource implements MultiBFloat16VectorsSource {
+        private final float[][] vectors;
+        private final BytesRef vectorBytes;
+        private final int dims;
+
+        TestMultiBFloat16VectorsSource(float[][] vectors, BytesRef vectorBytes, int dims) {
+            this.vectors = vectors;
+            this.vectorBytes = vectorBytes;
+            this.dims = dims;
+        }
+
+        @Override
+        public BytesRef vectorBytes() {
+            return vectorBytes;
+        }
+
+        @Override
+        public int vectorCount() {
+            return vectors.length;
+        }
+
+        @Override
+        public int vectorDims() {
+            return dims;
+        }
+
+        @Override
+        public int vectorByteSize() {
+            return dims * BFloat16.BYTES;
         }
 
         @Override

@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
@@ -36,6 +37,8 @@ public interface ESVectorUtilSupport {
     float dotProduct(byte[] a, byte[] b);
 
     float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
+
+    float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch);
 
     float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch);
 

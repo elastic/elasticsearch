@@ -111,11 +111,37 @@ public class ESVectorUtil {
         return IMPL.dotProduct(a, b);
     }
 
+    /**
+     * Computes max-sim dot product for float query vectors against a multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
     public static float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
         ensureScoresScratchCapacity(source, scoresScratch);
         return IMPL.maxSimDotProduct(source, query, scoresScratch);
     }
 
+    /**
+     * Computes max-sim dot product for float query vectors against a bfloat16 multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    /**
+     * Computes max-sim dot product for byte query vectors against a multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
     public static float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
         ensureScoresScratchCapacity(source, scoresScratch);
         return IMPL.maxSimDotProduct(source, query, scoresScratch);

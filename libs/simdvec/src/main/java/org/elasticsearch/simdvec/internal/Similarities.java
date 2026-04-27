@@ -140,6 +140,11 @@ public class Similarities {
         BFloat16QueryType.FLOAT32,
         Operation.SINGLE
     );
+    static final MethodHandle DOT_PRODUCT_DBF16QF32_BULK_DENSE = DISTANCE_FUNCS.getBFloat16Handle(
+        Function.DOT_PRODUCT,
+        BFloat16QueryType.FLOAT32,
+        Operation.BULK
+    );
     static final MethodHandle DOT_PRODUCT_DBF16QF32_BULK_SPARSE = DISTANCE_FUNCS.getBFloat16Handle(
         Function.DOT_PRODUCT,
         BFloat16QueryType.FLOAT32,
@@ -562,6 +567,20 @@ public class Similarities {
     public static float dotProductDBF16QF32(MemorySegment a, MemorySegment b, int length) {
         try {
             return (float) DOT_PRODUCT_DBF16QF32.invokeExact(a, b, length);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static void dotProductDBF16QF32BulkDense(
+        MemorySegment vectors,
+        MemorySegment query,
+        int dimensions,
+        int count,
+        MemorySegment scores
+    ) {
+        try {
+            DOT_PRODUCT_DBF16QF32_BULK_DENSE.invokeExact(vectors, query, dimensions, count, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }

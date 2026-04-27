@@ -11,7 +11,9 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+import org.elasticsearch.script.field.vectors.BFloat16RankVectors;
 import org.elasticsearch.script.field.vectors.ByteRankVectors;
 import org.elasticsearch.script.field.vectors.FloatRankVectors;
 import org.elasticsearch.script.field.vectors.VectorIterator;
@@ -46,10 +48,11 @@ public class RankVectorsMaxSimDotProductBenchmark {
 
     public enum RankVectorType {
         FLOAT,
-        BYTE
+        BYTE,
+        BFLOAT16
     }
 
-    @Param({ "FLOAT", "BYTE" })
+    @Param({ "FLOAT", "BYTE", "BFLOAT16" })
     public RankVectorType type;
 
     @Param({ "128" })
@@ -62,23 +65,27 @@ public class RankVectorsMaxSimDotProductBenchmark {
     public int numQueryVectors;
 
     private float[][] floatDocVectors;
+    private float[][] bfloat16DocVectors;
     private float[][] floatQueryVectors;
     private byte[][] byteDocVectors;
     private byte[][] byteQueryVectors;
 
     private FloatRankVectors floatRankVectors;
     private ByteRankVectors byteRankVectors;
+    private BFloat16RankVectors bfloat16RankVectors;
 
     @Setup(Level.Trial)
     public void setup() {
         Random random = new Random(0x5EEDL);
         floatDocVectors = new float[numDocVectors][dims];
+        bfloat16DocVectors = new float[numDocVectors][dims];
         floatQueryVectors = new float[numQueryVectors][dims];
         byteDocVectors = new byte[numDocVectors][dims];
         byteQueryVectors = new byte[numQueryVectors][dims];
         for (int i = 0; i < numDocVectors; i++) {
             for (int d = 0; d < dims; d++) {
                 floatDocVectors[i][d] = random.nextFloat() * 2f - 1f;
+                bfloat16DocVectors[i][d] = BFloat16.truncateToBFloat16(floatDocVectors[i][d]);
             }
             random.nextBytes(byteDocVectors[i]);
         }
@@ -95,8 +102,7 @@ public class RankVectorsMaxSimDotProductBenchmark {
             magnitudes,
             numDocVectors,
             dims,
-            encodeFloatDocVectors(floatDocVectors),
-            ElementType.FLOAT
+            encodeFloatDocVectors(floatDocVectors)
         );
         byteRankVectors = new ByteRankVectors(
             VectorIterator.from(byteDocVectors),
@@ -106,6 +112,13 @@ public class RankVectorsMaxSimDotProductBenchmark {
             encodeByteDocVectors(byteDocVectors),
             ElementType.BYTE
         );
+        bfloat16RankVectors = new BFloat16RankVectors(
+            VectorIterator.from(bfloat16DocVectors),
+            magnitudes,
+            numDocVectors,
+            dims,
+            encodeBFloat16DocVectors(bfloat16DocVectors)
+        );
     }
 
     @Benchmark
@@ -113,6 +126,7 @@ public class RankVectorsMaxSimDotProductBenchmark {
         return switch (type) {
             case FLOAT -> floatRankVectors.maxSimDotProduct(floatQueryVectors);
             case BYTE -> byteRankVectors.maxSimDotProduct(byteQueryVectors);
+            case BFLOAT16 -> bfloat16RankVectors.maxSimDotProduct(floatQueryVectors);
         };
     }
 
@@ -122,6 +136,7 @@ public class RankVectorsMaxSimDotProductBenchmark {
         return switch (type) {
             case FLOAT -> floatRankVectors.maxSimDotProduct(floatQueryVectors);
             case BYTE -> byteRankVectors.maxSimDotProduct(byteQueryVectors);
+            case BFLOAT16 -> bfloat16RankVectors.maxSimDotProduct(floatQueryVectors);
         };
     }
 
@@ -145,5 +160,16 @@ public class RankVectorsMaxSimDotProductBenchmark {
             offset += dims;
         }
         return new BytesRef(bytes);
+    }
+
+    private static BytesRef encodeBFloat16DocVectors(float[][] vectors) {
+        int dims = vectors[0].length;
+        ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        for (float[] vector : vectors) {
+            for (float value : vector) {
+                buffer.putShort(BFloat16.floatToBFloat16(value));
+            }
+        }
+        return new BytesRef(buffer.array());
     }
 }

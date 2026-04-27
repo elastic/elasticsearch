@@ -24,6 +24,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.MathUtils;
+import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 import org.elasticsearch.simdvec.MultiVectorsSource;
@@ -122,14 +123,40 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
         if (canUseF32BulkPath(source)) {
             final BytesRef vectors = source.vectorBytes();
+            final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
+                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
+            final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
             float sum = 0f;
             for (float[] floats : query) {
                 Similarities.dotProductF32Bulk(
-                    MemorySegment.ofArray(vectors.bytes).asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount()),
+                    vectorsSegment,
                     MemorySegment.ofArray(floats),
                     source.vectorDims(),
                     source.vectorCount(),
-                    MemorySegment.ofArray(scoresScratch)
+                    scoresSegment
+                );
+                sum += max(scoresScratch, source.vectorCount());
+            }
+            return sum;
+        }
+        return DEFAULT.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        if (canUseBFloat16Path(source)) {
+            final BytesRef vectors = source.vectorBytes();
+            final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
+                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
+            final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
+            float sum = 0f;
+            for (float[] floats : query) {
+                Similarities.dotProductDBF16QF32BulkDense(
+                    vectorsSegment,
+                    MemorySegment.ofArray(floats),
+                    source.vectorDims(),
+                    source.vectorCount(),
+                    scoresSegment
                 );
                 sum += max(scoresScratch, source.vectorCount());
             }
@@ -142,14 +169,17 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
         if (canUseI8BulkPath(source)) {
             final BytesRef vectors = source.vectorBytes();
+            final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
+                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
+            final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
             float sum = 0f;
             for (byte[] bytes : query) {
                 Similarities.dotProductI8Bulk(
-                    MemorySegment.ofArray(vectors.bytes).asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount()),
+                    vectorsSegment,
                     MemorySegment.ofArray(bytes),
                     source.vectorDims(),
                     source.vectorCount(),
-                    MemorySegment.ofArray(scoresScratch)
+                    scoresSegment
                 );
                 sum += max(scoresScratch, source.vectorCount());
             }
@@ -1496,6 +1526,10 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static boolean canUseF32BulkPath(MultiFloatVectorsSource source) {
         return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims() * Float.BYTES;
+    }
+
+    private static boolean canUseBFloat16Path(MultiBFloat16VectorsSource source) {
+        return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims() * Short.BYTES;
     }
 
     private static boolean canUseI8BulkPath(MultiByteVectorsSource source) {

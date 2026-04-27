@@ -408,32 +408,36 @@ public enum SearchResponseUtils {
             }
         }
 
-        SearchResponse searchResponse = new SearchResponse(
-            hits,
-            aggs,
-            suggest,
-            timedOut,
-            terminatedEarly,
-            profile,
-            numReducePhases,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-            clusters,
-            searchContextId,
-            null,
-            null
-        );
-        if (hits != null) {
-            hits.decRef();
-        }
-        if (suggest != null) {
-            List<SearchHit> completionHits = suggest.collectCompletionOptionHits(false);
-            if (completionHits != null) {
-                completionHits.forEach(SearchHit::decRef);
+        SearchResponse searchResponse;
+        try {
+            searchResponse = new SearchResponse(
+                hits,
+                aggs,
+                suggest,
+                timedOut,
+                terminatedEarly,
+                profile,
+                numReducePhases,
+                scrollId,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                clusters,
+                searchContextId,
+                null,
+                null
+            );
+        } finally {
+            if (hits != null) {
+                hits.decRef();
+            }
+            if (suggest != null) {
+                List<SearchHit> completionHits = suggest.collectCompletionOptionHits(false);
+                if (completionHits != null) {
+                    completionHits.forEach(SearchHit::decRef);
+                }
             }
         }
         return searchResponse;

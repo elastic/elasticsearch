@@ -17,6 +17,7 @@
 
 package org.elasticsearch.xpack.stateless.snapshots;
 
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -304,6 +305,24 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
             .setWaitForCompletion(true)
             .execute();
 
+        // Wait for the master to assign the shard snapshot to node0 before triggering relocation;
+        // otherwise the master may process the settings update first and assign the snapshot
+        // directly to node1, never exercising the local-then-remote fallback this test covers.
+        final var node0Id = getNodeId(node0);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        awaitClusterState(state -> {
+            final var entry = SnapshotsInProgress.get(state)
+                .asStream()
+                .filter(e -> e.snapshot().getSnapshotId().getName().equals(snapshotName))
+                .findFirst()
+                .orElse(null);
+            if (entry == null) {
+                return false;
+            }
+            final var status = entry.shards().get(shardId);
+            return status != null && node0Id.equals(status.nodeId());
+        });
+
         // Relocate shard to node1 while the SNAPSHOT pool on node0 is blocked
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node0));
         ensureGreen(indexName);
@@ -331,7 +350,6 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(snapshotInfo.failedShards(), equalTo(0));
 
         // Verify SnapshotsCommitService has no leftover tracking on any node
-        final var shardId = new ShardId(resolveIndex(indexName), 0);
         for (SnapshotsCommitService commitService : internalCluster().getInstances(SnapshotsCommitService.class)) {
             assertFalse(commitService.hasTrackingForShard(shardId));
         }

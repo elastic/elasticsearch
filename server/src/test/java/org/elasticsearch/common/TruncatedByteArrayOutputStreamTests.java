@@ -23,7 +23,7 @@ public class TruncatedByteArrayOutputStreamTests extends ESTestCase {
         out.write(new byte[] { 'b', 'c', 'd' });
         out.write(new byte[] { 'd', 'e', 'f', 'g', 'h' }, 1, 3);
 
-        assertFalse(out.isOverLimit());
+        assertTrue(out.hasCapacity());
         assertEquals("abcdefg", out.toString(StandardCharsets.UTF_8));
     }
 
@@ -35,7 +35,7 @@ public class TruncatedByteArrayOutputStreamTests extends ESTestCase {
         out.write(new byte[] { 'b', 'c', 'd' });
         out.write(new byte[] { 'd', 'e', 'f', 'g', 'h' }, 1, 3);
 
-        assertTrue(out.isOverLimit());
+        assertFalse(out.hasCapacity());
         assertEquals("1234567890", out.toString(StandardCharsets.UTF_8));
     }
 

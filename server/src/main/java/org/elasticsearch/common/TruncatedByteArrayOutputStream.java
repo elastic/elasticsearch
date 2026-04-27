@@ -22,7 +22,7 @@ final class TruncatedByteArrayOutputStream extends ByteArrayOutputStream {
 
     @Override
     public void write(int b) {
-        if (isOverLimit()) {
+        if (!hasCapacity()) {
             return;
         }
         super.write(b);
@@ -30,15 +30,15 @@ final class TruncatedByteArrayOutputStream extends ByteArrayOutputStream {
 
     @Override
     public void write(byte[] b, int off, int len) {
-        if (isOverLimit()) {
+        if (!hasCapacity()) {
             return;
         }
         int remainingSpace = maxBytes - count;
         super.write(b, off, Math.min(len, remainingSpace));
     }
 
-    boolean isOverLimit() {
-        return count >= maxBytes;
+    boolean hasCapacity() {
+        return count < maxBytes;
     }
 
     @Override

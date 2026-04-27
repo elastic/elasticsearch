@@ -43,6 +43,7 @@ import static org.elasticsearch.common.Strings.trimLeadingCharacter;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
@@ -276,8 +277,9 @@ public class StringsTests extends ESTestCase {
 
         var result = Strings.toTruncatedString(chunkedToXContent, 1024);
 
+        assertFalse(result.truncated());
         assertEquals("""
-            {"field1":"value1","field2":"value2"}""", result);
+            {"field1":"value1","field2":"value2"}""", result.string());
     }
 
     public void testToTruncatedStringWithChunkedXContentOverLimit() {
@@ -285,8 +287,9 @@ public class StringsTests extends ESTestCase {
 
         var result = Strings.toTruncatedString(chunkedToXContent, 100);
 
+        assertTrue(result.truncated());
         assertEquals("""
-            {"field1":"value1","field2":"value2","field3":"value3","field4":"value4","field5":"value5","field6":""", result);
+            {"field1":"value1","field2":"value2","field3":"value3","field4":"value4","field5":"value5","field6":""", result.string());
     }
 
     public void testToTruncatedStringWithChunkedXContentObjectUnderLimit() {
@@ -295,8 +298,9 @@ public class StringsTests extends ESTestCase {
 
         var result = Strings.toTruncatedString(chunkedToXContentObject, 1024);
 
+        assertFalse(result.truncated());
         assertEquals("""
-            {"field1":"value1"} {"field2":"value2"}""", result);
+            {"field1":"value1"} {"field2":"value2"}""", result.string());
     }
 
     public void testToTruncatedStringWithChunkedXContentObjectOverLimit() {
@@ -306,9 +310,10 @@ public class StringsTests extends ESTestCase {
 
         var result = Strings.toTruncatedString(chunkedToXContentObject, 100);
 
+        assertTrue(result.truncated());
         assertEquals(
             "{\"field1\":\"value1\"} {\"field2\":\"value2\"} {\"field3\":\"value3\"} {\"field4\":\"value4\"} {\"field5\":\"value5\"} ",
-            result
+            result.string()
         );
     }
 
@@ -317,11 +322,21 @@ public class StringsTests extends ESTestCase {
 
         var result = Strings.toTruncatedString(chunkedToXContent, 1024, true, true);
 
+        assertFalse(result.truncated());
         assertEquals("""
             {
               "field1" : "this is a value number 1",
               "field2" : "this is a value number 2"
-            }""", result);
+            }""", result.string());
+    }
+
+    public void testToTruncatedStringEndsWithEllipsis() {
+        ChunkedToXContent chunkedToXContent = __ -> IntStream.range(1, 1_000_000).mapToObj(i -> new TestToXContent(i, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent);
+
+        assertThat(result, endsWith("[...]"));
+        assertEquals(1024 * 1024 + "[...]".length(), result.length());
     }
 
     public void testToTruncatedStringException() {
@@ -330,7 +345,8 @@ public class StringsTests extends ESTestCase {
 
         var result = Strings.toTruncatedString(chunkedToXContent, 1024, true, true);
 
-        assertThat(result, containsString("error building toString out of XContent:"));
+        assertFalse(result.truncated());
+        assertThat(result.string(), containsString("error building toString out of XContent:"));
     }
 
     private static String lowercaseAsciiOnly(String s) {

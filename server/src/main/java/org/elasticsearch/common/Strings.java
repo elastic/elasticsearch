@@ -764,14 +764,14 @@ public class Strings {
      * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
      */
     public static String toTruncatedString(ChunkedToXContent chunkedToXContent) {
-        return toTruncatedString(chunkedToXContent, 1024 * 1024 /* 1 MiB */);
+        return toTruncatedString(chunkedToXContent, 1024 * 1024 /* 1 MiB */).appendIfTruncated("[...]");
     }
 
     /**
-     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
-     * up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out
-     * instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values printed in a
-     * human-readable way (see {@link XContentBuilder#humanReadable()}).
+     * Returns a {@link TruncatedString} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will
+     * be truncated up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be
+     * printed out instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values
+     * printed in a human-readable way (see {@link XContentBuilder#humanReadable()}).
      * <p>
      * This method is intended to be used for logging/debuging purposes, since it might return an invalid JSON value if the limit happens
      * to be enforced.
@@ -779,14 +779,14 @@ public class Strings {
      * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
      * @param maxBytes The maximum number of bytes after which the serialization will stop.
      */
-    public static String toTruncatedString(ChunkedToXContent chunkedToXContent, int maxBytes) {
+    public static TruncatedString toTruncatedString(ChunkedToXContent chunkedToXContent, int maxBytes) {
         return toTruncatedString(chunkedToXContent, maxBytes, false, false);
     }
 
     /**
-     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
-     * up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out
-     * instead.
+     * Returns a {@link TruncatedString} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will
+     * be truncated up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be
+     * printed out instead.
      * <p>
      * This method is intended to be used for logging/debuging purposes, since it might return an invalid JSON value if the limit happens
      * to be enforced.
@@ -796,7 +796,7 @@ public class Strings {
      * @param pretty True if the content should be pretty-printed. Also see {@link XContentBuilder#prettyPrint()}.
      * @param human True if the values should be printed in a human-readable way. Also see {@link XContentBuilder#humanReadable()}}.
      */
-    public static String toTruncatedString(ChunkedToXContent chunkedToXContent, int maxBytes, boolean pretty, boolean human) {
+    public static TruncatedString toTruncatedString(ChunkedToXContent chunkedToXContent, int maxBytes, boolean pretty, boolean human) {
         try {
             final var truncatedStream = new TruncatedByteArrayOutputStream(maxBytes);
             final var builder = createBuilder(pretty, human, truncatedStream);
@@ -808,7 +808,7 @@ public class Strings {
             while (chunks.hasNext()) {
                 chunks.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.flush();
-                if (truncatedStream.isOverLimit()) {
+                if (!truncatedStream.hasCapacity()) {
                     break;
                 }
             }
@@ -816,9 +816,9 @@ public class Strings {
                 builder.endObject();
             }
 
-            return toString(builder);
+            return new TruncatedString(toString(builder), !truncatedStream.hasCapacity());
         } catch (IOException e) {
-            return exceptionToJsonString(e, pretty, human);
+            return new TruncatedString(exceptionToJsonString(e, pretty, human), false);
         }
     }
 

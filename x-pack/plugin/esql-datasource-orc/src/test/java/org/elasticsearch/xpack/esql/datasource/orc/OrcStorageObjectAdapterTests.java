@@ -19,8 +19,15 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class OrcStorageObjectAdapterTests extends ESTestCase {
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        OrcStorageObjectAdapter.clearCacheForTests();
+    }
 
     public void testNullStorageObjectThrows() {
         expectThrows(QlIllegalArgumentException.class, () -> new OrcStorageObjectAdapter(null));
@@ -188,7 +195,77 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
         };
     }
 
+    /**
+     * Verifies that two readFully calls for the same tail region result in only one actual
+     * storage read, with the second served from FooterByteCache.
+     */
+    public void testTailCacheCoalescesRepeatedReadFully() throws IOException {
+        byte[] data = new byte[4096];
+        random().nextBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+
+        StorageObject countingStorage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(countingStorage);
+
+        int tailLen = 512;
+        long tailPos = data.length - tailLen;
+
+        byte[] first = new byte[tailLen];
+        try (FSDataInputStream stream = adapter.open(new Path("memory://cache-test.orc"))) {
+            stream.readFully(tailPos, first);
+        }
+        assertEquals(1, rangeReadCount.get());
+
+        byte[] second = new byte[tailLen];
+        try (FSDataInputStream stream = adapter.open(new Path("memory://cache-test.orc"))) {
+            stream.readFully(tailPos, second);
+        }
+        assertEquals("Second tail read should be served from cache", 1, rangeReadCount.get());
+        assertArrayEquals(first, second);
+
+        byte[] expected = new byte[tailLen];
+        System.arraycopy(data, (int) tailPos, expected, 0, tailLen);
+        assertArrayEquals(expected, first);
+    }
+
+    /**
+     * Verifies that positioned reads that hit the cache still return correct bytes.
+     */
+    public void testPositionedReadFromTailCache() throws IOException {
+        byte[] data = new byte[2048];
+        random().nextBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+
+        StorageObject countingStorage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(countingStorage);
+
+        int tailLen = 1024;
+        long tailPos = data.length - tailLen;
+
+        byte[] fullTail = new byte[tailLen];
+        try (FSDataInputStream stream = adapter.open(new Path("memory://pos-test.orc"))) {
+            stream.readFully(tailPos, fullTail);
+        }
+        assertEquals(1, rangeReadCount.get());
+
+        byte[] subRange = new byte[256];
+        long subPos = data.length - 256;
+        try (FSDataInputStream stream = adapter.open(new Path("memory://pos-test.orc"))) {
+            int read = stream.read(subPos, subRange, 0, 256);
+            assertEquals(256, read);
+        }
+        assertEquals("Sub-range read within cached tail should not cause extra storage reads", 1, rangeReadCount.get());
+
+        byte[] expected = new byte[256];
+        System.arraycopy(data, (int) subPos, expected, 0, 256);
+        assertArrayEquals(expected, subRange);
+    }
+
     private StorageObject createRangeReadStorageObject(byte[] data) {
+        return createCountingRangeReadStorageObject(data, new AtomicInteger());
+    }
+
+    private StorageObject createCountingRangeReadStorageObject(byte[] data, AtomicInteger rangeReadCount) {
         return new StorageObject() {
             @Override
             public InputStream newStream() throws IOException {
@@ -197,6 +274,7 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
 
             @Override
             public InputStream newStream(long position, long length) throws IOException {
+                rangeReadCount.incrementAndGet();
                 int pos = (int) position;
                 int len = (int) Math.min(length, data.length - position);
                 return new ByteArrayInputStream(data, pos, len);

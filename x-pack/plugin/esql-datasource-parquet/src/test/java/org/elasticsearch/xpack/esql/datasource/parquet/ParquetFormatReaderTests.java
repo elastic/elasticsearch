@@ -78,6 +78,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -1771,11 +1772,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
     /**
      * End-to-end test: reads a multi-row-group Parquet file with a filter via {@code read()},
      * then reads via per-range {@code readRange()} with the same filter. Asserts the union of
-     * range reads produces identical rows to the full read, proving the footer cache does not
-     * cause splits to miss or duplicate rows.
+     * range reads produces identical rows to the full read.
      */
     public void testReadRangeWithFilterProducesCorrectResults() throws Exception {
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         byte[] parquetData = createWideMultiRowGroupFile(500);
         StorageObject storageObject = createStorageObject(parquetData);
         FilterPredicate filter = FilterApi.gt(FilterApi.longColumn("id"), -1L);

@@ -105,11 +105,22 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         DenseVectorFieldMapper.ElementType.FLOAT
     );
 
+    protected static final String EMBEDDING_INFERENCE_ID = "embedding-inference-id";
+    protected static final MinimalServiceSettings EMBEDDING_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+        null,
+        TaskType.EMBEDDING,
+        256,
+        SimilarityMeasure.COSINE,
+        DenseVectorFieldMapper.ElementType.FLOAT
+    );
+
     private static final Map<String, MinimalServiceSettings> INFERENCE_ENDPOINT_MAP = Map.of(
         SPARSE_INFERENCE_ID,
         SPARSE_INFERENCE_ID_SETTINGS,
         DENSE_INFERENCE_ID,
-        DENSE_INFERENCE_ID_SETTINGS
+        DENSE_INFERENCE_ID_SETTINGS,
+        EMBEDDING_INFERENCE_ID,
+        EMBEDDING_INFERENCE_ID_SETTINGS
     );
 
     private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
@@ -530,6 +541,15 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         Map<String, String> semanticTextFields,
         Map<String, Map<String, Object>> nonInferenceFields
     ) throws IOException {
+        return createIndexMetadataContext(indexName, semanticTextFields, nonInferenceFields, SemanticTextFieldMapper.CONTENT_TYPE);
+    }
+
+    protected QueryRewriteContext createIndexMetadataContext(
+        String indexName,
+        Map<String, String> semanticFields,
+        Map<String, Map<String, Object>> nonInferenceFields,
+        String semanticFieldContentType
+    ) throws IOException {
         Client client = new NoOpClient(threadPool);
 
         Index index = new Index(indexName, randomAlphaOfLength(10));
@@ -545,7 +565,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         try (XContentBuilder mappings = XContentFactory.jsonBuilder()) {
             mappings.startObject().startObject("_doc").startObject("properties");
 
-            for (var entry : semanticTextFields.entrySet()) {
+            for (var entry : semanticFields.entrySet()) {
                 String fieldName = entry.getKey();
                 String inferenceId = entry.getValue();
                 MinimalServiceSettings modelSettings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
@@ -554,7 +574,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                 }
 
                 mappings.startObject(fieldName);
-                mappings.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+                mappings.field("type", semanticFieldContentType);
                 mappings.field("inference_id", inferenceId);
                 mappings.field("model_settings", modelSettings);
                 mappings.endObject();

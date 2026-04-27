@@ -1469,6 +1469,7 @@ region:text
 ;
 
 likeQuestionMarkWildcardOnIndexMetadataField
+required_capability: fix_index_like_question_mark_wildcard
 FROM employees METADATA _index | WHERE _index LIKE "employ?es" | KEEP emp_no | SORT emp_no | LIMIT 1;
 
 emp_no:integer
@@ -1476,6 +1477,7 @@ emp_no:integer
 ;
 
 likeQuestionMarkWildcardNoMatchOnIndexMetadataField
+required_capability: fix_index_like_question_mark_wildcard
 FROM employees METADATA _index | WHERE _index LIKE "employ??es" | KEEP emp_no;
 
 emp_no:integer

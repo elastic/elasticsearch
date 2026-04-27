@@ -46,6 +46,26 @@ public class GlobExpanderTests extends ESTestCase {
         assertFalse(GlobExpander.isMultiFile(null));
     }
 
+    /**
+     * RFC 3986 §3.2.2 requires brackets around IPv6 host literals in URL authorities:
+     *   http://[::1]:8080/path        s3://[fe80::1]/bucket/file.parquet
+     * An IPv6 URL with no glob metacharacters in the PATH is a single concrete URL,
+     * not a glob pattern.
+     */
+    public void testIsMultiFileIpv6HostIsNotAGlobPattern() {
+        assertFalse(GlobExpander.isMultiFile("http://[::1]:8080/logs/data.parquet"));
+        assertFalse(GlobExpander.isMultiFile("s3://[fe80::1]/bucket/hits.parquet"));
+    }
+
+    /**
+     * When a real glob IS in the path, the URL is a glob pattern — but the IPv6 authority
+     * brackets must not themselves count as glob characters. Only the path component is
+     * inspected for glob metacharacters.
+     */
+    public void testIsMultiFileIpv6HostWithGlobInPath() {
+        assertTrue(GlobExpander.isMultiFile("http://[::1]/logs/2026-*/data.parquet"));
+    }
+
     // -- expandGlob --
 
     public void testExpandGlobLiteralReturnsUnresolved() throws IOException {
@@ -83,6 +103,25 @@ public class GlobExpanderTests extends ESTestCase {
 
         FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
         assertEquals("s3://bucket/data/*.parquet", result.originalPattern());
+    }
+
+    /**
+     * When an EXTERNAL URL has an IPv6 host and a glob in the path, the authority brackets
+     * must be passed through unchanged and must not be treated as a glob character class.
+     * The glob expansion must match only on the path component.
+     */
+    public void testExpandGlobIpv6HostWithGlobInPath() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("http://[::1]/logs/2026-05/data.parquet", 100),
+            entry("http://[::1]/logs/2026-06/data.parquet", 200)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("http://[::1]/logs/2026-*/data.parquet", provider);
+        assertTrue(result.isResolved());
+        assertEquals(2, result.fileCount());
+        assertEquals("http://[::1]/logs/2026-05/data.parquet", result.path(0).toString());
+        assertEquals("http://[::1]/logs/2026-06/data.parquet", result.path(1).toString());
     }
 
     // -- expandCommaSeparated --

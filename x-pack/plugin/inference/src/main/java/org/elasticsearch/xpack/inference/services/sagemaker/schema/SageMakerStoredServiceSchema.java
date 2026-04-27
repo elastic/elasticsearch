@@ -14,11 +14,24 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.validation.DenseEmbeddingModelValidator;
 
+import java.util.Map;
+
 /**
  * Contains any model-specific settings that are stored in SageMakerServiceSettings.
  */
 public interface SageMakerStoredServiceSchema extends ServiceSettings {
     SageMakerStoredServiceSchema NO_OP = new SageMakerStoredServiceSchema() {
+
+        /**
+         * This method is used to update the service settings with new values.
+         * Since this is a no-op implementation, it simply returns the current instance without making any changes.
+         * @param serviceSettings a <b>modifiable</b> map with the new service settings
+         * @return the updated service settings, which in this case is the same instance
+         */
+        @Override
+        public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+            return this;
+        }
 
         private static final String NAME = "noop_sagemaker_service_schema";
         private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");

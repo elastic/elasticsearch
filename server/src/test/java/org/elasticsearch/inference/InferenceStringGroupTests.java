@@ -18,16 +18,18 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.DataType.TEXT;
+import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceStringGroup.CONTENT_FIELD;
 import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
 import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
 import static org.elasticsearch.inference.InferenceStringGroup.toInferenceStringList;
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
-import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -44,7 +46,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public void testSingleInferenceStringConstructor() {
-        InferenceString inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_IMAGE_DATA_URI);
+        InferenceString inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI);
         var input = new InferenceStringGroup(inferenceString);
         assertThat(input.inferenceStrings(), contains(inferenceString));
         assertThat(input.containsNonTextEntry(), is(true));
@@ -52,7 +54,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public void testInferenceStringListConstructor() {
-        InferenceString inferenceString1 = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_IMAGE_DATA_URI);
+        InferenceString inferenceString1 = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI);
         InferenceString inferenceString2 = new InferenceString(TEXT, DataFormat.TEXT, "a string");
         var input = new InferenceStringGroup(List.of(inferenceString1, inferenceString2));
         assertThat(input.inferenceStrings(), contains(inferenceString1, inferenceString2));
@@ -192,6 +194,26 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
             inputs.add(new InferenceStringGroup("a_string"));
         }
         return inputs;
+    }
+
+    /**
+     * Versions before {@link InferenceString#EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED} throw an exception when serializing audio,
+     * video or pdf content, so we filter those out of the bwc versions to avoid test failures.
+     * The logic is tested directly by {@link #testAudioVideoPdfAreNotBackwardsCompatible}
+     */
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream().filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED)).toList();
+    }
+
+    public void testAudioVideoPdfAreNotBackwardsCompatible() throws IOException {
+        testSerializationIsNotBackwardsCompatible(
+            EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED,
+            i -> i.inferenceStrings().stream().anyMatch(InferenceStringTests::isAudioVideoOrPdf),
+            """
+                Cannot send an inference request with audio, video or pdf inputs to an older node. \
+                Please wait until all nodes are upgraded before using audio, video or pdf inputs"""
+        );
     }
 
     @Override

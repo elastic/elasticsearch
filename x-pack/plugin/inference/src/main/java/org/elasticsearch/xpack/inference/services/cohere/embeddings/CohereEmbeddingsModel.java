@@ -41,7 +41,7 @@ public class CohereEmbeddingsModel extends CohereModel {
             CohereEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             CohereEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

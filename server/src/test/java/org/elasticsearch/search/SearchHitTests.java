@@ -16,7 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
@@ -145,7 +144,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
     @Override
     protected Writeable.Reader<SearchHit> instanceReader() {
-        return in -> SearchHit.readFrom(in, randomBoolean());
+        return SearchHit::readFrom;
     }
 
     @Override
@@ -280,12 +279,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
         try {
             TransportVersion version = TransportVersionUtils.randomVersion();
-            SearchHits results = copyWriteable(
-                hits,
-                getNamedWriteableRegistry(),
-                (StreamInput in) -> SearchHits.readFrom(in, randomBoolean()),
-                version
-            );
+            SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::readFrom, version);
             try {
                 SearchShardTarget deserializedTarget = results.getAt(0).getShard();
                 assertThat(deserializedTarget, equalTo(target));

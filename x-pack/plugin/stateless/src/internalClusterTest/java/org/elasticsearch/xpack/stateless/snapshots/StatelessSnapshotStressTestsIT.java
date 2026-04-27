@@ -1,0 +1,98 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.snapshots;
+
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.snapshots.SnapshotStressTestsHelper;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+
+import java.util.ArrayList;
+
+import static org.elasticsearch.snapshots.SnapshotStressTestsHelper.nodeNames;
+
+public class StatelessSnapshotStressTestsIT extends AbstractStatelessPluginIntegTestCase {
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        return super.nodeSettings()
+            // Rebalancing is causing some checks after restore to randomly fail
+            // due to https://github.com/elastic/elasticsearch/issues/9421
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            // Speed up master failover
+            .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), "1s")
+            // max 1 miss with 1s frequency may be unstable on slow CI machines, so keep it at 2
+            .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 2);
+    }
+
+    public void testRandomActivitiesStatelessSnapshotDisabled() throws InterruptedException {
+        doTestRandomActivities(Settings.EMPTY);
+    }
+
+    public void testRandomActivitiesStatelessSnapshotReadFromObjectStore() throws InterruptedException {
+        doTestRandomActivities(
+            Settings.builder()
+                .put(
+                    StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
+                    StatelessSnapshotSettings.StatelessSnapshotEnabledStatus.READ_FROM_OBJECT_STORE
+                )
+                .build()
+        );
+    }
+
+    public void testRandomActivitiesStatelessSnapshotEnabled() throws InterruptedException {
+        doTestRandomActivities(
+            Settings.builder()
+                .put(
+                    StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
+                    StatelessSnapshotSettings.StatelessSnapshotEnabledStatus.ENABLED
+                )
+                .build()
+        );
+    }
+
+    private void doTestRandomActivities(Settings extraSettings) throws InterruptedException {
+        final int numIndexNodes = between(1, 3);
+        logger.info("--> starting [{}] indexing nodes", numIndexNodes);
+        final var indexNodeNames = new ArrayList<String>();
+        for (int i = 0; i < numIndexNodes; i++) {
+            indexNodeNames.add(startMasterAndIndexNode(extraSettings));
+        }
+        final int numSearchNodes = between(0, 3);
+        logger.info("--> starting [{}] search nodes", numSearchNodes);
+        if (numSearchNodes > 0) {
+            startSearchNodes(numSearchNodes, extraSettings);
+        }
+        ensureStableCluster(numIndexNodes + numSearchNodes);
+
+        final DiscoveryNodes discoveryNodes = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get()
+            .getState()
+            .nodes();
+        final var trackedCluster = new SnapshotStressTestsHelper.TrackedCluster(
+            internalCluster(),
+            nodeNames(discoveryNodes.getMasterNodes()),
+            nodeNames(discoveryNodes.getDataNodes())
+        ) {
+            @Override
+            protected int numberOfReplicasUpperBound() {
+                return numSearchNodes;
+            }
+        };
+        trackedCluster.run();
+
+        indexNodeNames.forEach(nodeName -> {
+            logger.info("--> asserting no commit is tracked for snapshots on [{}]", nodeName);
+            internalCluster().getInstance(SnapshotsCommitService.class, nodeName).assertEmptyTracking();
+        });
+    }
+}

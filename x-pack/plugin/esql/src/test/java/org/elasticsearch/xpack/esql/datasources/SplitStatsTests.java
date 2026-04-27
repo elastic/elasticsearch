@@ -443,6 +443,262 @@ public class SplitStatsTests extends ESTestCase {
         assertNull(SplitStats.merge(List.of()));
     }
 
+    // --- cross-type merge tests (type widening for UNION_BY_NAME) ---
+
+    public void testMergeCrossTypeIntegerLongMinMax() {
+        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
+        b1.addColumn("price", 0L, 10, 50, 400);
+        SplitStats s1 = b1.build();
+
+        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
+        b2.addColumn("price", 0L, 5L, 60L, 800);
+        SplitStats s2 = b2.build();
+
+        SplitStats merged = SplitStats.merge(List.of(s1, s2));
+        assertNotNull(merged);
+        assertEquals(300, merged.rowCount());
+        assertEquals(5L, merged.columnMin("price"));
+        assertEquals(60L, merged.columnMax("price"));
+    }
+
+    public void testMergeCrossTypeIntegerDoubleMinMax() {
+        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
+        b1.addColumn("score", 0L, 3, 80, 400);
+        SplitStats s1 = b1.build();
+
+        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
+        b2.addColumn("score", 0L, 1.5, 99.9, 800);
+        SplitStats s2 = b2.build();
+
+        SplitStats merged = SplitStats.merge(List.of(s1, s2));
+        assertNotNull(merged);
+        assertEquals(1.5, merged.columnMin("score"));
+        assertEquals(99.9, merged.columnMax("score"));
+    }
+
+    public void testMergeCrossTypeFloatDoubleMinMax() {
+        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
+        b1.addColumn("temp", 0L, 10.0f, 30.0f, 400);
+        SplitStats s1 = b1.build();
+
+        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
+        b2.addColumn("temp", 0L, 5.0, 40.0, 800);
+        SplitStats s2 = b2.build();
+
+        SplitStats merged = SplitStats.merge(List.of(s1, s2));
+        assertNotNull(merged);
+        assertEquals(5.0, merged.columnMin("temp"));
+        assertEquals(40.0, merged.columnMax("temp"));
+    }
+
+    public void testMergeCrossTypeIntegerFloatMinMax() {
+        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
+        b1.addColumn("val", 0L, 10, 50, 400);
+        SplitStats s1 = b1.build();
+
+        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
+        b2.addColumn("val", 0L, 5.0f, 60.0f, 800);
+        SplitStats s2 = b2.build();
+
+        SplitStats merged = SplitStats.merge(List.of(s1, s2));
+        assertNotNull(merged);
+        assertEquals(5.0, merged.columnMin("val"));
+        assertEquals(60.0, merged.columnMax("val"));
+    }
+
+    public void testMergeThreeWayCrossType() {
+        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
+        b1.addColumn("price", 0L, 10, 50, 400);
+        SplitStats s1 = b1.build();
+
+        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
+        b2.addColumn("price", 0L, 5L, 60L, 800);
+        SplitStats s2 = b2.build();
+
+        SplitStats.Builder b3 = new SplitStats.Builder().rowCount(300);
+        b3.addColumn("price", 0L, 3L, 100L, 1200);
+        SplitStats s3 = b3.build();
+
+        SplitStats merged = SplitStats.merge(List.of(s1, s2, s3));
+        assertNotNull(merged);
+        assertEquals(600, merged.rowCount());
+        assertEquals(3L, merged.columnMin("price"));
+        assertEquals(100L, merged.columnMax("price"));
+    }
+
+    public void testMergeLongDoubleIncompatibleClearsStats() {
+        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
+        b1.addColumn("val", 0L, 10L, 50L, 400);
+        SplitStats s1 = b1.build();
+
+        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
+        b2.addColumn("val", 0L, 5.0, 60.0, 800);
+        SplitStats s2 = b2.build();
+
+        SplitStats merged = SplitStats.merge(List.of(s1, s2));
+        assertNotNull(merged);
+        assertEquals(300, merged.rowCount());
+        assertNull("incompatible types should clear min", merged.columnMin("val"));
+        assertNull("incompatible types should clear max", merged.columnMax("val"));
+    }
+
+    public void testMergeLongDoubleIncompatibleClearsStatsReversed() {
+        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(200);
+        b1.addColumn("val", 0L, 5.0, 60.0, 800);
+        SplitStats s1 = b1.build();
+
+        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(100);
+        b2.addColumn("val", 0L, 10L, 50L, 400);
+        SplitStats s2 = b2.build();
+
+        SplitStats merged = SplitStats.merge(List.of(s1, s2));
+        assertNotNull(merged);
+        assertEquals(300, merged.rowCount());
+        assertNull("incompatible types should clear min regardless of order", merged.columnMin("val"));
+        assertNull("incompatible types should clear max regardless of order", merged.columnMax("val"));
+    }
+
+    public void testMergeLongFloatIncompatibleClearsStats() {
+        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
+        b1.addColumn("val", 0L, 10L, 50L, 400);
+        SplitStats s1 = b1.build();
+
+        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
+        b2.addColumn("val", 0L, 5.0f, 60.0f, 800);
+        SplitStats s2 = b2.build();
+
+        SplitStats merged = SplitStats.merge(List.of(s1, s2));
+        assertNotNull(merged);
+        assertNull("Long + Float is incompatible, should clear min", merged.columnMin("val"));
+        assertNull("Long + Float is incompatible, should clear max", merged.columnMax("val"));
+    }
+
+    public void testMergeIncompatibleStaysPoisonedWithThirdSplit() {
+        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
+        b1.addColumn("val", 0L, 10L, 50L, 400);
+        SplitStats s1 = b1.build();
+
+        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
+        b2.addColumn("val", 0L, 5.0, 60.0, 800);
+        SplitStats s2 = b2.build();
+
+        SplitStats.Builder b3 = new SplitStats.Builder().rowCount(300);
+        b3.addColumn("val", 0L, 1L, 100L, 1200);
+        SplitStats s3 = b3.build();
+
+        SplitStats merged = SplitStats.merge(List.of(s1, s2, s3));
+        assertNotNull(merged);
+        assertEquals(600, merged.rowCount());
+        assertNull("once poisoned by incompatibility, min must stay null", merged.columnMin("val"));
+        assertNull("once poisoned by incompatibility, max must stay null", merged.columnMax("val"));
+    }
+
+    public void testMergeCrossTypeIntegerLongReversedOrder() {
+        // Verify widening works regardless of which split comes first
+        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
+        b1.addColumn("price", 0L, 5L, 60L, 400);
+        SplitStats s1 = b1.build();
+
+        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
+        b2.addColumn("price", 0L, 10, 50, 800);
+        SplitStats s2 = b2.build();
+
+        SplitStats merged = SplitStats.merge(List.of(s1, s2));
+        assertNotNull(merged);
+        assertEquals(5L, merged.columnMin("price"));
+        assertEquals(60L, merged.columnMax("price"));
+    }
+
+    // --- mergedMin / mergedMax unit tests ---
+
+    public void testMergedMinNullHandling() {
+        assertNull(SplitStats.mergedMin(null, null));
+        assertEquals(10, SplitStats.mergedMin(null, 10));
+        assertEquals(10, SplitStats.mergedMin(10, null));
+    }
+
+    public void testMergedMaxNullHandling() {
+        assertNull(SplitStats.mergedMax(null, null));
+        assertEquals(10, SplitStats.mergedMax(null, 10));
+        assertEquals(10, SplitStats.mergedMax(10, null));
+    }
+
+    public void testMergedMinSameType() {
+        assertEquals(5, SplitStats.mergedMin(10, 5));
+        assertEquals(5L, SplitStats.mergedMin(5L, 20L));
+        assertEquals(1.5, SplitStats.mergedMin(1.5, 3.0));
+        assertEquals("Alice", SplitStats.mergedMin("Alice", "Zara"));
+    }
+
+    public void testMergedMaxSameType() {
+        assertEquals(10, SplitStats.mergedMax(10, 5));
+        assertEquals(20L, SplitStats.mergedMax(5L, 20L));
+        assertEquals(3.0, SplitStats.mergedMax(1.5, 3.0));
+        assertEquals("Zara", SplitStats.mergedMax("Alice", "Zara"));
+    }
+
+    public void testMergedMinCrossTypeIntegerLong() {
+        assertEquals(5L, SplitStats.mergedMin(10, 5L));
+        assertEquals(5L, SplitStats.mergedMin(5L, 10));
+        assertEquals(10L, SplitStats.mergedMin(10, 20L));
+    }
+
+    public void testMergedMaxCrossTypeIntegerLong() {
+        assertEquals(10L, SplitStats.mergedMax(10, 5L));
+        assertEquals(10L, SplitStats.mergedMax(5L, 10));
+        assertEquals(20L, SplitStats.mergedMax(10, 20L));
+    }
+
+    public void testMergedMinCrossTypeIntegerDouble() {
+        assertEquals(1.5, SplitStats.mergedMin(3, 1.5));
+        assertEquals(3.0, SplitStats.mergedMin(3, 5.0));
+    }
+
+    public void testMergedMaxCrossTypeIntegerDouble() {
+        assertEquals(5.0, SplitStats.mergedMax(3, 5.0));
+        assertEquals(3.0, SplitStats.mergedMax(3, 1.5));
+    }
+
+    public void testMergedMinCrossTypeFloatDouble() {
+        assertEquals(5.0, SplitStats.mergedMin(10.0f, 5.0));
+        assertEquals(10.0, SplitStats.mergedMin(10.0f, 20.0));
+    }
+
+    public void testMergedMaxCrossTypeFloatDouble() {
+        assertEquals(20.0, SplitStats.mergedMax(10.0f, 20.0));
+        assertEquals(10.0, SplitStats.mergedMax(10.0f, 5.0));
+    }
+
+    public void testMergedMinCrossTypeIntegerFloat() {
+        assertEquals(5.0, SplitStats.mergedMin(10, 5.0f));
+        assertEquals(10.0, SplitStats.mergedMin(10, 20.0f));
+    }
+
+    public void testMergedMaxCrossTypeIntegerFloat() {
+        assertEquals(20.0, SplitStats.mergedMax(10, 20.0f));
+        assertEquals(10.0, SplitStats.mergedMax(10, 5.0f));
+    }
+
+    public void testMergedMinLongDoubleIncompatible() {
+        assertNull("Long + Double incompatible", SplitStats.mergedMin(10L, 5.0));
+        assertNull("Double + Long incompatible", SplitStats.mergedMin(5.0, 10L));
+    }
+
+    public void testMergedMaxLongDoubleIncompatible() {
+        assertNull("Long + Double incompatible", SplitStats.mergedMax(10L, 50.0));
+        assertNull("Double + Long incompatible", SplitStats.mergedMax(50.0, 10L));
+    }
+
+    public void testMergedMinLongFloatIncompatible() {
+        assertNull("Long + Float incompatible", SplitStats.mergedMin(10L, 5.0f));
+        assertNull("Float + Long incompatible", SplitStats.mergedMin(5.0f, 10L));
+    }
+
+    public void testMergedMinStringNumericIncompatible() {
+        assertNull(SplitStats.mergedMin("hello", 10));
+        assertNull(SplitStats.mergedMin(10, "hello"));
+    }
+
     private static FileSplit fileSplitWithStats(SplitStats stats) {
         Map<String, Object> statsMap = stats.toMap();
         return new FileSplit("parquet", StoragePath.of("file:///test.parquet"), 0, 100, "parquet", Map.of(), Map.of(), null, statsMap);

@@ -861,7 +861,7 @@ final class PageColumnReader {
                 int fromPage = Math.min(remaining, availableInPage());
                 BytesRef[] vals = readBinaryValues(fromPage);
                 for (int i = 0; i < fromPage; i++) {
-                    allValues[produced + i] = isUuid ? new BytesRef(ParquetFormatReader.formatUuid(vals[i].bytes)) : vals[i];
+                    allValues[produced + i] = isUuid ? new BytesRef(ParquetColumnDecoding.formatUuid(vals[i].bytes)) : vals[i];
                 }
                 advancePosition(fromPage);
                 produced += fromPage;
@@ -892,7 +892,7 @@ final class PageColumnReader {
                 if (pageNulls.get(i)) {
                     allNulls.set(produced + i);
                 } else if (isUuid) {
-                    allValues[produced + i] = new BytesRef(ParquetFormatReader.formatUuid(vals[valIdx++].bytes));
+                    allValues[produced + i] = new BytesRef(ParquetColumnDecoding.formatUuid(vals[valIdx++].bytes));
                 } else {
                     allValues[produced + i] = vals[valIdx++];
                 }

@@ -24,9 +24,6 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.api.Binary;
-import org.apache.parquet.io.api.Converter;
-import org.apache.parquet.io.api.GroupConverter;
-import org.apache.parquet.io.api.PrimitiveConverter;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -799,26 +796,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     /** Julian day number for Unix epoch (1970-01-01). */
     private static final int JULIAN_EPOCH_OFFSET = 2_440_588;
 
-    private static final char[] HEX = "0123456789abcdef".toCharArray();
-
-    /**
-     * Formats a 16-byte UUID in big-endian layout as the standard 8-4-4-4-12 hex string.
-     */
-    static String formatUuid(byte[] bytes) {
-        if (bytes == null || bytes.length < 16) {
-            throw new QlIllegalArgumentException("UUID requires 16 bytes, got " + (bytes == null ? "null" : bytes.length));
-        }
-        StringBuilder sb = new StringBuilder(36);
-        for (int i = 0; i < 16; i++) {
-            sb.append(HEX[(bytes[i] >> 4) & 0xF]);
-            sb.append(HEX[bytes[i] & 0xF]);
-            if (i == 3 || i == 5 || i == 7 || i == 9) {
-                sb.append('-');
-            }
-        }
-        return sb.toString();
-    }
-
     /**
      * When the query plan type cannot be satisfied from this file's Parquet-derived ESQL type (after
      * applying the same widening rules as {@link EsqlDataTypeConverter#commonType}, plus KEYWORD/TEXT
@@ -1009,7 +986,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             if (hasRecordFilter || hasListColumns) {
                 ColumnReadStoreImpl store = new ColumnReadStoreImpl(
                     rowGroup,
-                    new NoOpGroupConverter(projectedSchema),
+                    new ParquetColumnDecoding.NoOpGroupConverter(projectedSchema),
                     projectedSchema,
                     createdBy
                 );
@@ -1121,7 +1098,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         private Block readColumnBlock(ColumnReader cr, ColumnInfo info, int rowsToRead, int colIndex) {
             if (info.maxRepLevel() > 0) {
-                return readListColumn(cr, info, rowsToRead);
+                return ParquetColumnDecoding.readListColumn(cr, info, rowsToRead, blockFactory);
             }
             return switch (info.esqlType()) {
                 case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel(), rowsToRead);
@@ -1140,7 +1117,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 }
                 case DATETIME -> readDatetimeColumn(cr, info, rowsToRead);
                 default -> {
-                    skipValues(cr, rowsToRead);
+                    ParquetColumnDecoding.skipValues(cr, rowsToRead);
                     yield blockFactory.newConstantNullBlock(rowsToRead);
                 }
             };
@@ -1162,7 +1139,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             if (noNulls) {
                 return blockFactory.newBooleanArrayVector(values, rows).asBlock();
             }
-            return blockFactory.newBooleanArrayBlock(values, rows, null, toBitSet(isNull, rows), Block.MvOrdering.UNORDERED);
+            return blockFactory.newBooleanArrayBlock(
+                values,
+                rows,
+                null,
+                ParquetColumnDecoding.toBitSet(isNull, rows),
+                Block.MvOrdering.UNORDERED
+            );
         }
 
         private Block readIntColumn(ColumnReader cr, int maxDef, int rows) {
@@ -1181,7 +1164,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             if (noNulls) {
                 return blockFactory.newIntArrayVector(values, rows).asBlock();
             }
-            return blockFactory.newIntArrayBlock(values, rows, null, toBitSet(isNull, rows), Block.MvOrdering.UNORDERED);
+            return blockFactory.newIntArrayBlock(
+                values,
+                rows,
+                null,
+                ParquetColumnDecoding.toBitSet(isNull, rows),
+                Block.MvOrdering.UNORDERED
+            );
         }
 
         /**
@@ -1294,7 +1283,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                     if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
                         builder.appendNull();
                     } else if (isUuid) {
-                        builder.appendBytesRef(new BytesRef(formatUuid(cr.getBinary().getBytes())));
+                        builder.appendBytesRef(new BytesRef(ParquetColumnDecoding.formatUuid(cr.getBinary().getBytes())));
                     } else {
                         builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
                     }
@@ -1320,22 +1309,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                     values[i] = cr.getInteger() * MILLIS_PER_DAY;
                 } else {
                     long raw = cr.getLong();
-                    values[i] = convertTimestampToMillis(raw, info.logicalType());
+                    values[i] = ParquetColumnDecoding.convertTimestampToMillis(raw, info.logicalType());
                 }
                 cr.consume();
             }
             return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
-        }
-
-        private static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
-            if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-                return switch (ts.getUnit()) {
-                    case MILLIS -> raw;
-                    case MICROS -> raw / 1_000;
-                    case NANOS -> raw / 1_000_000;
-                };
-            }
-            return raw;
         }
 
         /**
@@ -1363,292 +1341,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
         }
 
-        /**
-         * Reads a LIST column using repetition levels to determine list boundaries,
-         * producing multi-valued ESQL blocks. Handles null lists, empty lists, and
-         * null elements within lists correctly.
-         */
-        private Block readListColumn(ColumnReader cr, ColumnInfo info, int rows) {
-            DataType elementType = info.esqlType();
-            int maxDef = info.maxDefLevel();
-            return switch (elementType) {
-                case INTEGER -> readListIntColumn(cr, maxDef, rows);
-                case LONG -> readListLongColumn(cr, maxDef, rows);
-                case DOUBLE -> readListDoubleColumn(cr, maxDef, rows);
-                case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows);
-                case KEYWORD, TEXT -> readListBytesRefColumn(cr, maxDef, rows);
-                case DATETIME -> readListDatetimeColumn(cr, info, rows);
-                default -> {
-                    skipListValues(cr, maxDef, rows);
-                    yield blockFactory.newConstantNullBlock(rows);
-                }
-            };
-        }
-
-        /**
-         * Skips all Parquet values for the given number of rows in a LIST column,
-         * respecting repetition levels to consume entire lists per row.
-         */
-        private static void skipListValues(ColumnReader cr, int maxDef, int rows) {
-            for (int row = 0; row < rows; row++) {
-                cr.consume();
-                while (cr.getCurrentRepetitionLevel() > 0) {
-                    cr.consume();
-                }
-            }
-        }
-
-        private Block readListIntColumn(ColumnReader cr, int maxDef, int rows) {
-            try (var builder = blockFactory.newIntBlockBuilder(rows)) {
-                for (int row = 0; row < rows; row++) {
-                    int def = cr.getCurrentDefinitionLevel();
-                    if (def >= maxDef) {
-                        builder.beginPositionEntry();
-                        builder.appendInt(cr.getInteger());
-                        cr.consume();
-                        while (cr.getCurrentRepetitionLevel() > 0) {
-                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                builder.appendInt(cr.getInteger());
-                            }
-                            cr.consume();
-                        }
-                        builder.endPositionEntry();
-                    } else {
-                        cr.consume();
-                        boolean hasValues = false;
-                        while (cr.getCurrentRepetitionLevel() > 0) {
-                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                if (hasValues == false) {
-                                    builder.beginPositionEntry();
-                                    hasValues = true;
-                                }
-                                builder.appendInt(cr.getInteger());
-                            }
-                            cr.consume();
-                        }
-                        if (hasValues) {
-                            builder.endPositionEntry();
-                        } else {
-                            builder.appendNull();
-                        }
-                    }
-                }
-                return builder.build();
-            }
-        }
-
-        private Block readListLongColumn(ColumnReader cr, int maxDef, int rows) {
-            try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-                for (int row = 0; row < rows; row++) {
-                    int def = cr.getCurrentDefinitionLevel();
-                    if (def >= maxDef) {
-                        builder.beginPositionEntry();
-                        builder.appendLong(cr.getLong());
-                        cr.consume();
-                        while (cr.getCurrentRepetitionLevel() > 0) {
-                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                builder.appendLong(cr.getLong());
-                            }
-                            cr.consume();
-                        }
-                        builder.endPositionEntry();
-                    } else {
-                        cr.consume();
-                        boolean hasValues = false;
-                        while (cr.getCurrentRepetitionLevel() > 0) {
-                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                if (hasValues == false) {
-                                    builder.beginPositionEntry();
-                                    hasValues = true;
-                                }
-                                builder.appendLong(cr.getLong());
-                            }
-                            cr.consume();
-                        }
-                        if (hasValues) {
-                            builder.endPositionEntry();
-                        } else {
-                            builder.appendNull();
-                        }
-                    }
-                }
-                return builder.build();
-            }
-        }
-
-        private Block readListDoubleColumn(ColumnReader cr, int maxDef, int rows) {
-            try (var builder = blockFactory.newDoubleBlockBuilder(rows)) {
-                for (int row = 0; row < rows; row++) {
-                    int def = cr.getCurrentDefinitionLevel();
-                    if (def >= maxDef) {
-                        builder.beginPositionEntry();
-                        builder.appendDouble(cr.getDouble());
-                        cr.consume();
-                        while (cr.getCurrentRepetitionLevel() > 0) {
-                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                builder.appendDouble(cr.getDouble());
-                            }
-                            cr.consume();
-                        }
-                        builder.endPositionEntry();
-                    } else {
-                        cr.consume();
-                        boolean hasValues = false;
-                        while (cr.getCurrentRepetitionLevel() > 0) {
-                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                if (hasValues == false) {
-                                    builder.beginPositionEntry();
-                                    hasValues = true;
-                                }
-                                builder.appendDouble(cr.getDouble());
-                            }
-                            cr.consume();
-                        }
-                        if (hasValues) {
-                            builder.endPositionEntry();
-                        } else {
-                            builder.appendNull();
-                        }
-                    }
-                }
-                return builder.build();
-            }
-        }
-
-        private Block readListBooleanColumn(ColumnReader cr, int maxDef, int rows) {
-            try (var builder = blockFactory.newBooleanBlockBuilder(rows)) {
-                for (int row = 0; row < rows; row++) {
-                    int def = cr.getCurrentDefinitionLevel();
-                    if (def >= maxDef) {
-                        builder.beginPositionEntry();
-                        builder.appendBoolean(cr.getBoolean());
-                        cr.consume();
-                        while (cr.getCurrentRepetitionLevel() > 0) {
-                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                builder.appendBoolean(cr.getBoolean());
-                            }
-                            cr.consume();
-                        }
-                        builder.endPositionEntry();
-                    } else {
-                        cr.consume();
-                        boolean hasValues = false;
-                        while (cr.getCurrentRepetitionLevel() > 0) {
-                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                if (hasValues == false) {
-                                    builder.beginPositionEntry();
-                                    hasValues = true;
-                                }
-                                builder.appendBoolean(cr.getBoolean());
-                            }
-                            cr.consume();
-                        }
-                        if (hasValues) {
-                            builder.endPositionEntry();
-                        } else {
-                            builder.appendNull();
-                        }
-                    }
-                }
-                return builder.build();
-            }
-        }
-
-        private Block readListBytesRefColumn(ColumnReader cr, int maxDef, int rows) {
-            try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
-                for (int row = 0; row < rows; row++) {
-                    int def = cr.getCurrentDefinitionLevel();
-                    if (def >= maxDef) {
-                        builder.beginPositionEntry();
-                        builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
-                        cr.consume();
-                        while (cr.getCurrentRepetitionLevel() > 0) {
-                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
-                            }
-                            cr.consume();
-                        }
-                        builder.endPositionEntry();
-                    } else {
-                        cr.consume();
-                        boolean hasValues = false;
-                        while (cr.getCurrentRepetitionLevel() > 0) {
-                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                if (hasValues == false) {
-                                    builder.beginPositionEntry();
-                                    hasValues = true;
-                                }
-                                builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
-                            }
-                            cr.consume();
-                        }
-                        if (hasValues) {
-                            builder.endPositionEntry();
-                        } else {
-                            builder.appendNull();
-                        }
-                    }
-                }
-                return builder.build();
-            }
-        }
-
-        private Block readListDatetimeColumn(ColumnReader cr, ColumnInfo info, int rows) {
-            try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-                int maxDef = info.maxDefLevel();
-                for (int row = 0; row < rows; row++) {
-                    int def = cr.getCurrentDefinitionLevel();
-                    if (def >= maxDef) {
-                        builder.beginPositionEntry();
-                        builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType()));
-                        cr.consume();
-                        while (cr.getCurrentRepetitionLevel() > 0) {
-                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType()));
-                            }
-                            cr.consume();
-                        }
-                        builder.endPositionEntry();
-                    } else {
-                        cr.consume();
-                        boolean hasValues = false;
-                        while (cr.getCurrentRepetitionLevel() > 0) {
-                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                if (hasValues == false) {
-                                    builder.beginPositionEntry();
-                                    hasValues = true;
-                                }
-                                builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType()));
-                            }
-                            cr.consume();
-                        }
-                        if (hasValues) {
-                            builder.endPositionEntry();
-                        } else {
-                            builder.appendNull();
-                        }
-                    }
-                }
-                return builder.build();
-            }
-        }
-
-        private static void skipValues(ColumnReader cr, int rows) {
-            for (int i = 0; i < rows; i++) {
-                cr.consume();
-            }
-        }
-
-        private static java.util.BitSet toBitSet(boolean[] isNull, int length) {
-            java.util.BitSet bits = new java.util.BitSet(length);
-            for (int i = 0; i < length; i++) {
-                if (isNull[i]) {
-                    bits.set(i);
-                }
-            }
-            return bits;
-        }
-
         @Override
         public void close() throws IOException {
             try {
@@ -1661,29 +1353,4 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
     }
 
-    /**
-     * Minimal GroupConverter that satisfies {@link ColumnReadStoreImpl}'s constructor.
-     * We never call {@code writeCurrentValueToConverter()}, so all converters are no-ops.
-     */
-    private static class NoOpGroupConverter extends GroupConverter {
-        private final GroupType schema;
-
-        NoOpGroupConverter(GroupType schema) {
-            this.schema = schema;
-        }
-
-        @Override
-        public Converter getConverter(int fieldIndex) {
-            Type field = schema.getType(fieldIndex);
-            return field.isPrimitive() ? new NoOpPrimitiveConverter() : new NoOpGroupConverter(field.asGroupType());
-        }
-
-        @Override
-        public void start() {}
-
-        @Override
-        public void end() {}
-    }
-
-    private static class NoOpPrimitiveConverter extends PrimitiveConverter {}
 }

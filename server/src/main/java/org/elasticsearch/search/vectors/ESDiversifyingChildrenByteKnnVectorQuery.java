@@ -23,6 +23,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
 
@@ -32,11 +33,11 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         PostFilterableKnnQuery {
 
     private final int kParam;
-    private final int numCands;
+    private final int numCandsParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
     private final BitSetProducer parentsFilter;
-    private final int[] docsVisited;
+    private final int[] seedDocs;
 
     public ESDiversifyingChildrenByteKnnVectorQuery(
         String field,
@@ -72,14 +73,14 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        int[] docsVisited
+        int[] seedDocs
     ) {
         super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
-        this.numCands = numCands;
+        this.numCandsParam = numCands;
         this.earlyTermination = earlyTermination;
         this.parentsFilter = parentsFilter;
-        this.docsVisited = docsVisited;
+        this.seedDocs = seedDocs;
     }
 
     @Override
@@ -95,26 +96,42 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] docsVisited) {
-        Query filter = docsVisited != null ? new ExcludeDocsQuery(docsVisited, reader) : null;
-        return new ESDiversifyingChildrenByteKnnVectorQuery(
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int requestK, int requestNumCands) {
+        Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        AtomicReference<DocTrackingCollectorManager> knnCollectorManagerRef = new AtomicReference<>();
+        var knnQuery = new ESDiversifyingChildrenByteKnnVectorQuery(
             field,
             getTargetCopy(),
             filter,
-            kParam,
-            numCands,
+            requestK,
+            requestNumCands,
             parentsFilter,
             searchStrategy,
             earlyTermination,
-            docsVisited
-        );
+            seedDocs
+        ) {
+            @Override
+            protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
+                // super already applies SeededRetryCollectorManager (if seedDocs set) and PatienceCollectorManager
+                // (if earlyTermination); we only need to layer DocTracking on top.
+                var base = super.getKnnCollectorManager(k, searcher);
+                DocTrackingCollectorManager knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
+                knnCollectorManagerRef.set(knnCollectorManager);
+                return knnCollectorManager;
+            }
+        };
+        return new DocTrackingKnnQuery<>(knnQuery, knnCollectorManagerRef);
     }
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
-        int scaledK = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil(kParam / filterSelectivity));
-        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) numCands / filterSelectivity));
-        return new ESDiversifyingChildrenByteKnnVectorQuery(
+        int scaledK = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil(kParam * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity));
+        int scaledNumCands = (int) Math.min(
+            NUM_CANDS_LIMIT,
+            Math.ceil((double) numCandsParam * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity)
+        );
+        AtomicReference<DocTrackingCollectorManager> knnCollectorManagerRef = new AtomicReference<>();
+        var knnQuery = new ESDiversifyingChildrenByteKnnVectorQuery(
             field,
             getTargetCopy(),
             null,
@@ -124,7 +141,16 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
             searchStrategy,
             earlyTermination,
             null
-        );
+        ) {
+            @Override
+            protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
+                var base = super.getKnnCollectorManager(k, searcher);
+                DocTrackingCollectorManager knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
+                knnCollectorManagerRef.set(knnCollectorManager);
+                return knnCollectorManager;
+            }
+        };
+        return new DocTrackingKnnQuery<>(knnQuery, knnCollectorManagerRef);
     }
 
     @Override
@@ -149,7 +175,10 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         return kParam;
     }
 
-    // --- Accessors ---
+    @Override
+    public int numCands() {
+        return numCandsParam;
+    }
 
     public KnnSearchStrategy getStrategy() {
         return searchStrategy;
@@ -158,8 +187,8 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         var base = super.getKnnCollectorManager(k, searcher);
-        if (docsVisited != null && docsVisited.length > 0) {
-            base = new SeededRetryCollectorManager(base, docsVisited, field);
+        if (seedDocs != null && seedDocs.length > 0) {
+            base = new SeededRetryCollectorManager(base, seedDocs, field);
         }
         return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
     }

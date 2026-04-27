@@ -235,6 +235,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     @Override
+    public int numCands() {
+        return numCands;
+    }
+
+    @Override
     public final void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOpsCount);
     }

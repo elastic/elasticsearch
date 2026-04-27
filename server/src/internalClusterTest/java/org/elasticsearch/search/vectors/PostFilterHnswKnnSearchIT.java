@@ -182,9 +182,11 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
      * For byte element type the mapping handles float-to-byte conversion.
      */
     private void indexFlatDocs(String indexName) {
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 200; i++) {
             String tag = randomFloat() < .8f ? "common" : "rare";
-            prepareIndex(indexName).setId(Integer.toString(i)).setSource(VECTOR_FIELD, new float[] { 1, 1, 1, i }, TAG_FIELD, tag).get();
+            prepareIndex(indexName).setId(Integer.toString(i))
+                .setSource(VECTOR_FIELD, new float[] { 1, 1, 1, randomIntBetween(-128, 127) }, TAG_FIELD, tag)
+                .get();
         }
         forceMerge(true);
         refresh(indexName);
@@ -196,16 +198,14 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
      * Expected selectivity(common) ~ 0.8 > 0.7 → post-filter.
      */
     private void indexNestedDocs(String indexName) {
-        for (int parentId = 0; parentId < 10; parentId++) {
+        for (int parentId = 0; parentId < 100; parentId++) {
             String tag = randomFloat() < .8f ? "common" : "rare";
-            int childIdx0 = parentId * 2;
-            int childIdx1 = parentId * 2 + 1;
             prepareIndex(indexName).setId("parent_" + parentId)
                 .setSource(
                     NESTED_FIELD,
                     List.of(
-                        Map.of(VECTOR_FIELD, new float[] { 1, 1, 1, childIdx0 }, TAG_FIELD, tag),
-                        Map.of(VECTOR_FIELD, new float[] { 1, 1, 1, childIdx1 }, TAG_FIELD, tag)
+                        Map.of(VECTOR_FIELD, new float[] { 1, 1, 1, randomIntBetween(-128, 127) }, TAG_FIELD, tag),
+                        Map.of(VECTOR_FIELD, new float[] { 1, 1, 1, randomIntBetween(-128, 127) }, TAG_FIELD, tag)
                     )
                 )
                 .get();

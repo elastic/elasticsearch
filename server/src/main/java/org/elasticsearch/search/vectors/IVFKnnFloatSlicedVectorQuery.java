@@ -165,7 +165,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
 
     @Override
     public IVFKnnFloatSlicedVectorQuery createPostFilterDelegate(float filterSelectivity) {
-        int scaledK = Math.min(NUM_CANDS_LIMIT, (int) Math.ceil(k / filterSelectivity));
+        int scaledK = Math.min(NUM_CANDS_LIMIT, (int) Math.ceil(k * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity));
         float visitOversampling = Math.max(1.1f, 1.2f / filterSelectivity);
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
         return new IVFKnnFloatSlicedVectorQuery(
@@ -182,15 +182,18 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] previousDocs) {
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int requestK, int requestNumCands) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
+        Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        float visitRatioScale = requestK > 0 && k > 0 ? (float) requestK / k : 1.0f;
+        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * Math.max(1.0f, visitRatioScale)) : 0f;
         return new IVFKnnFloatSlicedVectorQuery(
             field,
             originalQuery.clone(),
-            k,
-            numCands,
-            null,
-            providedVisitRatio,
+            requestK,
+            Math.max(requestNumCands, requestK),
+            filter,
+            scaledVisitRatio,
             doPrecondition,
             sliceField,
             sliceId,

@@ -24,15 +24,30 @@ import java.util.List;
 public interface PostFilterableKnnQuery {
 
     /**
-     * Creates a new query for the next retry round, configured to avoid re-visiting
-     * previously seen results. For HNSW, this excludes previously seen doc IDs via
-     * {@link ExcludeDocsQuery} and seeds the next search with the same doc IDs.
-     * For IVF, this skips previously visited centroid posting lists.
-     *
-     * @param reader      the index reader
-     * @param allSeenDocs sorted array of ALL doc IDs seen across all previous rounds
+     * Safety multiplier applied on top of the {@code 1/selectivity} oversample when sizing
+     * the first post-filter round. Compensates for statistical fluctuation in how many
+     * HNSW candidates pass the filter, reducing the probability that round 1 falls short
+     * of {@code k} and forces a full retry round.
      */
-    Query createRetryQuery(IndexReader reader, int[] allSeenDocs);
+    float POST_FILTER_OVERSAMPLE_SAFETY_FACTOR = 1.2f;
+
+    /**
+     * Creates a new query for the next retry round.
+     * <p>
+     * For HNSW: {@code excludedDocs} becomes an {@link ExcludeDocsQuery} filter (which Lucene's
+     * {@code AbstractKnnVectorQuery#rewrite} converts into {@code AcceptDocs}), and {@code seedDocs}
+     * (filter-passing docs only) feed the {@link SeededRetryCollectorManager} as graph entry points.
+     * <p>
+     * For IVF: {@code excludedDocs} are composed into {@code AcceptDocs} so the codec skips them
+     * during posting-list iteration; {@code seedDocs} are ignored (IVF has no graph seeding).
+     *
+     * @param reader           the index reader
+     * @param excludedDocs     all docs returned across previous rounds, sorted (skip from results)
+     * @param seedDocs         filter-passing docs from previous rounds, sorted (HNSW seeding only)
+     * @param requestK         how many top results to keep in the retry's collector heap
+     * @param requestNumCands  KNN beam width / collector candidate budget for the retry
+     */
+    Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int requestK, int requestNumCands);
 
     /**
      * Creates a filter-less delegate query for post-filtering. Subclasses provide
@@ -45,4 +60,10 @@ public interface PostFilterableKnnQuery {
     long totalVectorOps();
 
     int k();
+
+    /**
+     * @return the current numCands (KNN beam / collector candidate budget) for this query.
+     * Used by {@link PostFilterKnnQuery} to compute retry-round numCands scaling.
+     */
+    int numCands();
 }

@@ -55,6 +55,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -1809,7 +1810,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean()
+                randomBoolean(),
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             )
         );
         assertThat(
@@ -1829,7 +1831,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean()
+                randomBoolean(),
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             )
         );
         assertThat(
@@ -1849,7 +1852,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean()
+                randomBoolean(),
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             )
         );
         assertThat(
@@ -1869,7 +1873,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean()
+                randomBoolean(),
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             )
         );
         assertThat(
@@ -1889,7 +1894,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean()
+                randomBoolean(),
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             )
         );
         assertThat(e.getMessage(), containsString("element_type [byte] vectors do not support NaN values but found [NaN] at dim [0];"));
@@ -1906,7 +1912,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean()
+                randomBoolean(),
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             )
         );
         assertThat(
@@ -1926,7 +1933,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean()
+                randomBoolean(),
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             )
         );
         assertThat(
@@ -1963,7 +1971,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean()
+                randomBoolean(),
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             )
         );
         assertThat(e.getMessage(), containsString("element_type [float] vectors do not support NaN values but found [NaN] at dim [0];"));
@@ -1980,7 +1989,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean()
+                randomBoolean(),
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             )
         );
         assertThat(
@@ -2000,7 +2010,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean()
+                randomBoolean(),
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             )
         );
         assertThat(

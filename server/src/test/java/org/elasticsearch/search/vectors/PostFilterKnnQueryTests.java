@@ -311,7 +311,14 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                     filter,
                     new KnnSearchStrategy.Hnsw(10)
                 );
-                PostFilterKnnQuery query = new PostFilterKnnQuery(innerQuery, filter, k, "vec", null);
+                PostFilterKnnQuery query = new PostFilterKnnQuery(
+                    innerQuery,
+                    filter,
+                    k,
+                    "vec",
+                    null,
+                    PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                );
                 TopDocs topDocs = searcher.search(query, k);
                 assertTrue("Expected results from retry rounds", topDocs.scoreDocs.length > 0);
                 for (ScoreDoc sd : topDocs.scoreDocs) {
@@ -352,7 +359,14 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                     new KnnSearchStrategy.Hnsw(10)
                 );
                 // selectivity = 1.0 > 0.7 → post-filter path, but only k results returned
-                PostFilterKnnQuery query = new PostFilterKnnQuery(innerQuery, filter, k, "vec", null);
+                PostFilterKnnQuery query = new PostFilterKnnQuery(
+                    innerQuery,
+                    filter,
+                    k,
+                    "vec",
+                    null,
+                    PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                );
                 TopDocs topDocs = searcher.search(query, k);
                 assertEquals(k, topDocs.scoreDocs.length);
             }
@@ -413,7 +427,14 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                     new KnnSearchStrategy.Hnsw(10)
                 );
                 // Wrapper handles post-filter with parent deduplication
-                PostFilterKnnQuery query = new PostFilterKnnQuery(innerQuery, filter, k, "vec", parentsFilter);
+                PostFilterKnnQuery query = new PostFilterKnnQuery(
+                    innerQuery,
+                    filter,
+                    k,
+                    "vec",
+                    parentsFilter,
+                    PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                );
                 TopDocs topDocs = searcher.search(query, k);
                 assertTrue("Expected at least 1 result", topDocs.scoreDocs.length > 0);
                 for (ScoreDoc sd : topDocs.scoreDocs) {
@@ -456,7 +477,14 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 Query filter = new TermQuery(new Term("tag", "common"));
                 int k = 5;
                 IVFKnnFloatVectorQuery innerQuery = new IVFKnnFloatVectorQuery("vec", new float[] { 0f, 200f }, k, 10, filter, 0.5f, false);
-                PostFilterKnnQuery query = new PostFilterKnnQuery(innerQuery, filter, k, "vec", null);
+                PostFilterKnnQuery query = new PostFilterKnnQuery(
+                    innerQuery,
+                    filter,
+                    k,
+                    "vec",
+                    null,
+                    PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                );
                 TopDocs topDocs = searcher.search(query, k);
                 assertEquals("expected 5 results", 5, topDocs.scoreDocs.length);
                 for (ScoreDoc sd : topDocs.scoreDocs) {
@@ -497,7 +525,14 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                     filter,
                     new KnnSearchStrategy.Hnsw(10)
                 );
-                PostFilterKnnQuery query = new PostFilterKnnQuery(innerQuery, filter, k, "vec", null);
+                PostFilterKnnQuery query = new PostFilterKnnQuery(
+                    innerQuery,
+                    filter,
+                    k,
+                    "vec",
+                    null,
+                    PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                );
                 TopDocs topDocs = searcher.search(query, k);
                 assertEquals("expected 16 matching results", 16, topDocs.scoreDocs.length);
                 for (ScoreDoc sd : topDocs.scoreDocs) {

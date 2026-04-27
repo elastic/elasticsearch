@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.diskbbq;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -16,7 +15,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
@@ -29,8 +27,6 @@ import java.util.Map;
 import static org.elasticsearch.license.DiskBBQLicensingIT.enableLicensing;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
-@LuceneTestCase.SuppressCodecs("*")
-@ESTestCase.WithoutEntitlements
 public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
 
     private static final String VECTOR_FIELD = "vector";

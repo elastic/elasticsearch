@@ -439,15 +439,21 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         while (centroidPrefetchingIterator.hasNext()
             && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
             PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
-            // skip centroids that were visited in a previous retry round
-            // todo: maybe not worth skipping whole centroids as the optimal results might be in already visited centroids
+            // Skip centroids that were both visited AND non-competitive in a previous retry round
+            // (i.e., none of their docs reached the collector heap). Visited+competitive centroids
+            // still get re-visited because docs from them may have been evicted and may be
+            // recoverable; doc-level exclusion (acceptDocs from ExcludeDocsQuery) prevents
+            // re-collection of docs already returned to the caller.
             if (ivfStrategy != null && ivfStrategy.shouldSkipCentroid(postingMetadata.centroidOrdinal())) {
                 continue;
+            }
+            if (ivfStrategy != null) {
+                ivfStrategy.beforeCentroidVisit();
             }
             expectedDocs += scorer.resetPostingsScorer(postingMetadata);
             actualDocs += scorer.visit(knnCollector);
             if (ivfStrategy != null) {
-                ivfStrategy.markCentroidVisited(postingMetadata.centroidOrdinal());
+                ivfStrategy.afterCentroidVisit(postingMetadata.centroidOrdinal());
             }
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -463,10 +469,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                 if (ivfStrategy != null && ivfStrategy.shouldSkipCentroid(postingMetadata.centroidOrdinal())) {
                     continue;
                 }
+                if (ivfStrategy != null) {
+                    ivfStrategy.beforeCentroidVisit();
+                }
                 scorer.resetPostingsScorer(postingMetadata);
                 actualDocs += scorer.visit(knnCollector);
                 if (ivfStrategy != null) {
-                    ivfStrategy.markCentroidVisited(postingMetadata.centroidOrdinal());
+                    ivfStrategy.afterCentroidVisit(postingMetadata.centroidOrdinal());
                 }
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();

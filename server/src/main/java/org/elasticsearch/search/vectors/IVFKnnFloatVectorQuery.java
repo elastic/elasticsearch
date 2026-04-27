@@ -40,7 +40,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     private float[] query;
     protected final float[] originalQuery;
     private final Map<Integer, FixedBitSet> skipCentroidsPerLeaf;
-    private final ConcurrentHashMap<Integer, FixedBitSet> visitedCentroidsPerLeaf = new ConcurrentHashMap<>();
+    private final Map<Integer, FixedBitSet> visitedCentroidsPerLeaf = new ConcurrentHashMap<>();
+    private final Map<Integer, FixedBitSet> competitiveCentroidsPerLeaf = new ConcurrentHashMap<>();
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
@@ -91,6 +92,12 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     void storeVisitedCentroids(int leafOrd, FixedBitSet visited) {
         if (visited != null) {
             visitedCentroidsPerLeaf.put(leafOrd, visited);
+        }
+    }
+
+    void storeCompetitiveCentroids(int leafOrd, FixedBitSet competitive) {
+        if (competitive != null) {
+            competitiveCentroidsPerLeaf.put(leafOrd, competitive);
         }
     }
 
@@ -211,6 +218,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         reader.searchNearestVectors(field, query, knnCollector, acceptDocs);
 
         storeVisitedCentroids(context.ord, strategy.visitedCentroids());
+        storeCompetitiveCentroids(context.ord, strategy.competitiveCentroids());
 
         TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
             ? bulkKnnCollector.unsortedTopK()
@@ -226,18 +234,32 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     /**
-     * Merges previously skipped centroids with centroids visited in the current round.
+     * Build the per-leaf cluster-skip set for the next retry round, applying the user's
+     * "competitive" hybrid heuristic: skip centroids that were visited in any prior round but
+     * contributed zero docs to the round's collector heap (non-competitive). Visited centroids
+     * with at least one competitive doc remain visitable in retry — their evicted docs may yet
+     * be recoverable now that the heap composition will differ. Doc-level exclusion (via the
+     * {@code excludedDocs} acceptDocs path) prevents re-collection of already-returned docs.
      */
     Map<Integer, FixedBitSet> mergeSkipCentroids() {
         Map<Integer, FixedBitSet> mergedSkip = new HashMap<>();
+        // Carry forward any prior round's skip set.
         if (skipCentroidsPerLeaf != null) {
             for (var entry : skipCentroidsPerLeaf.entrySet()) {
                 mergedSkip.put(entry.getKey(), entry.getValue().clone());
             }
         }
+        // Add visited-and-non-competitive centroids from this round's tracking.
         for (var entry : visitedCentroidsPerLeaf.entrySet()) {
-            mergedSkip.merge(entry.getKey(), entry.getValue().clone(), (existing, visited) -> {
-                existing.or(visited);
+            int leafOrd = entry.getKey();
+            FixedBitSet visited = entry.getValue().clone();
+            FixedBitSet competitive = competitiveCentroidsPerLeaf.get(leafOrd);
+            if (competitive != null) {
+                // visited AND NOT competitive -> drop the competitive bits from `visited`
+                visited.andNot(competitive);
+            }
+            mergedSkip.merge(leafOrd, visited, (existing, addition) -> {
+                existing.or(addition);
                 return existing;
             });
         }
@@ -246,8 +268,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
-        int scaledK = Math.min(NUM_CANDS_LIMIT, (int) Math.ceil(k / filterSelectivity));
-        float visitOversampling = Math.max(1.1f, 1.2f / filterSelectivity);
+        int scaledK = Math.min(NUM_CANDS_LIMIT, (int) Math.ceil(k * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity));
+        float visitOversampling = Math.max(1.1f, 1.2f * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity);
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
         return new IVFKnnFloatVectorQuery(
             field,
@@ -262,8 +284,26 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] docsVisited) {
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int requestK, int requestNumCands) {
+        // Cluster-level skip: visited-but-non-competitive centroids merged across rounds.
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
-        return new IVFKnnFloatVectorQuery(field, originalQuery, k, numCands, null, providedVisitRatio, doPrecondition, mergedSkip);
+        // Doc-level skip: previously-returned docs go through the AcceptDocs path via an
+        // ExcludeDocsQuery filter (composed by createFilterWeight in AbstractIVFKnnVectorQuery.rewrite).
+        Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        // Expand the visit ratio for retry rounds proportional to the prior round's coverage,
+        // capped at 1.0. We re-use the same dynamic-oversampling heuristic from createPostFilterDelegate
+        // by computing an effective ratio from the request scale.
+        float visitRatioScale = requestK > 0 && k > 0 ? (float) requestK / k : 1.0f;
+        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * Math.max(1.0f, visitRatioScale)) : 0f;
+        return new IVFKnnFloatVectorQuery(
+            field,
+            originalQuery,
+            requestK,
+            Math.max(requestNumCands, requestK),
+            filter,
+            scaledVisitRatio,
+            doPrecondition,
+            mergedSkip
+        );
     }
 }

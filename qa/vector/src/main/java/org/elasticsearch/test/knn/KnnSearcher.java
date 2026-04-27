@@ -714,7 +714,15 @@ public class KnnSearcher {
         int efSearch = Math.max(overSampledTopK, searchParameters.numCandidates());
         if (indexType == KnnIndexTester.IndexType.IVF) {
             float visitRatio = (float) (searchParameters.visitPercentage() / 100);
-            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, overSampledTopK, efSearch, filterQuery, visitRatio, doPrecondition);
+            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, overSampledTopK, efSearch, null, visitRatio, doPrecondition);
+            knnQuery = new PostFilterKnnQuery(
+                (PostFilterableKnnQuery) knnQuery,
+                filterQuery,
+                overSampledTopK,
+                VECTOR_FIELD,
+                null,
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+            );
         } else {
             knnQuery = new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,
@@ -725,7 +733,14 @@ public class KnnSearcher {
                 DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy(),
                 indexType == KnnIndexTester.IndexType.HNSW && searchParameters.earlyTermination()
             );
-            knnQuery = new PostFilterKnnQuery((PostFilterableKnnQuery) knnQuery, filterQuery, overSampledTopK, VECTOR_FIELD, null);
+            knnQuery = new PostFilterKnnQuery(
+                (PostFilterableKnnQuery) knnQuery,
+                filterQuery,
+                overSampledTopK,
+                VECTOR_FIELD,
+                null,
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+            );
         }
         if (searchParameters.overSamplingFactor() > 1f) {
             // oversample the topK results to get more candidates for the final result

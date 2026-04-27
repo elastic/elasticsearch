@@ -23,6 +23,9 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final LongAccumulator accumulator;
     private final FixedBitSet skipCentroids;
     private FixedBitSet visitedCentroids;
+    private FixedBitSet competitiveCentroids;
+    private long preVisitMinScore;
+    private int preVisitNumCollected;
 
     public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, LongAccumulator accumulator, FixedBitSet skipCentroids) {
         this.visitRatio = visitRatio;
@@ -52,17 +55,21 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     }
 
     /**
-     * Initializes the visited centroids tracker with the given number of centroids.
-     * Called by IVFVectorsReader when the number of centroids is known.
+     * Initializes the visited centroids tracker (and the parallel competitive-centroids tracker)
+     * with the given number of centroids. Called by IVFVectorsReader when the number of centroids
+     * is known.
      */
     public void initVisitedCentroids(int numCentroids) {
         if (numCentroids > 0) {
             this.visitedCentroids = new FixedBitSet(numCentroids);
+            this.competitiveCentroids = new FixedBitSet(numCentroids);
         }
     }
 
     /**
-     * Returns true if the centroid with the given ordinal should be skipped (was visited in a previous round).
+     * Returns true if the centroid with the given ordinal should be skipped (was visited in a
+     * previous round AND contributed no doc to that round's collector heap — see hybrid skip in
+     * {@link IVFKnnFloatVectorQuery#mergeSkipCentroids}).
      */
     public boolean shouldSkipCentroid(int centroidOrd) {
         return skipCentroids != null && centroidOrd >= 0 && centroidOrd < skipCentroids.length() && skipCentroids.get(centroidOrd);
@@ -78,10 +85,50 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     }
 
     /**
+     * Snapshot the collector's heap state (size + min competitive score) before visiting a centroid's
+     * posting list. Paired with {@link #afterCentroidVisit(int)} which detects whether any doc from
+     * this centroid was inserted into the heap (size grew) or caused an eviction (min score changed).
+     */
+    public void beforeCentroidVisit() {
+        AbstractMaxScoreKnnCollector c = collector.get();
+        if (c == null) {
+            return;
+        }
+        preVisitNumCollected = c.numCollected();
+        preVisitMinScore = c.getMinCompetitiveDocScore();
+    }
+
+    /**
+     * Mark the centroid as visited, and additionally as competitive if its visit changed the
+     * collector's heap state (size grew, or min competitive score moved due to eviction).
+     */
+    public void afterCentroidVisit(int centroidOrd) {
+        markCentroidVisited(centroidOrd);
+        if (competitiveCentroids == null || centroidOrd < 0 || centroidOrd >= competitiveCentroids.length()) {
+            return;
+        }
+        AbstractMaxScoreKnnCollector c = collector.get();
+        if (c == null) {
+            return;
+        }
+        if (c.numCollected() > preVisitNumCollected || c.getMinCompetitiveDocScore() != preVisitMinScore) {
+            competitiveCentroids.set(centroidOrd);
+        }
+    }
+
+    /**
      * Returns the set of centroids visited in this search round, or null if not tracking.
      */
     FixedBitSet visitedCentroids() {
         return visitedCentroids;
+    }
+
+    /**
+     * Returns the set of centroids that contributed at least one doc to this round's collector
+     * heap (possibly later evicted), or null if not tracking.
+     */
+    FixedBitSet competitiveCentroids() {
+        return competitiveCentroids;
     }
 
     @Override

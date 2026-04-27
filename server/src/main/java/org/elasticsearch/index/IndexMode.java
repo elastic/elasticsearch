@@ -142,6 +142,17 @@ public enum IndexMode {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }
+            if (Boolean.TRUE.equals(settings.get(IndexSettings.SLICE_ENABLED))) {
+                throw new IllegalArgumentException(
+                    "The setting ["
+                        + IndexSettings.SLICE_ENABLED.getKey()
+                        + "] cannot be used with ["
+                        + IndexSettings.MODE.getKey()
+                        + "="
+                        + IndexMode.TIME_SERIES.getName()
+                        + "]."
+                );
+            }
             Setting<List<String>> routingPath = IndexMetadata.INDEX_ROUTING_PATH;
             if (isEmpty(settings, routingPath) && isEmpty(settings, IndexMetadata.INDEX_DIMENSIONS)) {
                 // index.dimensions is a private setting that only gets populated for data streams.
@@ -482,6 +493,7 @@ public enum IndexMode {
                 IndexMetadata.INDEX_ROUTING_PATH,
                 IndexMetadata.INDEX_DIMENSIONS,
                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
+                IndexSettings.SLICE_ENABLED,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME
             ),

@@ -272,7 +272,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final OffsetsAccumulator offsetsAccumulator
     ) throws IOException {
         return numericCodec.createWriter(writeContext)
-            .writeField(field, valuesSource, offsetsAccumulator != null ? offsetsAccumulator::addDoc : null, null);
+            .writeFieldEntry(field, valuesSource, offsetsAccumulator != null ? offsetsAccumulator::addDoc : null, null);
     }
 
     private DocValueFieldCountStats writeOrdinalField(
@@ -283,7 +283,13 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final SortedFieldObserver sortedFieldObserver
     ) throws IOException {
         return ordinalCodec.createWriter(writeContext)
-            .writeField(field, valuesSource, maxOrd, offsetsAccumulator != null ? offsetsAccumulator::addDoc : null, sortedFieldObserver);
+            .writeFieldEntry(
+                field,
+                valuesSource,
+                maxOrd,
+                offsetsAccumulator != null ? offsetsAccumulator::addDoc : null,
+                sortedFieldObserver
+            );
     }
 
     @Override

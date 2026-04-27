@@ -12,10 +12,13 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.profiles.ProfileFile;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -40,19 +43,55 @@ import java.util.NoSuchElementException;
 
 /**
  * StorageProvider implementation for S3 using AWS SDK v2.
+ * <p>
+ * Maintains both a sync {@link S3Client} (Apache HTTP) and an async {@link S3AsyncClient}
+ * (Netty NIO, via {@code netty-nio-client} at {@code ${versions.awsv2sdk}}). The two clients
+ * serve different purposes:
+ * <ul>
+ *   <li><b>Sync client</b> — used for streaming reads ({@code newStream} returns a live
+ *       {@code ResponseInputStream} that reads on demand), metadata ({@code headObject}),
+ *       existence checks, and object listing. These operations are inherently blocking or
+ *       return streaming results that cannot be efficiently expressed as futures.</li>
+ *   <li><b>Async client</b> — used exclusively for {@code readBytesAsync} range reads in
+ *       {@link S3StorageObject}. When {@code ConcurrencyLimitedStorageObject} dispatches
+ *       multiple concurrent range reads, the Netty event loop handles them without blocking
+ *       a thread per request, reducing thread-pool pressure under load.</li>
+ * </ul>
+ * <p>
+ * Both clients share the same credentials, region, and endpoint configuration. The Netty
+ * jars are bundled with this plugin (classloader-isolated from the server and other plugins)
+ * at {@code ${versions.netty}}, matching the pattern used by the inference plugin.
  */
 public final class S3StorageProvider implements StorageProvider {
     private final S3Client s3Client;
+    private final S3AsyncClient s3AsyncClient;
     private final S3Configuration config;
 
     public S3StorageProvider(S3Configuration config) {
         this.config = config;
         this.s3Client = buildS3Client(config);
+        this.s3AsyncClient = buildS3AsyncClient(config);
+    }
+
+    /** Test-only constructor that accepts pre-built clients. */
+    S3StorageProvider(S3Client s3Client, S3AsyncClient s3AsyncClient) {
+        this.config = null;
+        this.s3Client = s3Client;
+        this.s3AsyncClient = s3AsyncClient;
     }
 
     private static S3Client buildS3Client(S3Configuration config) {
-        S3ClientBuilder builder = S3Client.builder();
+        return configureCommon(S3Client.builder(), config).build();
+    }
 
+    private static S3AsyncClient buildS3AsyncClient(S3Configuration config) {
+        return configureCommon(S3AsyncClient.builder(), config).httpClient(NettyNioAsyncHttpClient.builder().build()).build();
+    }
+
+    /**
+     * Applies credentials, region, endpoint, and profile settings common to both the sync and async S3 clients.
+     */
+    private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(B builder, S3Configuration config) {
         // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config
         // or the path set via AWS_CONFIG_FILE, which would be blocked by the entitlement system.
         ProfileFile emptyProfileFile = ProfileFile.aggregator().build();
@@ -60,6 +99,11 @@ public final class S3StorageProvider implements StorageProvider {
             c.defaultProfileFile(emptyProfileFile);
             c.defaultProfileFileSupplier(() -> emptyProfileFile);
         });
+
+        // Disable optional response checksum validation. The SDK default (WHEN_SUPPORTED) wraps
+        // every GetObject response in a checksum-validating stream, adding ~6-7% CPU overhead.
+        // TLS already provides in-transit integrity; this matches what other engines do.
+        builder.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
 
         AwsCredentialsProvider credentialsProvider;
         if (config != null && config.isAnonymous()) {
@@ -82,7 +126,7 @@ public final class S3StorageProvider implements StorageProvider {
             builder.forcePathStyle(true);
         }
 
-        return builder.build();
+        return builder;
     }
 
     @Override
@@ -90,7 +134,7 @@ public final class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, bucket, key, path);
+        return new S3StorageObject(s3Client, s3AsyncClient, bucket, key, path);
     }
 
     @Override
@@ -98,7 +142,7 @@ public final class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, bucket, key, path, length);
+        return new S3StorageObject(s3Client, s3AsyncClient, bucket, key, path, length);
     }
 
     @Override
@@ -106,7 +150,7 @@ public final class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, bucket, key, path, length, lastModified);
+        return new S3StorageObject(s3Client, s3AsyncClient, bucket, key, path, length, lastModified);
     }
 
     @Override
@@ -164,7 +208,11 @@ public final class S3StorageProvider implements StorageProvider {
 
     @Override
     public void close() throws IOException {
-        s3Client.close();
+        try {
+            s3Client.close();
+        } finally {
+            s3AsyncClient.close();
+        }
     }
 
     private String credentialHint() {

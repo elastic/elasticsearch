@@ -3363,28 +3363,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("message")));
     }
 
-    public void testResolveInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attribute = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
-        assertThat(attribute.name(), is("message"));
-
-        String expected = "Cannot use field [message] due to ambiguities being mapped as [2] incompatible types: "
-            + "[keyword] due to loading from _source, [long] in [foo]";
-        assertThat(attribute.unresolvedMessage(), is(expected));
-    }
-
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesNoKeyword_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
@@ -3565,6 +3543,8 @@ public class AnalyzerTests extends ESTestCase {
      * just like TS + STATS.
      */
     public void testPromqlQueryWithConflictingTsTypesMarksFieldUnsupported() {
+        assumeTrue("Requires PROMQL", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "test",
@@ -4114,7 +4094,29 @@ public class AnalyzerTests extends ESTestCase {
             """
                 FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe")""",
             ParsingException.class,
-            containsString("error building [text_embedding]: expects exactly two arguments")
+            containsString("error building [text_embedding]: expects two or three arguments")
+        );
+    }
+
+    public void testTextEmbeddingFunctionInvalidOptions() {
+        books().error(
+            String.format(
+                Locale.ROOT,
+                """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s", {"invalid": "value"})""",
+                TEXT_EMBEDDING_INFERENCE_ID
+            ),
+            containsString("Invalid option [invalid]")
+        );
+
+        books().error(
+            String.format(
+                Locale.ROOT,
+                """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s", {"timeout": "a long one"})""",
+                TEXT_EMBEDDING_INFERENCE_ID
+            ),
+            containsString("failed to parse setting [timeout]")
         );
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.features.NodeFeature;
@@ -70,6 +71,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewsIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
@@ -346,7 +348,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             RERANK.capabilityName(),
             COMPLETION.capabilityName(),
             KNN_FUNCTION_V5.capabilityName(),
-            TEXT_EMBEDDING_FUNCTION.capabilityName()
+            TEXT_EMBEDDING_FUNCTION.capabilityName(),
+            EMBEDDING_FUNCTION.capabilityName()
         ).anyMatch(testCase.requiredCapabilities::contains);
     }
 
@@ -408,6 +411,18 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         query = maybeRandomizeQuery(query);
 
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
+        if (Strings.isNullOrEmpty(testCase.requestTimeRangeGte) == false) {
+            String gte = testCase.requestTimeRangeGte;
+            String lte = testCase.requestTimeRangeLte;
+            builder.filter(b -> {
+                b.startObject("range");
+                b.startObject("@timestamp");
+                b.field("gte", gte);
+                b.field("lte", lte);
+                b.endObject();
+                b.endObject();
+            });
+        }
 
         boolean checkTook = supportsTook() && rarely();
         Map<?, ?> prevTooks = checkTook ? tooks() : null;

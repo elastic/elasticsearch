@@ -930,6 +930,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchResponse.getShardFailures(),
                             clusters,
                             searchResponse.pointInTimeId(),
+                            null,
                             null
                         )
                     );
@@ -1668,9 +1669,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     null,
                     searchShardsGroup.preFiltered(),
                     searchShardsGroup.skipped(),
-                    // This parameter is specific to the resharding feature.
-                    // Resharding is currently not supported with CCS.
-                    SplitShardCountSummary.UNSET
+                    searchShardsGroup.reshardSplitShardCountSummary()
                 );
                 remoteShardIterators.add(shardIterator);
             }

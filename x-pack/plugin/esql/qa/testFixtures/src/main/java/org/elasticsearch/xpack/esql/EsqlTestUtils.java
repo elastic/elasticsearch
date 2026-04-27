@@ -67,7 +67,6 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
-import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -134,7 +133,6 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -710,7 +708,7 @@ public final class EsqlTestUtils {
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             null,
-            EsqlSession.approximationSettings(new EsqlQueryRequest(), statement),
+            statement.setting(QuerySettings.APPROXIMATION),
             Map.of()
         );
     }
@@ -1671,8 +1669,10 @@ public final class EsqlTestUtils {
         for (String indexPatternOrSubquery : indexPatternsAndSubqueries) {
             // remove the from keyword if it's there
             indexPatternOrSubquery = indexPatternOrSubquery.strip();
-            if (indexPatternOrSubquery.toLowerCase(Locale.ROOT).startsWith("from ")) {
-                indexPatternOrSubquery = indexPatternOrSubquery.strip().substring(5);
+            if (indexPatternOrSubquery.length() > 4
+                && indexPatternOrSubquery.substring(0, 4).toLowerCase(Locale.ROOT).equals("from")
+                && Character.isWhitespace(indexPatternOrSubquery.charAt(4))) {
+                indexPatternOrSubquery = indexPatternOrSubquery.substring(4).strip();
             }
             // substitute the index patterns or subquery with remote index patterns
             if (isSubquery(indexPatternOrSubquery)) {

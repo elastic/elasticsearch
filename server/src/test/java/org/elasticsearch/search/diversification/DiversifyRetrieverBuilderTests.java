@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
@@ -332,32 +333,16 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         ScoreDoc[] hits = getTestNonVectorSearchHits();
         docs.add(hits);
 
-        ElasticsearchStatusException badDocFieldEx = assertThrows(
-            ElasticsearchStatusException.class,
-            () -> retriever.combineInnerRetrieverResults(docs, false)
-        );
-        assertEquals(
-            "Failed to retrieve vectors for field [dense_vector_field]. "
-                + "Is it a [dense_vector] or [semantic_text] field with text embeddings?",
-            badDocFieldEx.getMessage()
-        );
-        assertEquals(400, badDocFieldEx.status().getStatus());
+        RankDoc[] results = retriever.combineInnerRetrieverResults(docs, false);
+        assertEquals(0, results.length);
 
         cleanDocsAndHits(docs, hits);
 
         ScoreDoc[] hitsWithNoValues = getTestSearchHitsWithNoValues();
         docs.add(hitsWithNoValues);
 
-        ElasticsearchStatusException docsWithNoValuesEx = assertThrows(
-            ElasticsearchStatusException.class,
-            () -> retriever.combineInnerRetrieverResults(docs, false)
-        );
-        assertEquals(
-            "Failed to retrieve vectors for field [dense_vector_field]. "
-                + "Is it a [dense_vector] or [semantic_text] field with text embeddings?",
-            docsWithNoValuesEx.getMessage()
-        );
-        assertEquals(400, docsWithNoValuesEx.status().getStatus());
+        RankDoc[] resultsWithNoValues = retriever.combineInnerRetrieverResults(docs, false);
+        assertEquals(0, resultsWithNoValues.length);
 
         cleanDocsAndHits(docs, hitsWithNoValues);
     }
@@ -476,6 +461,62 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         // should still not throw an exception
         try {
             retriever.combineInnerRetrieverResults(docs, false);
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
+    }
+
+    public void testCombineInnerRetrieverResultsWithAllMissingVectors() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "rgb_vector",
+            10,
+            3,
+            new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
+            0.5f
+        );
+
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = new DiversifyRetrieverBuilder.RankDocWithSearchHit[] { getTestSearchHitWithNoValue(1, 90002, 1.0f) };
+        docs.add(hits);
+
+        try {
+            RankDoc[] results = retriever.combineInnerRetrieverResults(docs, false);
+            assertEquals(0, results.length);
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
+    }
+
+    public void testCombineInnerRetrieverResultsDropsMissingVectorDocs() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            10,
+            new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
+            0.5f
+        );
+
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
+            getTestSearchHitWithNoValue(1, 90002, 1.0f),
+            getTestSearchHit(2, 4, 4.0f, new float[] { 0.5f, 0.2f, 0.4f, 0.4f }) };
+        docs.add(hits);
+
+        try {
+            RankDoc[] results = retriever.combineInnerRetrieverResults(docs, false);
+            assertEquals(1, results.length);
         } finally {
             cleanDocsAndHits(docs, hits);
         }

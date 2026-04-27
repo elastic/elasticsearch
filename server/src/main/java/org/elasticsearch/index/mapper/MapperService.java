@@ -37,7 +37,6 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -50,7 +49,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -379,7 +377,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             : "index mismatch: expected " + index() + " but was " + newIndexMetadata.getIndex();
 
         if (currentIndexMetadata != null && currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
-            assert assertNoUpdateRequired(newIndexMetadata);
             return;
         }
 
@@ -391,7 +388,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
-                assert assertRefreshIsNotNeeded(type, incomingBuilder);
                 Mapping incomingMapping = buildMapping(incomingBuilder, MergeReason.MAPPING_RECOVERY);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
                 this.mappingVersion = newIndexMetadata.getMappingVersion();
@@ -405,58 +401,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 logger.debug("[{}] {} mapping (source suppressed due to length, use TRACE level if needed)", index(), op);
             }
         }
-    }
-
-    private boolean assertRefreshIsNotNeeded(String type, MappingBuilder incomingBuilder) {
-        Mapping mergedMapping = mergeBuilders(incomingBuilder, MergeReason.MAPPING_RECOVERY);
-        Mapping incomingMapping = incomingBuilder.build(MergeReason.MAPPING_RECOVERY);
-        // skip the runtime section or removed runtime fields will make the assertion fail
-        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
-        CompressedXContent mergedMappingSource;
-        try {
-            mergedMappingSource = new CompressedXContent(mergedMapping, params);
-        } catch (Exception e) {
-            throw new AssertionError("failed to serialize source for type [" + type + "]", e);
-        }
-        CompressedXContent incomingMappingSource;
-        try {
-            incomingMappingSource = new CompressedXContent(incomingMapping, params);
-        } catch (Exception e) {
-            throw new AssertionError("failed to serialize source for type [" + type + "]", e);
-        }
-        // we used to ask the master to refresh its mappings whenever the result of merging the incoming mappings with the
-        // current mappings differs from the incoming mappings. We now rather assert that this situation never happens.
-        assert mergedMappingSource.equals(incomingMappingSource)
-            : "["
-                + index()
-                + "] parsed mapping, and got different sources\n"
-                + "incoming:\n"
-                + incomingMappingSource
-                + "\nmerged:\n"
-                + mergedMappingSource;
-        return true;
-    }
-
-    boolean assertNoUpdateRequired(final IndexMetadata newIndexMetadata) {
-        MappingMetadata mapping = newIndexMetadata.mapping();
-        if (mapping != null) {
-            // mapping representations may change between versions (eg text field mappers
-            // used to always explicitly serialize analyzers), so we cannot simply check
-            // that the incoming mappings are the same as the current ones: we need to
-            // parse the incoming mappings into a DocumentMapper and check that its
-            // serialization is the same as the existing mapper
-            Mapping newMapping = parseMapping(mapping.type(), MergeReason.MAPPING_UPDATE, mapping.source());
-            final CompressedXContent currentSource = this.mapper.mappingSource();
-            final CompressedXContent newSource = newMapping.toCompressedXContent();
-            if (Objects.equals(currentSource, newSource) == false
-                && mapper.isSyntheticSourceMalformed(currentSource, indexVersionCreated) == false) {
-                throw new IllegalStateException(
-                    "expected current mapping [" + currentSource + "] to be the same as new mapping [" + newSource + "]"
-                );
-            }
-        }
-        return true;
-
     }
 
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {

@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.inference.textembedding;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOutputBuilder;
 
 /**
  * {@link TextEmbeddingOperator} is an {@link InferenceOperator} that performs text embedding inference.
@@ -20,32 +23,22 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
  */
 public class TextEmbeddingOperator extends InferenceOperator {
 
-    private final String inferenceId;
-
-    /**
-     * Constructs a new {@code TextEmbeddingOperator}.
-     *
-     * @param driverContext                   The driver context.
-     * @param inferenceService                The inference service to use for executing inference requests.
-     * @param inferenceId                     The ID of the text embedding model to invoke.
-     * @param inputEvaluator                  Evaluator for computing input text from rows.
-     */
     TextEmbeddingOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
         String inferenceId,
-        ExpressionEvaluator inputEvaluator
+        ExpressionEvaluator inputEvaluator,
+        TimeValue timeout
     ) {
         super(
             driverContext,
             inferenceService,
-            new TextEmbeddingRequestIterator.Factory(inferenceId, inputEvaluator),
-            new TextEmbeddingOutputBuilder(driverContext.blockFactory())
+            new TextEmbeddingRequestIterator.Factory(inferenceId, TaskType.TEXT_EMBEDDING, inputEvaluator, timeout),
+            new EmbeddingOutputBuilder(driverContext.blockFactory())
         );
-
-        this.inferenceId = inferenceId;
     }
 
+    @Override
     public String toString() {
         return "TextEmbeddingOperator[inference_id=[" + inferenceId() + "]]";
     }
@@ -53,9 +46,13 @@ public class TextEmbeddingOperator extends InferenceOperator {
     /**
      * Factory for creating {@link TextEmbeddingOperator} instances.
      */
-    public record Factory(InferenceService inferenceService, String inferenceId, ExpressionEvaluator.Factory textEvaluatorFactory)
-        implements
-            OperatorFactory {
+    public record Factory(
+        InferenceService inferenceService,
+        String inferenceId,
+        ExpressionEvaluator.Factory textEvaluatorFactory,
+        TimeValue timeout
+    ) implements OperatorFactory {
+
         @Override
         public String describe() {
             return "TextEmbeddingOperator[inference_id=[" + inferenceId + "]]";
@@ -63,8 +60,13 @@ public class TextEmbeddingOperator extends InferenceOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new TextEmbeddingOperator(driverContext, inferenceService, inferenceId, textEvaluatorFactory.get(driverContext));
+            return new TextEmbeddingOperator(
+                driverContext,
+                inferenceService,
+                inferenceId,
+                textEvaluatorFactory.get(driverContext),
+                timeout
+            );
         }
     }
-
 }

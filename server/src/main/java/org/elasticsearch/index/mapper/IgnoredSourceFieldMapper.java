@@ -174,7 +174,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         @Override
         public void setNextReader(LeafReaderContext context) {
             try {
-                docValues = MultiValuedSortedBinaryDocValues.from(context.reader(), NAME);
+                docValues = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), NAME);
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to load doc values for " + NAME, e);
             }
@@ -216,10 +216,14 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             assert context.getIgnoredFieldValues().isEmpty();
             return;
         }
+        if (context.getIgnoredFieldValues().isEmpty()) {
+            return;
+        }
 
         ignoredSourceFormat(context.indexSettings()).writeIgnoredFields(
             context.getIgnoredFieldValues(),
-            context.indexSettings().getIndexVersionCreated()
+            context.indexSettings().getIndexVersionCreated(),
+            context.mappingLookup().nestedLookup().getNestedMappers().isEmpty() == false
         );
     }
 
@@ -406,7 +410,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
+            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion, boolean hasNestedDocs) {
                 assert false : "cannot write " + ignoredFieldValues.size() + " values with format NO_IGNORED_SOURCE";
             }
 
@@ -440,7 +444,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
+            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion, boolean hasNestedDocs) {
                 for (NameValue nameValue : ignoredFieldValues) {
                     nameValue.doc().add(new StoredField(NAME, SingularIgnoredSourceEncoding.encode(nameValue)));
                 }
@@ -482,7 +486,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
+            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion, boolean hasNestedDocs) {
                 Map<LuceneDocument, Map<String, List<NameValue>>> entriesMap = new HashMap<>();
 
                 for (NameValue nameValue : ignoredFieldValues) {
@@ -553,21 +557,14 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
-                writeIgnoredFields(ignoredFieldValues, IndexVersion.current());
-            }
-
-            @Override
-            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion) {
-                for (NameValue nameValue : ignoredFieldValues) {
-                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-                        nameValue.doc(),
-                        NAME,
-                        SingularIgnoredSourceEncoding.encode(nameValue),
-                        MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
-                        indexVersion
-                    );
-                }
+            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion, boolean hasNestedDocs) {
+                MultiValuedBinaryDocValuesField.addIgnoredSourceValues(
+                    ignoredFieldValues,
+                    NAME,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
+                    indexVersion,
+                    hasNestedDocs
+                );
             }
 
             @Override
@@ -592,11 +589,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             MultiValuedSortedBinaryDocValues docValues
         ) throws IOException;
 
-        public abstract void writeIgnoredFields(Collection<NameValue> ignoredFieldValues);
-
-        public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion) {
-            writeIgnoredFields(ignoredFieldValues);
-        }
+        public abstract void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion, boolean hasNestedDocs);
 
         public abstract BytesRef filterValue(BytesRef value, Function<Map<String, Object>, Map<String, Object>> filter) throws IOException;
     }

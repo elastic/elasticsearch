@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
@@ -37,8 +39,13 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         TimeSeriesAggregateExec::new
     );
 
+    private static final TransportVersion TIME_SERIES_AGGREGATE_EXEC_COLLAPSED = TransportVersion.fromName(
+        "time_series_aggregate_collapsed"
+    );
+
     private final Bucket timeBucket;
     private final Bucket outputTimeBucket;
+    private final boolean collapsed;
 
     public TimeSeriesAggregateExec(
         Source source,
@@ -50,7 +57,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         Integer estimatedRowSize,
         Bucket timeBucket
     ) {
-        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, timeBucket, timeBucket);
+        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, timeBucket, timeBucket, false);
     }
 
     public TimeSeriesAggregateExec(
@@ -62,11 +69,27 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         List<Attribute> intermediateAttributes,
         Integer estimatedRowSize,
         Bucket timeBucket,
-        Bucket outputTimeBucket
+        boolean collapsed
+    ) {
+        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, timeBucket, timeBucket, collapsed);
+    }
+
+    public TimeSeriesAggregateExec(
+        Source source,
+        PhysicalPlan child,
+        List<? extends Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        AggregatorMode mode,
+        List<Attribute> intermediateAttributes,
+        Integer estimatedRowSize,
+        Bucket timeBucket,
+        Bucket outputTimeBucket,
+        boolean collapsed
     ) {
         super(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         this.timeBucket = timeBucket;
         this.outputTimeBucket = outputTimeBucket;
+        this.collapsed = collapsed;
     }
 
     private TimeSeriesAggregateExec(StreamInput in) throws IOException {
@@ -77,6 +100,11 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         } else {
             this.outputTimeBucket = this.timeBucket;
         }
+        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_COLLAPSED)) {
+            this.collapsed = in.readBoolean();
+        } else {
+            this.collapsed = false;
+        }
     }
 
     @Override
@@ -85,6 +113,9 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         out.writeOptionalWriteable(timeBucket);
         if (out.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_OUTPUT_BUCKET)) {
             out.writeOptionalWriteable(outputTimeBucket);
+        }
+        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_COLLAPSED)) {
+            out.writeBoolean(collapsed);
         }
     }
 
@@ -105,7 +136,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize(),
             timeBucket,
-            outputTimeBucket
+            outputTimeBucket,
+            collapsed
         );
     }
 
@@ -120,7 +152,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize(),
             timeBucket,
-            outputTimeBucket
+            outputTimeBucket,
+            collapsed
         );
     }
 
@@ -135,7 +168,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize(),
             timeBucket,
-            outputTimeBucket
+            outputTimeBucket,
+            collapsed
         );
     }
 
@@ -150,7 +184,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize(),
             timeBucket,
-            outputTimeBucket
+            outputTimeBucket,
+            collapsed
         );
     }
 
@@ -165,7 +200,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize,
             timeBucket,
-            outputTimeBucket
+            outputTimeBucket,
+            collapsed
         );
     }
 
@@ -175,6 +211,26 @@ public class TimeSeriesAggregateExec extends AggregateExec {
 
     public Bucket outputTimeBucket() {
         return outputTimeBucket;
+    }
+
+    public boolean isCollapsed() {
+        return collapsed;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), timeBucket, outputTimeBucket, collapsed);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        TimeSeriesAggregateExec other = (TimeSeriesAggregateExec) obj;
+        return Objects.equals(timeBucket, other.timeBucket)
+            && Objects.equals(outputTimeBucket, other.outputTimeBucket)
+            && collapsed == other.collapsed;
     }
 
     public Rounding.Prepared timeBucketRounding(FoldContext foldContext) {
@@ -198,4 +254,5 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         }
         return rounding;
     }
+
 }

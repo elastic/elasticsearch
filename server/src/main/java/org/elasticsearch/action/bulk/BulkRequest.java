@@ -138,16 +138,12 @@ public class BulkRequest extends LegacyActionRequest
      * @return the current bulk request
      */
     public BulkRequest add(DocWriteRequest<?> request) {
-        if (request instanceof IndexRequest indexRequest) {
-            add(indexRequest);
-        } else if (request instanceof DeleteRequest deleteRequest) {
-            add(deleteRequest);
-        } else if (request instanceof UpdateRequest updateRequest) {
-            add(updateRequest);
-        } else {
-            throw new IllegalArgumentException("No support for request [" + request + "]");
+        switch (request) {
+            case IndexRequest indexRequest -> add(indexRequest);
+            case DeleteRequest deleteRequest -> add(deleteRequest);
+            case UpdateRequest updateRequest -> add(updateRequest);
+            case null, default -> throw new IllegalArgumentException("No support for request [" + request + "]");
         }
-        indices.add(request.index());
         return this;
     }
 
@@ -282,6 +278,36 @@ public class BulkRequest extends LegacyActionRequest
         XContentType xContentType,
         RestApiVersion restApiVersion
     ) throws IOException {
+        return add(
+            data,
+            defaultIndex,
+            defaultRouting,
+            false,
+            defaultFetchSourceContext,
+            defaultPipeline,
+            defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
+            allowExplicitIndex,
+            xContentType,
+            restApiVersion
+        );
+    }
+
+    public BulkRequest add(
+        BytesReference data,
+        @Nullable String defaultIndex,
+        @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice,
+        @Nullable FetchSourceContext defaultFetchSourceContext,
+        @Nullable String defaultPipeline,
+        @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
+        @Nullable Boolean defaultListExecutedPipelines,
+        boolean allowExplicitIndex,
+        XContentType xContentType,
+        RestApiVersion restApiVersion
+    ) throws IOException {
         String routing = valueOrDefault(defaultRouting, globalRouting);
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
@@ -290,6 +316,7 @@ public class BulkRequest extends LegacyActionRequest
             data,
             defaultIndex,
             routing,
+            defaultRoutingFromSlice,
             defaultFetchSourceContext,
             pipeline,
             requireAlias,
@@ -503,7 +530,11 @@ public class BulkRequest extends LegacyActionRequest
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
+        long ramBytesUsed = SHALLOW_SIZE;
+        for (final var request : requests) {
+            ramBytesUsed += request.ramBytesUsed();
+        }
+        return ramBytesUsed;
     }
 
     public Set<String> getIndices() {

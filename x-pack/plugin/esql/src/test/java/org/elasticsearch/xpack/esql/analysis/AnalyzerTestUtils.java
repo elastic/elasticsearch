@@ -82,12 +82,14 @@ public final class AnalyzerTestUtils {
     public static final String TEXT_EMBEDDING_INFERENCE_ID = "text-embedding-inference-id";
     public static final String CHAT_COMPLETION_INFERENCE_ID = "chat-completion-inference-id";
     public static final String SPARSE_EMBEDDING_INFERENCE_ID = "sparse-embedding-inference-id";
+    public static final String EMBEDDING_INFERENCE_ID = "embedding-inference-id";
     public static final List<String> VALID_INFERENCE_IDS = List.of(
         RERANKING_INFERENCE_ID,
         COMPLETION_INFERENCE_ID,
         TEXT_EMBEDDING_INFERENCE_ID,
         CHAT_COMPLETION_INFERENCE_ID,
-        SPARSE_EMBEDDING_INFERENCE_ID
+        SPARSE_EMBEDDING_INFERENCE_ID,
+        EMBEDDING_INFERENCE_ID
     );
 
     public static String randomInferenceId() {

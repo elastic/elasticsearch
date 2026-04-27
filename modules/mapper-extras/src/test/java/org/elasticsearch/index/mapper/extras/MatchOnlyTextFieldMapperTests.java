@@ -16,6 +16,8 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.TopDocs;
@@ -29,8 +31,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldStorageVerifier;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -43,6 +47,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
@@ -135,10 +140,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
 
-        var reader = fields.get(0).readerValue();
-        char[] buff = new char[20];
-        assertEquals(4, reader.read(buff));
-        assertEquals("1234", new String(buff, 0, 4));
+        assertEquals("1234", fields.get(0).stringValue());
 
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
@@ -708,6 +710,50 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertTrue("doc_values should be enabled", fieldType.hasDocValues());
     }
 
+    /**
+     * match_only_text doc_values have used the SeparateCount format (with a parallel .counts numeric doc values field) since their
+     * introduction in 9.4.0. This test pins that contract for the current index version.
+     */
+    public void testDocValuesUsesSeparateCountFormat() throws IOException {
+        assumeTrue(
+            "match_only_text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
+
+        assertFalse(
+            "primary match_only_text doc_values must be written in SeparateCount format (with .counts companion) for the current "
+                + "index version",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
+    }
+
+    /**
+     * match_only_text doc_values were introduced in 9.4.0 using the SeparateCount format. Regardless of indexCreatedVersion, the primary
+     * doc values write path must produce SeparateCount output so the read path can decode it.
+     */
+    public void testDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
+        assumeTrue(
+            "match_only_text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+        DocumentMapper mapper = createMapperService(
+            legacyVersion,
+            fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true))
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
+
+        assertFalse(
+            "primary match_only_text doc_values must be written in SeparateCount format (with .counts companion) even for legacy "
+                + "index versions",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
+    }
+
     public void testDocValuesExplicitlyDisabled() throws IOException {
         assumeTrue(
             "match_only_text field doc_values feature must be enabled",
@@ -738,5 +784,60 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
                 assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             }
         }
+    }
+
+    public void testIndexUnicodeSurrogatePairs() throws IOException {
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "match_only_text");
+            b.endObject();
+        });
+        var mapperService = createSytheticSourceMapperService(mapping);
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 128; i++) {
+            sb.append(Character.toChars(0x13000 + (i % 48)));
+        }
+
+        var source = source(b -> b.field("field", sb.toString()));
+
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig conf = new IndexWriterConfig();
+            IndexWriter iw = new IndexWriter(directory, conf);
+            LuceneDocument doc = mapperService.documentMapper().parse(source).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", sb.toString());
+                TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            }
+        }
+    }
+
+    public void testSingleValueIsAcceptedWhenMultiValueNo() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "match_only_text").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+        mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(5))));
+    }
+
+    public void testSecondValueIsRejectedWhenMultiValueNo() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "match_only_text").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(3), randomAlphanumericOfLength(4))))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
     }
 }

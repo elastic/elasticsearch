@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.BytesRefHashTable;
@@ -48,7 +49,9 @@ public class HashImplFactory {
      */
     public static LongHashTable newLongHash(BigArrays bigArrays) {
         if (SWISS_HASH_FACTORY != null) {
-            CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+            CircuitBreaker breaker = bigArrays.breakerService() != null
+                ? bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST)
+                : new NoopCircuitBreaker(CircuitBreaker.REQUEST);
             return SWISS_HASH_FACTORY.newLongSwissHash(bigArrays.recycler(), breaker);
         } else {
             return new LongHash(1, bigArrays);

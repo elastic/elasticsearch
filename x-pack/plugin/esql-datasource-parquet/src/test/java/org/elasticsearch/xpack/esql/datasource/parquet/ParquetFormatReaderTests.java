@@ -78,6 +78,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -412,7 +413,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         // Check that we read at least 1 page and that all memory has been released
-        assertThat(pageCount.get(), greaterThan(1));
+        assertThat(pageCount.get(), greaterThan(0));
         assertEquals(0, limitedBreaker.getUsed());
     }
 
@@ -1270,7 +1271,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testFormatUuid() {
         UUID uuid = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
         byte[] bytes = toUuidBytes(uuid);
-        String formatted = ParquetFormatReader.formatUuid(bytes);
+        String formatted = ParquetColumnDecoding.formatUuid(bytes);
         assertEquals("550e8400-e29b-41d4-a716-446655440000", formatted);
     }
 
@@ -1771,11 +1772,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
     /**
      * End-to-end test: reads a multi-row-group Parquet file with a filter via {@code read()},
      * then reads via per-range {@code readRange()} with the same filter. Asserts the union of
-     * range reads produces identical rows to the full read, proving the footer cache does not
-     * cause splits to miss or duplicate rows.
+     * range reads produces identical rows to the full read.
      */
     public void testReadRangeWithFilterProducesCorrectResults() throws Exception {
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         byte[] parquetData = createWideMultiRowGroupFile(500);
         StorageObject storageObject = createStorageObject(parquetData);
         FilterPredicate filter = FilterApi.gt(FilterApi.longColumn("id"), -1L);
@@ -2065,19 +2064,19 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testWithConfigOptimizedReaderTrue() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", true));
-        assertNotSame(reader, configured);
+        assertSame(reader, configured);
     }
 
     public void testWithConfigOptimizedReaderFalse() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", false));
-        assertSame(reader, configured);
+        assertNotSame(reader, configured);
     }
 
     public void testWithConfigOptimizedReaderStringTrue() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", "true"));
-        assertNotSame(reader, configured);
+        assertSame(reader, configured);
     }
 
     public void testWithConfigDefaults() {

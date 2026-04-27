@@ -56,6 +56,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedReso
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -894,6 +895,19 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 "Partially-mapped " + dataType + " field should be reverted to a regular field with its original type",
                 fieldAttr.dataType(),
                 is(dataType.widenSmallNumeric())
+            );
+        }
+    }
+
+    public void testWrapPartiallyUnmappedFieldWidensSmallNumerics() {
+        Set<String> mappedIndices = Set.of("idx_mapped");
+        for (DataType smallNumeric : List.of(DataType.SHORT, DataType.BYTE, DataType.FLOAT, DataType.HALF_FLOAT, DataType.SCALED_FLOAT)) {
+            EsField field = new EsField("f", smallNumeric, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+            InvalidMappedField wrapped = (InvalidMappedField) IndexResolver.wrapPartiallyUnmappedField(field, "f", "f", mappedIndices);
+            assertThat(
+                "Partially-unmapped " + smallNumeric + " field should be stored under its widened type name",
+                wrapped.getTypesToIndices(),
+                equalTo(Map.of(smallNumeric.widenSmallNumeric().typeName(), mappedIndices))
             );
         }
     }

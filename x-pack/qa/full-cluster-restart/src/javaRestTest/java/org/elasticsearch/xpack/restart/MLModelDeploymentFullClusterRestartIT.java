@@ -91,6 +91,14 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     public void testDeploymentSurvivesRestart() throws Exception {
+        // The guard must cover both parameterized runs (OLD and UPGRADED). If it is placed only inside the OLD branch,
+        // @Before maybeUpgrade() still upgrades the cluster for the UPGRADED run. UPGRADED then enters the `else` branch
+        // against an empty cluster (no model was ever created) and fails with 404 on _stats. See #147226 for the
+        // full-bwc failure this caused on 9.4.
+        assumeTrue(
+            "PyTorch model deployment inference is not reliably supported before 8.3.0",
+            getOldClusterTestVersion().onOrAfter("8.3.0")
+        );
 
         String modelId = "trained-model-full-cluster-restart";
 

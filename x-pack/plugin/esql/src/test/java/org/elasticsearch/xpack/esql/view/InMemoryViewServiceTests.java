@@ -226,6 +226,69 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM index-a*),(FROM index-b*,-*2)")));
     }
 
+    /**
+     * Reproduces the bug where an inner view's exclusion leaks to an outer view's sibling indices
+     * across multiple levels of nesting.
+     * <p>
+     * Setup:
+     * <pre>
+     *   indices:    index-1-a, index-1-b, index-2-a, index-2-b,
+     *               view-1-r-a, view-1-r-b, view-2-r-a, view-2-r-b
+     *   view-2-l:   FROM index-2-*,-*a          (resolves to index-2-b)
+     *   view-1-l:   FROM view-2-*,index-1-*,-*b (matches view-2-l + view-2-r-*, index-1-*; excludes *b)
+     *   view-0-l:   FROM view-1-*               (matches view-1-l + view-1-r-*)
+     * </pre>
+     * Query: {@code FROM view-0-l}
+     * <p>
+     * The {@code -*b} exclusion in {@code view-1-l}'s body must stay scoped to {@code view-1-l} —
+     * it must not leak to the outer {@code view-0-l} and cause {@code view-1-r-b} to be excluded.
+     * <p>
+     * The single-level case is covered by {@link #testViewBodyExclusionNotLeakedToOuter}. In the
+     * nested case the view-flattening path in {@code ViewResolver.tryFlattenViewUnionAll} would
+     * lift the inner ViewUnionAll's entries (ViewUnionAll extends UnionAll extends Fork, which
+     * triggers the fork-flattening branch) and then merge their bare URs with sibling outer URs,
+     * re-widening the exclusion's scope. The fix wraps exclusion-bearing URs in a NamedSubquery
+     * before lifting so the subsequent merge step leaves them alone.
+     */
+    public void testViewBodyExclusionNotLeakedThroughNestedViews() {
+        addIndex("index-1-a");
+        addIndex("index-1-b");
+        addIndex("index-2-a");
+        addIndex("index-2-b");
+        addIndex("view-1-r-a");
+        addIndex("view-1-r-b");
+        addIndex("view-2-r-a");
+        addIndex("view-2-r-b");
+        addView("view-2-l", "FROM index-2-*,-*a");
+        addView("view-1-l", "FROM view-2-*,index-1-*,-*b");
+        addView("view-0-l", "FROM view-1-*");
+        LogicalPlan plan = query("FROM view-0-l");
+        // The inner -*b exclusion must stay scoped to view-1-l's body, not widen to view-0-l's
+        // sibling view-1-r-* indices. Each scope-carrying UR stays in its own branch.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM view-1-*),(FROM index-2-*,-*a),(FROM view-2-*,index-1-*,-*b)")));
+    }
+
+    /**
+     * A user-written subquery inside a view body carries its own scope. When its parent view is
+     * composed with sibling outer patterns, the subquery's exclusion must not widen to the outer
+     * patterns.
+     * <p>
+     * Without the fix in {@code tryFlattenViewUnionAll}'s fork-child branch, the inner subquery's
+     * {@code -*b} would merge with the outer {@code inner-b} pattern and wrongly exclude it.
+     */
+    public void testUserSubqueryExclusionInViewBodyDoesNotLeakToOuter() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("outer-a");
+        addIndex("outer-b");
+        addIndex("inner-a");
+        addIndex("inner-b");
+        addView("my_view", "FROM outer-*, (FROM inner-*,-*b)");
+        LogicalPlan plan = query("FROM my_view, inner-b");
+        // The -*b in the inner subquery must only exclude -*b from matches of inner-*, not from the
+        // outer inner-b pattern. Each scope-carrying UR stays in its own branch.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM inner-b,outer-*),(FROM inner-*,-*b)")));
+    }
+
     public void testExclusionMultipleViews() {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");

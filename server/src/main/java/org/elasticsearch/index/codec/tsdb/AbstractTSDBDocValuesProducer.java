@@ -1351,7 +1351,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     public abstract static class BaseDenseNumericValues extends NumericDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            BlockLoader.OptionalNumericRangeReader {
+            BlockLoader.NumericRangeReader {
         private final int maxDoc;
         protected int doc = -1;
 
@@ -2348,96 +2348,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     return lookaheadBlock[valueIndex];
                 }
 
-                @Override
-                public DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper) throws IOException {
-                    final IndexInput rangeData = data.slice("range_values", entry.valuesOffset, entry.valuesLength);
-                    final long[] rangeBlock = new long[numericBlockSize];
-                    return new DocIdSetIterator() {
-                        private int currentDoc = -1;
-                        private int currentBlockId = -1;
-                        // Mirrors DocValuesRangeIterator.upTo: the last doc of the current skipper
-                        // block. The skipper is only advanced when target moves past this boundary.
-                        private int skipperUpTo = -1;
-
-                        @Override
-                        public int docID() {
-                            return currentDoc;
-                        }
-
-                        @Override
-                        public int nextDoc() throws IOException {
-                            return advance(currentDoc + 1);
-                        }
-
-                        @Override
-                        public int advance(int target) throws IOException {
-                            if (target >= maxDoc) {
-                                return currentDoc = NO_MORE_DOCS;
-                            }
-                            // Only advance the skipper when we have moved past the current block.
-                            // Calling skipper.advance() while still within the current block would
-                            // move it forward, skipping remaining matches in that block.
-                            if (skipper != null && target > skipperUpTo) {
-                                skipper.advance(target);
-                                while (skipper.minDocID(0) != NO_MORE_DOCS) {
-                                    if (skipper.minValue(0) <= upperValue && skipper.maxValue(0) >= lowerValue) {
-                                        target = Math.max(target, skipper.minDocID(0));
-                                        skipperUpTo = skipper.maxDocID(0);
-                                        break;
-                                    }
-                                    skipper.advance(skipper.maxDocID(0) + 1);
-                                }
-                                if (skipper.minDocID(0) == NO_MORE_DOCS) {
-                                    return currentDoc = NO_MORE_DOCS;
-                                }
-                            }
-                            int endBlockId = (maxDoc - 1) >>> numericBlockShift;
-                            for (int blockId = target >>> numericBlockShift; blockId <= endBlockId; blockId++) {
-                                if (skipper != null && blockId * numericBlockSize > skipperUpTo) {
-                                    skipper.advance(blockId * numericBlockSize);
-                                    while (skipper.minDocID(0) != NO_MORE_DOCS) {
-                                        if (skipper.minValue(0) <= upperValue && skipper.maxValue(0) >= lowerValue) {
-                                            break;
-                                        }
-                                        skipper.advance(skipper.maxDocID(0) + 1);
-                                    }
-                                    if (skipper.minDocID(0) == NO_MORE_DOCS) {
-                                        return currentDoc = NO_MORE_DOCS;
-                                    }
-                                    skipperUpTo = skipper.maxDocID(0);
-                                    blockId = skipper.minDocID(0) >>> numericBlockShift;
-                                }
-                                if (blockId != currentBlockId) {
-                                    if (currentBlockId == -1 || currentBlockId + 1 != blockId) {
-                                        rangeData.seek(indexReader.get(blockId));
-                                    }
-                                    currentBlockId = blockId;
-                                    if (bitsPerOrd == -1) {
-                                        decoder.decodeBlock(rangeData, rangeBlock, numericBlockSize);
-                                    } else {
-                                        decoder.decodeOrdinals(rangeData, rangeBlock, bitsPerOrd);
-                                    }
-                                }
-                                int blockStart = blockId * numericBlockSize;
-                                int blockEnd = Math.min(blockStart + numericBlockSize, maxDoc);
-                                int startInBlock = Math.max(target, blockStart);
-                                for (int doc = startInBlock; doc < blockEnd; doc++) {
-                                    long value = rangeBlock[doc - blockStart];
-                                    if (value >= lowerValue && value <= upperValue) {
-                                        return currentDoc = doc;
-                                    }
-                                }
-                            }
-                            return currentDoc = NO_MORE_DOCS;
-                        }
-
-                        @Override
-                        public long cost() {
-                            return maxDoc;
-                        }
-                    };
-                }
-
                 private void loadBlock(int blockIndex) throws IOException {
                     if (blockIndex != currentBlockIndex) {
                         assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
@@ -2456,9 +2366,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 final FixedBitSet matches = new FixedBitSet(new long[(numericBlockMask + 1) >>> 6], numericBlockMask + 1);
 
                 @Override
-                public void tryCollectMatches(
+                public void collectMatches(
                     LeafCollector collector,
-                    Bits acceptedDocs,
                     int firstDoc,
                     int lastDoc,
                     long lowerValue,

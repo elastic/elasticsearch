@@ -120,7 +120,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                     }
                 }
 
-                if (skipper != null && singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
+                if (skipper != null && singleton instanceof BlockLoader.NumericRangeReader rangeReader) {
                     return new ScorerSupplier() {
                         @Override
                         public Scorer get(long leadCost) throws IOException {
@@ -173,9 +173,25 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                                         } else if (minVal <= upperValue && lowerValue <= maxVal) {
                                             // Skipper range overlaps with query range
                                             // Collect accepted docs within [lowerValue, upperValue]
-                                            rangeReader.tryCollectMatches(
-                                                collector,
-                                                acceptDocs,
+                                            LeafCollector acceptedCollector = acceptDocs == null
+                                                ? collector
+                                                : new LeafCollector() {
+
+                                                @Override
+                                                public void setScorer(Scorable scorer) throws IOException {
+
+                                                }
+
+                                                @Override
+                                                public void collect(int doc) throws IOException {
+                                                    if (acceptDocs.get(doc)) {
+                                                        collector.collect(doc);
+                                                    }
+                                                }
+                                            };
+
+                                            rangeReader.collectMatches(
+                                                acceptedCollector,
                                                 minDocInBlock,
                                                 maxDocInBlock,
                                                 lowerValue,

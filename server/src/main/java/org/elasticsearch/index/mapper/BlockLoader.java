@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -266,25 +265,16 @@ public interface BlockLoader {
      * The returned iterator does not handle {@link org.apache.lucene.index.DocValuesSkipper};
      * callers are responsible for applying block-level skipping on top.
      */
-    interface OptionalNumericRangeReader {
-        /**
-         * Returns a {@link DocIdSetIterator} that matches documents whose numeric value is in
-         * [{@code lowerValue}, {@code upperValue}], or {@code null} if not supported.
-         */
-        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper) throws IOException {
-            return null;
-        }
-
-        default void tryCollectMatches(
+    interface NumericRangeReader {
+        default void collectMatches(
             LeafCollector collect,
-            Bits acceptedDocs,
             int firstDoc,
             int lastDoc,
             long lowerValue,
             long upperValue
         ) throws IOException {
-            return;
-        }
+
+        };
     }
 
     /**

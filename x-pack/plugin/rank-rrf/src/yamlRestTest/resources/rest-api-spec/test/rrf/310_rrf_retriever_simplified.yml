@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: [ "rrf_retriever.multi_fields_query_format_support" ]
+      cluster_features: [ "rrf_retriever.multi_fields_query_format_support", "semantic_text.index_options" ]
       reason: "RRF retriever multi-fields query format support"
       test_runner_features: [ "contains" ]
 
@@ -77,6 +77,9 @@ setup:
               dense_inference:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: int8_hnsw
               sparse_inference:
                 type: semantic_text
                 inference_id: sparse-inference-id
@@ -151,12 +154,18 @@ setup:
               dense_inference:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: int8_hnsw
               sparse_inference:
                 type: semantic_text
                 inference_id: sparse-inference-another-id
               text_1:
                 type: semantic_text
                 inference_id: dense-inference-another-id
+                index_options:
+                  dense_vector:
+                    type: int8_hnsw
               text_2:
                 type: text
               sparse_vector:

@@ -118,7 +118,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         return true;
     }
 
-    public static SearchHits readFrom(StreamInput in, boolean pooled) throws IOException {
+    public static SearchHits readFrom(StreamInput in) throws IOException {
         final TotalHits totalHits;
         if (in.readBoolean()) {
             totalHits = Lucene.readTotalHits(in);
@@ -135,7 +135,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         } else {
             hits = new SearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                var hit = SearchHit.readFrom(in, pooled);
+                var hit = SearchHit.readFrom(in);
                 hits[i] = hit;
                 isPooled = isPooled || hit.isPooled();
             }

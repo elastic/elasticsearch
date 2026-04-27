@@ -70,7 +70,7 @@ public class BootstrapForTesting {
             throw new RuntimeException("found jar hell in test classpath", e);
         }
 
-        // Log ifconfig output before SecurityManager is installed
+        // Log ifconfig output before entitlements are installed
         IfConfig.logIfNecessary();
 
         // Fire up entitlements

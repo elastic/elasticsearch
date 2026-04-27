@@ -49,7 +49,7 @@ public class OpenShiftAiChatCompletionModel extends OpenShiftAiModel {
             taskType,
             service,
             OpenShiftAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

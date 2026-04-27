@@ -24,7 +24,17 @@ import java.io.IOException;
  *
  * @see TSDBDocValuesBlockWriter
  */
-final class TSDBDocValuesBlockReader {
+public final class TSDBDocValuesBlockReader {
+
+    /**
+     * Optional callback invoked after the block-shift marker is read from metadata but before
+     * the block index is parsed. Codec-specific formats (e.g. ES95) use this to read
+     * additional per-field metadata such as a {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor}.
+     */
+    @FunctionalInterface
+    public interface FieldMetaReader {
+        void read(IndexInput meta) throws IOException;
+    }
 
     /**
      * Parses the field metadata from {@code meta} into {@code entry}.
@@ -33,8 +43,27 @@ final class TSDBDocValuesBlockReader {
      * @param entry             entry to populate with the parsed metadata
      * @param numericBlockShift block shift used to size the per-field block index
      */
-    void readFieldEntry(final IndexInput meta, final AbstractTSDBDocValuesProducer.NumericEntry entry, int numericBlockShift)
+    public void readFieldEntry(final IndexInput meta, final AbstractTSDBDocValuesProducer.NumericEntry entry, int numericBlockShift)
         throws IOException {
+        readFieldEntry(meta, entry, numericBlockShift, null);
+    }
+
+    /**
+     * Parses the field metadata from {@code meta} into {@code entry} with an optional
+     * metadata header hook.
+     *
+     * @param meta              segment metadata input positioned at this field's header
+     * @param entry             entry to populate with the parsed metadata
+     * @param numericBlockShift block shift used to size the per-field block index
+     * @param fieldMetaReader  optional callback invoked after the block-shift marker to read
+     *                          additional per-field metadata, or {@code null}
+     */
+    public void readFieldEntry(
+        final IndexInput meta,
+        final AbstractTSDBDocValuesProducer.NumericEntry entry,
+        int numericBlockShift,
+        final FieldMetaReader fieldMetaReader
+    ) throws IOException {
         entry.numValues = meta.readLong();
         entry.numDocsWithField = meta.readInt();
         if (entry.numValues > 0) {
@@ -46,6 +75,9 @@ final class TSDBDocValuesBlockReader {
                 final int blockShift = meta.readByte();
                 entry.sortedOrdinals = DirectMonotonicReader.loadMeta(meta, numOrds + 1, blockShift);
             } else {
+                if (fieldMetaReader != null) {
+                    fieldMetaReader.read(meta);
+                }
                 entry.indexMeta = DirectMonotonicReader.loadMeta(meta, 1 + ((entry.numValues - 1) >>> numericBlockShift), indexBlockShift);
             }
             entry.indexOffset = meta.readLong();

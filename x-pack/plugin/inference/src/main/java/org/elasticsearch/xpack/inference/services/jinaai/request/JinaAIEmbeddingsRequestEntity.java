@@ -28,22 +28,24 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, @N
     implements
         ToXContentObject {
 
-    private static final String SEARCH_DOCUMENT = "retrieval.passage";
-    private static final String SEARCH_QUERY = "retrieval.query";
-    private static final String CLUSTERING = "separation";
-    private static final String CLASSIFICATION = "classification";
-    private static final String INPUT_FIELD = "input";
-    private static final String INPUT_TEXT_FIELD = "text";
-    private static final String INPUT_IMAGE_FIELD = "image";
-    private static final String MODEL_FIELD = "model";
+    public static final String INPUT_FIELD = "input";
+    public static final String INPUT_TEXT_FIELD = "text";
+    public static final String MODEL_FIELD = "model";
     public static final String TASK_TYPE_FIELD = "task";
     public static final String LATE_CHUNKING = "late_chunking";
-    static final String EMBEDDING_TYPE_FIELD = "embedding_type";
+    public static final String EMBEDDING_TYPE_FIELD = "embedding_type";
+    public static final String JINA_CLIP_V_2_MODEL_NAME = "jina-clip-v2";
+
     static final String DIMENSIONS_FIELD = "dimensions";
     // Late chunking models have a token limit of 8000 or ~6000 words (using a rough 1 token:0.75 words ratio). We set the maximum word
     // count with a bit of extra room to 5500 words.
     static final int MAX_WORD_COUNT_FOR_LATE_CHUNKING = 5500;
-    public static final String JINA_CLIP_V_2_MODEL_NAME = "jina-clip-v2";
+
+    private static final String SEARCH_DOCUMENT = "retrieval.passage";
+    private static final String SEARCH_QUERY = "retrieval.query";
+    private static final String CLUSTERING = "separation";
+    private static final String CLASSIFICATION = "classification";
+    private static final String INPUT_IMAGE_FIELD = "image";
 
     public JinaAIEmbeddingsRequestEntity {
         Objects.requireNonNull(input);

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.services.ModelCreator;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.checkChatCompletionProviderForTopKParameter;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.checkProviderForTask;
 
 /**
  * Creates {@link AmazonBedrockChatCompletionModel} instances from config maps
@@ -45,6 +46,7 @@ public class AmazonBedrockChatCompletionModelCreator implements ModelCreator<Ama
             context
         );
         checkChatCompletionProviderForTopKParameter(model);
+        checkProviderForTask(taskType, model.provider());
         return model;
     }
 
@@ -52,6 +54,7 @@ public class AmazonBedrockChatCompletionModelCreator implements ModelCreator<Ama
     public AmazonBedrockChatCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         var model = new AmazonBedrockChatCompletionModel(config, secrets);
         checkChatCompletionProviderForTopKParameter(model);
+        checkProviderForTask(model.getTaskType(), model.provider());
         return model;
     }
 }

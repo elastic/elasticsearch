@@ -158,7 +158,7 @@ public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
     }
 
     private IndexWriterConfig newIndexWriterConfig(int vectorsPerCluster, int centroidsPerParentCluster) {
-        KnnVectorsFormat format = new ESNextDiskBBQVectorsFormat(vectorsPerCluster, centroidsPerParentCluster);
+        KnnVectorsFormat format = new ESNextDiskBBQVectorsFormat(vectorsPerCluster, centroidsPerParentCluster, null);
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);

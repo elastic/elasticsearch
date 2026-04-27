@@ -289,6 +289,99 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM inner-b,outer-*),(FROM inner-*,-*b)")));
     }
 
+    /**
+     * Reproduces the example from <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a>:
+     * the {@link ViewResolver.ViewResolutionResult#resolvedViews()} map exposes each concretely-resolved
+     * view together with a per-view {@code indexPattern} (view name + exclusions appearing after its
+     * referencing position in the parent UR). CPS uses these as the targets for its lenient field-caps
+     * calls, so the lookup mirrors the local exclusion scope exactly.
+     */
+    public void testResolvedViewsExposesIndexPatternFromParentBody() {
+        addIndex("logs-001");
+        addIndex("metrics-001");
+        addView("v2", "FROM logs*,-*2026");
+        addView("v1", "FROM v2,metrics*,-*2025");
+        addView("v0", "FROM v1");
+
+        ViewResolver.ViewResolutionResult result = replaceViewsResult(query("FROM v0"));
+
+        Map<String, ResolvedView> resolved = result.resolvedViews();
+        assertThat(resolved.keySet(), containsInAnyOrder("v0", "v1", "v2"));
+
+        // v0 referenced from outer "FROM v0" — no later exclusions.
+        assertThat(resolved.get("v0").indexPattern(), equalTo("v0"));
+        // v1 referenced from v0's body "FROM v1" — no later exclusions.
+        assertThat(resolved.get("v1").indexPattern(), equalTo("v1"));
+        // v2 referenced from v1's body "FROM v2,metrics*,-*2025" — -*2025 follows v2, so it applies.
+        assertThat(resolved.get("v2").indexPattern(), equalTo("v2,-*2025"));
+
+        // Sanity: the queries are still recoverable via the convenience projection.
+        assertThat(result.viewQueries().get("v0"), equalTo("FROM v1"));
+        assertThat(result.viewQueries().get("v1"), equalTo("FROM v2,metrics*,-*2025"));
+        assertThat(result.viewQueries().get("v2"), equalTo("FROM logs*,-*2026"));
+    }
+
+    /**
+     * Trailing exclusions in the outer query are picked up by views earlier in the pattern list.
+     */
+    public void testResolvedViewsIndexPatternIncludesOuterQueryExclusion() {
+        addIndex("idx-keep");
+        addIndex("idx-bad");
+        addView("filtered", "FROM idx-*");
+        ViewResolver.ViewResolutionResult result = replaceViewsResult(query("FROM filtered,-idx-bad"));
+        assertThat(result.resolvedViews().get("filtered").indexPattern(), equalTo("filtered,-idx-bad"));
+    }
+
+    /**
+     * An exclusion that only follows some of the views applies only to those views, not to ones
+     * appearing after it in the pattern list. Reproduces the {@code FROM v_a,-staleA-*,v_b,-staleB-*}
+     * case from the API discussion.
+     */
+    public void testResolvedViewsIndexPatternRespectsExclusionPosition() {
+        addView("v_a", "FROM emp");
+        addView("v_b", "FROM emp");
+        ViewResolver.ViewResolutionResult result = replaceViewsResult(query("FROM v_a,-staleA-*,v_b,-staleB-*"));
+        // v_a at position 0, both -staleA-* (pos 1) and -staleB-* (pos 3) follow it.
+        assertThat(result.resolvedViews().get("v_a").indexPattern(), equalTo("v_a,-staleA-*,-staleB-*"));
+        // v_b at position 2, only -staleB-* (pos 3) follows it; -staleA-* came before and does not apply.
+        assertThat(result.resolvedViews().get("v_b").indexPattern(), equalTo("v_b,-staleB-*"));
+    }
+
+    /**
+     * A leading exclusion (before any positive pattern) does not apply to any subsequently-resolved
+     * view, since the exclusion's effect is on the empty accumulated set.
+     */
+    public void testResolvedViewsIndexPatternIgnoresLeadingExclusion() {
+        addView("v_a", "FROM emp");
+        ViewResolver.ViewResolutionResult result = replaceViewsResult(query("FROM -stale-*,v_a"));
+        assertThat(result.resolvedViews().get("v_a").indexPattern(), equalTo("v_a"));
+    }
+
+    /**
+     * Sibling views that all share the same trailing exclusion each get it in their indexPattern.
+     */
+    public void testResolvedViewsIndexPatternForSharedTrailingExclusion() {
+        addIndex("idx-1");
+        addView("va", "FROM idx-1");
+        addView("vb", "FROM idx-1");
+        ViewResolver.ViewResolutionResult result = replaceViewsResult(query("FROM va,vb,-stale-*"));
+        assertThat(result.resolvedViews().get("va").indexPattern(), equalTo("va,-stale-*"));
+        assertThat(result.resolvedViews().get("vb").indexPattern(), equalTo("vb,-stale-*"));
+    }
+
+    /**
+     * Views matched via a wildcard pattern are recorded under their concrete names, with the
+     * trailing exclusions of that wildcard's position attached.
+     */
+    public void testResolvedViewsIndexPatternForWildcardMatchedViews() {
+        addView("v_a", "FROM emp");
+        addView("v_b", "FROM emp");
+        ViewResolver.ViewResolutionResult result = replaceViewsResult(query("FROM v_*,-stale-*"));
+        assertThat(result.resolvedViews().keySet(), containsInAnyOrder("v_a", "v_b"));
+        assertThat(result.resolvedViews().get("v_a").indexPattern(), equalTo("v_a,-stale-*"));
+        assertThat(result.resolvedViews().get("v_b").indexPattern(), equalTo("v_b,-stale-*"));
+    }
+
     public void testExclusionMultipleViews() {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");
@@ -1969,9 +2062,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan, ViewResolver resolver) {
+        return replaceViewsResult(plan, resolver).plan();
+    }
+
+    private ViewResolver.ViewResolutionResult replaceViewsResult(LogicalPlan plan) {
+        return replaceViewsResult(plan, viewResolver);
+    }
+
+    private ViewResolver.ViewResolutionResult replaceViewsResult(LogicalPlan plan, ViewResolver resolver) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
         resolver.replaceViews(plan, this::parse, future);
-        return future.actionGet().plan();
+        return future.actionGet();
     }
 
     private LogicalPlan replaceViewsWithCPS(LogicalPlan plan) {

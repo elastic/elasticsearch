@@ -105,9 +105,29 @@ public class ViewResolver {
     }
 
     /**
-     * Result of view resolution containing both the rewritten plan and the view queries.
+     * Result of view resolution containing the rewritten plan and metadata about the views that were
+     * concretely resolved while building it.
+     * <p>
+     * {@link #resolvedViews} maps each resolved view name to a {@link ResolvedView} carrying the view's
+     * query body and any exclusion patterns from its parent referencing UR. The latter is what CPS
+     * needs to issue per-view field-caps lenient calls that mirror the local exclusion scope (see
+     * <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a>).
+     * <p>
+     * {@link #viewQueries()} is provided for callers that only need the {@code name -> query} mapping
+     * (for example, source-text deserialization via {@code Configuration.viewQueries}).
      */
-    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries) {}
+    public record ViewResolutionResult(LogicalPlan plan, Map<String, ResolvedView> resolvedViews) {
+        /**
+         * Convenience projection of {@link #resolvedViews} to {@code name -> query}.
+         */
+        public Map<String, String> viewQueries() {
+            Map<String, String> queries = new HashMap<>(resolvedViews.size());
+            for (ResolvedView rv : resolvedViews.values()) {
+                queries.put(rv.name(), rv.query());
+            }
+            return queries;
+        }
+    }
 
     /**
      * Replaces views in the logical plan with their subqueries recursively.
@@ -134,16 +154,16 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         ActionListener<ViewResolutionResult> listener
     ) {
-        Map<String, String> viewQueries = new HashMap<>();
+        Map<String, ResolvedView> resolvedViews = new LinkedHashMap<>();
         if (viewsFeatureEnabled() == false || getMetadata().views().isEmpty()) {
-            listener.onResponse(new ViewResolutionResult(plan, viewQueries));
+            listener.onResponse(new ViewResolutionResult(plan, resolvedViews));
             return;
         }
-        replaceViews(plan, parser, new LinkedHashSet<>(), viewQueries, 0, listener.delegateFailureAndWrap((l, rewritten) -> {
+        replaceViews(plan, parser, new LinkedHashSet<>(), resolvedViews, 0, listener.delegateFailureAndWrap((l, rewritten) -> {
             LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
             postProcessed = compactNestedViewUnionAlls(postProcessed);
             postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
-            listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries));
+            listener.onResponse(new ViewResolutionResult(postProcessed, resolvedViews));
         }));
     }
 
@@ -151,7 +171,7 @@ public class ViewResolver {
         LogicalPlan plan,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
-        Map<String, String> viewQueries,
+        Map<String, ResolvedView> resolvedViews,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -179,7 +199,7 @@ public class ViewResolver {
                     return;
                 }
                 case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener.delegateFailureAndWrap((l, result) -> {
+                    replaceViewsFork(fork, parser, seenInner, resolvedViews, depth, planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
@@ -192,7 +212,7 @@ public class ViewResolver {
                         parser,
                         seenInner,
                         seenWildcards,
-                        viewQueries,
+                        resolvedViews,
                         depth,
                         planListener.delegateFailureAndWrap((l, result) -> {
                             plan.forEachDown(resolvedPlans::add);
@@ -215,7 +235,7 @@ public class ViewResolver {
         Fork fork,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
-        Map<String, String> viewQueries,
+        Map<String, ResolvedView> resolvedViews,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -229,7 +249,7 @@ public class ViewResolver {
                     subplan,
                     parser,
                     seenViews,
-                    viewQueries,
+                    resolvedViews,
                     depth + 1,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
@@ -262,7 +282,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
-        Map<String, String> viewQueries,
+        Map<String, ResolvedView> resolvedViews,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -284,6 +304,14 @@ public class ViewResolver {
             }
         }
 
+        // For each position in the parent UR's pattern list, the exclusion patterns that appear
+        // strictly after it. Index resolution is left-to-right: an exclusion only narrows what's
+        // already been accumulated, so a view referenced at position i is only affected by
+        // exclusions at positions > i. Per esql-planning#543, CPS uses the per-view indexPattern
+        // (view name + applicable later exclusions) as the target for its lenient field-caps call.
+        String[] urPatterns = unresolvedRelation.indexPattern().indexPattern().split(",");
+        List<List<String>> exclusionsAfter = computeExclusionsAfterByPosition(urPatterns);
+
         var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT);
         req.indices(patterns);
 
@@ -293,7 +321,12 @@ public class ViewResolver {
                 return;
             }
 
-            final HashMap<String, ViewPlan> resolvedViews = new HashMap<>();
+            // Map each resolved view name to the earliest position in urPatterns at which it was
+            // matched (broadest applicable-exclusion set). Earliest-position wins so we don't drop
+            // exclusions that the user wrote after a wildcard match of the same view.
+            Map<String, Integer> viewToEarliestPosition = computeViewToEarliestPosition(urPatterns, response);
+
+            final HashMap<String, ViewPlan> resolvedViewPlans = new HashMap<>();
             final LinkedHashSet<String> ancestorViews = new LinkedHashSet<>(seenViews);
             SubscribableListener<Void> chain = SubscribableListener.newForked(l2 -> l2.onResponse(null));
             for (var view : response.views()) {
@@ -301,22 +334,31 @@ public class ViewResolver {
                     // Make sure we don't block sibling branches from containing the same views
                     LinkedHashSet<String> branchSeenViews = new LinkedHashSet<>(ancestorViews);
                     validateViewReferenceAndMarkSeen(view.name(), branchSeenViews);
+                    // Record this view with its position-aware indexPattern before recursing into its
+                    // body — ensures even a circular-reference failure deeper in the tree still leaves
+                    // the already-discovered views visible to consumers.
+                    Integer pos = viewToEarliestPosition.get(view.name());
+                    List<String> applicableExclusions = (pos != null) ? exclusionsAfter.get(pos) : List.of();
+                    String indexPattern = applicableExclusions.isEmpty()
+                        ? view.name()
+                        : view.name() + "," + String.join(",", applicableExclusions);
+                    resolvedViews.putIfAbsent(view.name(), new ResolvedView(view.name(), view.query(), indexPattern));
                     replaceViews(
-                        resolve(view, parser, viewQueries),
+                        resolve(view, parser),
                         parser,
                         branchSeenViews,
-                        viewQueries,
+                        resolvedViews,
                         depth + 1,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
-                            resolvedViews.put(view.name(), viewPlan);
+                            resolvedViewPlans.put(view.name(), viewPlan);
                             l3.onResponse(null);
                         })
                     );
                 });
             }
             chain.andThenApply(ignored -> {
-                List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViews, patterns);
+                List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViewPlans, patterns);
                 if (subqueries.size() == 1) {
                     return subqueries.getFirst().plan();
                 }
@@ -442,6 +484,56 @@ public class ViewResolver {
 
     private static boolean patternIsExclusion(String pattern) {
         return pattern.startsWith("-");
+    }
+
+    /**
+     * For each position {@code i} in {@code urPatterns}, computes the list of exclusion patterns at
+     * positions {@code j > i}, preserving original order. Used to attach position-aware exclusions
+     * to each resolved view (see {@link ResolvedView#indexPattern()}).
+     */
+    private static List<List<String>> computeExclusionsAfterByPosition(String[] urPatterns) {
+        List<List<String>> exclusionsAfter = new ArrayList<>(urPatterns.length);
+        List<String> later = new ArrayList<>();
+        for (int i = urPatterns.length - 1; i >= 0; i--) {
+            // Snapshot what's accumulated so far before potentially adding the current pattern.
+            exclusionsAfter.add(0, List.copyOf(later));
+            if (patternIsExclusion(urPatterns[i])) {
+                later.add(0, urPatterns[i]);
+            }
+        }
+        return exclusionsAfter;
+    }
+
+    /**
+     * Maps each resolved view name to the earliest position in {@code urPatterns} at which it was
+     * matched. When a view appears at multiple positions (e.g. matched both by a wildcard pattern
+     * earlier in the list and by an explicit name later), earliest wins, giving the broadest set of
+     * later exclusions — the most conservative reading for CPS lenient calls.
+     */
+    private static Map<String, Integer> computeViewToEarliestPosition(String[] urPatterns, EsqlResolveViewAction.Response response) {
+        Set<String> resolvedViewNames = new HashSet<>();
+        for (var view : response.views()) {
+            resolvedViewNames.add(view.name());
+        }
+        Map<String, Integer> viewToEarliestPosition = new HashMap<>();
+        for (var expr : response.getResolvedIndexExpressions().expressions()) {
+            int position = -1;
+            for (int i = 0; i < urPatterns.length; i++) {
+                if (urPatterns[i].equals(expr.original())) {
+                    position = i;
+                    break;
+                }
+            }
+            if (position < 0) {
+                continue;
+            }
+            for (String index : expr.localExpressions().indices()) {
+                if (resolvedViewNames.contains(index)) {
+                    viewToEarliestPosition.merge(index, position, Math::min);
+                }
+            }
+        }
+        return viewToEarliestPosition;
     }
 
     /**
@@ -819,11 +911,8 @@ public class ViewResolver {
         }
     }
 
-    private LogicalPlan resolve(View view, BiFunction<String, String, LogicalPlan> parser, Map<String, String> viewQueries) {
+    private LogicalPlan resolve(View view, BiFunction<String, String, LogicalPlan> parser) {
         log.debug("Resolving view '{}'", view.name());
-        // Store the view query so it can be used during Source deserialization
-        viewQueries.put(view.name(), view.query());
-
         // Parse the view query with the view name, which causes all Source objects
         // to be tagged with the view name during parsing
         LogicalPlan subquery = parser.apply(view.query(), view.name());

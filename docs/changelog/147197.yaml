@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 147197
+summary: Upgrade bouncycastle to 1.84
+type: upgrade

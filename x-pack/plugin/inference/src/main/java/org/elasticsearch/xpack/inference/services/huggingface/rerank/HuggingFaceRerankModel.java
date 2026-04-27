@@ -39,7 +39,7 @@ public class HuggingFaceRerankModel extends HuggingFaceModel {
             service,
             HuggingFaceRerankServiceSettings.fromMap(serviceSettings, context),
             HuggingFaceRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

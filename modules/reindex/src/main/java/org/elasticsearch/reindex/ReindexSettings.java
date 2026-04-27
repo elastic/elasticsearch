@@ -28,7 +28,7 @@ public final class ReindexSettings {
      */
     public static final Setting<TimeValue> REINDEX_PIT_KEEP_ALIVE_SETTING = Setting.timeSetting(
         "cluster.reindex.pit.keep_alive",
-        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(15),
         TimeValue.timeValueMillis(1),
         Property.Dynamic,
         Property.NodeScope
@@ -50,9 +50,7 @@ public final class ReindexSettings {
      * {@link ClusterSettings#initializeAndWatch} keeps the value of the settings updated
      */
     public ReindexSettings(ClusterSettings clusterSettings) {
-        @SuppressWarnings("unchecked")
-        Setting<TimeValue> pitKeepAliveSetting = (Setting<TimeValue>) clusterSettings.get(REINDEX_PIT_KEEP_ALIVE_SETTING.getKey());
-        clusterSettings.initializeAndWatch(pitKeepAliveSetting, this::setPitKeepAlive);
+        clusterSettings.initializeAndWatch(REINDEX_PIT_KEEP_ALIVE_SETTING, this::setPitKeepAlive);
     }
 
     /**

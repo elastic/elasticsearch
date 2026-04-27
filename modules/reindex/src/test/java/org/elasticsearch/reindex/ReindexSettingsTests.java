@@ -32,7 +32,7 @@ public class ReindexSettingsTests extends ESTestCase {
     public void testPitKeepAliveMatchesDefaultWhenNodeSettingsEmpty() {
         ClusterSettings clusterSettings = clusterSettings(Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING), Settings.EMPTY);
         ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
-        assertThat(reindexSettings.pitKeepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
+        assertThat(reindexSettings.pitKeepAlive(), equalTo(TimeValue.timeValueMinutes(15)));
     }
 
     /**
@@ -41,7 +41,7 @@ public class ReindexSettingsTests extends ESTestCase {
      */
     public void testPitKeepAliveUsesDefaultWhenSettingNotRegistered() {
         ReindexSettings reindexSettings = new ReindexSettings();
-        assertThat(reindexSettings.pitKeepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
+        assertThat(reindexSettings.pitKeepAlive(), equalTo(TimeValue.timeValueMinutes(15)));
     }
 
     /**
@@ -65,7 +65,7 @@ public class ReindexSettingsTests extends ESTestCase {
     public void testPitKeepAliveUpdatesWhenClusterSettingApplied() {
         ClusterSettings clusterSettings = clusterSettings(Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING), Settings.EMPTY);
         ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
-        assertThat(reindexSettings.pitKeepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
+        assertThat(reindexSettings.pitKeepAlive(), equalTo(TimeValue.timeValueMinutes(15)));
 
         TimeValue updated = TimeValue.timeValueMinutes(randomIntBetween(11, 45));
         clusterSettings.applySettings(
@@ -120,7 +120,7 @@ public class ReindexSettingsTests extends ESTestCase {
      * {@link ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING} parses the documented default and accepts the minimum ({@code 1ms})
      */
     public void testReindexPitKeepAliveSettingDefinition() {
-        assertThat(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.EMPTY), equalTo(TimeValue.timeValueMinutes(5)));
+        assertThat(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.EMPTY), equalTo(TimeValue.timeValueMinutes(15)));
         String key = ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey();
         assertThat(
             ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.builder().put(key, "1ms").build()),

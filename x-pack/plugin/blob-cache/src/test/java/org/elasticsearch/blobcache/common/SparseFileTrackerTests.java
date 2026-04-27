@@ -507,10 +507,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         }
 
         // Total claimed bytes must equal the size of the union of all requested ranges
-        assertThat(
-            allClaimed.stream().mapToLong(g -> g.end() - g.start()).sum(),
-            equalTo(unionSize(fileLength, ranges))
-        );
+        assertThat(allClaimed.stream().mapToLong(g -> g.end() - g.start()).sum(), equalTo(unionSize(fileLength, ranges)));
 
         futures.forEach(f -> assertThat(f.isDone(), is(false)));
 

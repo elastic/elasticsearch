@@ -2061,7 +2061,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             assertTrue(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
 
-
             // start populating again the first region; populate completes directly
             entry = cacheService.get(cacheKey, blobLength, 0);
             final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
@@ -2123,13 +2122,17 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var blobLength = size(12L);
             final var entry = cacheService.get(cacheKey, blobLength, 0);
             final AtomicLong bytesWritten = new AtomicLong(0L);
-            final RangeMissingHandler writer = (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
-                completionListener,
-                () -> {
+            final RangeMissingHandler writer = (
+                channel,
+                channelPos,
+                streamFactory,
+                relativePos,
+                length,
+                progressUpdater,
+                completionListener) -> completeWith(completionListener, () -> {
                     bytesWritten.addAndGet(length);
                     progressUpdater.accept(length);
-                }
-            );
+                });
 
             // Two populate calls for the same range before the executor runs
             final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();

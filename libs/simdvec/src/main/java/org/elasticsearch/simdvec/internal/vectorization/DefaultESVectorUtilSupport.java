@@ -332,11 +332,11 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
-        distances[0] = VectorUtil.squareDistance(query, v0);
-        distances[1] = VectorUtil.squareDistance(query, v1);
-        distances[2] = VectorUtil.squareDistance(query, v2);
-        distances[3] = VectorUtil.squareDistance(query, v3);
+    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
     }
 
     @Override
@@ -348,12 +348,13 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float[] v1,
         float[] v2,
         float[] v3,
+        int distancesOffset,
         float[] distances
     ) {
-        distances[0] = squareDistance(query, v0, queryOffset, length);
-        distances[1] = squareDistance(query, v1, queryOffset, length);
-        distances[2] = squareDistance(query, v2, queryOffset, length);
-        distances[3] = squareDistance(query, v3, queryOffset, length);
+        distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
+        distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
+        distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
+        distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
     }
 
     @Override
@@ -526,6 +527,16 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
         for (int d = 0; d < dest.length; d++) {
             dest[d] = scaleOther * other[d] + scaleDest * dest[d];
+        }
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, float[] other, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
+        for (int d = 0; d < dest.length; d++) {
+            dest[d] += scaleOther * other[d];
         }
     }
 

@@ -16,13 +16,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.ietf.jgss.GSSException;
 
-import java.io.IOException;
 import java.nio.file.Path;
-import java.security.PrivilegedActionException;
 import java.util.Base64;
 import java.util.concurrent.ExecutionException;
-
-import javax.security.auth.login.LoginException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -87,8 +83,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         );
     }
 
-    public void testWhenKeyTabWithInvalidContentFailsValidation() throws LoginException, GSSException, IOException,
-        PrivilegedActionException {
+    public void testWhenKeyTabWithInvalidContentFailsValidation() throws Exception {
         // Client login and init token preparation
         final String clientUserName = randomFrom(clientUserNames);
         try (
@@ -113,7 +108,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         }
     }
 
-    public void testValidKebrerosTicket() throws PrivilegedActionException, GSSException, LoginException {
+    public void testValidKebrerosTicket() throws Exception {
         // Client login and init token preparation
         final String clientUserName = randomFrom(clientUserNames);
         final SecureString password = new SecureString("spnego-test-password".toCharArray());

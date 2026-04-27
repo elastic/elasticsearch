@@ -1,0 +1,59 @@
+setup:
+  - requires:
+      cluster_features: "semantic_field.semantic_field_mapper"
+      reason: "semantic field needs to be available"
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-semantic-field-index
+        body:
+          mappings:
+            properties:
+              my_field:
+                type: semantic
+                inference_id: embedding-inference-id
+
+---
+"KNN search on semantic field":
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: "1"
+        body:
+          my_field: "the quick brown fox"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            knn:
+              field: my_field
+              k: 1
+              num_candidates: 10
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input: "the quick brown fox"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+

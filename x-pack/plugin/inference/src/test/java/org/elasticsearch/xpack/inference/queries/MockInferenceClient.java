@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -35,10 +36,6 @@ public class MockInferenceClient extends NoOpClient {
     private final Map<String, MinimalServiceSettings> inferenceEndpoints;
     private final MockInferenceGenerator inferenceGenerator;
     private final Map<String, MockInferenceRemoteClusterClient> remoteClusterClients;
-
-    public MockInferenceClient(ThreadPool threadPool, Map<String, MinimalServiceSettings> inferenceEndpoints) {
-        this(threadPool, inferenceEndpoints, Map.of());
-    }
 
     public MockInferenceClient(
         ThreadPool threadPool,
@@ -76,17 +73,58 @@ public class MockInferenceClient extends NoOpClient {
         } else if (action instanceof EmbeddingAction && request instanceof EmbeddingAction.Request embeddingRequest) {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;
+            String inferenceId = embeddingRequest.getInferenceEntityId();
+            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            if (settings != null && settings.taskType().isAnyOrSame(TaskType.EMBEDDING) == false) {
+                inferenceListener.onFailure(
+                    new IllegalArgumentException(
+                        "Inference endpoint ["
+                            + inferenceId
+                            + "] with task type ["
+                            + settings.taskType()
+                            + "] does not support EmbeddingAction; expected task type [embedding]"
+                    )
+                );
+                return;
+            }
             String input = embeddingRequest.getEmbeddingRequest().inputs().getFirst().textValue();
-            executeInferenceAction(embeddingRequest.getInferenceEntityId(), input, inferenceListener);
+            executeInferenceAction(inferenceId, input, inferenceListener);
         } else if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;
-            executeInferenceAction(inferenceRequest.getInferenceEntityId(), inferenceRequest.getInput().getFirst(), inferenceListener);
+            String inferenceId = inferenceRequest.getInferenceEntityId();
+            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            if (settings != null && settings.taskType() != TaskType.SPARSE_EMBEDDING && settings.taskType() != TaskType.TEXT_EMBEDDING) {
+                inferenceListener.onFailure(
+                    new IllegalArgumentException(
+                        "Inference endpoint ["
+                            + inferenceId
+                            + "] with task type ["
+                            + settings.taskType()
+                            + "] does not support InferenceAction; expected task type [sparse_embedding] or [text_embedding]"
+                    )
+                );
+                return;
+            }
+            executeInferenceAction(inferenceId, inferenceRequest.getInput().getFirst(), inferenceListener);
         } else if (action instanceof CoordinatedInferenceAction && request instanceof CoordinatedInferenceAction.Request inferenceRequest) {
             @SuppressWarnings("unchecked")
             ActionListener<InferModelAction.Response> inferenceListener = (ActionListener<InferModelAction.Response>) listener;
 
             String inferenceId = inferenceRequest.getModelId();
+            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            if (settings != null && settings.taskType() != TaskType.TEXT_EMBEDDING && settings.taskType() != TaskType.SPARSE_EMBEDDING) {
+                inferenceListener.onFailure(
+                    new IllegalArgumentException(
+                        "Inference endpoint ["
+                            + inferenceId
+                            + "] with task type ["
+                            + settings.taskType()
+                            + "] does not support CoordinatedInferenceAction; expected task type [text_embedding] or [sparse_embedding]"
+                    )
+                );
+                return;
+            }
             String input = inferenceRequest.getInputs().getFirst();
 
             try {

@@ -104,7 +104,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public SearchResponse(StreamInput in) throws IOException {
-        this.hits = SearchHits.readFrom(in, true);
+        this.hits = SearchHits.readFrom(in);
         if (in.readBoolean()) {
             // deserialize the aggregations trying to deduplicate the object created
             // TODO: use DelayableWriteable instead.

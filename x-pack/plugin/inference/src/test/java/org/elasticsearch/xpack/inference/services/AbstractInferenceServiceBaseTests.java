@@ -116,7 +116,7 @@ public abstract class AbstractInferenceServiceBaseTests extends InferenceService
 
         protected abstract ModelConfigurations createModelConfigurations(TaskType taskType);
 
-        protected abstract ModelSecrets createModelSecrets();
+        protected abstract ModelSecrets createModelSecrets(ConfigurationParseContext context);
 
         protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
             return createServiceSettingsMap(taskType);

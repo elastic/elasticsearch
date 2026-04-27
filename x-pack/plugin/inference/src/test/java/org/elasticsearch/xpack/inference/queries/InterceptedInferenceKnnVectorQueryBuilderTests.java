@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -34,7 +35,9 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfigTests;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
+import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -215,6 +218,47 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         QueryBuilder dataRewrittenTestIndex2 = rewriteAndFetch(coordinatorRewritten, indexMetadataContextTestIndex2);
         QueryBuilder expectedDataRewrittenTestIndex2 = buildExpectedKnnQuery(knnQuery, queryVector, indexMetadataContextTestIndex2);
         assertThat(dataRewrittenTestIndex2, equalTo(expectedDataRewrittenTestIndex2));
+    }
+
+    public void testInterceptAndRewriteSemanticField() throws Exception {
+        assumeTrue("Test requires semantic field support", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
+
+        final String field = "test_field";
+        final TestIndex testIndex = new TestIndex("test-index-1", Map.of(field, EMBEDDING_INFERENCE_ID), Map.of());
+        final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            field,
+            new EmbeddingQueryVectorBuilder(EMBEDDING_INFERENCE_ID, new InferenceStringGroup("foo"), null),
+            50,
+            500,
+            50f,
+            null
+        ).boost(3.0f).queryName("bar").addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, "test-index-*"));
+
+        // Perform coordinator node rewrite
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+            Map.of(testIndex.name(), testIndex.semanticTextFields()),
+            Map.of(),
+            TransportVersion.current(),
+            null
+        );
+        queryRewriteContext = instrumentQueryRewriteContext(queryRewriteContext, assertSingleUniqueAsyncAction(queryRewriteContext));
+
+        QueryBuilder coordinatorRewritten = rewriteAndFetch(knnQuery, queryRewriteContext);
+
+        // Use a serialization cycle to strip InterceptedQueryBuilderWrapper
+        coordinatorRewritten = copyNamedWriteable(coordinatorRewritten, writableRegistry(), QueryBuilder.class);
+        VectorData queryVector = assertQueryIsInterceptedKnnWithValidResults(coordinatorRewritten);
+
+        // Perform data node rewrite using a semantic field (not semantic_text)
+        final QueryRewriteContext indexMetadataContextSemanticField = createIndexMetadataContext(
+            testIndex.name(),
+            testIndex.semanticTextFields(),
+            testIndex.nonInferenceFields(),
+            SemanticFieldMapper.CONTENT_TYPE
+        );
+        QueryBuilder dataRewrittenSemanticField = rewriteAndFetch(coordinatorRewritten, indexMetadataContextSemanticField);
+        NestedQueryBuilder expectedDataRewritten = buildExpectedNestedQuery(knnQuery, queryVector, indexMetadataContextSemanticField);
+        assertThat(dataRewrittenSemanticField, equalTo(expectedDataRewritten));
     }
 
     public void testRewriteSearchRequestOnNonInferenceField() throws Exception {

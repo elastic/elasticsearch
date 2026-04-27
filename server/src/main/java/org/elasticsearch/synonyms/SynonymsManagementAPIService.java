@@ -461,14 +461,10 @@ public class SynonymsManagementAPIService {
         SearchHit[] hits,
         long totalHits
     ) {
-        if (hits.length == 0) {
-            if (totalHits == 0) {
-                checkSynonymSetExists(synonymSetId, listener.delegateFailure((existsListener, ignored) -> {
-                    existsListener.onResponse(new PagedResult<>(0, new SynonymRule[0]));
-                }));
-            } else {
-                listener.onResponse(new PagedResult<>(totalHits, new SynonymRule[0]));
-            }
+        if (totalHits == 0) {
+            checkSynonymSetExists(synonymSetId, listener.delegateFailure((existsListener, ignored) -> {
+                existsListener.onResponse(new PagedResult<>(0, new SynonymRule[0]));
+            }));
             return;
         }
         SynonymRule[] rules = Arrays.stream(hits).map(SynonymsManagementAPIService::hitToSynonymRule).toArray(SynonymRule[]::new);

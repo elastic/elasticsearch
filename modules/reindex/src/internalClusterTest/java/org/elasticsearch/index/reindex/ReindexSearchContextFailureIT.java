@@ -74,7 +74,7 @@ public class ReindexSearchContextFailureIT extends ESIntegTestCase {
     public void testReindexFailsWith500WhenPitSearchContextMissing() {
         String source = "rsc-fail-source";
         String dest = "rsc-fail-dest";
-        int numDocs = randomIntBetween(10,50);
+        int numDocs = randomIntBetween(10, 50);
         assumeTrue("PIT-based reindex path", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         client().admin()
             .indices()

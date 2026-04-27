@@ -2134,7 +2134,7 @@ public class ReindexerTests extends ESTestCase {
 
                 OpenPointInTimeRequest pitRequest = client.getCapturedPitRequest();
                 assertNotNull(pitRequest);
-                assertThat(pitRequest.keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
+                assertThat(pitRequest.keepAlive(), equalTo(TimeValue.timeValueMinutes(15)));
             } finally {
                 terminate(threadPool);
             }

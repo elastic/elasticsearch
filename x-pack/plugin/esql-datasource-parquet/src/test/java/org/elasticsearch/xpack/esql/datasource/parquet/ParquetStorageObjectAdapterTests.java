@@ -30,7 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.junit.After;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -49,21 +48,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ParquetStorageObjectAdapterTests extends ESTestCase {
-
-    private boolean savedWindowCacheFlag;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        savedWindowCacheFlag = ParquetStorageObjectAdapter.windowCacheEnabled;
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
-    }
-
-    @After
-    public void resetWindowCacheFlag() {
-        // Always restore the flag so a test that fails mid-way cannot bleed state into the next one.
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(savedWindowCacheFlag);
-    }
 
     public void testNullStorageObjectThrowsException() {
         QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> new ParquetStorageObjectAdapter(null));
@@ -519,7 +503,6 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorageObject);
 
         try (SeekableInputStream stream = adapter.newStream()) {
@@ -535,8 +518,10 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         assertTrue("Expected few range reads (window reuse); got " + rangeReadCount[0], rangeReadCount[0] <= 2);
     }
 
-    public void testFooterCacheServesTailReadsWithoutExtraRangeRequest() throws IOException {
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+    /**
+     * Each new stream fetches the tail independently; there is no cross-stream footer cache.
+     */
+    public void testSeparateStreamsEachFetchTailViaRangeRead() throws IOException {
         byte[] data = new byte[1024 * 1024];
         randomBytes(data);
         final int[] rangeReadCount = { 0 };
@@ -577,7 +562,6 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorageObject);
         long tailStart = data.length - 1024;
 
@@ -593,12 +577,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(tailStart);
             stream.readFully(second);
         }
-        assertEquals(1, rangeReadCount[0]);
+        assertEquals(2, rangeReadCount[0]);
         assertArrayEquals(first, second);
     }
 
     public void testReadFullyCrossesWindowBoundaries() throws IOException {
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         int size = ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 123;
         byte[] data = new byte[size];
         randomBytes(data);
@@ -639,13 +622,13 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(rangeOnlyCounting);
         byte[] read = new byte[size];
         try (SeekableInputStream stream = adapter.newStream()) {
             stream.readFully(read);
         }
         assertArrayEquals(data, read);
+        // Exactly 2: one full 4 MiB window, one for the remaining 123-byte tail.
         assertEquals(2, rangeReadCount[0]);
     }
 
@@ -751,7 +734,6 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     }
 
     public void testAdaptiveWindowReducesRangeRequests() throws IOException {
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         int size = 6 * 1024 * 1024; // 6 MiB
         byte[] data = new byte[size];
         randomBytes(data);
@@ -791,8 +773,6 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
                 return StoragePath.of("memory://test-adaptive.parquet");
             }
         };
-
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
 
         // With default 4 MiB window, reading 6 MiB requires 2 range requests
         ParquetStorageObjectAdapter defaultAdapter = new ParquetStorageObjectAdapter(countingStorageObject);
@@ -858,7 +838,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     public void testPrefetchedDataServedFromMemory() throws IOException {
         byte[] data = new byte[2048];
         randomBytes(data);
-        AtomicInteger readBytesCalls = new AtomicInteger();
+        AtomicInteger rangeStreamOpens = new AtomicInteger();
         StorageObject tracked = new StorageObject() {
             @Override
             public InputStream newStream() {
@@ -867,13 +847,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
             @Override
             public InputStream newStream(long position, long length) {
+                rangeStreamOpens.incrementAndGet();
                 return new ByteArrayInputStream(data, (int) position, (int) length);
-            }
-
-            @Override
-            public int readBytes(long position, ByteBuffer target) throws IOException {
-                readBytesCalls.incrementAndGet();
-                return StorageObject.super.readBytes(position, target);
             }
 
             @Override
@@ -897,7 +872,6 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         };
 
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(tracked);
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
         int chunkLen = data.length - 100;
@@ -905,7 +879,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, chunkLen, prefetchedBuf.slice()));
         adapter.installPrefetchedData(chunks);
 
-        readBytesCalls.set(0);
+        rangeStreamOpens.set(0);
         try (SeekableInputStream stream = adapter.newStream()) {
             stream.seek(100);
             byte[] result = new byte[100];
@@ -914,7 +888,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
                 assertEquals(data[100 + i], result[i]);
             }
         }
-        assertEquals(0, readBytesCalls.get());
+        assertEquals(0, rangeStreamOpens.get());
     }
 
     public void testPrefetchedDataFallbackOnMiss() throws IOException {
@@ -941,7 +915,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     public void testClearPrefetchedData() throws IOException {
         byte[] data = new byte[2048];
         randomBytes(data);
-        AtomicInteger readBytesCalls = new AtomicInteger();
+        AtomicInteger rangeStreamOpens = new AtomicInteger();
         StorageObject tracked = new StorageObject() {
             @Override
             public InputStream newStream() {
@@ -950,13 +924,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
             @Override
             public InputStream newStream(long position, long length) {
+                rangeStreamOpens.incrementAndGet();
                 return new ByteArrayInputStream(data, (int) position, (int) length);
-            }
-
-            @Override
-            public int readBytes(long position, ByteBuffer target) throws IOException {
-                readBytesCalls.incrementAndGet();
-                return StorageObject.super.readBytes(position, target);
             }
 
             @Override
@@ -987,13 +956,13 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         adapter.installPrefetchedData(chunks);
         adapter.clearPrefetchedData();
 
-        readBytesCalls.set(0);
+        rangeStreamOpens.set(0);
         try (SeekableInputStream stream = adapter.newStream()) {
             stream.seek(100);
             byte[] result = new byte[100];
             stream.readFully(result);
         }
-        assertTrue(readBytesCalls.get() > 0);
+        assertTrue(rangeStreamOpens.get() > 0);
     }
 
     public void testNoPrefetchedDataDoesNotAffectBaseline() throws IOException {
@@ -1012,16 +981,15 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     }
 
     /**
-     * Verifies that seek+read sequences return correct data when the window cache is disabled
-     * (direct reads). This pattern mimics Parquet's column chunk access: seek to a dictionary
-     * page, read it, seek to a data page, read it, possibly seek back.
+     * Verifies that seek+read sequences return correct data with the sliding window. This pattern
+     * mimics Parquet's column chunk access: seek to a dictionary page, read it, seek to a data
+     * page, read it, possibly seek back.
      */
     public void testDirectStreamSeekAndReadCorrectness() throws IOException {
         byte[] data = new byte[64 * 1024];
         randomBytes(data);
         StorageObject storageObject = createRangeReadStorageObject(data);
 
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(false);
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
 
         try (SeekableInputStream stream = adapter.newStream()) {
@@ -1046,42 +1014,26 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         }
     }
 
-    /**
-     * Verifies that reading the full data with both window-cached and direct streams
-     * produces identical results. This is a parity test: any divergence indicates a
-     * correctness bug in one of the two paths.
-     */
-    public void testWindowedVsDirectReadParity() throws IOException {
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+    public void testReadFullyMatchesSourceData() throws IOException {
         int size = ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 12345;
         byte[] data = new byte[size];
         randomBytes(data);
         StorageObject storageObject = createRangeReadStorageObject(data);
 
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
-        ParquetStorageObjectAdapter windowedAdapter = new ParquetStorageObjectAdapter(storageObject);
-        byte[] windowedResult = new byte[size];
-        try (SeekableInputStream stream = windowedAdapter.newStream()) {
-            stream.readFully(windowedResult);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+        byte[] result = new byte[size];
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.readFully(result);
         }
 
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(false);
-        ParquetStorageObjectAdapter directAdapter = new ParquetStorageObjectAdapter(storageObject);
-        byte[] directResult = new byte[size];
-        try (SeekableInputStream stream = directAdapter.newStream()) {
-            stream.readFully(directResult);
-        }
-
-        assertArrayEquals(windowedResult, directResult);
+        assertArrayEquals(data, result);
     }
 
     /**
-     * Verifies that interleaved seek+read of non-overlapping regions returns correct
-     * bytes with both window modes. This simulates Parquet reading dictionary and data
-     * pages from different column chunks within a row group.
+     * Verifies that interleaved seek+read of non-overlapping regions returns correct bytes.
+     * This simulates Parquet reading dictionary and data pages from different column chunks within a row group.
      */
     public void testInterleavedSeekReadParity() throws IOException {
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         int size = 8 * 1024 * 1024;
         byte[] data = new byte[size];
         randomBytes(data);
@@ -1096,34 +1048,29 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             { 2_000_000, 32768 },
             { 0, 4096 } };
 
-        for (boolean windowEnabled : new boolean[] { true, false }) {
-            ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(windowEnabled);
-            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
 
-            try (SeekableInputStream stream = adapter.newStream()) {
-                for (int[] region : readRegions) {
-                    int offset = region[0];
-                    int len = region[1];
-                    byte[] buf = new byte[len];
-                    stream.seek(offset);
-                    stream.readFully(buf);
-                    for (int i = 0; i < len; i++) {
-                        assertEquals("Mismatch at offset " + (offset + i) + " (window=" + windowEnabled + ")", data[offset + i], buf[i]);
-                    }
+        try (SeekableInputStream stream = adapter.newStream()) {
+            for (int[] region : readRegions) {
+                int offset = region[0];
+                int len = region[1];
+                byte[] buf = new byte[len];
+                stream.seek(offset);
+                stream.readFully(buf);
+                for (int i = 0; i < len; i++) {
+                    assertEquals("Mismatch at offset " + (offset + i), data[offset + i], buf[i]);
                 }
             }
         }
     }
 
     /**
-     * Verifies the direct stream handles single-byte reads, ByteBuffer reads,
-     * and skip operations correctly.
+     * Verifies single-byte reads, ByteBuffer reads, and skip operations on the windowed stream.
      */
     public void testDirectStreamOperations() throws IOException {
         byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
         StorageObject storageObject = createRangeReadStorageObject(data);
 
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(false);
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
 
         try (SeekableInputStream stream = adapter.newStream()) {
@@ -1158,17 +1105,10 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     }
 
     /**
-     * End-to-end regression test for the non-deterministic dictionary-encoded SUM/COUNT bug that
-     * motivated disabling the sliding-window cache by default. Writes a Parquet file with a
+     * End-to-end regression test for dictionary-encoded SUM/COUNT correctness. Writes a Parquet file with a
      * dictionary-encoded {@code int64} column spanning multiple data pages, then fully decodes
-     * it via {@link ParquetFileReader} (which drives {@link ParquetStorageObjectAdapter}) in
-     * both windowed and direct modes across multiple iterations. Any per-iteration drift in the
-     * sum or row count would be a correctness bug.
-     *
-     * <p>With the window cache disabled by default, this test must pass deterministically. If a
-     * future change re-enables the cache without fixing the underlying bug
-     * (<a href="https://github.com/elastic/esql-planning/issues/585">esql-planning#585</a>),
-     * this is the first test expected to go red.
+     * it via {@link ParquetFileReader} (which drives {@link ParquetStorageObjectAdapter}) across
+     * multiple iterations. Any per-iteration drift in the sum or row count would be a correctness bug.
      */
     public void testDictionaryEncodedSumCountRegression() throws IOException {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("dict_regression");
@@ -1191,39 +1131,31 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         // HadoopParquetConfiguration, which fails in tests without Woodstox on the classpath.
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         for (int iter = 0; iter < iterations; iter++) {
-            for (boolean windowEnabled : new boolean[] { false, true }) {
-                ParquetStorageObjectAdapter.clearFooterCacheForTests();
-                ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(windowEnabled);
-                ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
 
-                long sum = 0;
-                long count = 0;
-                try (ParquetFileReader reader = ParquetFileReader.open(adapter, options)) {
-                    MessageColumnIO columnIO = new ColumnIOFactory().getColumnIO(schema);
-                    PageReadStore pages;
-                    while ((pages = reader.readNextRowGroup()) != null) {
-                        RecordReader<Group> recordReader = columnIO.getRecordReader(pages, new GroupRecordConverter(schema));
-                        long rgRows = pages.getRowCount();
-                        for (long i = 0; i < rgRows; i++) {
-                            Group g = recordReader.read();
-                            sum += g.getLong(0, 0);
-                            count++;
-                        }
+            long sum = 0;
+            long count = 0;
+            try (ParquetFileReader reader = ParquetFileReader.open(adapter, options)) {
+                MessageColumnIO columnIO = new ColumnIOFactory().getColumnIO(schema);
+                PageReadStore pages;
+                while ((pages = reader.readNextRowGroup()) != null) {
+                    RecordReader<Group> recordReader = columnIO.getRecordReader(pages, new GroupRecordConverter(schema));
+                    long rgRows = pages.getRowCount();
+                    for (long i = 0; i < rgRows; i++) {
+                        Group g = recordReader.read();
+                        sum += g.getLong(0, 0);
+                        count++;
                     }
                 }
-
-                assertEquals("COUNT mismatch on iter=" + iter + " window=" + windowEnabled, rowCount, count);
-                assertEquals("SUM mismatch on iter=" + iter + " window=" + windowEnabled, expectedSum, sum);
             }
+
+            assertEquals("COUNT mismatch on iter=" + iter, rowCount, count);
+            assertEquals("SUM mismatch on iter=" + iter, expectedSum, sum);
         }
     }
 
     /**
-     * Concurrency stress test for the windowed-path code (<code>RangeFirstSeekableInputStream</code>).
-     * Exercises the scenario Parquet uses in practice: one adapter shared, many streams opened from it.
-     * If the suspected thread-safety bug is the root cause of
-     * <a href="https://github.com/elastic/esql-planning/issues/585">esql-planning#585</a>, this test
-     * will flake or fail with a stale-byte mismatch under {@code windowCacheEnabled = true}.
+     * Concurrency stress test for {@code WindowedSeekableInputStream}: one adapter shared, many streams opened from it.
      *
      * <p>Target runtime is capped at ~2s regardless of hardware to avoid flaking CI.
      */
@@ -1233,8 +1165,6 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         randomBytes(data);
         StorageObject storageObject = createRangeReadStorageObject(data);
 
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
 
         int threadCount = randomIntBetween(4, 8);
@@ -1289,11 +1219,10 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     }
 
     /**
-     * Validates that the simplified {@code (path, length)} cache key means different
-     * {@code lastModified} values still produce a cache hit for the same file.
+     * Two adapters wrapping different {@link StorageObject} instances (same path and bytes, different
+     * {@code lastModified}) each perform their own range reads; there is no cross-adapter cache.
      */
-    public void testFooterCacheKeyIgnoresLastModified() throws IOException {
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
+    public void testSeparateAdaptersDoNotShareCachedRanges() throws IOException {
         byte[] data = new byte[1024 * 1024];
         random().nextBytes(data);
         final int[] rangeReadCount = { 0 };
@@ -1321,15 +1250,14 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             s.readFully(w);
             assertArrayEquals(expected, w);
         }
-        assertEquals("Second adapter should use cache, no additional I/O", 1, rangeReadCount[0]);
+        assertEquals("Second adapter should issue its own tail range read", 2, rangeReadCount[0]);
     }
 
     /**
-     * Validates thundering-herd coalescing: 8 concurrent threads reading the same tail
-     * should produce exactly 1 I/O, not 8.
+     * Concurrent threads each open their own stream and read the tail; without a shared footer cache,
+     * each stream performs its own range read(s).
      */
-    public void testThunderingHerdCoalescesConcurrentFooterReads() throws Exception {
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
+    public void testConcurrentTailReadsEachIssueRangeRequest() throws Exception {
         byte[] data = new byte[1024 * 1024];
         random().nextBytes(data);
         final AtomicInteger rangeReadCount = new AtomicInteger();
@@ -1409,35 +1337,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         if (failure != null) {
             throw failure;
         }
-        assertTrue(
-            "Expected at most 2 range reads (1 tail + possibly 1 early non-tail), got " + rangeReadCount.get(),
-            rangeReadCount.get() <= 2
-        );
-    }
-
-    /**
-     * Validates LRU eviction behavior of the footer cache after the thundering-herd redesign.
-     */
-    public void testFooterCacheLruEvictionStillWorks() {
-        ParquetStorageObjectAdapter.FooterCache cache = new ParquetStorageObjectAdapter.FooterCache(10_000, 5_000);
-        byte[] bytes5000 = new byte[5000];
-        byte[] bytes500 = new byte[500];
-        random().nextBytes(bytes5000);
-        random().nextBytes(bytes500);
-
-        ParquetStorageObjectAdapter.FooterCacheKey key1 = new ParquetStorageObjectAdapter.FooterCacheKey("file1", 10000);
-        ParquetStorageObjectAdapter.FooterCacheKey key2 = new ParquetStorageObjectAdapter.FooterCacheKey("file2", 20000);
-        ParquetStorageObjectAdapter.FooterCacheKey key3 = new ParquetStorageObjectAdapter.FooterCacheKey("file3", 30000);
-
-        cache.putTailIfEligible(key1, 5000, bytes5000, 5000);
-        cache.putTailIfEligible(key2, 15000, bytes5000, 5000);
-
-        assertNotNull("key1 should be in cache", cache.getCompleted(key1));
-        assertNotNull("key2 should be in cache", cache.getCompleted(key2));
-
-        cache.putTailIfEligible(key3, 29500, bytes500, 500);
-        assertNotNull("key3 should be in cache", cache.getCompleted(key3));
-        assertNull("key1 should have been evicted by LRU", cache.getCompleted(key1));
+        assertEquals("Each of 8 concurrent tail reads should open its own range stream", 8, rangeReadCount.get());
     }
 
     /**
@@ -1445,7 +1345,6 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      * sequential reads, forward seeks, backward seeks, tail reads, and ByteBuffer reads.
      */
     public void testAdapterReadsIdenticalBytesToVanillaStream() throws IOException {
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
         int n = 2 * ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 500;
         byte[] data = new byte[n];
         random().nextBytes(data);
@@ -1488,7 +1387,6 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      * default-window adapter for identical seek/read sequences.
      */
     public void testForRangeAdapterReadsIdenticalData() throws IOException {
-        ParquetStorageObjectAdapter.setWindowCacheEnabledForTests(true);
         int n = 2 * ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 500;
         byte[] data = new byte[n];
         random().nextBytes(data);

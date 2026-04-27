@@ -73,13 +73,8 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     private static OpenAiEmbeddingsServiceSettings createRandom(String url) {
         var modelId = randomAlphaOfLength(8);
         var organizationId = randomAlphaOfLengthOrNull(15);
-        SimilarityMeasure similarityMeasure = null;
-        Integer dimensions = null;
-        var isTextEmbeddingModel = randomBoolean();
-        if (isTextEmbeddingModel) {
-            similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
-            dimensions = 1536;
-        }
+        var similarityMeasure = randomBoolean() ? randomSimilarityMeasure() : null;
+        var dimensions = randomBoolean() ? randomIntBetween(1, 1000) : null;
         var maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
         return new OpenAiEmbeddingsServiceSettings(
             modelId,
@@ -93,7 +88,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_AllFields_CreatesSettingsCorrectly() {
+    public void testFromMap_Request_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = OpenAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 TEST_MODEL_ID,
@@ -125,7 +120,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_OnlyMandatoryFields_CreatesSettingsCorrectly() {
+    public void testFromMap_Request_OnlyMandatoryFields_CreatesSettingsCorrectly() {
         var serviceSettings = OpenAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null, null, null, null),
             ConfigurationParseContext.REQUEST
@@ -169,7 +164,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_Persistent_CreatesSettingsCorrectly() {
+    public void testFromMap_Persistent_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = OpenAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 TEST_MODEL_ID,
@@ -201,7 +196,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_PersistentContext_DoesNotThrow_WhenDimensionsIsNull() {
+    public void testFromMap_Persistent_DoesNotThrow_WhenDimensionsIsNull() {
         var settings = OpenAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null, null, null, true),
             ConfigurationParseContext.PERSISTENT
@@ -210,11 +205,13 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertThat(settings, is(new OpenAiEmbeddingsServiceSettings(TEST_MODEL_ID, (URI) null, null, null, null, null, true, null)));
     }
 
-    public void testFromMap_PersistentContext_DoesNotThrow_WhenDimensionsSetByUserIsNull() {
-        OpenAiEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, 1, null, null, null),
+    public void testFromMap_Persistent_OnlyMandatoryFields_CreatesSettingsCorrectly() {
+        var settings = OpenAiEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null, null, null, null),
             ConfigurationParseContext.PERSISTENT
         );
+
+        assertThat(settings, is(new OpenAiEmbeddingsServiceSettings(TEST_MODEL_ID, (URI) null, null, null, null, null, false, null)));
     }
 
     public void testFromMap_NoModelId_ThrowsValidationError() {
@@ -233,7 +230,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_ThrowsValidationError_WhenDimensionsAreZero() {
+    public void testFromMap_DimensionsAreZero_ThrowsValidationError() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenAiEmbeddingsServiceSettings.fromMap(
@@ -249,7 +246,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_ThrowsValidationError_WhenMaxInputTokensAreZero() {
+    public void testFromMap_MaxInputTokensAreZero_ThrowsValidationError() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenAiEmbeddingsServiceSettings.fromMap(
@@ -265,7 +262,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_ThrowsValidationError_WhenSimilarityIsInvalid() {
+    public void testFromMap_SimilarityIsInvalid_ThrowsValidationError() {
         var invalidSimilarity = "by_size";
         var thrownException = expectThrows(
             ValidationException.class,
@@ -383,8 +380,8 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testToXContent_WritesDimensionsSetByUserTrue() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings(TEST_MODEL_ID, TEST_URI, TEST_ORGANIZATION_ID, null, null, null, true, null);
+    public void testToXContent_OnlyWritesMandatoryFields_WhenOtherFieldsAreNull() throws IOException {
+        var entity = new OpenAiEmbeddingsServiceSettings(TEST_MODEL_ID, (URI) null, null, null, null, null, true, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -393,14 +390,12 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
             {
                 "model_id": "%s",
-                "url": "%s",
-                "organization_id": "%s",
                 "rate_limit": {
                     "requests_per_minute": %d
                 },
                 "dimensions_set_by_user": true
             }
-            """, TEST_MODEL_ID, TEST_URI.toString(), TEST_ORGANIZATION_ID, DEFAULT_RATE_LIMIT)));
+            """, TEST_MODEL_ID, DEFAULT_RATE_LIMIT)));
     }
 
     public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {

@@ -243,6 +243,8 @@
       reason: "Frozen after added"
 
   - do:
+      allowed_warnings:
+        - "Data stream lifecycle field [frozen_after] is not supported in serverless."
       indices.put_index_template:
         name: test-lifecycle
         body:

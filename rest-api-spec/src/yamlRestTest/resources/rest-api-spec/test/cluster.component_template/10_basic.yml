@@ -185,6 +185,8 @@
       reason: "Frozen after added"
 
   - do:
+      allowed_warnings:
+        - "Data stream lifecycle field [frozen_after] is not supported in serverless."
       cluster.put_component_template:
         name: test-lifecycle
         body:

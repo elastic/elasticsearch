@@ -235,6 +235,8 @@ teardown:
       reason: "Frozen after added"
 
   - do:
+      allowed_warnings:
+        - "Data stream lifecycle field [frozen_after] is not supported in serverless."
       indices.put_data_lifecycle:
         name: data-stream-with-lifecycle
         body:

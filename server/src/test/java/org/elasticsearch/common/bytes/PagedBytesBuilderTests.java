@@ -146,6 +146,56 @@ public class PagedBytesBuilderTests extends ESTestCase {
         }
     }
 
+    public void testAppendVInt() {
+        testAppendVInt(newLimitedBreaker(ByteSizeValue.ofMb(50)), 1);
+    }
+
+    public void testAppendVIntCranky() {
+        try {
+            testAppendVInt(new CrankyCircuitBreakerService.CrankyCircuitBreaker(), 1);
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    public void testAppendVInts() {
+        testAppendVInt(newLimitedBreaker(ByteSizeValue.ofMb(50)), between(2, 100_000));
+    }
+
+    public void testAppendVIntsCranky() {
+        try {
+            testAppendVInt(new CrankyCircuitBreakerService.CrankyCircuitBreaker(), between(2, 100_000));
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendVInt(CircuitBreaker breaker, int count) {
+        testAgainstOracle(breaker, builder -> {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                for (int i = 0; i < count; i++) {
+                    int v = switch (between(0, 4)) {
+                        case 0 -> between(0x00, 0x7F);                      // 1 byte
+                        case 1 -> between(0x80, 0x3FFF);                    // 2 bytes
+                        case 2 -> between(0x4000, 0x1FFFFF);                // 3 bytes
+                        case 3 -> between(0x200000, 0xFFFFFFF);             // 4 bytes
+                        default -> randomBoolean()                          // 5 bytes
+                            ? between(0x10000000, Integer.MAX_VALUE)
+                            : between(Integer.MIN_VALUE, -1);
+                    };
+                    builder.appendVInt(v);
+                    out.writeVInt(v);
+                }
+                BytesRef ref = out.bytes().toBytesRef();
+                return Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + ref.length);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
     public void testAppendLong() {
         testAppendLong(newLimitedBreaker(ByteSizeValue.ofMb(50)));
     }
@@ -341,6 +391,191 @@ public class PagedBytesBuilderTests extends ESTestCase {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    public void testAppendPagedBytesCursor() {
+        testAppendPagedBytesCursor(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+    }
+
+    public void testAppendPagedBytesCursorCranky() {
+        try {
+            testAppendPagedBytesCursor(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendPagedBytesCursor(CircuitBreaker breaker) {
+        byte[] preamble = randomByteArrayOfLength(randomIntBetween(0, 100));
+        byte[] payload = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 3));
+        try (PagedBytesBuilder src = new PagedBytesBuilder(recycler, breaker, "src", 0)) {
+            src.append(payload, 0, payload.length);
+            try (PagedBytes srcBytes = src.build(); PagedBytesBuilder dst = new PagedBytesBuilder(recycler, breaker, "dst", 0)) {
+                dst.append(preamble, 0, preamble.length);
+                dst.append(srcBytes.cursor(new PagedBytesCursor()));
+                try (PagedBytes built = dst.build()) {
+                    assertThat(toFlat(built), equalTo(concat(preamble, payload)));
+                }
+            }
+        }
+    }
+
+    public void testAppendLengthPrefixedEmpty() {
+        testAppendLengthPrefixedEmpty(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+    }
+
+    public void testAppendLengthPrefixedEmptyCranky() {
+        try {
+            testAppendLengthPrefixedEmpty(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendLengthPrefixedEmpty(CircuitBreaker breaker) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
+            byte[] preamble = randomByteArrayOfLength(randomIntBetween(0, 100));
+            builder.append(preamble, 0, preamble.length);
+            builder.appendLengthPrefixed(PagedBytes.EMPTY.cursor(new PagedBytesCursor()));
+            try (PagedBytes built = builder.build()) {
+                PagedBytesCursor readCursor = built.cursor(new PagedBytesCursor());
+                for (byte b : preamble) {
+                    assertThat(readCursor.readByte(), equalTo(b));
+                }
+                PagedBytesCursor result = readCursor.readLengthPrefixed(new PagedBytesCursor());
+                assertThat(result.remaining(), equalTo(0));
+                assertThat(readCursor.remaining(), equalTo(0));
+            }
+        }
+    }
+
+    public void testAppendLengthPrefixedSmall() {
+        testAppendLengthPrefixedSmall(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+    }
+
+    public void testAppendLengthPrefixedSmallCranky() {
+        try {
+            testAppendLengthPrefixedSmall(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendLengthPrefixedSmall(CircuitBreaker breaker) {
+        byte[] preamble = randomByteArrayOfLength(randomIntBetween(0, 100));
+        byte[] payload = randomByteArrayOfLength(randomIntBetween(1, BYTE_PAGE_SIZE - 1));
+        try (PagedBytesBuilder src = new PagedBytesBuilder(recycler, breaker, "src", 0)) {
+            src.append(payload, 0, payload.length);
+            try (PagedBytes srcBytes = src.build(); PagedBytesBuilder dst = new PagedBytesBuilder(recycler, breaker, "dst", 0)) {
+                dst.append(preamble, 0, preamble.length);
+                dst.appendLengthPrefixed(srcBytes.cursor(new PagedBytesCursor()));
+                try (PagedBytes built = dst.build()) {
+                    PagedBytesCursor readCursor = built.cursor(new PagedBytesCursor());
+                    for (byte b : preamble) {
+                        assertThat(readCursor.readByte(), equalTo(b));
+                    }
+                    PagedBytesCursor result = readCursor.readLengthPrefixed(new PagedBytesCursor());
+                    assertThat(result.remaining(), equalTo(payload.length));
+                    byte[] actual = new byte[payload.length];
+                    for (int i = 0; i < actual.length; i++) {
+                        actual[i] = result.readByte();
+                    }
+                    assertThat(actual, equalTo(payload));
+                    assertThat(readCursor.remaining(), equalTo(0));
+                }
+            }
+        }
+    }
+
+    public void testAppendLengthPrefixedLarge() {
+        testAppendLengthPrefixedLarge(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+    }
+
+    public void testAppendLengthPrefixedLargeCranky() {
+        try {
+            testAppendLengthPrefixedLarge(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendLengthPrefixedLarge(CircuitBreaker breaker) {
+        byte[] preamble = randomByteArrayOfLength(randomIntBetween(0, 100));
+        int pageCount = randomIntBetween(2, 5);
+        byte[] payload = randomByteArrayOfLength(pageCount * BYTE_PAGE_SIZE + randomIntBetween(1, BYTE_PAGE_SIZE - 1));
+        PagedBytes srcBytes = PagedBytesTests.newPagedBytes(payload);
+        try (PagedBytesBuilder dst = new PagedBytesBuilder(recycler, breaker, "dst", 0)) {
+            dst.append(preamble, 0, preamble.length);
+            dst.appendLengthPrefixed(srcBytes.cursor(new PagedBytesCursor()));
+            try (PagedBytes built = dst.build()) {
+                PagedBytesCursor readCursor = built.cursor(new PagedBytesCursor());
+                for (byte b : preamble) {
+                    assertThat(readCursor.readByte(), equalTo(b));
+                }
+                PagedBytesCursor result = readCursor.readLengthPrefixed(new PagedBytesCursor());
+                assertThat(result.remaining(), equalTo(payload.length));
+                byte[] actual = new byte[payload.length];
+                for (int i = 0; i < actual.length; i++) {
+                    actual[i] = result.readByte();
+                }
+                assertThat(actual, equalTo(payload));
+                assertThat(readCursor.remaining(), equalTo(0));
+            }
+        }
+    }
+
+    public void testAppendLengthPrefixedRoundTrip() {
+        testAppendLengthPrefixedRoundTrip(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+    }
+
+    public void testAppendLengthPrefixedRoundTripCranky() {
+        try {
+            testAppendLengthPrefixedRoundTrip(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendLengthPrefixedRoundTrip(CircuitBreaker breaker) {
+        byte[] preamble = randomByteArrayOfLength(randomIntBetween(0, 100));
+        int count = randomIntBetween(1, 10);
+        byte[][] payloads = new byte[count][];
+        for (int i = 0; i < count; i++) {
+            payloads[i] = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 2));
+        }
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
+            builder.append(preamble, 0, preamble.length);
+            for (byte[] payload : payloads) {
+                try (PagedBytesBuilder src = new PagedBytesBuilder(recycler, breaker, "src", 0)) {
+                    src.append(payload, 0, payload.length);
+                    try (PagedBytes srcBytes = src.build()) {
+                        builder.appendLengthPrefixed(srcBytes.cursor(new PagedBytesCursor()));
+                    }
+                }
+            }
+            try (PagedBytes built = builder.build()) {
+                PagedBytesCursor readCursor = built.cursor(new PagedBytesCursor());
+                for (byte b : preamble) {
+                    assertThat(readCursor.readByte(), equalTo(b));
+                }
+                PagedBytesCursor scratch = new PagedBytesCursor();
+                for (byte[] payload : payloads) {
+                    PagedBytesCursor result = readCursor.readLengthPrefixed(scratch);
+                    assertThat(result.remaining(), equalTo(payload.length));
+                    byte[] actual = new byte[payload.length];
+                    for (int i = 0; i < actual.length; i++) {
+                        actual[i] = result.readByte();
+                    }
+                    assertThat(actual, equalTo(payload));
+                }
+                assertThat(readCursor.remaining(), equalTo(0));
+            }
+        }
     }
 
     public void testBigButNotHuge() {
@@ -547,56 +782,6 @@ public class PagedBytesBuilderTests extends ESTestCase {
         }
         // closing the empty builder releases nothing — charge was already released by ref
         assertThat(breaker.getUsed(), equalTo(0L));
-    }
-
-    public void testAppendVInt() {
-        testAppendVInt(newLimitedBreaker(ByteSizeValue.ofMb(50)), 1);
-    }
-
-    public void testAppendVIntCranky() {
-        try {
-            testAppendVInt(new CrankyCircuitBreakerService.CrankyCircuitBreaker(), 1);
-        } catch (CircuitBreakingException e) {
-            logger.info("cranky", e);
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-        }
-    }
-
-    public void testAppendVInts() {
-        testAppendVInt(newLimitedBreaker(ByteSizeValue.ofMb(50)), between(2, 100_000));
-    }
-
-    public void testAppendVIntsCranky() {
-        try {
-            testAppendVInt(new CrankyCircuitBreakerService.CrankyCircuitBreaker(), between(2, 100_000));
-        } catch (CircuitBreakingException e) {
-            logger.info("cranky", e);
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-        }
-    }
-
-    private void testAppendVInt(CircuitBreaker breaker, int count) {
-        testAgainstOracle(breaker, builder -> {
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                for (int i = 0; i < count; i++) {
-                    int v = switch (between(0, 4)) {
-                        case 0 -> between(0x00, 0x7F);                      // 1 byte
-                        case 1 -> between(0x80, 0x3FFF);                    // 2 bytes
-                        case 2 -> between(0x4000, 0x1FFFFF);                // 3 bytes
-                        case 3 -> between(0x200000, 0xFFFFFFF);             // 4 bytes
-                        default -> randomBoolean()                          // 5 bytes
-                            ? between(0x10000000, Integer.MAX_VALUE)
-                            : between(Integer.MIN_VALUE, -1);
-                    };
-                    builder.appendVInt(v);
-                    out.writeVInt(v);
-                }
-                BytesRef ref = out.bytes().toBytesRef();
-                return Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + ref.length);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
     }
 
     public void testClearSmallTail() {

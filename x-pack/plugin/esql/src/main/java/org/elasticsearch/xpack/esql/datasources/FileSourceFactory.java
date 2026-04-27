@@ -151,24 +151,25 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 : null;
 
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
-            return new AsyncExternalSourceOperatorFactory(
+            return AsyncExternalSourceOperatorFactory.builder(
                 storage,
                 format,
                 path,
                 context.attributes(),
                 context.batchSize(),
                 context.maxBufferSize(),
-                context.rowLimit(),
-                readExecutor,
-                context.fileList(),
-                context.partitionColumnNames(),
-                partitionValues,
-                context.sliceQueue(),
-                errorPolicy,
-                context.parsingParallelism(),
-                pushedExpressions,
-                pushdownSupport
-            );
+                readExecutor
+            )
+                .rowLimit(context.rowLimit())
+                .fileList(context.fileList())
+                .partitionColumnNames(context.partitionColumnNames())
+                .partitionValues(partitionValues)
+                .sliceQueue(context.sliceQueue())
+                .errorPolicy(errorPolicy)
+                .parsingParallelism(context.parsingParallelism())
+                .pushedExpressions(pushedExpressions)
+                .pushdownSupport(pushdownSupport)
+                .build();
         };
     }
 

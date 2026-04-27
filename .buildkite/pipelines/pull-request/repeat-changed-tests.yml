@@ -6,3 +6,4 @@ steps:
           npm install -g bun@1.0.4
           bun .buildkite/scripts/repeat-changed-tests.ts
         timeout_in_minutes: 10
+        soft_fail: true

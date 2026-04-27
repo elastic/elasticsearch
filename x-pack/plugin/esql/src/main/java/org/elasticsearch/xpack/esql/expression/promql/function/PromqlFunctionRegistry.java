@@ -148,6 +148,7 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.DAY_OF_MONTH,
         PromqlBuiltinFunctionDefinitions.DAY_OF_WEEK,
         PromqlBuiltinFunctionDefinitions.DAY_OF_YEAR,
+        PromqlBuiltinFunctionDefinitions.DAYS_IN_MONTH,
         PromqlBuiltinFunctionDefinitions.HOUR,
         PromqlBuiltinFunctionDefinitions.MINUTE,
         PromqlBuiltinFunctionDefinitions.TIME, };
@@ -190,7 +191,6 @@ public class PromqlFunctionRegistry {
         "sort_desc",
 
         // Time functions
-        "days_in_month",
         "timestamp",
 
         // Label manipulation functions

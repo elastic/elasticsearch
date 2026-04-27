@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
@@ -336,6 +337,147 @@ public class BulkRequestParserTests extends ESTestCase {
         assertSame(first.index(), second.index());
         assertSame(first.getPipeline(), second.getPipeline());
         assertSame(first.routing(), second.routing());
+    }
+
+    public void testIndexRequestParsesSliceMetadataAsRouting() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesArray request = new BytesArray("""
+            { "index":{ "_id": "bar", "_slice": "s1" } }
+            {}
+            """);
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
+        final List<IndexRequest> indexRequests = new ArrayList<>();
+        parser.parse(
+            request,
+            "foo",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            true,
+            XContentType.JSON,
+            (indexRequest, type) -> indexRequests.add(indexRequest),
+            req -> fail(),
+            req -> fail()
+        );
+        assertThat(indexRequests.size(), equalTo(1));
+        assertThat(indexRequests.get(0).routing(), equalTo("s1"));
+        assertThat(indexRequests.get(0).isRoutingFromSlice(), equalTo(true));
+    }
+
+    public void testIndexRequestMarksTopLevelSliceProvenance() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesArray request = new BytesArray("""
+            { "index":{ "_id": "bar" } }
+            {}
+            """);
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
+        final List<IndexRequest> indexRequests = new ArrayList<>();
+        parser.parse(
+            request,
+            "foo",
+            "s1",
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            true,
+            XContentType.JSON,
+            (indexRequest, type) -> indexRequests.add(indexRequest),
+            req -> fail(),
+            req -> fail()
+        );
+        assertThat(indexRequests.size(), equalTo(1));
+        assertThat(indexRequests.get(0).routing(), equalTo("s1"));
+        assertThat(indexRequests.get(0).isRoutingFromSlice(), equalTo(true));
+    }
+
+    public void testIndexRequestTopLevelSliceProvenanceClearedByItemRouting() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesArray request = new BytesArray("""
+            { "index":{ "_id": "bar", "routing": "r1" } }
+            {}
+            """);
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
+        final List<IndexRequest> indexRequests = new ArrayList<>();
+        parser.parse(
+            request,
+            "foo",
+            "s1",
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            true,
+            XContentType.JSON,
+            (indexRequest, type) -> indexRequests.add(indexRequest),
+            req -> fail(),
+            req -> fail()
+        );
+        assertThat(indexRequests.size(), equalTo(1));
+        assertThat(indexRequests.get(0).routing(), equalTo("r1"));
+        assertThat(indexRequests.get(0).isRoutingFromSlice(), equalTo(false));
+    }
+
+    public void testIndexRequestRejectsRoutingAndSliceMetadataTogether() {
+        BytesArray request = new BytesArray("""
+            { "index":{ "_id": "bar", "routing": "r1", "_slice": "s1" } }
+            {}
+            """);
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> parser.parse(
+                request,
+                "foo",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                true,
+                XContentType.JSON,
+                (indexRequest, type) -> fail(),
+                req -> fail(),
+                req -> fail()
+            )
+        );
+        assertThat(ex.getMessage(), equalTo("Action/metadata line [1] contains both [routing] and [_slice]"));
+    }
+
+    public void testIndexRequestRejectsInvalidSliceMetadata() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesArray request = new BytesArray("""
+            { "index":{ "_id": "bar", "_slice": "_all" } }
+            {}
+            """);
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> parser.parse(
+                request,
+                "foo",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                true,
+                XContentType.JSON,
+                (indexRequest, type) -> fail(),
+                req -> fail(),
+                req -> fail()
+            )
+        );
+        assertThat(ex.getMessage(), Matchers.containsString("invalid [_slice] value"));
     }
 
     public void testFailOnInvalidAction() {

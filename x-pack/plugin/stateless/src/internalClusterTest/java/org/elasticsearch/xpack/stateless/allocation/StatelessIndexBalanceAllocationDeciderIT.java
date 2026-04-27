@@ -1,0 +1,348 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.allocation;
+
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeights;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.NodeSorters;
+import org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessPluginIntegTestCase {
+
+    private static final int HEAVY_WEIGHT = 1000;
+    private static final int LIGHT_WEIGHT = 1;
+    private TestHarness testHarness;
+    static final TestWeightFunction testWeightFunction = new TestWeightFunction();
+    static final BalancerSettings balancerSettings = new BalancerSettings(Settings.builder().build());
+    static final GlobalBalancingWeightsFactory globalBalancingWeightsFactory = new GlobalBalancingWeightsFactory(balancerSettings);
+    static final BalancingWeights balancingWeights = globalBalancingWeightsFactory.create();
+    static final Set<String> lightWeightedNodes = new HashSet<>();
+
+    public void testIndexBalanceAllocationDecider() {
+        setUpThreeHealthyIndexNodesAndThreeHealthSearchNodes();
+
+        // Disable the index balanced allocation decider.
+        updateClusterSettings(Settings.builder().put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false));
+        final var clusterSettings = internalCluster().getCurrentMasterNodeInstance(ClusterSettings.class);
+        assertFalse(clusterSettings.get(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING));
+
+        // Override weight function to favour the first node
+        // Disable balancer.balance() using a plugin provided decider with canRebalance() always returning false.
+        lightWeightedNodes.add(testHarness.firstIndexNode.getId());
+        lightWeightedNodes.add(testHarness.firstSearchNode.getId());
+
+        int randomNumberOfShards = randomIntBetween(10, 20);
+        String firstNodeHeavilyImbalancedIndex = randomIdentifier();
+
+        // Keep number of replica to 1 so that SameShardAllocationDecider cannot help with balancing.
+        createIndex(
+            firstNodeHeavilyImbalancedIndex,
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, randomNumberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
+        ensureGreen(firstNodeHeavilyImbalancedIndex);
+
+        // This demonstrates BalancedShardAllocator's built-in node/index weightFunction shard balancing
+        // and balancer.balance() have been disabled resulting in all primary shards allocated on index node 1
+        // and all replicas allocated to search node 1.
+        safeAwait(
+            ClusterServiceUtils.addMasterTemporaryStateListener(
+                getAllocationStateListener(
+                    firstNodeHeavilyImbalancedIndex,
+                    Map.of(
+                        testHarness.firstIndexNode.getId(),
+                        randomNumberOfShards,
+                        testHarness.secondIndexNode.getId(),
+                        0,
+                        testHarness.thirdIndexNode.getId(),
+                        0,
+                        testHarness.firstSearchNode.getId(),
+                        randomNumberOfShards,
+                        testHarness.secondSearchNode.getId(),
+                        0,
+                        testHarness.thirdSearchNode.getId(),
+                        0
+                    )
+                )
+            )
+        );
+
+        // All settings stay the same.
+        // Enable the index balanced allocation decider.
+        updateClusterSettings(Settings.builder().put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true));
+
+        randomNumberOfShards = randomIntBetween(10, 20);
+        String perfectlyBalancedSecondIndex = randomIdentifier();
+
+        // The decider computes shards threshold as follows:
+        // threshold = (totalShards + eligibleNodes.size() - 1 + indexBalanceConstraintSettings.getExcessShards()) / eligibleNodes.size();
+        // In this test, there are 3 eligible nodes and 0 excess shards allowed.
+        // Therefore, the upper threshold is (randomNumberOfShards + 2 ) / 3
+        int perfectlyBalanced = (randomNumberOfShards + 2) / 3;
+
+        createIndex(
+            perfectlyBalancedSecondIndex,
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, randomNumberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
+        ensureGreen(perfectlyBalancedSecondIndex);
+
+        safeAwait(
+            ClusterServiceUtils.addMasterTemporaryStateListener(
+                getAllocationStateListener(
+                    perfectlyBalancedSecondIndex,
+                    Map.of(
+                        testHarness.firstIndexNode.getId(),
+                        perfectlyBalanced,
+                        testHarness.secondIndexNode.getId(),
+                        perfectlyBalanced,
+                        testHarness.thirdIndexNode.getId(),
+                        perfectlyBalanced,
+                        testHarness.firstSearchNode.getId(),
+                        perfectlyBalanced,
+                        testHarness.secondSearchNode.getId(),
+                        perfectlyBalanced,
+                        testHarness.thirdSearchNode.getId(),
+                        perfectlyBalanced
+                    )
+                )
+            )
+        );
+
+    }
+
+    private Predicate<ClusterState> getAllocationStateListener(String indexName, Map<String, Integer> nodesToShards) {
+        return clusterState -> {
+            var indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(indexName);
+            if (indexRoutingTable == null) {
+                return false;
+            }
+            return checkShardAssignment(clusterState.getRoutingNodes(), indexRoutingTable.getIndex(), nodesToShards);
+        };
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
+        return plugins;
+    }
+
+    public static class TestWeightFunction extends WeightFunction {
+        public TestWeightFunction() {
+            super(1, 1, 1, 1);
+        }
+
+        @Override
+        public float calculateNodeWeightWithIndex(
+            BalancedShardsAllocator.Balancer balancer,
+            BalancedShardsAllocator.ModelNode node,
+            BalancedShardsAllocator.ProjectIndex index
+        ) {
+            // Deliberately heavily favour node 1 to receive shards
+            return lightWeightedNodes.contains(node.getNodeId()) ? LIGHT_WEIGHT : HEAVY_WEIGHT;
+        }
+    }
+
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+        public TestStatelessPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public BalancingWeightsFactory getBalancingWeightsFactory(BalancerSettings balancerSettings, ClusterSettings clusterSettings) {
+            return () -> new BalancingWeights() {
+
+                @Override
+                public WeightFunction weightFunctionForShard(ShardRouting shard) {
+                    return testWeightFunction;
+                }
+
+                @Override
+                public WeightFunction weightFunctionForNode(RoutingNode node) {
+                    return testWeightFunction;
+                }
+
+                @Override
+                public NodeSorters createNodeSorters(
+                    BalancedShardsAllocator.ModelNode[] modelNodes,
+                    BalancedShardsAllocator.Balancer balancer
+                ) {
+                    return balancingWeights.createNodeSorters(modelNodes, balancer);
+                }
+
+                @Override
+                public boolean diskUsageIgnored() {
+                    return balancingWeights.diskUsageIgnored();
+                }
+            };
+        }
+
+        @Override
+        public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+            return CollectionUtils.appendToCopy(super.createAllocationDeciders(settings, clusterSettings), new AllocationDecider() {
+                @Override
+                public Decision canRebalance(RoutingAllocation allocation) {
+                    return Decision.NO;
+                }
+            });
+        }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.not_preferred:DEBUG",
+        reason = "So we can see why the shards are being moved"
+    )
+    public void testShardsAreMovedToImproveIndexBalanceOnClusterScaleUp() {
+        // Enable the index balance decider
+        Settings settings = Settings.builder()
+            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true)
+            .build();
+
+        final var indexNodes = List.of(startMasterAndIndexNode(settings), startMasterAndIndexNode(settings));
+        final var searchNodes = startSearchNodes(2);
+
+        final String indexName = randomIdentifier();
+        final int numberOfShards = randomIntBetween(10, 20);
+
+        createIndex(indexName, numberOfShards, 1);
+        ensureGreen(indexName);
+
+        {
+            // The nodes should both have a roughly even spread of the index shards
+            final int thresholdForTwoNodes = Math.ceilDiv(numberOfShards, 2);
+            final var state = internalCluster().clusterService().state();
+            final var index = state.routingTable(ProjectId.DEFAULT).index(indexName).getIndex();
+            final var routingNodes = state.getRoutingNodes();
+            indexNodes.stream()
+                .map(ESIntegTestCase::getNodeId)
+                .forEach(
+                    nodeId -> assertThat(
+                        routingNodes.node(nodeId).numberOfOwningShardsForIndex(index),
+                        lessThanOrEqualTo(thresholdForTwoNodes)
+                    )
+                );
+        }
+
+        // Start more index nodes (should trigger a re-route)
+        final var expandedIndexNodes = Stream.concat(indexNodes.stream(), startIndexNodes(randomIntBetween(1, 4), settings).stream())
+            .toList();
+        // The nodes should eventually all have a roughly even spread of the index shards
+        assertIndexBalanceIsRestored(numberOfShards, expandedIndexNodes, indexName);
+
+        // Start more search nodes (should trigger a re-route)
+        final var expandedSearchNodes = Stream.concat(searchNodes.stream(), startSearchNodes(randomIntBetween(1, 4), settings).stream())
+            .toList();
+        // The nodes should eventually all have a roughly even spread of the index shards
+        assertIndexBalanceIsRestored(numberOfShards, expandedSearchNodes, indexName);
+    }
+
+    private void assertIndexBalanceIsRestored(int numberOfShards, List<String> expandedNodeSet, String indexName) {
+        // The nodes should eventually all have a roughly even spread of the index shards
+        final int shardCountThreshold = Math.ceilDiv(numberOfShards, expandedNodeSet.size());
+        awaitClusterState(state -> {
+            final var routingNodes = state.getRoutingNodes();
+            final var index = state.routingTable(ProjectId.DEFAULT).index(indexName).getIndex();
+            logger.info("--> Checking cluster state for index {}", index);
+            return expandedNodeSet.stream().map(ESIntegTestCase::getNodeId).allMatch(nodeId -> {
+                int shardsOnNode = routingNodes.node(nodeId).numberOfOwningShardsForIndex(index);
+                logger.info(
+                    "--> Node {} has {} shards (threshold={}, numberOfShards={}, eligibleNodes={})",
+                    nodeId,
+                    shardsOnNode,
+                    shardCountThreshold,
+                    numberOfShards,
+                    expandedNodeSet.size()
+                );
+                return shardsOnNode <= shardCountThreshold;
+            });
+        });
+    }
+
+    private void setUpThreeHealthyIndexNodesAndThreeHealthSearchNodes() {
+        Settings settings = Settings.builder().build();
+        startMasterOnlyNode(settings);
+        final var indexNodes = startIndexNodes(3, settings);
+        final var searchNodes = startSearchNodes(3);
+
+        final String firstIndexNodeName = indexNodes.get(0);
+        final String secondIndexNodeName = indexNodes.get(1);
+        final String thirdIndexNodeName = indexNodes.get(2);
+        final String firstSearchNodeName = searchNodes.get(0);
+        final String secondSearchNodeName = searchNodes.get(1);
+        final String thirdSearchNodeName = searchNodes.get(2);
+
+        ensureStableCluster(7);
+
+        final DiscoveryNode firstIndexNode = internalCluster().getInstance(TransportService.class, firstIndexNodeName).getLocalNode();
+        final DiscoveryNode secondIndexNode = internalCluster().getInstance(TransportService.class, secondIndexNodeName).getLocalNode();
+        final DiscoveryNode thirdIndexNode = internalCluster().getInstance(TransportService.class, thirdIndexNodeName).getLocalNode();
+        final DiscoveryNode firstSearchNode = internalCluster().getInstance(TransportService.class, firstSearchNodeName).getLocalNode();
+        final DiscoveryNode secondSearchNode = internalCluster().getInstance(TransportService.class, secondSearchNodeName).getLocalNode();
+        final DiscoveryNode thirdSearchNode = internalCluster().getInstance(TransportService.class, thirdSearchNodeName).getLocalNode();
+
+        testHarness = new TestHarness(firstIndexNode, secondIndexNode, thirdIndexNode, firstSearchNode, secondSearchNode, thirdSearchNode);
+    }
+
+    private boolean checkShardAssignment(RoutingNodes routingNodes, Index index, Map<String, Integer> nodesToShards) {
+        for (String nodeId : nodesToShards.keySet()) {
+            var numberOfShards = routingNodes.node(nodeId).numberOfOwningShardsForIndex(index);
+            if (numberOfShards > nodesToShards.get(nodeId)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    record TestHarness(
+        DiscoveryNode firstIndexNode,
+        DiscoveryNode secondIndexNode,
+        DiscoveryNode thirdIndexNode,
+        DiscoveryNode firstSearchNode,
+        DiscoveryNode secondSearchNode,
+        DiscoveryNode thirdSearchNode
+    ) {}
+
+}

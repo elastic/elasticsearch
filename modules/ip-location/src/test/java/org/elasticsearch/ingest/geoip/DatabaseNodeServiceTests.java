@@ -90,7 +90,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -695,15 +698,123 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     }
 
     /**
+     * Guards against a race between {@link DatabaseNodeService#updateDatabase} and
+     * {@link DatabaseNodeService#checkDatabases} that, before the fix, would orphan a freshly-loaded loader:
+     * {@code updateDatabase} mutated the {@code databases} map in two non-atomic steps
+     * ({@code computeIfAbsent} then {@code put}), so a concurrent {@code checkDatabases} could detach the
+     * inner map between the two steps; the listener still fired for the put (which then returned null on the
+     * detached inner), yielding a "ghost-available" database that no lookup could ever find.
+     * <p>
+     * The fix funnels every mutation of {@code databases} through a single
+     * {@code databases.compute(projectId, ...)}, so the bin lock held by {@code updateDatabase} prevents any
+     * concurrent {@code checkDatabases} from detaching the same project's inner map until the put has
+     * completed. This test pins that invariant: while the updater is mid-{@code put} (deterministically
+     * parked via an instrumented inner map), a concurrent cleanup must not be able to detach the inner
+     * from the outer map.
+     */
+    public void testUpdateDatabase_doesNotOrphanLoaderUnderConcurrentCleanup() throws Exception {
+        String dbName = "GeoIP2-City.mmdb";
+
+        CountDownLatch innerPutEntered = new CountDownLatch(1);
+        CountDownLatch resumeUpdater = new CountDownLatch(1);
+
+        // creating the instrumented inner map
+        @SuppressWarnings("serial")
+        ConcurrentMap<String, DatabaseReaderLazyLoader> instrumentedInner = new ConcurrentHashMap<>() {
+            @Override
+            public DatabaseReaderLazyLoader put(String key, DatabaseReaderLazyLoader value) {
+                // signal that put entered, then wait for a signal to resume and only then do the actual put
+                innerPutEntered.countDown();
+                safeAwait(resumeUpdater);
+                // without the fix, this would now have put on a detached inner map
+                return super.put(key, value);
+            }
+        };
+        // adding the inner map to the outer map
+        databaseNodeService.databases.put(projectId, instrumentedInner);
+
+        // ESQL consumer registered, but the local node only has the ingest role: checkDatabases hits the
+        // "no relevant consumer for this node" branch and tries to drop the project entry.
+        DiscoveryNodes ingestOnlyNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.INGEST_ROLE)).build())
+            .localNodeId("_id1")
+            .build();
+        IpLocationDownloadConsumers esqlOnly = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.ESQL);
+        PersistentTasksCustomMetadata tasks = geoIpDownloaderTask(
+            projectId,
+            dbName,
+            new GeoIpTaskState.Metadata(10, 5, 14, "md5", System.currentTimeMillis())
+        );
+        ClusterState state = createClusterState(projectId, tasks, ingestOnlyNodes, esqlOnly);
+
+        List<String> notified = new CopyOnWriteArrayList<>();
+        databaseNodeService.addDatabaseAvailabilityListener((pid, db) -> notified.add(db));
+
+        Thread updater = new Thread(
+            // the put that is called through this will block until the cleaner thread will signal it to resume and actually put
+            () -> databaseNodeService.updateDatabase(projectId, dbName, "md5", geoIpTmpDir.resolve(dbName)),
+            "test-updater"
+        );
+        updater.setDaemon(true);
+        updater.start();
+        // wait until put entered
+        safeAwait(innerPutEntered);
+
+        // Cleanup runs concurrently. With the fix, it blocks on the bin lock that the updater (still inside
+        // databases.compute(projectId, ...) -> inner.put) is holding. Without the fix, it proceeds and
+        // detaches the inner map from `databases`.
+        Thread cleaner = new Thread(() -> databaseNodeService.checkDatabases(state), "test-cleaner");
+        cleaner.setDaemon(true);
+        cleaner.start();
+
+        try {
+            // Generous window: a non-blocked cleaner removes the project entry in microseconds, so anything
+            // longer than a few ms reliably distinguishes "blocked on bin lock" (fix) from "completed" (bug).
+            Thread.sleep(500);
+
+            assertSame(
+                "the project's inner map must not be detached from the outer map while updateDatabase is in progress",
+                instrumentedInner,
+                databaseNodeService.databases.get(projectId)
+            );
+        } finally {
+            resumeUpdater.countDown();
+        }
+
+        updater.join(TimeUnit.SECONDS.toMillis(10));
+        cleaner.join(TimeUnit.SECONDS.toMillis(10));
+        assertFalse("updater thread did not complete in time", updater.isAlive());
+        assertFalse("cleaner thread did not complete in time", cleaner.isAlive());
+
+        // After both threads finish: listener fired exactly once for the freshly-loaded database, and the
+        // cleaner has now properly removed the project entry (collecting and shutting down the loader).
+        assertThat(notified, equalTo(List.of(dbName)));
+        assertThat(databaseNodeService.databases.get(projectId), nullValue());
+    }
+
+    /**
      * Builds a {@link PersistentTasksCustomMetadata} that contains a single {@link GeoIpDownloader} task for the given
      * project, advertising one database download in its {@link GeoIpTaskState}. The task id is derived through
      * {@link GeoIpDownloaderTaskExecutor#getTaskId} so that it matches what {@link DatabaseNodeService} looks up at
      * runtime under either single- or multi-project mode.
      */
     private PersistentTasksCustomMetadata geoIpDownloaderTask(ProjectId projectId, String databaseName, GeoIpTaskState.Metadata metadata) {
-        String taskId = getTaskId(projectId, projectResolver.supportsMultipleProjects());
+        return geoIpDownloaderTask(projectId, Map.of(databaseName, metadata), projectResolver.supportsMultipleProjects());
+    }
+
+    /**
+     * Static counterpart of {@link #geoIpDownloaderTask(ProjectId, String, GeoIpTaskState.Metadata)} that other unit
+     * tests in this package can use to drive {@link DatabaseNodeService#checkDatabases(ClusterState)} with a fully
+     * constructed task state. Pass an empty map to produce a state that purges all entries for {@code projectId}.
+     */
+    static PersistentTasksCustomMetadata geoIpDownloaderTask(
+        ProjectId projectId,
+        Map<String, GeoIpTaskState.Metadata> databases,
+        boolean supportsMultipleProjects
+    ) {
+        String taskId = getTaskId(projectId, supportsMultipleProjects);
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
-        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of(databaseName, metadata)));
+        task = new PersistentTask<>(task, new GeoIpTaskState(databases));
         return new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
     }
 

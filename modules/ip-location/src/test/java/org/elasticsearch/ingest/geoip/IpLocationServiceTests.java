@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -60,12 +61,13 @@ public class IpLocationServiceTests extends ESTestCase {
     private DatabaseNodeService databaseNodeService;
     private ClusterService clusterService;
     private ProjectId projectId;
+    private ProjectResolver projectResolver;
 
     @Before
     public void setup() throws IOException {
         boolean multiProject = randomBoolean();
         projectId = multiProject ? randomProjectIdOrDefault() : ProjectId.DEFAULT;
-        ProjectResolver projectResolver = multiProject
+        projectResolver = multiProject
             ? TestProjectResolvers.singleProject(projectId)
             : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
 
@@ -238,8 +240,21 @@ public class IpLocationServiceTests extends ESTestCase {
         assertThat(data2, notNullValue());
         assertThat(data2.get("city_name"), equalTo("Linköping"));
 
-        // No databases are available, so lookup returns null:
-        databaseNodeService.removeStaleEntries(projectId, List.of("GeoLite2-City.mmdb"));
+        // No databases are available, so lookup returns null. Drive the cleanup through the same
+        // cluster-state-driven path the service uses in production: a state with an empty task purges
+        // every entry from the project's loader map via DatabaseNodeService#checkDatabases.
+        PersistentTasksCustomMetadata emptyTasks = DatabaseNodeServiceTests.geoIpDownloaderTask(
+            projectId,
+            Map.of(),
+            projectResolver.supportsMultipleProjects()
+        );
+        databaseNodeService.checkDatabases(
+            DatabaseNodeServiceTests.createClusterState(
+                projectId,
+                emptyTasks,
+                IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST)
+            )
+        );
         configDatabases.updateDatabase(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), false);
 
         Map<String, Object> data3 = lookup.lookup("89.160.20.128");

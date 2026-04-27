@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.geoip;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -20,6 +21,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.iplocation.api.IpDataLookup;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -27,7 +30,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -87,6 +89,21 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsTests extends ESTestCase
         IpDataLookup lookup2 = databaseNodeService.createIpDataLookup(projectId.id(), "GeoLite2-City-Test.mmdb", null);
         assertNotNull(lookup2);
 
+        // Pre-build a cluster state once: task metadata advertises only GeoLite2-City-Test.mmdb (with the same
+        // "md5" the loader has, so retrieveAndUpdateDatabase short-circuits as up-to-date), which makes
+        // checkDatabases purge GeoLite2-City.mmdb via the same compute()-based cleanup path used in production.
+        // Reusing the same state in the loop keeps per-iteration work comparable to a single map mutation.
+        PersistentTasksCustomMetadata keepCityTestTask = DatabaseNodeServiceTests.geoIpDownloaderTask(
+            projectId,
+            Map.of("GeoLite2-City-Test.mmdb", new GeoIpTaskState.Metadata(0L, 0, 9, "md5", System.currentTimeMillis())),
+            true
+        );
+        ClusterState removeCityState = DatabaseNodeServiceTests.createClusterState(
+            projectId,
+            keepCityTestTask,
+            IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST)
+        );
+
         final AtomicBoolean completed = new AtomicBoolean(false);
         final int numberOfDatabaseUpdates = randomIntBetween(2, 4);
         final AtomicInteger numberOfLookupRuns = new AtomicInteger();
@@ -122,7 +139,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsTests extends ESTestCase
                 try {
                     DatabaseReaderLazyLoader previous1 = databaseNodeService.get(projectId, "GeoLite2-City.mmdb");
                     if (Files.exists(geoIpTmpDir.resolve("GeoLite2-City.mmdb"))) {
-                        databaseNodeService.removeStaleEntries(projectId, List.of("GeoLite2-City.mmdb"));
+                        databaseNodeService.checkDatabases(removeCityState);
                         assertBusy(() -> {
                             // lazy loader may still be in use by an ingest thread,
                             // wait for any potential ingest thread to release the lazy loader (DatabaseReaderLazyLoader#postLookup(...)),

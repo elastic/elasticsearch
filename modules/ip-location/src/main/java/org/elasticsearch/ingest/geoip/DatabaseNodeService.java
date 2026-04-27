@@ -63,10 +63,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -75,6 +72,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -116,7 +114,10 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
 
-    private final ConcurrentMap<ProjectId, ConcurrentMap<String, DatabaseReaderLazyLoader>> databases = new ConcurrentHashMap<>();
+    // package-private so tests can install instrumented inner maps that expose race windows.
+    // Use with caution, especially make sure that updates to the inner maps are serialized with modifications of the outer map,
+    // so to prevent unexpected concurrent modifications like adding a loader to an orphan inner map, thus leaking it
+    final ConcurrentMap<ProjectId, ConcurrentMap<String, DatabaseReaderLazyLoader>> databases = new ConcurrentHashMap<>();
     private final List<DatabaseAvailabilityListener> listeners = new CopyOnWriteArrayList<>();
 
     DatabaseNodeService(
@@ -246,6 +247,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         return getDatabaseReaderLazyLoader(projectId, name);
     }
 
+    // caller must not modify the loader (e.g. affect usage count or close)
     public List<DatabaseReaderLazyLoader> getAllDatabases() {
         List<DatabaseReaderLazyLoader> all = new ArrayList<>(configDatabases.getConfigDatabases().values());
         this.databases.forEach((key, value) -> all.addAll(value.values()));
@@ -254,7 +256,8 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
 
     // for testing only:
     DatabaseReaderLazyLoader get(ProjectId projectId, String key) {
-        return databases.computeIfAbsent(projectId, (k) -> new ConcurrentHashMap<>()).get(key);
+        ConcurrentMap<String, DatabaseReaderLazyLoader> inner = databases.get(projectId);
+        return inner == null ? null : inner.get(key);
     }
 
     public void shutdown() throws IOException {
@@ -303,29 +306,48 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             if (consumers.hasRelevantConsumer(localNode)) {
                 checkDatabases(projectState);
             } else {
-                ConcurrentMap<String, DatabaseReaderLazyLoader> projectDatabases = databases.get(projectState.projectId());
-                if (projectDatabases != null) {
-                    // Snapshot the key set before iterating: removeStaleEntries mutates the same ConcurrentHashMap.
-                    removeStaleEntries(projectState.projectId(), Set.copyOf(projectDatabases.keySet()));
-                    // This node no longer serves this project; drop the now-empty outer entry so we don't
-                    // re-enter this branch on every subsequent cluster-state update just to no-op.
-                    databases.remove(projectState.projectId());
-                }
+                // This node no longer serves this project; drop the entire outer entry atomically and
+                // shut down its loaders. compute serializes with concurrent updateDatabase calls on the
+                // same project, preventing a put from landing in a detached inner map.
+                dropProjectAndShutdown(projectState.projectId());
             }
         });
 
         // Release loaders for projects that have been removed from the cluster state entirely. The forEachProject
         // pass above only visits projects that are still present, so without this sweep both the in-memory
-        // `databases` map and the per-project on-disk directories for deleted projects would leak. Iterating with
-        // ConcurrentHashMap's weakly-consistent iterator (and Iterator#remove) avoids snapshotting the key set.
+        // `databases` map and the per-project on-disk directories for deleted projects would leak. Iterating
+        // ConcurrentHashMap's keySet is weakly-consistent; per-key reconciliation happens inside compute().
         Set<ProjectId> livingProjects = state.metadata().projects().keySet();
-        Iterator<Map.Entry<ProjectId, ConcurrentMap<String, DatabaseReaderLazyLoader>>> it = databases.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<ProjectId, ConcurrentMap<String, DatabaseReaderLazyLoader>> entry = it.next();
-            if (livingProjects.contains(entry.getKey()) == false) {
-                // Snapshot the key set before iterating: removeStaleEntries mutates the same ConcurrentHashMap.
-                removeStaleEntries(entry.getKey(), Set.copyOf(entry.getValue().keySet()));
-                it.remove();
+        for (ProjectId projectId : databases.keySet()) {
+            if (livingProjects.contains(projectId) == false) {
+                dropProjectAndShutdown(projectId);
+            }
+        }
+    }
+
+    /**
+     * Atomically removes the outer-map entry for {@code projectId} and shuts down all loaders that were in
+     * its inner map. Held bin lock during the {@code compute} ensures any concurrent {@link #updateDatabase}
+     * for the same project either runs entirely before this call (its loader is collected and shut down) or
+     * entirely after (its loader installs into a fresh inner). No loader can be installed into a detached map.
+     */
+    private void dropProjectAndShutdown(ProjectId projectId) {
+        List<DatabaseReaderLazyLoader> toShutdown = new ArrayList<>();
+        databases.compute(projectId, (k, inner) -> {
+            if (inner != null) {
+                toShutdown.addAll(inner.values());
+            }
+            return null;
+        });
+        shutdownLoaders(projectId, toShutdown);
+    }
+
+    private void shutdownLoaders(ProjectId projectId, List<DatabaseReaderLazyLoader> loaders) {
+        for (DatabaseReaderLazyLoader loader : loaders) {
+            try {
+                loader.shutdown(true);
+            } catch (Exception e) {
+                logger.warn(() -> Strings.format("failed to shut down loader for project [%s]", projectId), e);
             }
         }
     }
@@ -417,13 +439,24 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         // i think the ideal end state is that we *do not* drop the files that the enterprise downloader
         // handled if they fall out -- which means we need to track that in the databases map itself
 
-        // start with the list of all databases we currently know about in this service,
-        // then drop the ones that didn't check out as valid from the task states
-        if (databases.containsKey(projectId)) {
-            Set<String> staleDatabases = new HashSet<>(databases.get(projectId).keySet());
-            staleDatabases.removeAll(validMetadatas.stream().map(Tuple::v1).collect(Collectors.toSet()));
-            removeStaleEntries(projectId, staleDatabases);
-        }
+        // Drop any loaders for this project that didn't check out as valid from the task states, atomically
+        // with respect to concurrent updateDatabase calls on the same project.
+        Set<String> validDbs = validMetadatas.stream().map(Tuple::v1).collect(Collectors.toSet());
+        List<DatabaseReaderLazyLoader> toShutdown = new ArrayList<>();
+        databases.compute(projectId, (k, inner) -> {
+            if (inner == null) {
+                return null;
+            }
+            inner.entrySet().removeIf(e -> {
+                if (validDbs.contains(e.getKey())) {
+                    return false;
+                }
+                toShutdown.add(e.getValue());
+                return true;
+            });
+            return inner;
+        });
+        shutdownLoaders(projectId, toShutdown);
     }
 
     void retrieveAndUpdateDatabase(ProjectId projectId, String databaseName, GeoIpTaskState.Metadata metadata) throws IOException {
@@ -521,9 +554,19 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
     void updateDatabase(ProjectId projectId, String databaseFileName, String recordedMd5, Path file) {
         try {
             logger.debug("starting reload of changed database file [{}]", file);
+            @SuppressWarnings("resource")
             DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(projectId, cache, file, recordedMd5);
-            DatabaseReaderLazyLoader existing = databases.computeIfAbsent(projectId, (k) -> new ConcurrentHashMap<>())
-                .put(databaseFileName, loader);
+            AtomicReference<DatabaseReaderLazyLoader> previous = new AtomicReference<>();
+            // Atomically install the loader: holding the bin lock for the project ensures the inner map
+            // we mutate cannot be detached from `databases` by a concurrent cleanup (see checkDatabases).
+            databases.compute(projectId, (k, inner) -> {
+                if (inner == null) {
+                    inner = new ConcurrentHashMap<>();
+                }
+                previous.set(inner.put(databaseFileName, loader));
+                return inner;
+            });
+            DatabaseReaderLazyLoader existing = previous.get();
             if (existing != null) {
                 existing.shutdown();
             } else {
@@ -536,21 +579,6 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             logger.info("successfully loaded database file [{}]", file.getFileName());
         } catch (Exception e) {
             logger.warn(() -> "failed to update database [" + databaseFileName + "]", e);
-        }
-    }
-
-    void removeStaleEntries(ProjectId projectId, Collection<String> staleEntries) {
-        ConcurrentMap<String, DatabaseReaderLazyLoader> projectLoaders = databases.get(projectId);
-        assert projectLoaders != null;
-        for (String staleEntry : staleEntries) {
-            try {
-                logger.debug("database [{}] for project [{}] no longer exists, cleaning up...", staleEntry, projectId);
-                DatabaseReaderLazyLoader existing = projectLoaders.remove(staleEntry);
-                assert existing != null;
-                existing.shutdown(true);
-            } catch (Exception e) {
-                logger.warn(() -> "failed to clean database [" + staleEntry + "] for project [" + projectId + "]", e);
-            }
         }
     }
 
@@ -787,7 +815,8 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
     }
 
     private DatabaseReaderLazyLoader getProjectLazyLoader(ProjectId projectId, String databaseName) {
-        return databases.computeIfAbsent(projectId, (k) -> new ConcurrentHashMap<>()).get(databaseName);
+        ConcurrentMap<String, DatabaseReaderLazyLoader> inner = databases.get(projectId);
+        return inner == null ? null : inner.get(databaseName);
     }
 
     private Path getDatabaseTmpDirectory(ProjectId projectId) {

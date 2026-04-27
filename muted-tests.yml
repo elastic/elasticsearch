@@ -127,9 +127,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/145377
-- class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
-  method: testOverflowInGroupingProducesNullAndWarning
-  issue: https://github.com/elastic/elasticsearch/issues/145438
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/145655
@@ -139,9 +136,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testAverageWriteLoadMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/145855
-- class: org.elasticsearch.xpack.esql.spatial.SpatialCentroidAggregationIT
-  method: testStCentroidAggregationWithShapes
-  issue: https://github.com/elastic/elasticsearch/issues/145883
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryAllCombinationsSkipUnavailableIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145884
@@ -376,9 +370,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
   method: testApproximationDisabled
   issue: https://github.com/elastic/elasticsearch/issues/147144
-- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
-  method: testLicenseCheck
-  issue: https://github.com/elastic/elasticsearch/issues/147147
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145901
@@ -473,40 +464,43 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/147543
 - class: org.elasticsearch.xpack.esql.datasource.orc.OrcFormatReaderTests
   methods:
-    - testMetadataReturnsCorrectSourceType
-    - testReadDecimalColumnWithNulls
-    - testReadNullValuesInColumns
-    - testReadIntegerColumn
-    - testReadListTimestampColumn
-    - testReadDecimalHighPrecision
-    - testBinaryMapsToUnsupported
-    - testDiscoverSplitRanges_emptyFile
-    - testDiscoverSplitRanges_multiStripeFile
-    - testPreEpochTimestamp
-    - testTimestampTruncatesToMillisPrecision
-    - testReadListDecimalColumn
-    - testReadRepeatingVectors
-    - testProjectedColumnMissingFromFileReturnsNullBlock
-    - testReadWithPushedFilterMatchingNone
-    - testReadRange_readsOnlyAssignedStripes
-    - testReadRange_withPredicate
-    - testReadWithColumnProjection
-    - testReadTimestampColumn
-    - testReadDataFromSimpleOrc
-    - testReadDateColumn
-    - testReadWithBatching
-    - testReadWithPushedFilterMatchingAll
-    - testReadFloatColumn
-    - testReadTimestampColumnWithNulls
-    - testReadDecimalColumn
-    - testReadWithPushedFilterAndColumnProjection
-    - testIteratorCloseReleasesResourcesOnPartialRead
-    - testReadBooleanColumn
-    - testReadSchemaFromSimpleOrc
-    - testReadRange_withProjection
-    - testDiscoverSplitRanges_singleStripe
-    - testReadListColumnAsMultiValue
+  - testMetadataReturnsCorrectSourceType
+  - testReadDecimalColumnWithNulls
+  - testReadNullValuesInColumns
+  - testReadIntegerColumn
+  - testReadListTimestampColumn
+  - testReadDecimalHighPrecision
+  - testBinaryMapsToUnsupported
+  - testDiscoverSplitRanges_emptyFile
+  - testDiscoverSplitRanges_multiStripeFile
+  - testPreEpochTimestamp
+  - testTimestampTruncatesToMillisPrecision
+  - testReadListDecimalColumn
+  - testReadRepeatingVectors
+  - testProjectedColumnMissingFromFileReturnsNullBlock
+  - testReadWithPushedFilterMatchingNone
+  - testReadRange_readsOnlyAssignedStripes
+  - testReadRange_withPredicate
+  - testReadWithColumnProjection
+  - testReadTimestampColumn
+  - testReadDataFromSimpleOrc
+  - testReadDateColumn
+  - testReadWithBatching
+  - testReadWithPushedFilterMatchingAll
+  - testReadFloatColumn
+  - testReadTimestampColumnWithNulls
+  - testReadDecimalColumn
+  - testReadWithPushedFilterAndColumnProjection
+  - testIteratorCloseReleasesResourcesOnPartialRead
+  - testReadBooleanColumn
+  - testReadSchemaFromSimpleOrc
+  - testReadRange_withProjection
+  - testDiscoverSplitRanges_singleStripe
+  - testReadListColumnAsMultiValue
   issue: https://github.com/elastic/elasticsearch/issues/147545
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=reindex/10_basic/Response format for version conflict with conflicts=proceed}
+  issue: https://github.com/elastic/elasticsearch/issues/147594
 
 # Examples:
 #

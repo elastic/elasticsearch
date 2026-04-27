@@ -3,11 +3,577 @@
 // across files plus aggregate metadata pushdown over a multi-file glob.
 // {{hits_rg_shaped}} -> parquet/rg-shaped/*.parquet
 
-countHitsRgShaped
+q01_countHits
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}"
-| STATS count = COUNT(*);
+EXTERNAL "{{hits_rg_shaped}}" | STATS count = COUNT(*);
 
 count:long
 50000
 ;
+
+q02_countAdvEngineIdNonzero
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE AdvEngineID != 0 | STATS count = COUNT(*);
+
+count:long
+1690
+;
+
+q03_statsAdvEngineIdResolution
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | STATS sum_AdvEngineID = SUM(AdvEngineID), count = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth);
+
+sum_AdvEngineID:long | count:long | avg_ResolutionWidth:double
+10288 | 50000 | 1601.0212
+;
+
+q04_statsDistinctUserid
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | STATS u = MV_COUNT(VALUES(UserID));
+
+u:integer
+1107
+;
+
+q05_statsDistinctSearchPhrase
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | STATS u = MV_COUNT(VALUES(SearchPhrase));
+
+u:integer
+601
+;
+
+q06_statsMinMaxEventDate
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | STATS min_EventDate = MIN(EventDate), max_EventDate = MAX(EventDate);
+
+min_EventDate:integer | max_EventDate:integer
+15901 | 15901
+;
+
+q07_statsAdvEngineIdByAdvEngineId
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE AdvEngineID != 0 | STATS c = COUNT(*) BY AdvEngineID | SORT c DESC;
+
+c:long | AdvEngineID:integer
+1062 | 2
+628 | 13
+;
+
+q08_statsDistinctUseridByRegion
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | STATS u = MV_COUNT(VALUES(UserID)) BY RegionID | SORT u DESC | LIMIT 10;
+
+u:integer | RegionID:integer
+451 | 229
+183 | 2
+50 | 1
+46 | 208
+15 | 7
+14 | 9
+13 | 226
+11 | 42
+11 | 11
+10 | 34
+;
+
+q09_statsRegionAggregates
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | STATS sum_AdvEngineID = SUM(AdvEngineID), c = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY RegionID | SORT c DESC | LIMIT 10;
+
+sum_AdvEngineID:long | c:long | avg_ResolutionWidth:double | count_distinct_UserID:integer | RegionID:integer
+5090 | 26989 | 1646.0049279336026 | 451 | 229
+1490 | 9171 | 1567.8388398211755 | 183 | 2
+274 | 2865 | 1587.5232111692844 | 50 | 1
+438 | 932 | 1187.2703862660944 | 46 | 208
+80 | 696 | 1604.0488505747126 | 15 | 7
+0 | 568 | 1624.9612676056338 | 14 | 9
+390 | 504 | 1751.7619047619048 | 3 | 12457
+0 | 399 | 1638.0 | 3 | 25
+78 | 380 | 1791.8736842105263 | 10 | 8
+76 | 376 | 1603.531914893617 | 5 | 57
+;
+
+q10_statsMobilePhoneModelUsers
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhoneModel | SORT u DESC | LIMIT 10;
+
+u:integer | MobilePhoneModel:keyword
+31 | "iPad"
+1 | "GT-P7300B"
+1 | "iPhone"
+;
+
+q11_statsMobilePhoneUsers
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhone, MobilePhoneModel | SORT u DESC | LIMIT 10;
+
+u:integer | MobilePhone:integer | MobilePhoneModel:keyword
+26 | 1 | "iPad"
+1 | 19 | "iPad"
+1 | 32 | "iPad"
+1 | 32 | "iPhone"
+1 | 6 | "GT-P7300B"
+1 | 5 | "iPad"
+1 | 7 | "iPad"
+1 | 60 | "iPad"
+;
+
+q12_statsSearchPhraseCount
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchPhrase | SORT c DESC | LIMIT 10;
+
+c:long | SearchPhrase:keyword
+511 | "ведомосквы вместу"
+215 | "ведомосквиталия страции"
+181 | "ведомосквы вы из"
+138 | "ведомосковский"
+100 | "ведомоскве варфейс"
+82 | "авторий"
+69 | "ведомосква"
+60 | "ведомосквы с ляйсан баллы"
+60 | "сварочные огниторговце"
+50 | "афиша липецк автосточка"
+;
+
+q13_statsSearchPhraseUsers
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS u = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT u DESC | LIMIT 10;
+
+u:integer | SearchPhrase:keyword
+47 | "ведомосквы вместу"
+24 | "ведомосквиталия страции"
+19 | "ведомосквы вы из"
+9 | "ведомосковский"
+7 | "авторий"
+6 | "ведомосква"
+3 | "активный отельство"
+3 | "покеты рецепт засня"
+3 | "usb на юбился воды вости на"
+3 | "автомобиль фильм произолотека у лову"
+;
+
+q14_statsSearchEnginePhrase
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchEngineID, SearchPhrase | SORT c DESC | LIMIT 10;
+
+c:long | SearchEngineID:integer | SearchPhrase:keyword
+396 | 2 | "ведомосквы вместу"
+183 | 2 | "ведомосквиталия страции"
+148 | 2 | "ведомосквы вы из"
+138 | 2 | "ведомосковский"
+100 | 2 | "ведомоскве варфейс"
+82 | 2 | "авторий"
+79 | 3 | "ведомосквы вместу"
+67 | 2 | "ведомосква"
+60 | 2 | "сварочные огниторговце"
+60 | 2 | "ведомосквы с ляйсан баллы"
+;
+
+q15_statsUseridCount
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | STATS c = COUNT(*) BY UserID | SORT c DESC | LIMIT 10;
+
+c:long | UserID:long
+970 | -7918574344944952583
+780 | -7589677728426322164
+655 | -8258406745529374862
+630 | -8906290752198210953
+615 | -7904263253391067902
+560 | -8351596774216514728
+510 | -7443496593543088467
+500 | -8229872269465361314
+485 | -8284294157038592779
+450 | -7725127544842036118
+;
+
+q16_statsUseridSearchPhraseCount
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC | LIMIT 10;
+
+c:long | UserID:long | SearchPhrase:keyword
+910 | -7918574344944952583 | ""
+760 | -7589677728426322164 | ""
+630 | -8906290752198210953 | ""
+615 | -7904263253391067902 | ""
+560 | -8351596774216514728 | ""
+555 | -8258406745529374862 | ""
+500 | -7443496593543088467 | ""
+500 | -8229872269465361314 | ""
+450 | -7725127544842036118 | ""
+445 | -8284294157038592779 | ""
+;
+
+q17_statsUseridSearchPhraseLimit
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID, SearchPhrase | LIMIT 10;
+
+c:long | UserID:long | SearchPhrase:keyword
+910 | -7918574344944952583 | ""
+760 | -7589677728426322164 | ""
+630 | -8906290752198210953 | ""
+615 | -7904263253391067902 | ""
+560 | -8351596774216514728 | ""
+555 | -8258406745529374862 | ""
+500 | -8229872269465361314 | ""
+500 | -7443496593543088467 | ""
+450 | -7725127544842036118 | ""
+445 | -8284294157038592779 | ""
+;
+
+q18_statsUseridMinuteSearchPhrase
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | EVAL m = EventTime / 60 % 60 | STATS c = COUNT(*) BY UserID, m, SearchPhrase | SORT c DESC | LIMIT 10;
+
+c:long | UserID:long | m:long | SearchPhrase:keyword
+120 | -7918574344944952583 | 26 | ""
+100 | -9154375582268094750 | 1 | ""
+80 | -8455721461950319637 | 21 | ""
+80 | -7725127544842036118 | 21 | ""
+80 | -8284294157038592779 | 11 | ""
+70 | -7018910098174567459 | 56 | ""
+70 | -7904263253391067902 | 34 | ""
+70 | -7918574344944952583 | 9 | ""
+70 | -9158995094684353950 | 12 | ""
+70 | -7018910098174567459 | 57 | ""
+;
+
+q19_filterUserid435090932899640449
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE UserID == -9136168843017551521 | KEEP UserID;
+
+UserID:long
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+-9136168843017551521
+;
+
+q20_statsGoogleUrlCount
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE URL LIKE "*google*" | STATS count = COUNT(*);
+
+count:long
+0
+;
+
+q21_statsGoogleUrlSearchPhrase
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE URL LIKE "*google*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*) BY SearchPhrase | SORT c DESC | LIMIT 10;
+
+min_URL:keyword | c:long | SearchPhrase:keyword
+;
+
+q22_statsGoogleTitleNotUrl
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE Title LIKE "*Google*" AND NOT URL LIKE "*.google.*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), min_Title = MIN(Title), c = COUNT(*), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT c DESC | LIMIT 10;
+
+min_URL:keyword | min_Title:keyword | c:long | count_distinct_UserID:integer | SearchPhrase:keyword
+"https://produkty%2Fpulove.ru/booklyattion-war-sinij-9182/women" | "Легко на участные участников., Цены - Стильная парнем. Саганрог догадения : Турции, купить у 10 дне кольные машинки не представки - Новая с избиение спродажа: котята 2014 г.в. Цена: 47500-10ECO060 – -------- купить квартиру Оренбург (России Galantrax Flamiliada Google, Nо 18 фотоконверк Супер Кардиган" | 5 | 1 | "ведомосквиталия страции"
+"https://produkty%2Fpulove.ru/booklyattion-war-sinij-9182/women" | "Легко на участные участников., Цены - Стильная парнем. Саганрог догадения : Турции, купить у 10 дне кольные машинки не представки - Новая с избиение спродажа: котята 2014 г.в. Цена: 47500-10ECO060 – -------- купить квартиру Оренбург (России Galantrax Flamiliada Google, Nо 18 фотоконверк Супер Кардиган" | 3 | 1 | "ведомосквы вместу"
+;
+
+q23_sortGoogleUrlByTime
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE URL LIKE "*google*" | SORT EventTime ASC | LIMIT 10;
+
+WatchID:long | JavaEnable:integer | Title:keyword | GoodEvent:integer | EventTime:long | EventDate:integer | CounterID:integer | ClientIP:integer | RegionID:integer | UserID:long | CounterClass:integer | OS:integer | UserAgent:integer | URL:keyword | Referer:keyword | IsRefresh:integer | RefererCategoryID:integer | RefererRegionID:integer | URLCategoryID:integer | URLRegionID:integer | ResolutionWidth:integer | ResolutionHeight:integer | ResolutionDepth:integer | FlashMajor:integer | FlashMinor:integer | FlashMinor2:keyword | NetMajor:integer | NetMinor:integer | UserAgentMajor:integer | UserAgentMinor:keyword | CookieEnable:integer | JavascriptEnable:integer | IsMobile:integer | MobilePhone:integer | MobilePhoneModel:keyword | Params:keyword | IPNetworkID:integer | TraficSourceID:integer | SearchEngineID:integer | SearchPhrase:keyword | AdvEngineID:integer | IsArtifical:integer | WindowClientWidth:integer | WindowClientHeight:integer | ClientTimeZone:integer | ClientEventTime:long | SilverlightVersion1:integer | SilverlightVersion2:integer | SilverlightVersion3:integer | SilverlightVersion4:integer | PageCharset:keyword | CodeVersion:integer | IsLink:integer | IsDownload:integer | IsNotBounce:integer | FUniqID:long | OriginalURL:keyword | HID:integer | IsOldCounter:integer | IsEvent:integer | IsParameter:integer | DontCountHits:integer | WithHash:integer | HitColor:keyword | LocalEventTime:long | Age:integer | Sex:integer | Income:integer | Interests:integer | Robotness:integer | RemoteIP:integer | WindowName:integer | OpenerName:integer | HistoryLength:integer | BrowserLanguage:keyword | BrowserCountry:keyword | SocialNetwork:keyword | SocialAction:keyword | HTTPError:integer | SendTiming:integer | DNSTiming:integer | ConnectTiming:integer | ResponseStartTiming:integer | ResponseEndTiming:integer | FetchTiming:integer | SocialSourceNetworkID:integer | SocialSourcePage:keyword | ParamPrice:long | ParamOrderID:keyword | ParamCurrency:keyword | ParamCurrencyID:integer | OpenstatServiceName:keyword | OpenstatCampaignID:keyword | OpenstatAdID:keyword | OpenstatSourceID:keyword | UTMSource:keyword | UTMMedium:keyword | UTMCampaign:keyword | UTMContent:keyword | UTMTerm:keyword | FromTag:keyword | HasGCLID:integer | RefererHash:long | URLHash:long | CLID:integer
+;
+
+q24_sortSearchPhraseByTime
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | SORT EventTime ASC | KEEP SearchPhrase | LIMIT 10;
+
+SearchPhrase:keyword
+"usb на юбился ворожение русскую"
+"usb на юбился ворожение русскую"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+;
+
+q25_sortSearchphraseAsc
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | SORT SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
+
+SearchPhrase:keyword
+"188242-81 кубов"
+"188242-81 кубов"
+"188242-81 кубов"
+"188242-81 кубов"
+"188242-81 кубов"
+"188242-81 кубов"
+"188242-81 кубов"
+"188242-81 кубов"
+"188242-81 кубов"
+"188242-81 кубов"
+;
+
+q26_sortSearchPhraseTimeAsc
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | SORT EventTime ASC, SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
+
+SearchPhrase:keyword
+"usb на юбился ворожение русскую"
+"usb на юбился ворожение русскую"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+"ведомосквы с ляйсан баллы"
+;
+
+q27_statsUrlLengthByCounter
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE URL != "" | STATS l = AVG(BYTE_LENGTH(URL)), c = COUNT(*) BY CounterID | WHERE c > 1000 | SORT l DESC | LIMIT 25;
+
+l:double | c:long | CounterID:integer
+77.2146621265556 | 49338 | 38
+;
+
+q28_statsRefererDomainAnalysis
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE Referer != "" | EVAL k = REPLACE(Referer, "^https?://(?:www\\.)?([^/]+)/.*$", "$1") | STATS l = AVG(BYTE_LENGTH(Referer)), c = COUNT(*), min_Referer = MIN(Referer) BY k | WHERE c > 1000 | SORT l DESC | LIMIT 25;
+
+l:double | c:long | min_Referer:keyword | k:keyword
+100.982139499906 | 5319 | "https://go.mail/folder-1/online 4 кинотеатр екатегороднажды сбербан театр аттр 2&clid%3D4850|295&chat/avege.ru/pol-1/sportaaloG4DQ&usg=AFQjCNFCWrC0wlGate90/rooms-rent/2222.html?sort=date=1016967b44e0097" | "go.mail"
+80.05205047318611 | 2536 | "http://tambov.irr.irr.ru/Tatui&ftop=0&op_uid=69569843f3f.html" | "tambov.irr.irr.ru"
+77.64668117130934 | 28037 | "http://tambov.irr.ru/?favorite" | "tambov.irr.ru"
+77.37990726429675 | 3235 | "http://tambov.irr.ua/yandex.php/Гайд" | "tambov.irr.ua"
+20.0 | 1227 | "http://tambov.irr.ru" | "http://tambov.irr.ru"
+17.0 | 1113 | "http://tambov.irr" | "http://tambov.irr"
+;
+
+q29_statsResolutionWidthSums
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | STATS s0 = SUM(ResolutionWidth), s1 = SUM(ResolutionWidth + 1), s2 = SUM(ResolutionWidth + 2), s3 = SUM(ResolutionWidth + 3), s4 = SUM(ResolutionWidth + 4), s5 = SUM(ResolutionWidth + 5), s6 = SUM(ResolutionWidth + 6), s7 = SUM(ResolutionWidth + 7), s8 = SUM(ResolutionWidth + 8), s9 = SUM(ResolutionWidth + 9);
+
+s0:long | s1:long | s2:long | s3:long | s4:long | s5:long | s6:long | s7:long | s8:long | s9:long
+80051060 | 80101060 | 80151060 | 80201060 | 80251060 | 80301060 | 80351060 | 80401060 | 80451060 | 80501060
+;
+
+q30_statsSearchEngineClientIp
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY SearchEngineID, ClientIP | SORT c DESC, SearchEngineID, ClientIP | LIMIT 10;
+
+c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | SearchEngineID:integer | ClientIP:integer
+100 | 45 | 1638.0 | 2 | 1735595921
+60 | 30 | 1638.0 | 2 | -1555581670
+60 | 30 | 1368.0 | 2 | 743072690
+50 | 25 | 1996.0 | 2 | -181568119
+50 | 25 | 1828.0 | 2 | 403806690
+50 | 25 | 1917.0 | 2 | 1515936442
+48 | 24 | 1638.0 | 2 | 1140309473
+42 | 21 | 1638.0 | 2 | -125068408
+40 | 20 | 1638.0 | 2 | -1916299005
+40 | 25 | 1368.0 | 2 | -877902537
+;
+
+q31_statsWatchIdClientIp
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
+
+c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long | ClientIP:integer
+5 | 0 | 1750.0 | 4617561261186506426 | 1785570738
+5 | 5 | 1917.0 | 4621548433098056642 | 1515936442
+5 | 5 | 1368.0 | 4627214020331320067 | 743072690
+5 | 5 | 1917.0 | 4630380122233063518 | 1207096081
+5 | 0 | 1828.0 | 4636835208715655538 | 1603657374
+5 | 0 | 1368.0 | 4640697035997705957 | 743072690
+5 | 0 | 1638.0 | 4647310520206361580 | 127765921
+5 | 5 | 1638.0 | 4649527986047207300 | -1916299005
+5 | 0 | 1368.0 | 4662181541853506487 | -1862498328
+5 | 5 | 1996.0 | 4666711948794049487 | 1450638336
+;
+
+q32_statsWatchIdClientIpAll
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
+
+c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long | ClientIP:integer
+5 | 5 | 1917.0 | 4613772085988129220 | 1827516327
+5 | 0 | 1368.0 | 4613805872289589946 | 1251479417
+5 | 0 | 1638.0 | 4614852222233098813 | 1878517573
+5 | 5 | 1250.0 | 4616283530312678068 | -1042740163
+5 | 5 | 1917.0 | 4616321837681632879 | 1515936442
+5 | 0 | 1368.0 | 4617039305930162950 | -1764738923
+5 | 5 | 1990.0 | 4617506933686297670 | 1322039043
+5 | 0 | 1750.0 | 4617561261186506426 | 1785570738
+5 | 0 | 1996.0 | 4617735445723636691 | -896338100
+5 | 5 | 1638.0 | 4619472031941156146 | -1172274502
+;
+
+q33_statsUrlCount
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | STATS c = COUNT(*) BY URL | SORT c DESC | LIMIT 10;
+
+c:long | URL:keyword
+1198 | "https://produkty%2Fproduct"
+744 | "https://produkty%2Fpulove.ru/album/login"
+620 | "https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soul"
+617 | ""
+524 | "https://produkty/kurortmag"
+508 | "https://produkty%2F"
+310 | "https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soulmjj/628965/detail.aspx?Forum.cofe.ru&pvid=163789569-geniya_1538"
+272 | "https://produkty/full&qset=159508&s_yers"
+258 | "https://produkty%2Fproduct_id"
+251 | "https://produkty%2Fpulove.ru/moscow"
+;
+
+q34_statsConstUrlCount
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | EVAL const1 = 1 | STATS c = COUNT(*) BY const1, URL | SORT c DESC | LIMIT 10;
+
+c:long | const1:integer | URL:keyword
+1198 | 1 | "https://produkty%2Fproduct"
+744 | 1 | "https://produkty%2Fpulove.ru/album/login"
+620 | 1 | "https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soul"
+617 | 1 | ""
+524 | 1 | "https://produkty/kurortmag"
+508 | 1 | "https://produkty%2F"
+310 | 1 | "https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soulmjj/628965/detail.aspx?Forum.cofe.ru&pvid=163789569-geniya_1538"
+272 | 1 | "https://produkty/full&qset=159508&s_yers"
+258 | 1 | "https://produkty%2Fproduct_id"
+251 | 1 | "https://produkty%2Fpulove.ru/moscow"
+;
+
+q35_statsClientIpVariations
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | EVAL ip_m1 = ClientIP - 1, ip_m2 = ClientIP - 2, ip_m3 = ClientIP - 3 | STATS c = COUNT(*) BY ClientIP, ip_m1, ip_m2, ip_m3 | SORT c DESC | LIMIT 10;
+
+c:long | ClientIP:integer | ip_m1:integer | ip_m2:integer | ip_m3:integer
+970 | 743072690 | 743072689 | 743072688 | 743072687
+780 | -896338100 | -896338101 | -896338102 | -896338103
+655 | 1735595921 | 1735595920 | 1735595919 | 1735595918
+630 | 2107723744 | 2107723743 | 2107723742 | 2107723741
+615 | 1852934819 | 1852934818 | 1852934817 | 1852934816
+560 | 934770972 | 934770971 | 934770970 | 934770969
+510 | 1262902180 | 1262902179 | 1262902178 | 1262902177
+500 | 1827516327 | 1827516326 | 1827516325 | 1827516324
+485 | -1916299005 | -1916299006 | -1916299007 | -1916299008
+450 | 1942356217 | 1942356216 | 1942356215 | 1942356214
+;
+
+q36_statsCounter62JulyUrls
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND URL != "" | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC, URL | LIMIT 10;
+
+PageViews:long | URL:keyword
+5 | "http://afisha.mail.ru/catalog/314/women.ru/ency=1&page3/?errovat-pinniki"
+5 | "http://bonprix.ru/index.ru/cinema/art/0 986 424 233 сезон"
+5 | "http://bonprix.ru/index.ru/cinema/art/A00387,3797); ru)&bL"
+5 | "http://holodilnik.ru/russia/05jul2013&model=0"
+5 | "http://tours/Ekategoriya%2F&sr=http://slovareniye"
+;
+
+q37_statsCounter62JulyTitles
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND Title != "" | STATS PageViews = COUNT(*) BY Title | SORT PageViews DESC | LIMIT 10;
+
+PageViews:long | Title:keyword
+;
+
+q38_statsCounter62JulyLinks
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND IsLink != 0 AND IsDownload == 0 | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC | LIMIT 1010;
+
+PageViews:long | URL:keyword
+;
+
+q39_statsCounter62JulyTrafficSources
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 | EVAL Src = CASE(SearchEngineID == 0 AND AdvEngineID == 0, Referer, ""), Dst = URL | STATS PageViews = COUNT(*) BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst | SORT PageViews DESC | LIMIT 1010;
+
+PageViews:long | TraficSourceID:integer | SearchEngineID:integer | AdvEngineID:integer | Src:keyword | Dst:keyword
+20 | 4 | 0 | 0 | "" | ""
+5 | 4 | 0 | 0 | "" | "http://afisha.mail.ru/catalog/314/women.ru/ency=1&page3/?errovat-pinniki"
+5 | 4 | 0 | 0 | "" | "http://bonprix.ru/index.ru/cinema/art/0 986 424 233 сезон"
+5 | 4 | 0 | 0 | "" | "http://bonprix.ru/index.ru/cinema/art/A00387,3797); ru)&bL"
+5 | 4 | 0 | 0 | "" | "http://tours/Ekategoriya%2F&sr=http://slovareniye"
+5 | 4 | 0 | 0 | "" | "http://holodilnik.ru/russia/05jul2013&model=0"
+;
+
+q40_statsCounter62JulyRefererHash
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND TraficSourceID IN (-1, 6) AND RefererHash == 9118190589742611694 | STATS PageViews = COUNT(*) BY URLHash, EventDate | SORT PageViews DESC | LIMIT 110;
+
+PageViews:long | URLHash:long | EventDate:integer
+;
+
+q41_statsCounter62JulyWindowClient
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND DontCountHits == 0 AND URLHash == 9074312750323043892 | STATS PageViews = COUNT(*) BY WindowClientWidth, WindowClientHeight | SORT PageViews DESC | LIMIT 10010;
+
+PageViews:long | WindowClientWidth:integer | WindowClientHeight:integer
+;
+
+q42_statsCounter62July1415Minutes
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15900 AND EventDate <= 15901 AND IsRefresh == 0 AND DontCountHits == 0 | EVAL M = EventTime - EventTime % 60 | STATS PageViews = COUNT(*) BY M | SORT M ASC | LIMIT 1010;
+
+PageViews:long | M:long
+5 | 1373833800
+5 | 1373834280
+5 | 1373841600
+5 | 1373912280
+5 | 1373913180
+5 | 1373914560
+5 | 1373914680
+5 | 1373916360
+5 | 1373916960
+;
+

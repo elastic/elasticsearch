@@ -334,9 +334,9 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             throw new IllegalArgumentException(
                 "Field ["
                     + getField()
-                    + "] requires a text embedding model, but the configured model type is ["
+                    + "] requires an embedding or text embedding model, but the configured model type is ["
                     + modelSettings.taskType()
-                    + "]"
+                    + "] which is not compatible with knn queries"
             );
         }
 

@@ -141,12 +141,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
 
                                 @Override
                                 public int score(LeafCollector collector, Bits acceptDocs, int min, int maxExclusive) throws IOException {
-                                    // make max inclusive
                                     int max = maxExclusive - 1;
-
-                                    // want range [min, max)
-//                                    System.out.println("min value: " + min + " max value: " + max);
-
                                     int currBlockStart = min;
                                     while (currBlockStart <= max) {
                                         // Also advances at beginning when value is -1
@@ -168,11 +163,16 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                                         if (lowerValue <= minVal && maxVal <= upperValue) {
                                             // Skipper range is entirely contained within query range
                                             // Collect all accepted Doc
-                                            for (int doc = minDocInBlock; doc <= maxDocInBlock; doc++) {
-                                                if (acceptDocs == null || acceptDocs.get(doc)) {
-                                                    collector.collect(doc);
+                                            if (acceptDocs == null) {
+                                                collector.collectRange(minDocInBlock, maxDocInBlock + 1); // exclusive upper bound
+                                            } else {
+                                                for (int doc = minDocInBlock; doc <= maxDocInBlock; doc++) {
+                                                    if (acceptDocs.get(doc)) {
+                                                        collector.collect(doc);
+                                                    }
                                                 }
                                             }
+
                                         } else if (minVal <= upperValue && lowerValue <= maxVal) {
                                             // Skipper range overlaps with query range
                                             // Collect accepted docs within [lowerValue, upperValue]
@@ -188,7 +188,6 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                                         // Else: Skipper block does not intersect range
 
                                         currBlockStart = maxDocInBlock + 1;
-//                                        System.out.println("currBlockStart: " + currBlockStart);
                                     }
                                     return maxExclusive;
                                 }
@@ -209,9 +208,6 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                     // never decode DV data for that block.
                     final SkipBlockRangeIterator skipApprox =
                         new SkipBlockRangeIterator(skipper, lowerValue, upperValue);
-
-
-
 
                     iterator =
                         new TwoPhaseIterator(skipApprox) {

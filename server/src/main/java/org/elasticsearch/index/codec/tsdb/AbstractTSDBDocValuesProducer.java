@@ -2459,8 +2459,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         int lastInBlock = blockId == lastBlock ? lastDoc & numericBlockMask : numericBlockMask;
                         for (int idx = firstInBlock; idx <= lastInBlock; idx++) {
                             long val = currentBlock[idx];
-                            if (val >= lowerValue && val <= upperValue) {
-                                if (acceptedDocs == null || acceptedDocs.get(docId++)) {
+                            if (acceptedDocs == null || acceptedDocs.get(docId++)) {
+                                if (lowerValue <= val && val <= upperValue) {
                                     collector.collect(docId);
                                 }
                             }

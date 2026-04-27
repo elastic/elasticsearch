@@ -135,62 +135,45 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
     }
 
     public void testFromMap_NoUrl_ThrowsValidationError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> IbmWatsonxChatCompletionServiceSettings.fromMap(
-                buildServiceSettingsMap(null, TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT),
-                randomFrom(ConfigurationParseContext.values())
-            )
-        );
-        assertThat(thrownException.validationErrors().size(), is(1));
-        assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.URL))
+        assertFromMap_MissingRequiredField_ThrowsValidationError(
+            buildServiceSettingsMap(null, TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT),
+            ServiceFields.URL
         );
     }
 
     public void testFromMap_NoApiVersion_ThrowsValidationError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> IbmWatsonxChatCompletionServiceSettings.fromMap(
-                buildServiceSettingsMap(TEST_URI.toString(), null, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT),
-                randomFrom(ConfigurationParseContext.values())
-            )
-        );
-        assertThat(thrownException.validationErrors().size(), is(1));
-        assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", IbmWatsonxServiceFields.API_VERSION))
+        assertFromMap_MissingRequiredField_ThrowsValidationError(
+            buildServiceSettingsMap(TEST_URI.toString(), null, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT),
+            IbmWatsonxServiceFields.API_VERSION
         );
     }
 
     public void testFromMap_NoModelId_ThrowsValidationError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> IbmWatsonxChatCompletionServiceSettings.fromMap(
-                buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, null, TEST_PROJECT_ID, TEST_RATE_LIMIT),
-                randomFrom(ConfigurationParseContext.values())
-            )
-        );
-        assertThat(thrownException.validationErrors().size(), is(1));
-        assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.MODEL_ID))
+        assertFromMap_MissingRequiredField_ThrowsValidationError(
+            buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, null, TEST_PROJECT_ID, TEST_RATE_LIMIT),
+            ServiceFields.MODEL_ID
         );
     }
 
     public void testFromMap_NoProjectId_ThrowsValidationError() {
+        assertFromMap_MissingRequiredField_ThrowsValidationError(
+            buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, null, TEST_RATE_LIMIT),
+            IbmWatsonxServiceFields.PROJECT_ID
+        );
+    }
+
+    private static void assertFromMap_MissingRequiredField_ThrowsValidationError(
+        Map<String, Object> serviceSettingsMap,
+        String missingFieldName
+    ) {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> IbmWatsonxChatCompletionServiceSettings.fromMap(
-                buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, null, TEST_RATE_LIMIT),
-                randomFrom(ConfigurationParseContext.values())
-            )
+            () -> IbmWatsonxChatCompletionServiceSettings.fromMap(serviceSettingsMap, randomFrom(ConfigurationParseContext.values()))
         );
         assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
             thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", IbmWatsonxServiceFields.PROJECT_ID))
+            is(Strings.format("[service_settings] does not contain the required setting [%s]", missingFieldName))
         );
     }
 

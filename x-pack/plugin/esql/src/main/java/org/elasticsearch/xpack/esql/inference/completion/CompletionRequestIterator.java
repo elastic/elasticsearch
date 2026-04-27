@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem.PositionValueCountsBuilder;
@@ -22,6 +24,8 @@ import org.elasticsearch.xpack.esql.inference.InputTextReader;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+
+import static org.elasticsearch.xpack.esql.inference.InferenceService.COMPLETION_PRODUCT_USE_CASE;
 
 /**
  * Iterator that converts a block of prompt strings into inference request items.
@@ -35,6 +39,7 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
     private final InputTextReader textReader;
     private final String inferenceId;
     private final Map<String, Object> taskSettings;
+    private final TimeValue timeout;
     private final int size;
     private final PositionValueCountsBuilder positionValueCountsBuilder = BulkInferenceRequestItem.positionValueCountsBuilder();
 
@@ -46,12 +51,14 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
      * @param inferenceId The ID of the inference model to invoke.
      * @param promptBlock The input block containing prompts.
      * @param taskSettings Task-specific settings to include in inference requests.
+     * @param timeout Timeout for each inference request.
      */
-    CompletionRequestIterator(String inferenceId, BytesRefBlock promptBlock, Map<String, Object> taskSettings) {
+    CompletionRequestIterator(String inferenceId, BytesRefBlock promptBlock, Map<String, Object> taskSettings, TimeValue timeout) {
         this.textReader = new InputTextReader(promptBlock);
         this.size = promptBlock.getPositionCount();
         this.inferenceId = inferenceId;
         this.taskSettings = taskSettings;
+        this.timeout = timeout;
     }
 
     @Override
@@ -96,7 +103,11 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
         }
 
         InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION)
-            .setInput(List.of(prompt));
+            .setInput(List.of(prompt))
+            .setContext(new InferenceContext(COMPLETION_PRODUCT_USE_CASE));
+        if (timeout != null) {
+            builder.setInferenceTimeout(timeout);
+        }
 
         // Only set task settings if explicitly provided by the user.
         // This preserves backward compatibility and avoids sending empty
@@ -121,13 +132,13 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
     /**
      * Factory for creating {@link CompletionRequestIterator} instances.
      */
-    record Factory(String inferenceId, ExpressionEvaluator promptEvaluator, Map<String, Object> taskSettings)
+    record Factory(String inferenceId, ExpressionEvaluator promptEvaluator, Map<String, Object> taskSettings, TimeValue timeout)
         implements
             BulkInferenceRequestItemIterator.Factory {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new CompletionRequestIterator(inferenceId, (BytesRefBlock) promptEvaluator.eval(inputPage), taskSettings);
+            return new CompletionRequestIterator(inferenceId, (BytesRefBlock) promptEvaluator.eval(inputPage), taskSettings, timeout);
         }
 
         @Override

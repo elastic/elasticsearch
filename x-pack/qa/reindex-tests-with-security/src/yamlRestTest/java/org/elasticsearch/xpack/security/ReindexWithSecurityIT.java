@@ -70,6 +70,8 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             .user("powerful_user", "x-pack-test-password", "superuser", false)
             .user("minimal_user", "x-pack-test-password", "minimal", false)
             .user("minimal_with_task_user", "x-pack-test-password", "minimal_with_task", false)
+            .user("minimal_with_reindex_get_user", "x-pack-test-password", "minimal_with_reindex_get", false)
+            .user("minimal_with_reindex_list_user", "x-pack-test-password", "minimal_with_reindex_list", false)
             .user("readonly_user", "x-pack-test-password", "readonly", false)
             .user("dest_only_user", "x-pack-test-password", "dest_only", false)
             .user("can_not_see_hidden_docs_user", "x-pack-test-password", "can_not_see_hidden_docs", false)

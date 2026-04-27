@@ -1,0 +1,281 @@
+# Tests for features specific to aggregate_metric_double
+
+AggregateMetricDoubleLessThan
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+TS k8s-downsampled
+| WHERE network.eth0.tx < 512.0
+| SORT @timestamp, cluster, pod
+| KEEP @timestamp, cluster, pod, network.eth0.tx
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.tx:aggregate_metric_double
+2024-05-09T23:30:00.000Z | prod            | three       | {"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
+2024-05-09T23:30:00.000Z | prod            | two         | {"min":20.0,"max":190.0,"sum":370.0,"value_count":10}
+2024-05-09T23:30:00.000Z | qa              | one         | {"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}
+2024-05-09T23:30:00.000Z | staging         | three       | {"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}
+2024-05-09T23:40:00.000Z | prod            | one         | {"min":94.0,"max":94.0,"sum":94.0,"value_count":1}
+2024-05-09T23:40:00.000Z | prod            | three       | {"min":113.0,"max":341.0,"sum":1112.0,"value_count":4}
+2024-05-09T23:40:00.000Z | staging         | three       | {"min":172.0,"max":411.0,"sum":755.0,"value_count":3}
+2024-05-09T23:50:00.000Z | prod            | three       | {"min":162.0,"max":715.0,"sum":1912.0,"value_count":8}
+2024-05-09T23:50:00.000Z | prod            | two         | {"min":377.0,"max":602.0,"sum":2190.0,"value_count":5}
+2024-05-09T23:50:00.000Z | qa              | three       | {"min":243.0,"max":398.0,"sum":2585.0,"value_count":10}
+2024-05-09T23:50:00.000Z | staging         | one         | {"min":157.0,"max":193.0,"sum":1232.0,"value_count":7}
+;
+
+AggregateMetricDoubleLessThanOrEqualTo
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+TS k8s-downsampled
+| WHERE network.eth0.tx <= 512.0
+| SORT @timestamp, cluster, pod
+| KEEP @timestamp, cluster, pod, network.eth0.tx
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.tx:aggregate_metric_double
+2024-05-09T23:30:00.000Z | prod            | three       | {"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
+2024-05-09T23:30:00.000Z | prod            | two         | {"min":20.0,"max":190.0,"sum":370.0,"value_count":10}
+2024-05-09T23:30:00.000Z | qa              | one         | {"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}
+2024-05-09T23:30:00.000Z | staging         | three       | {"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}
+2024-05-09T23:40:00.000Z | prod            | one         | {"min":94.0,"max":94.0,"sum":94.0,"value_count":1}
+2024-05-09T23:40:00.000Z | prod            | three       | {"min":113.0,"max":341.0,"sum":1112.0,"value_count":4}
+2024-05-09T23:40:00.000Z | staging         | one         | {"min":231.0,"max":795.0,"sum":4096.0,"value_count":8}
+2024-05-09T23:40:00.000Z | staging         | three       | {"min":172.0,"max":411.0,"sum":755.0,"value_count":3}
+2024-05-09T23:50:00.000Z | prod            | three       | {"min":162.0,"max":715.0,"sum":1912.0,"value_count":8}
+2024-05-09T23:50:00.000Z | prod            | two         | {"min":377.0,"max":602.0,"sum":2190.0,"value_count":5}
+2024-05-09T23:50:00.000Z | qa              | three       | {"min":243.0,"max":398.0,"sum":2585.0,"value_count":10}
+2024-05-09T23:50:00.000Z | staging         | one         | {"min":157.0,"max":193.0,"sum":1232.0,"value_count":7}
+;
+
+AggregateMetricDoubleGreaterThan
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+TS k8s-downsampled
+| WHERE network.eth0.tx > 512.0
+| SORT @timestamp, cluster, pod
+| KEEP @timestamp, cluster, pod, network.eth0.tx
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.tx:aggregate_metric_double
+2024-05-09T23:30:00.000Z | prod            | one         | {"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}
+2024-05-09T23:30:00.000Z | qa              | three       | {"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+2024-05-09T23:30:00.000Z | qa              | two         | {"min":304.0,"max":1148.0,"sum":8590.0,"value_count":10}
+2024-05-09T23:30:00.000Z | staging         | one         | {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
+2024-05-09T23:30:00.000Z | staging         | two         | {"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}
+2024-05-09T23:40:00.000Z | prod            | two         | {"min":663.0,"max":1419.0,"sum":11259.0,"value_count":9}
+2024-05-09T23:40:00.000Z | qa              | one         | {"min":176.0,"max":1042.0,"sum":5579.0,"value_count":7}
+2024-05-09T23:40:00.000Z | qa              | three       | {"min":321.0,"max":685.0,"sum":1932.0,"value_count":3}
+2024-05-09T23:40:00.000Z | qa              | two         | {"min":441.0,"max":1248.0,"sum":11960.0,"value_count":10}
+2024-05-09T23:40:00.000Z | staging         | two         | {"min":604.0,"max":664.0,"sum":3100.0,"value_count":5}
+2024-05-09T23:50:00.000Z | prod            | one         | {"min":598.0,"max":1060.0,"sum":6986.0,"value_count":7}
+2024-05-09T23:50:00.000Z | qa              | one         | {"min":468.0,"max":694.0,"sum":3075.0,"value_count":5}
+2024-05-09T23:50:00.000Z | qa              | two         | {"min":75.0,"max":594.0,"sum":5760.0,"value_count":10}
+2024-05-09T23:50:00.000Z | staging         | three       | {"min":690.0,"max":824.0,"sum":2936.0,"value_count":4}
+2024-05-09T23:50:00.000Z | staging         | two         | {"min":315.0,"max":815.0,"sum":4320.0,"value_count":8}
+;
+
+AggregateMetricDoubleGreaterThanOrEqualTo
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+TS k8s-downsampled
+| WHERE network.eth0.tx >= 512.0
+| SORT @timestamp, cluster, pod
+| KEEP @timestamp, cluster, pod, network.eth0.tx
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.tx:aggregate_metric_double
+2024-05-09T23:30:00.000Z | prod            | one         | {"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}
+2024-05-09T23:30:00.000Z | qa              | three       | {"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+2024-05-09T23:30:00.000Z | qa              | two         | {"min":304.0,"max":1148.0,"sum":8590.0,"value_count":10}
+2024-05-09T23:30:00.000Z | staging         | one         | {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
+2024-05-09T23:30:00.000Z | staging         | two         | {"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}
+2024-05-09T23:40:00.000Z | prod            | two         | {"min":663.0,"max":1419.0,"sum":11259.0,"value_count":9}
+2024-05-09T23:40:00.000Z | qa              | one         | {"min":176.0,"max":1042.0,"sum":5579.0,"value_count":7}
+2024-05-09T23:40:00.000Z | qa              | three       | {"min":321.0,"max":685.0,"sum":1932.0,"value_count":3}
+2024-05-09T23:40:00.000Z | qa              | two         | {"min":441.0,"max":1248.0,"sum":11960.0,"value_count":10}
+2024-05-09T23:40:00.000Z | staging         | one         | {"min":231.0,"max":795.0,"sum":4096.0,"value_count":8}
+2024-05-09T23:40:00.000Z | staging         | two         | {"min":604.0,"max":664.0,"sum":3100.0,"value_count":5}
+2024-05-09T23:50:00.000Z | prod            | one         | {"min":598.0,"max":1060.0,"sum":6986.0,"value_count":7}
+2024-05-09T23:50:00.000Z | qa              | one         | {"min":468.0,"max":694.0,"sum":3075.0,"value_count":5}
+2024-05-09T23:50:00.000Z | qa              | two         | {"min":75.0,"max":594.0,"sum":5760.0,"value_count":10}
+2024-05-09T23:50:00.000Z | staging         | three       | {"min":690.0,"max":824.0,"sum":2936.0,"value_count":4}
+2024-05-09T23:50:00.000Z | staging         | two         | {"min":315.0,"max":815.0,"sum":4320.0,"value_count":8}
+;
+
+AggregateMetricDoubleEquals
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+TS k8s-downsampled
+| WHERE network.eth0.tx == 605.0 OR network.eth0.tx == 512.0 OR network.eth0.rx == 924.5
+| SORT @timestamp, cluster, pod
+| KEEP @timestamp, cluster, pod, network.eth0.tx, network.eth0.rx
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.tx:aggregate_metric_double               | network.eth0.rx:aggregate_metric_double
+2024-05-09T23:30:00.000Z | prod            | two         | {"min":20.0,"max":190.0,"sum":370.0,"value_count":10} | {"min":478.0,"max":1371.0,"sum":1849.0,"value_count":2}
+2024-05-09T23:30:00.000Z | qa              | three       | {"min":605.0,"max":605.0,"sum":605.0,"value_count":1} | {"min":1.0,"max":1.0,"sum":1.0,"value_count":1}
+2024-05-09T23:40:00.000Z | staging         | one         | {"min":231.0,"max":795.0,"sum":4096.0,"value_count":8} | {"min":130.0,"max":478.0,"sum":984.0,"value_count":4}
+;
+
+AggregateMetricDoubleNotEquals
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+TS k8s-downsampled
+| WHERE network.eth0.tx != 605.0 AND cluster == "qa" AND pod == "three"
+| SORT @timestamp, cluster, pod
+| KEEP @timestamp, cluster, pod, network.eth0.rx
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.rx:aggregate_metric_double
+2024-05-09T23:40:00.000Z | qa              | three       | {"min":690.0,"max":1237.0,"sum":7447.0,"value_count":10}
+2024-05-09T23:50:00.000Z | qa              | three       | {"min":138.0,"max":669.0,"sum":5211.0,"value_count":9}
+;
+
+AggregateMetricDoubleRange
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+TS k8s-downsampled
+| WHERE network.eth0.tx >= 300.0 AND network.eth0.tx < 700.0
+| SORT @timestamp, cluster, pod
+| KEEP @timestamp, cluster, pod, network.eth0.tx
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.tx:aggregate_metric_double
+2024-05-09T23:30:00.000Z | qa              | one         | {"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}
+2024-05-09T23:30:00.000Z | qa              | three       | {"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+2024-05-09T23:30:00.000Z | staging         | one         | {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
+2024-05-09T23:30:00.000Z | staging         | three       | {"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}
+2024-05-09T23:30:00.000Z | staging         | two         | {"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}
+2024-05-09T23:40:00.000Z | qa              | three       | {"min":321.0,"max":685.0,"sum":1932.0,"value_count":3}
+2024-05-09T23:40:00.000Z | staging         | one         | {"min":231.0,"max":795.0,"sum":4096.0,"value_count":8}
+2024-05-09T23:40:00.000Z | staging         | two         | {"min":604.0,"max":664.0,"sum":3100.0,"value_count":5}
+2024-05-09T23:50:00.000Z | prod            | two         | {"min":377.0,"max":602.0,"sum":2190.0,"value_count":5}
+2024-05-09T23:50:00.000Z | qa              | one         | {"min":468.0,"max":694.0,"sum":3075.0,"value_count":5}
+2024-05-09T23:50:00.000Z | qa              | two         | {"min":75.0,"max":594.0,"sum":5760.0,"value_count":10}
+2024-05-09T23:50:00.000Z | staging         | two         | {"min":315.0,"max":815.0,"sum":4320.0,"value_count":8}
+;
+
+AggregateMetricDoubleStatsAfterBinaryOperator
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+TS k8s-downsampled
+| WHERE network.eth0.tx > 500.0
+| STATS min_tx = MIN(network.eth0.tx), max_tx = MAX(network.eth0.tx) BY pod
+| SORT pod
+;
+
+min_tx:double | max_tx:double | pod:keyword
+512.0         | 998.0         | one
+644.0         | 734.0         | three
+540.0         | 1251.0        | two
+;
+
+AggregateMetricDoubleEvalAfterBinaryOperator
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+TS k8s-downsampled
+| WHERE cluster == "qa" AND pod == "three"
+| EVAL is_high = network.eth0.tx > 300.0
+| SORT @timestamp
+| KEEP @timestamp, cluster, pod, network.eth0.tx, is_high
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.tx:aggregate_metric_double                 | is_high:boolean
+2024-05-09T23:30:00.000Z | qa              | three       | {"min":605.0,"max":605.0,"sum":605.0,"value_count":1}   | true
+2024-05-09T23:40:00.000Z | qa              | three       | {"min":321.0,"max":685.0,"sum":1932.0,"value_count":3}  | true
+2024-05-09T23:50:00.000Z | qa              | three       | {"min":243.0,"max":398.0,"sum":2585.0,"value_count":10} | false
+;
+
+AggregateMetricDoubleInlineFilterInStats
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+TS k8s-downsampled
+| STATS filtered_min_lot = MIN(network.eth0.tx) WHERE network.eth0.tx > 512.0,
+overall_min_lot = MIN(network.eth0.tx) BY cluster
+| SORT cluster
+;
+
+filtered_min_lot:double | overall_min_lot:double | cluster:keyword
+998.0                   | 239.0                  | prod
+576.0                   | 258.5                  | qa
+539.0                   | 176.0                  | staging
+;
+
+ImplicitCastingWithBinaryOperator
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+TS k8s* | WHERE network.eth0.tx > 512.0 and pod == "three" | KEEP @timestamp, cluster, pod | SORT @timestamp, cluster, pod | LIMIT 10
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword
+2024-05-09T23:30:00.000Z | qa              | three
+2024-05-09T23:40:00.000Z | qa              | three
+2024-05-09T23:50:00.000Z | staging         | three
+2024-05-10T00:11:45.000Z | qa              | three
+2024-05-10T00:11:53.000Z | qa              | three
+2024-05-10T00:12:08.000Z | qa              | three
+2024-05-10T00:12:11.000Z | staging         | three
+2024-05-10T00:12:42.000Z | staging         | three
+2024-05-10T00:13:11.000Z | staging         | three
+2024-05-10T00:13:32.000Z | staging         | three
+;
+
+ImplicitCastingWithBinaryOperatorCountFrom
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+FROM k8s* | STATS count = count(network.eth0.tx) WHERE network.eth0.tx > 512.0 BY cluster, pod | sort cluster, pod
+;
+
+count:long | cluster:keyword | pod:keyword
+30         | prod            | one
+10         | prod            | three
+18         | prod            | two
+29         | qa              | one
+17         | qa              | three
+52         | qa              | two
+14         | staging         | one
+19         | staging         | three
+30         | staging         | two
+;
+
+ImplicitCastingWithBinaryOperatorAndThenStats
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+TS k8s*
+| WHERE network.eth0.tx > 512.0
+| STATS min = min(min_over_time(network.eth0.tx)), avg = round(avg(avg_over_time(network.eth0.tx)), 3) by cluster, pod
+| sort cluster, pod
+;
+
+min:double | avg:double | cluster:keyword | pod:keyword
+555.0      | 849.075    | prod            | one
+528.0      | 711.7      | prod            | three
+560.0      | 982.278    | prod            | two
+176.0      | 881.517    | qa              | one
+321.0      | 870.824    | qa              | three
+75.0       | 1000.212   | qa              | two
+263.0      | 543.25     | staging         | one
+544.0      | 838.1      | staging         | three
+315.0      | 671.9      | staging         | two
+;
+
+amd_with_tbucket_outputs_dimensions
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all  
+required_capability: metrics_group_by_all_with_ts_dimensions
+TS k8s-downsampled
+| STATS avg = avg_over_time(network.eth0.tx), min = min_over_time(network.eth0.tx), max = max_over_time(network.eth0.tx) BY tbucket = TBUCKET(1 hour)
+;
+ignoreOrder:true
+
+avg:double         | min:double | max:double | _timeseries:keyword                           | tbucket:datetime
+267.6666666666667  | 113.0      | 715.0      | "{""cluster"":""prod"",""pod"":""three""}"    | 2024-05-09T23:00:00.000Z
+365.85714285714283 | 243.0      | 685.0      | "{""cluster"":""qa"",""pod"":""three""}"      | 2024-05-09T23:00:00.000Z
+428.72             | 157.0      | 795.0      | "{""cluster"":""staging"",""pod"":""one""}"   | 2024-05-09T23:00:00.000Z
+470.5833333333333  | 172.0      | 824.0      | "{""cluster"":""staging"",""pod"":""three""}" | 2024-05-09T23:00:00.000Z
+563.5              | 315.0      | 1011.0     | "{""cluster"":""staging"",""pod"":""two""}"   | 2024-05-09T23:00:00.000Z
+575.7916666666666  | 20.0       | 1419.0     | "{""cluster"":""prod"",""pod"":""two""}"      | 2024-05-09T23:00:00.000Z
+612.8823529411765  | 176.0      | 1042.0     | "{""cluster"":""qa"",""pod"":""one""}"        | 2024-05-09T23:00:00.000Z
+798.3333333333334  | 94.0       | 1060.0     | "{""cluster"":""prod"",""pod"":""one""}"      | 2024-05-09T23:00:00.000Z
+877.0              | 75.0       | 1248.0     | "{""cluster"":""qa"",""pod"":""two""}"        | 2024-05-09T23:00:00.000Z
+;

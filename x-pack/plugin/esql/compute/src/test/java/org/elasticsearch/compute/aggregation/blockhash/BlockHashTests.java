@@ -1143,10 +1143,10 @@ public class BlockHashTests extends BlockHashTestCase {
 
     // Returns the size of the bytesRefBlockHash depending on the underlying implementation.
     static String byteRefBlockHashSize() {
-        if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
-            return "213120b";
+        if (HashImplFactory.SWISS_HASH_AVAILABLE) {
+            return "213160b";
         }
-        return "491b";
+        return "531b";
     }
 
     public void testLongBytesRefHashWithMultiValuedFields() {

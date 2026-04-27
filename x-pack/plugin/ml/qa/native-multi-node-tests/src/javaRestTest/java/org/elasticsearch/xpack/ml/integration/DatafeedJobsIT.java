@@ -41,12 +41,14 @@ import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
@@ -63,6 +65,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeedBuilder;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
@@ -247,6 +250,19 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         CheckedRunnable<Exception> openAndRunJob = () -> {
             openJob(job.getId());
             assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+
+            // After deleting a datafeed, timing stats are removed asynchronously; on multi-node clusters a
+            // subsequent putDatafeed can briefly observe stale search_count from the replica. Wait until
+            // the timing stats document is gone before asserting via GetDatafeedsStats.
+            assertBusy(() -> {
+                client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId())).get();
+                assertResponse(
+                    prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId())).setQuery(
+                        QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(job.getId()))
+                    ).setSize(0).setTrackTotalHits(true),
+                    response -> assertThat(response.getHits().getTotalHits().value(), equalTo(0L))
+                );
+            }, 30, TimeUnit.SECONDS);
 
             putDatafeed(datafeedConfig);
             // Datafeed did not do anything yet, hence search_count is equal to 0.
@@ -505,6 +521,65 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
             assertThat(response.getResponse().results().get(0).getState(), equalTo(JobState.OPENED));
         });
+    }
+
+    public void testNonCcsDatafeedHasNoCrossClusterStats() throws Exception {
+        String jobId = "no-ccs-stats-job";
+        String datafeedId = jobId + "-datafeed";
+        startRealtime(jobId);
+
+        // While the datafeed is running, remote_cluster_stats should be null for a non-CCS datafeed
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            GetDatafeedsStatsAction.Response.DatafeedStats stats = response.getResponse().results().get(0);
+            assertThat(stats.getDatafeedState(), equalTo(DatafeedState.STARTED));
+            assertNotNull(stats.getRunningState());
+            assertNull(stats.getRunningState().getCrossClusterStats());
+        });
+
+        StopDatafeedAction.Response stopResponse = stopDatafeed(datafeedId);
+        assertTrue(stopResponse.isStopped());
+
+        // After stopping, running_state and remote_cluster_stats should both be absent
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            GetDatafeedsStatsAction.Response.DatafeedStats stats = response.getResponse().results().get(0);
+            assertThat(stats.getDatafeedState(), equalTo(DatafeedState.STOPPED));
+            assertNull(stats.getRunningState());
+        });
+    }
+
+    public void testLookbackOnlyHasNoCrossClusterStats() throws Exception {
+        client().admin().indices().prepareCreate("ccs-check-data").setMapping("time", "type=date").get();
+        long numDocs = randomIntBetween(32, 512);
+        long now = System.currentTimeMillis();
+        long oneWeekAgo = now - 604800000;
+        indexDocs(logger, "ccs-check-data", numDocs, oneWeekAgo, now);
+
+        Job.Builder job = createScheduledJob("ccs-lookback-job");
+        putJob(job);
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+
+        DatafeedConfig datafeedConfig = createDatafeed(
+            "ccs-lookback-job-datafeed",
+            job.getId(),
+            Collections.singletonList("ccs-check-data")
+        );
+        putDatafeed(datafeedConfig);
+
+        startDatafeed(datafeedConfig.getId(), 0L, now);
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            GetDatafeedsStatsAction.Response.DatafeedStats stats = response.getResponse().results().get(0);
+            assertThat(stats.getDatafeedState(), equalTo(DatafeedState.STOPPED));
+            assertNull(stats.getRunningState());
+        }, 60, TimeUnit.SECONDS);
+
+        waitUntilJobIsClosed(job.getId());
     }
 
     private void doTestStopRealtime_GivenCloseJobAndForceStopParameters(

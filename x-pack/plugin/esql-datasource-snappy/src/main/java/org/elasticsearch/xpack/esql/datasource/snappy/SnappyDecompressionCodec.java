@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.snappy;
 
-import io.airlift.compress.snappy.SnappyFramedInputStream;
-
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.xerial.snappy.SnappyFramedInputStream;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,7 +20,7 @@ import java.util.List;
  * <p>Uses the standard Snappy framing format (64KB chunks with CRC-32C checksums).
  * CRC-32C verification is enabled by default to detect silent data corruption
  * from remote blob stores. The underlying {@link SnappyFramedInputStream} is
- * provided by aircompressor via the {@code esql-datasource-compression-libs} parent plugin.
+ * provided by snappy-java via the {@code esql-datasource-compression-libs} parent plugin.
  */
 public class SnappyDecompressionCodec implements DecompressionCodec {
 

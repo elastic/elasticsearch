@@ -31,7 +31,19 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         if (randomBoolean()) {
             return new AggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         } else {
-            return new TimeSeriesAggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, null);
+            boolean collapsed = randomBoolean();
+            return new TimeSeriesAggregateExec(
+                source,
+                child,
+                groupings,
+                aggregates,
+                mode,
+                intermediateAttributes,
+                estimatedRowSize,
+                null,
+                null,
+                collapsed
+            );
         }
     }
 
@@ -42,6 +54,38 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
 
     @Override
     protected AggregateExec mutateInstance(AggregateExec instance) throws IOException {
+        if (instance instanceof TimeSeriesAggregateExec ts) {
+            PhysicalPlan child = instance.child();
+            List<? extends Expression> groupings = instance.groupings();
+            List<? extends NamedExpression> aggregates = instance.aggregates();
+            List<Attribute> intermediateAttributes = instance.intermediateAttributes();
+            AggregatorMode mode = instance.getMode();
+            Integer estimatedRowSize = instance.estimatedRowSize();
+            switch (between(0, 5)) {
+                case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
+                case 1 -> groupings = randomValueOtherThan(groupings, () -> randomFieldAttributes(0, 5, false));
+                case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
+                case 3 -> mode = randomValueOtherThan(mode, () -> randomFrom(AggregatorMode.values()));
+                case 4 -> intermediateAttributes = randomValueOtherThan(intermediateAttributes, () -> randomFieldAttributes(0, 5, false));
+                case 5 -> estimatedRowSize = randomValueOtherThan(
+                    estimatedRowSize,
+                    AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
+                );
+                default -> throw new IllegalStateException();
+            }
+            return new TimeSeriesAggregateExec(
+                instance.source(),
+                child,
+                groupings,
+                aggregates,
+                mode,
+                intermediateAttributes,
+                estimatedRowSize,
+                ts.timeBucket(),
+                ts.outputTimeBucket(),
+                ts.isCollapsed()
+            );
+        }
         PhysicalPlan child = instance.child();
         List<? extends Expression> groupings = instance.groupings();
         List<? extends NamedExpression> aggregates = instance.aggregates();
@@ -60,20 +104,7 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
             );
             default -> throw new IllegalStateException();
         }
-        if (instance instanceof TimeSeriesAggregateExec) {
-            return new TimeSeriesAggregateExec(
-                instance.source(),
-                child,
-                groupings,
-                aggregates,
-                mode,
-                intermediateAttributes,
-                estimatedRowSize,
-                null
-            );
-        } else {
-            return new AggregateExec(instance.source(), child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
-        }
+        return new AggregateExec(instance.source(), child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
     @Override

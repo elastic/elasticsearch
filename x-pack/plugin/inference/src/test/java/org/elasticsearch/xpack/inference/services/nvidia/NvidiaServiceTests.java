@@ -47,7 +47,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -201,8 +200,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 }
 
                 @Override
-                protected ModelSecrets createModelSecrets() {
-                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
+                protected ModelSecrets createModelSecrets(ConfigurationParseContext context) {
+                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap(), context));
                 }
 
                 @Override
@@ -256,7 +255,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
-            protected NvidiaEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
+            protected NvidiaEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
                 return createInternalEmbeddingModel(similarityMeasure);
             }
         }).build();
@@ -542,7 +541,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -577,7 +576,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
                         var t = unwrapCause(e);
@@ -658,7 +657,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -823,7 +822,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 List.of(new ChunkInferenceInput(FIRST_PART_OF_INPUT_VALUE), new ChunkInferenceInput(SECOND_PART_OF_INPUT_VALUE)),
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -953,7 +952,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 true,
                 new HashMap<>(),
                 InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 

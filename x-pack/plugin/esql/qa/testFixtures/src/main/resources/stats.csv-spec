@@ -2887,6 +2887,7 @@ c1:long
 
 simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
 required_capability: per_agg_filtering
+required_capability: keywords_mv_count_as_single_value_fix
 from employees
 | stats c1 = count(job_positions) where emp_no <= 10003
 ;
@@ -3871,6 +3872,197 @@ SUM(salary_change):double   | salary_change:double
 6.000000000000001           | 1.98           
 ;
 
+sumWithOverflow
+required_capability: fix_sum_agg_long_overflow
+FROM employees
+| WHERE languages == 1
+| LIMIT 2
+| EVAL x = languages * 9223372036854775807
+| STATS overflow = SUM(x), underflow = SUM(-x)
+;
+warning:Line 5:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long
+null          | null
+;
+
+sumWithOverflowGrouping
+required_capability: fix_sum_agg_long_overflow
+FROM employees
+| SORT emp_no
+| WHERE languages == 1
+| EVAL group = emp_no % 2, x = languages * 9223372036854775807
+| STATS overflow = SUM(x), underflow = SUM(-x), count = COUNT(*) by group
+| SORT group
+| LIMIT 2
+;
+warning:Line 5:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long | count:long | group:integer
+null          | null           | 6          | 0
+null          | null           | 9          | 1
+;
+
+sumWithOverflowMixedGrouping
+required_capability: fix_sum_agg_long_overflow
+FROM employees
+| SORT emp_no ASC
+| LIMIT 4
+| EVAL group = emp_no % 2, x = CASE(group == 0, 9223372036854775807, 1::long)
+| STATS s = SUM(x) BY group
+| SORT group
+;
+warning:Line 5:13: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:13: java.lang.ArithmeticException: long overflow
+
+s:long | group:integer
+null   | 0
+2      | 1
+;
+
+sumWithOverflowRow
+required_capability: fix_sum_agg_long_overflow
+ROW x = [9223372036854775807, 9223372036854775807]
+| MV_EXPAND x
+| STATS overflow = SUM(x), underflow = SUM(-x)
+;
+warning:Line 3:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:20: java.lang.ArithmeticException: long overflow
+warning:Line 3:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long
+null          | null
+;
+
+sumWithOverflowGroupingRow
+required_capability: fix_sum_agg_long_overflow
+ROW x = [9223372036854775807, 9223372036854775807], group = [0, 1]
+| MV_EXPAND x
+| MV_EXPAND group
+| STATS overflow = SUM(x), underflow = SUM(-x) by group
+| SORT group
+;
+warning:Line 4:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:20: java.lang.ArithmeticException: long overflow
+warning:Line 4:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long | group:integer
+null          | null           | 0
+null          | null           | 1
+;
+
+sumAsSurrogateWithOverflow
+required_capability: fix_sum_agg_long_overflow
+FROM employees
+| WHERE languages == 1
+| LIMIT 2
+| EVAL x = languages * 9223372036854775807
+| STATS overflow = AVG(x), underflow = AVG(-x)
+;
+warning:Line 5:20: evaluation of [AVG(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:40: evaluation of [AVG(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:40: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double
+null            | null
+;
+
+sumAsSurrogateWithOverflowGrouping
+required_capability: fix_sum_agg_long_overflow
+FROM employees
+| SORT emp_no
+| WHERE languages == 1
+| EVAL group = emp_no % 2, x = languages * 9223372036854775807
+| STATS overflow = AVG(x), underflow = AVG(-x), count = COUNT(*) by group
+| SORT group
+| LIMIT 2
+;
+warning:Line 5:20: evaluation of [AVG(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:40: evaluation of [AVG(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:40: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double | count:long | group:integer
+null            | null             | 6          | 0
+null            | null             | 9          | 1
+;
+
+sumAsSurrogateWithOverflowRow
+required_capability: fix_sum_agg_long_overflow
+ROW x = [9223372036854775807, 9223372036854775807]
+| MV_EXPAND x
+| STATS overflow = AVG(x), underflow = AVG(-x)
+;
+warning:Line 3:20: evaluation of [AVG(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:20: java.lang.ArithmeticException: long overflow
+warning:Line 3:40: evaluation of [AVG(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:40: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double
+null            | null
+;
+
+sumAsSurrogateWithOverflowGroupingRow
+required_capability: fix_sum_agg_long_overflow
+ROW x = [9223372036854775807, 9223372036854775807], group = [0, 1]
+| MV_EXPAND x
+| MV_EXPAND group
+| STATS overflow = AVG(x), underflow = AVG(-x) by group
+| SORT group
+;
+warning:Line 4:20: evaluation of [AVG(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:20: java.lang.ArithmeticException: long overflow
+warning:Line 4:40: evaluation of [AVG(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:40: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double | group:integer
+null            | null             | 0
+null            | null             | 1
+;
+
+weightedAvgWithOverflow
+required_capability: fix_sum_agg_long_overflow
+required_capability: agg_weighted_avg
+FROM employees
+| WHERE languages == 1
+| LIMIT 2
+| EVAL x = languages * 9223372036854775807
+| STATS overflow = WEIGHTED_AVG(x, 1), underflow = WEIGHTED_AVG(-x, 1)
+;
+warning:Line 5:20: evaluation of [WEIGHTED_AVG(x, 1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:52: evaluation of [WEIGHTED_AVG(-x, 1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:52: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double
+null            | null
+;
+
+weightedAvgWithOverflowRow
+required_capability: fix_sum_agg_long_overflow
+required_capability: agg_weighted_avg
+ROW x = [9223372036854775807, 9223372036854775807]
+| MV_EXPAND x
+| STATS overflow = WEIGHTED_AVG(x, 1), underflow = WEIGHTED_AVG(-x, 1)
+;
+warning:Line 3:20: evaluation of [WEIGHTED_AVG(x, 1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:20: java.lang.ArithmeticException: long overflow
+warning:Line 3:52: evaluation of [WEIGHTED_AVG(-x, 1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:52: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double
+null            | null
+;
+
 multiStatsAfterFalseFilter_ByComputedValues
 from employees
 | where false
@@ -3993,5 +4185,160 @@ from employees
 ;
 
     max(c):l   |    min(c):l   |    min(s):d   |    avg(s):d
-null           |null           |null           |null           
+null           |null           |null           |null
+;
+
+statsCountAndMaxWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS a = COUNT(*), y = MAX(salary) BY x
+| DROP x
+;
+ignoreOrder:true
+
+a:long | y:integer
+1      | 45656
+1      | 64675
+1      | 73717
+3      | 58715
+4      | 67492
+5      | 65367
+6      | 65030
+8      | 60781
+9      | 73578
+11     | 61805
+11     | 74999
+12     | 71165
+13     | 74970
+15     | 70011
+;
+
+statsCountOnlyWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS a = COUNT(*) BY x
+| DROP x
+;
+ignoreOrder:true
+
+a:long
+1
+1
+1
+3
+4
+5
+6
+8
+9
+11
+11
+12
+13
+15
+;
+
+statsDuplicateCountAndMaxWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS y = COUNT(*), a = MAX(salary), y = COUNT(*) BY x
+| DROP x
+;
+ignoreOrder:true
+warning:Line 3:9: Field 'y' shadowed by field at line 3:40
+
+a:integer | y:long
+45656     | 1
+64675     | 1
+73717     | 1
+58715     | 3
+67492     | 4
+65367     | 5
+65030     | 6
+60781     | 8
+73578     | 9
+61805     | 11
+74999     | 11
+71165     | 12
+74970     | 13
+70011     | 15
+;
+
+statsTwoCountsAndMaxWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS y = COUNT(*), a = MAX(salary), z = COUNT(*) BY x
+| DROP x
+;
+ignoreOrder:true
+
+y:long | a:integer | z:long
+1      | 45656     | 1
+1      | 64675     | 1
+1      | 73717     | 1
+3      | 58715     | 3
+4      | 67492     | 4
+5      | 65367     | 5
+6      | 65030     | 6
+8      | 60781     | 8
+9      | 73578     | 9
+11     | 61805     | 11
+11     | 74999     | 11
+12     | 71165     | 12
+13     | 74970     | 13
+15     | 70011     | 15
+;
+
+statsMaxAndCountWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS a = MAX(salary), y = COUNT(*) BY x
+| DROP x
+;
+ignoreOrder:true
+
+a:integer | y:long
+45656     | 1
+64675     | 1
+73717     | 1
+58715     | 3
+67492     | 4
+65367     | 5
+65030     | 6
+60781     | 8
+73578     | 9
+61805     | 11
+74999     | 11
+71165     | 12
+74970     | 13
+70011     | 15
+;
+
+statsCountWithDateTruncAndLanguagesDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS a = COUNT(*) BY x, languages
+| DROP x
+| SORT languages, a
+| LIMIT 5
+;
+
+a:long | languages:integer
+1      | 1
+1      | 1
+1      | 1
+2      | 1
+2      | 1
 ;

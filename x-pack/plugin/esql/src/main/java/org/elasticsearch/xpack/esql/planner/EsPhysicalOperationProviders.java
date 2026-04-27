@@ -14,6 +14,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -576,13 +577,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         LocalExecutionPlannerContext context,
         int maxPageSize
     ) {
+        Rounding.Prepared outputRounding = ts.outputTimeBucketRounding(context.foldCtx());
+        Rounding.Prepared internalRounding = ts.timeBucketRounding(context.foldCtx());
+        boolean needsOutputFiltering = aggregatorMode.isOutputPartial() == false
+            && outputRounding != null
+            && internalRounding != null
+            && outputRounding.getUnprepared().equals(internalRounding.getUnprepared()) == false;
         return new TimeSeriesAggregationOperator.Factory(
-            ts.timeBucketRounding(context.foldCtx()),
+            internalRounding,
             ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts, ts.estimatedRowSize())
+            context.pageSize(ts, ts.estimatedRowSize()),
+            needsOutputFiltering ? outputRounding : null,
+            ts.isCollapsed()
         );
     }
 
@@ -631,15 +640,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public SourceLoader newSourceLoader(Set<String> sourcePaths) {
+            var filter = buildSourceFilter(sourcePaths, ctx.getMappingLookup(), ctx.getIndexSettings());
+            return ctx.newSourceLoader(filter, false);
+        }
+
+        static SourceFilter buildSourceFilter(Set<String> sourcePaths, MappingLookup mappingLookup, IndexSettings indexSettings) {
             var filter = sourcePaths != null ? new SourceFilter(sourcePaths.toArray(new String[0]), null) : null;
             // Apply vector exclusion logic similar to ShardGetService
             var fetchSourceContext = filter != null ? FetchSourceContext.of(true, null, filter.getIncludes(), filter.getExcludes()) : null;
-            var result = maybeExcludeVectorFields(ctx.getMappingLookup(), ctx.getIndexSettings(), fetchSourceContext, null);
+            var result = maybeExcludeVectorFields(mappingLookup, indexSettings, fetchSourceContext, null);
             var vectorFilter = result.v2();
             if (vectorFilter != null) {
-                filter = vectorFilter;
+                var includes = filter != null ? filter.getIncludes() : new String[0];
+                filter = new SourceFilter(includes, vectorFilter.getExcludes());
             }
-            return ctx.newSourceLoader(filter, false);
+            return filter;
         }
 
         @Override

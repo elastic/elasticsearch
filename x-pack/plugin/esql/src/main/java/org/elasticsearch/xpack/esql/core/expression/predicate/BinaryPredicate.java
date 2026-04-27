@@ -65,7 +65,9 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return left().nodeString() + " " + symbol() + " " + right().nodeString();
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        left().nodeString(sb, format);
+        sb.append(" ").append(symbol()).append(" ");
+        right().nodeString(sb, format);
     }
 }

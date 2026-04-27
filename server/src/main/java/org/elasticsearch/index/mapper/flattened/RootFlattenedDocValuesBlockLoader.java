@@ -43,7 +43,9 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
         String name,
         Mapper.IgnoreAbove ignoreAbove,
         boolean usesBinaryDocValues,
-        List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders
+        List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders,
+        boolean storeIgnoredFieldsInBinaryDocValues,
+        FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
     ) {
         this.ignoreAbove = ignoreAbove;
         this.fieldLoader = new BlockFlattenedDocValuesSyntheticFieldLoader(
@@ -52,18 +54,19 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             ignoreAbove.valuesPotentiallyIgnored() ? name + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
             null,
             usesBinaryDocValues,
-            mappedSubFieldLoaders
+            mappedSubFieldLoaders,
+            storeIgnoredFieldsInBinaryDocValues,
+            preserveLeafArrays
         );
         this.storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();
     }
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        if (ignoreAbove.valuesPotentiallyIgnored()) {
-            return new StoredFieldsSpec(false, false, fieldLoader.storedFieldLoaders().map(Map.Entry::getKey).collect(Collectors.toSet()));
-        } else {
+        if (storedFieldLoaders.isEmpty()) {
             return StoredFieldsSpec.NO_REQUIREMENTS;
         }
+        return new StoredFieldsSpec(false, false, storedFieldLoaders.stream().map(Map.Entry::getKey).collect(Collectors.toSet()));
     }
 
     @Override
@@ -138,7 +141,7 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
     @Override
     public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         // stored fields aren't supported when reading column-at-a-time
-        if (ignoreAbove.valuesPotentiallyIgnored()) {
+        if (storedFieldLoaders.isEmpty() == false) {
             return null;
         }
 
@@ -185,9 +188,20 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             String keyedIgnoredValuesFieldFullPath,
             String leafName,
             boolean usesBinaryDocValues,
-            List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders
+            List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders,
+            boolean storeIgnoredFieldsInBinaryDocValues,
+            FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
         ) {
-            super(fieldFullPath, keyedFieldFullPath, keyedIgnoredValuesFieldFullPath, leafName, usesBinaryDocValues, mappedSubFieldLoaders);
+            super(
+                fieldFullPath,
+                keyedFieldFullPath,
+                keyedIgnoredValuesFieldFullPath,
+                leafName,
+                usesBinaryDocValues,
+                mappedSubFieldLoaders,
+                storeIgnoredFieldsInBinaryDocValues,
+                preserveLeafArrays
+            );
         }
 
         public void writeToBlock(BlockLoader.BytesRefBuilder builder) throws IOException {

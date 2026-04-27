@@ -313,7 +313,7 @@ class NetworkAccessCheckActions {
         };
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = MalformedURLException.class)
     static void createURLWithURLStreamHandler() throws MalformedURLException {
         var x = new URL("http", "host", 1234, "file", new URLStreamHandler() {
             @Override
@@ -323,7 +323,7 @@ class NetworkAccessCheckActions {
         });
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = MalformedURLException.class)
     static void createURLWithURLStreamHandler2() throws MalformedURLException {
         var x = new URL(null, "spec", new URLStreamHandler() {
             @Override
@@ -444,7 +444,7 @@ class NetworkAccessCheckActions {
         URLConnection.setContentHandlerFactory(__ -> { throw new IllegalStateException(); });
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = SocketException.class)
     static void bindDatagramSocket() throws SocketException {
         try (var socket = new DatagramSocket(null)) {
             socket.bind(null);

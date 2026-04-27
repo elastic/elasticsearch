@@ -30,6 +30,11 @@ public class IpOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTestCase 
     }
 
     @Override
+    protected boolean supportsDocValuesCardinality() {
+        return true;
+    }
+
+    @Override
     protected String getFieldTypeName() {
         return "ip";
     }

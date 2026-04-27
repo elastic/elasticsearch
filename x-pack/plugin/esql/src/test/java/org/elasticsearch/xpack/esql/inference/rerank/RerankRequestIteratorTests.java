@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.inference.rerank;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 
@@ -51,18 +53,20 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+        final TimeValue timeout = randomTimeoutOrNull();
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, timeout)) {
             // Should produce exactly one request containing all items
             assertTrue(requestIterator.hasNext());
 
             BulkInferenceRequestItem requestItem = requestIterator.next();
-            InferenceAction.Request request = requestItem.inferenceRequest();
+            InferenceAction.Request request = (InferenceAction.Request) requestItem.inferenceRequest();
 
             assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
             assertThat(request.getTaskType(), equalTo(TaskType.RERANK));
             assertThat(request.getQuery(), equalTo(QUERY_TEXT));
             assertThat(request.getInput().size(), equalTo(size));
             assertThat(requestItem.positionValueCounts().length, equalTo(size));
+            assertThat(request.getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
 
             // No more requests
             assertFalse(requestIterator.hasNext());
@@ -75,7 +79,15 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(0) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, 20)) {
+        try (
+            RerankRequestIterator requestIterator = new RerankRequestIterator(
+                inferenceId,
+                QUERY_TEXT,
+                inputBlocks,
+                20,
+                randomTimeoutOrNull()
+            )
+        ) {
             // Empty page should have no iterations
             assertFalse(requestIterator.hasNext());
 
@@ -92,7 +104,8 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final int batchSize = 10;
         final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlockWithNulls(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+        final TimeValue timeout = randomTimeoutOrNull();
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, timeout)) {
             int totalPositionsProcessed = 0;
             while (requestIterator.hasNext()) {
                 BulkInferenceRequestItem requestItem = requestIterator.next();
@@ -112,7 +125,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                     assertThat(documentsInBatch, equalTo(0));
                 } else {
                     // Non-null request should have valid properties
-                    InferenceAction.Request request = requestItem.inferenceRequest();
+                    InferenceAction.Request request = (InferenceAction.Request) requestItem.inferenceRequest();
                     assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                     assertThat(request.getTaskType(), equalTo(TaskType.RERANK));
                     assertThat(request.getQuery(), equalTo(QUERY_TEXT));
@@ -127,6 +140,8 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                     for (int valueCount : positionValueCounts) {
                         assertTrue(valueCount == 0 || valueCount == 1);
                     }
+
+                    assertThat(request.getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
                 }
             }
 
@@ -156,23 +171,34 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             BytesRefBlock inputBlock = blockBuilder.build();
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+            final TimeValue timeout = randomTimeoutOrNull();
+            try (
+                RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, timeout)
+            ) {
                 // First batch: 1 null position + 10 document positions
                 // Position value counts [0,1,1,1,1,1,1,1,1,1,1] where first 0 is the leading null
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem firstItem = requestIterator.next();
-                assertThat(firstItem.inferenceRequest().getInput().size(), equalTo(10));
+                assertThat(((InferenceAction.Request) firstItem.inferenceRequest()).getInput().size(), equalTo(10));
                 assertThat(firstItem.positionValueCounts().length, equalTo(11)); // 1 null position + 10 doc positions
                 assertThat(firstItem.positionValueCounts()[0], equalTo(0)); // Leading null contributes 0 documents
                 for (int i = 1; i < 11; i++) {
                     assertThat(firstItem.positionValueCounts()[i], equalTo(1)); // Each position contributes 1 document
                 }
+                assertThat(
+                    ((InferenceAction.Request) firstItem.inferenceRequest()).getInferenceTimeout(),
+                    equalTo(expectedTimeout(timeout))
+                );
 
                 // Second batch: remaining 4 document positions
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem secondItem = requestIterator.next();
-                assertThat(secondItem.inferenceRequest().getInput().size(), equalTo(4));
+                assertThat(((InferenceAction.Request) secondItem.inferenceRequest()).getInput().size(), equalTo(4));
                 assertThat(secondItem.positionValueCounts().length, equalTo(4));
+                assertThat(
+                    ((InferenceAction.Request) secondItem.inferenceRequest()).getInferenceTimeout(),
+                    equalTo(expectedTimeout(timeout))
+                );
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -187,7 +213,15 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final int batchSize = between(5, 50);
         final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+        try (
+            RerankRequestIterator requestIterator = new RerankRequestIterator(
+                inferenceId,
+                QUERY_TEXT,
+                inputBlocks,
+                batchSize,
+                randomTimeoutOrNull()
+            )
+        ) {
             assertThat(requestIterator.estimatedSize(), equalTo(size));
         }
 
@@ -200,15 +234,17 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final int batchSize = 10;
         final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+        final TimeValue timeout = randomTimeoutOrNull();
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, timeout)) {
             List<Integer> batchSizes = new ArrayList<>();
             List<Integer> positionValueCountsLengths = new ArrayList<>();
 
             while (requestIterator.hasNext()) {
                 BulkInferenceRequestItem requestItem = requestIterator.next();
-                InferenceAction.Request request = requestItem.inferenceRequest();
+                InferenceAction.Request request = (InferenceAction.Request) requestItem.inferenceRequest();
                 batchSizes.add(request.getInput().size());
                 positionValueCountsLengths.add(requestItem.positionValueCounts().length);
+                assertThat(request.getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
             }
 
             // Should produce 3 batches: 10, 10, 5 documents
@@ -253,25 +289,36 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             BytesRefBlock inputBlock = blockBuilder.build();
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+            final TimeValue timeout = randomTimeoutOrNull();
+            try (
+                RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, timeout)
+            ) {
                 // First batch: 5 document positions (hits batch size) + 3 trailing null positions
                 // Position value counts [1,1,1,1,1,0,0,0] represents 5 docs and 3 nulls bundled together
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem firstItem = requestIterator.next();
-                assertThat(firstItem.inferenceRequest().getInput().size(), equalTo(5));
+                assertThat(((InferenceAction.Request) firstItem.inferenceRequest()).getInput().size(), equalTo(5));
                 assertThat(firstItem.positionValueCounts().length, equalTo(8)); // 5 doc positions + 3 null positions
                 assertThat(firstItem.positionValueCounts()[5], equalTo(0)); // First trailing null
                 assertThat(firstItem.positionValueCounts()[6], equalTo(0)); // Second trailing null
                 assertThat(firstItem.positionValueCounts()[7], equalTo(0)); // Third trailing null
+                assertThat(
+                    ((InferenceAction.Request) firstItem.inferenceRequest()).getInferenceTimeout(),
+                    equalTo(expectedTimeout(timeout))
+                );
 
                 // Second batch: 5 document positions (hits batch size) + 2 trailing null positions
                 // Position value counts [1,1,1,1,1,0,0] represents 5 docs and 2 nulls bundled together
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem secondItem = requestIterator.next();
-                assertThat(secondItem.inferenceRequest().getInput().size(), equalTo(5));
+                assertThat(((InferenceAction.Request) secondItem.inferenceRequest()).getInput().size(), equalTo(5));
                 assertThat(secondItem.positionValueCounts().length, equalTo(7)); // 5 doc positions + 2 null positions
                 assertThat(secondItem.positionValueCounts()[5], equalTo(0)); // First trailing null
                 assertThat(secondItem.positionValueCounts()[6], equalTo(0)); // Second trailing null
+                assertThat(
+                    ((InferenceAction.Request) secondItem.inferenceRequest()).getInferenceTimeout(),
+                    equalTo(expectedTimeout(timeout))
+                );
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -310,12 +357,15 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             BytesRefBlock inputBlock = blockBuilder.build();
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+            final TimeValue timeout = randomTimeoutOrNull();
+            try (
+                RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, timeout)
+            ) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
                 // Total documents: 1 + 2 + 3 + 1 = 7
-                assertThat(item.inferenceRequest().getInput().size(), equalTo(7));
+                assertThat(((InferenceAction.Request) item.inferenceRequest()).getInput().size(), equalTo(7));
 
                 // Position value counts should be [1, 2, 3, 1]
                 assertThat(item.positionValueCounts().length, equalTo(4));
@@ -323,6 +373,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 assertThat(item.positionValueCounts()[1], equalTo(2));
                 assertThat(item.positionValueCounts()[2], equalTo(3));
                 assertThat(item.positionValueCounts()[3], equalTo(1));
+                assertThat(((InferenceAction.Request) item.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -350,12 +401,15 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             BytesRefBlock inputBlock = blockBuilder.build();
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+            final TimeValue timeout = randomTimeoutOrNull();
+            try (
+                RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, timeout)
+            ) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
                 // Only 2 valid documents (empty and whitespace filtered out)
-                assertThat(item.inferenceRequest().getInput().size(), equalTo(2));
+                assertThat(((InferenceAction.Request) item.inferenceRequest()).getInput().size(), equalTo(2));
 
                 // Position value counts should be [1, 0, 0, 1] - empty strings treated as null
                 assertThat(item.positionValueCounts().length, equalTo(4));
@@ -363,6 +417,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 assertThat(item.positionValueCounts()[1], equalTo(0));
                 assertThat(item.positionValueCounts()[2], equalTo(0));
                 assertThat(item.positionValueCounts()[3], equalTo(1));
+                assertThat(((InferenceAction.Request) item.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -388,7 +443,15 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             BytesRefBlock inputBlock = blockBuilder.build();
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+            try (
+                RerankRequestIterator requestIterator = new RerankRequestIterator(
+                    inferenceId,
+                    QUERY_TEXT,
+                    inputBlocks,
+                    batchSize,
+                    randomTimeoutOrNull()
+                )
+            ) {
                 // Should produce one batch with no documents but position value counts [0,0,0,0,0]
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
@@ -434,13 +497,16 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { blockBuilder1.build(), blockBuilder2.build() };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+            final TimeValue timeout = randomTimeoutOrNull();
+            try (
+                RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, timeout)
+            ) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
                 // Each position contributes 2 values (one from each block)
                 // Total: 3 positions * 2 values = 6 documents
-                assertThat(item.inferenceRequest().getInput().size(), equalTo(6));
+                assertThat(((InferenceAction.Request) item.inferenceRequest()).getInput().size(), equalTo(6));
 
                 // Position value counts should contain [2, 2, 2] - each position has 2 documents
                 assertThat(item.positionValueCounts().length, equalTo(3));
@@ -449,13 +515,14 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 assertThat(item.positionValueCounts()[2], equalTo(2));
 
                 // Verify the combined inputs: [a, x, b, y, c, z]
-                List<String> inputs = item.inferenceRequest().getInput();
+                List<String> inputs = ((InferenceAction.Request) item.inferenceRequest()).getInput();
                 assertThat(inputs.get(0), equalTo("a"));
                 assertThat(inputs.get(1), equalTo("x"));
                 assertThat(inputs.get(2), equalTo("b"));
                 assertThat(inputs.get(3), equalTo("y"));
                 assertThat(inputs.get(4), equalTo("c"));
                 assertThat(inputs.get(5), equalTo("z"));
+                assertThat(((InferenceAction.Request) item.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -489,7 +556,10 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { blockBuilder1.build(), blockBuilder2.build() };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+            final TimeValue timeout = randomTimeoutOrNull();
+            try (
+                RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, timeout)
+            ) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
@@ -497,7 +567,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 // Position 1: only "y" (block 1 is null)
                 // Position 2: "c" and "z"
                 // Total: 4 documents
-                assertThat(item.inferenceRequest().getInput().size(), equalTo(4));
+                assertThat(((InferenceAction.Request) item.inferenceRequest()).getInput().size(), equalTo(4));
 
                 // Position value counts should be [1, 1, 2]
                 assertThat(item.positionValueCounts().length, equalTo(3));
@@ -506,11 +576,12 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 assertThat(item.positionValueCounts()[2], equalTo(2));
 
                 // Verify the inputs: [a, y, c, z]
-                List<String> inputs = item.inferenceRequest().getInput();
+                List<String> inputs = ((InferenceAction.Request) item.inferenceRequest()).getInput();
                 assertThat(inputs.get(0), equalTo("a"));
                 assertThat(inputs.get(1), equalTo("y"));
                 assertThat(inputs.get(2), equalTo("c"));
                 assertThat(inputs.get(3), equalTo("z"));
+                assertThat(((InferenceAction.Request) item.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -560,7 +631,10 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { blockBuilder1.build(), blockBuilder2.build() };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+            final TimeValue timeout = randomTimeoutOrNull();
+            try (
+                RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, timeout)
+            ) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
@@ -568,7 +642,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 // Position 1: 2 (from block1) + 1 (from block2) = 3 values
                 // Position 2: 1 (from block1) + 3 (from block2) = 4 values
                 // Total: 10 documents
-                assertThat(item.inferenceRequest().getInput().size(), equalTo(10));
+                assertThat(((InferenceAction.Request) item.inferenceRequest()).getInput().size(), equalTo(10));
 
                 // Position value counts should be [3, 3, 4]
                 assertThat(item.positionValueCounts().length, equalTo(3));
@@ -577,7 +651,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 assertThat(item.positionValueCounts()[2], equalTo(4));
 
                 // Verify the order of inputs: values from block1 first, then block2 for each position
-                List<String> inputs = item.inferenceRequest().getInput();
+                List<String> inputs = ((InferenceAction.Request) item.inferenceRequest()).getInput();
                 // Position 0: a, x1, x2
                 assertThat(inputs.get(0), equalTo("a"));
                 assertThat(inputs.get(1), equalTo("x1"));
@@ -591,6 +665,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 assertThat(inputs.get(7), equalTo("z1"));
                 assertThat(inputs.get(8), equalTo("z2"));
                 assertThat(inputs.get(9), equalTo("z3"));
+                assertThat(((InferenceAction.Request) item.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -620,7 +695,10 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
             BytesRefBlock[] inputBlocks = new BytesRefBlock[] { blockBuilder1.build(), blockBuilder2.build() };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+            final TimeValue timeout = randomTimeoutOrNull();
+            try (
+                RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, timeout)
+            ) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
@@ -628,13 +706,14 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 // Position 1: both null (0 docs)
                 // Position 2: "c" and "z" (2 docs)
                 // Total: 4 documents
-                assertThat(item.inferenceRequest().getInput().size(), equalTo(4));
+                assertThat(((InferenceAction.Request) item.inferenceRequest()).getInput().size(), equalTo(4));
 
                 // Position value counts should be [2, 0, 2]
                 assertThat(item.positionValueCounts().length, equalTo(3));
                 assertThat(item.positionValueCounts()[0], equalTo(2));
                 assertThat(item.positionValueCounts()[1], equalTo(0)); // Both blocks null at position 1
                 assertThat(item.positionValueCounts()[2], equalTo(2));
+                assertThat(((InferenceAction.Request) item.inferenceRequest()).getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -646,19 +725,21 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
     private void assertIterate(int size, int batchSize) throws Exception {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(size) };
+        final TimeValue timeout = randomTimeoutOrNull();
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, timeout)) {
             int totalItemsProcessed = 0;
             int requestCount = 0;
 
             while (requestIterator.hasNext()) {
                 BulkInferenceRequestItem requestItem = requestIterator.next();
-                InferenceAction.Request request = requestItem.inferenceRequest();
+                InferenceAction.Request request = (InferenceAction.Request) requestItem.inferenceRequest();
                 requestCount++;
 
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                 assertThat(request.getTaskType(), equalTo(TaskType.RERANK));
                 assertThat(request.getQuery(), equalTo(QUERY_TEXT));
+                assertThat(request.getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
 
                 int batchItemCount = request.getInput().size();
                 assertThat(batchItemCount, lessThanOrEqualTo(batchSize));
@@ -681,6 +762,14 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         }
 
         allBreakersEmpty();
+    }
+
+    private TimeValue randomTimeoutOrNull() {
+        return randomBoolean() ? null : TimeValue.timeValueSeconds(between(1, 300));
+    }
+
+    private TimeValue expectedTimeout(TimeValue timeout) {
+        return timeout != null ? timeout : BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
     }
 
     private BytesRefBlock randomInputBlock(int size) {

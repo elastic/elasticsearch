@@ -94,12 +94,12 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
             </ListBucketResult>""");
 
         assertListObjectsResponse(handler, "path/", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/</Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
             </ListBucketResult>""");
 
         assertListObjectsResponse(handler, "path/other", null, """
@@ -111,7 +111,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         assertListObjectsResponse(handler, "path/", "/", """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult>\
             <Prefix>path/</Prefix><Delimiter>/</Delimiter><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
             <CommonPrefixes><Prefix>path/subpath1/</Prefix></CommonPrefixes>\
             <CommonPrefixes><Prefix>path/subpath2/</Prefix></CommonPrefixes>\
             </ListBucketResult>""");
@@ -121,8 +121,8 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/subpath1/blob</Key><Size>50</Size></Contents>\
-            <Contents><Key>path/subpath2/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/subpath1/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
+            <Contents><Key>path/subpath2/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
             </ListBucketResult>""");
 
         assertEquals(RestStatus.OK, handleRequest(handler, "DELETE", "/bucket/path/subpath1/blob").status());
@@ -261,7 +261,7 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><Size>100</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>100</Size></Contents>\
             </ListBucketResult>""");
 
         final var expectedContents = new BytesArray((part1 + part2).getBytes(StandardCharsets.UTF_8));

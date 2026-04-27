@@ -84,6 +84,7 @@ import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -180,8 +181,8 @@ public class TextFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck("search_quote_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
-            b.field("search_quote_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
+            b.field("search_quote_analyzer", "standard");
+        }, m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
@@ -576,6 +577,54 @@ public class TextFieldMapperTests extends MapperTestCase {
         TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
         assertTrue(textMapper.fieldType().hasDocValues());
         assertTrue(textMapper.fieldType().usesBinaryDocValues());
+    }
+
+    /**
+     * Text field doc_values have always used the SeparateCount format (with a parallel .counts numeric doc values field) since their
+     * introduction in 9.4.0. This test pins that contract for the current index version.
+     */
+    public void testDocValuesUsesSeparateCountFormat() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("index", false);
+            b.field("doc_values", true);
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
+
+        assertFalse(
+            "primary text doc_values must be written in SeparateCount format (with .counts companion) for the current index version",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
+    }
+
+    /**
+     * Text field doc_values were introduced in 9.4.0 using the SeparateCount format. Regardless of indexCreatedVersion, the primary doc
+     * values write path must produce SeparateCount output so the read path
+     * (AbstractBinaryDocValuesQuery / BytesRefsFromBinaryMultiSeparateCountBlockLoader) can decode it.
+     */
+    public void testDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+        DocumentMapper mapper = createMapperService(legacyVersion, fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("index", false);
+            b.field("doc_values", true);
+        })).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
+
+        assertFalse(
+            "primary text doc_values must be written in SeparateCount format (with .counts companion) even for legacy index versions",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
     }
 
     public void testDocValuesDisabledByDefault() throws IOException {
@@ -2340,16 +2389,13 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testNormsDisabledWhenIndexModeIsTsdb() throws IOException {
         // given
-        final boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
         Instant currentTime = Instant.now();
         Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
         indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), currentTime.minus(1, ChronoUnit.HOURS).toEpochMilli())
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), currentTime.plus(1, ChronoUnit.HOURS).toEpochMilli())
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension");
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            indexSettingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
-        }
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         Settings indexSettings = indexSettingsBuilder.build();
 
         XContentBuilder mapping = mapping(b -> {
@@ -2725,5 +2771,100 @@ public class TextFieldMapperTests extends MapperTestCase {
         // expect both values in synthetic source
         assertThat(syntheticSource, containsString(shortValue));
         assertThat(syntheticSource, containsString(longValue));
+    }
+
+    public void testSingleValueIsAcceptedWhenMultiValueNo() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+        mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(5))));
+    }
+
+    public void testSecondValueIsRejectedWhenMultiValueNo() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(3), randomAlphanumericOfLength(4))))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
+    public void testSingleFallbackValueIsAcceptedWhenMultiValueNo() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+        String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
+        mapper.parse(source(b -> b.field("field", longValue)));
+    }
+
+    /**
+     * We have two values for a field: normal value, and a value that exceeds MAX_TERM_LENGTH.
+     * <p>
+     * First value routes to SortedSet doc values; second exceeds MAX_TERM_LENGTH and would route to the {@code ._original} fallback field.
+     * While these are technically two separate fields, single values are enforced on a document-level, so the second value is rejected.
+     */
+    public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueNoAndFirstValueInRegularField() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+        String shortValue = randomAlphanumericOfLength(5);
+        String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", shortValue, longValue)))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * Mirror of {@link #testSecondValueInFallbackFieldIsRejectedWhenMultiValueNoAndFirstValueInRegularField} with the order reversed.
+     */
+    public void testSecondValueInRegularFieldIsRejectedWhenMultiValueNoAndFirstValueInFallbackField() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+        String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
+        String shortValue = randomAlphanumericOfLength(5);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", longValue, shortValue)))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * We have two values for a field, both of which exceed MAX_TERM_LENGTH and would route to the {@code ._original} fallback field.
+     */
+    public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueNo() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+        String longValue1 = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
+        String longValue2 = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", longValue1, longValue2)))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
     }
 }

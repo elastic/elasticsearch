@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
 
 /**
  * ESQL sometimes can only create query plans in a certain way if all nodes in the cluster (and participating remotes)
@@ -54,6 +55,8 @@ import org.elasticsearch.TransportVersion;
  * The minimum version is available throughout the planning process; it can also be used in the analyzer
  * ({@link org.elasticsearch.xpack.esql.analysis.AnalyzerContext}), or during physical planning and optimization
  * ({@link org.elasticsearch.xpack.esql.planner.mapper.Mapper}, {@link org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext}).
+ * <p>
+ * To make custom per-expression replacements, see {@link TransportVersionAware}.
  *
  * <h2>TRIPLE CAUTION: Backports of version-aware query planning PRs</h2>
  *

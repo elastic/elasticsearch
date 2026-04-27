@@ -725,6 +725,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void onShardClose(ShardLock lock) {
+        // TODO: A shard may be closed for a reason unrelated to index deletion (e.g. a relocation failure), yet read
+        // deleted == true because a concurrent index deletion set the flag and end up calling
+        // beforeIndexShardDeleted/afterIndexShardDeleted.
+        // This is safe because index deletion is a no-return state, and cleanup should be idempotent, but should
+        // eventually be fixed for completeness' sake. See elastic/elasticsearch-serverless#6183.
         if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
                 try {

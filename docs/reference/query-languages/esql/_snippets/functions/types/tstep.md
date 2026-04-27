@@ -2,8 +2,26 @@
 
 ## Supported types
 
-| step | result |
-| --- | --- |
-| time_duration | date |
-| time_duration | date_nanos |
+| step | from | to | result |
+| --- | --- | --- | --- |
+| time_duration | date | date | date |
+| time_duration | date | date | date_nanos |
+| time_duration | date | date_nanos | date |
+| time_duration | date | date_nanos | date_nanos |
+| time_duration | date | keyword | date |
+| time_duration | date | keyword | date_nanos |
+| time_duration | date_nanos | date | date |
+| time_duration | date_nanos | date | date_nanos |
+| time_duration | date_nanos | date_nanos | date |
+| time_duration | date_nanos | date_nanos | date_nanos |
+| time_duration | date_nanos | keyword | date |
+| time_duration | date_nanos | keyword | date_nanos |
+| time_duration | keyword | date | date |
+| time_duration | keyword | date | date_nanos |
+| time_duration | keyword | date_nanos | date |
+| time_duration | keyword | date_nanos | date_nanos |
+| time_duration | keyword | keyword | date |
+| time_duration | keyword | keyword | date_nanos |
+| time_duration | | | date |
+| time_duration | | | date_nanos |
 

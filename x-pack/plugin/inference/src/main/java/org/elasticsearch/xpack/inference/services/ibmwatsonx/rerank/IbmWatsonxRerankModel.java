@@ -49,7 +49,7 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
             service,
             IbmWatsonxRerankServiceSettings.fromMap(serviceSettings, context),
             IbmWatsonxRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

@@ -15,29 +15,17 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.ConstantScoreScorerSupplier;
-import org.apache.lucene.search.ConstantScoreWeight;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.DocValuesRangeIterator;
-import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.NumericDocValuesRangeQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.SkipBlockRangeIterator;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
 
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.IdLoader;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.LongPredicate;
+
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Copied from Lucene's package-private {@code SortedNumericDocValuesRangeQuery} to allow
@@ -136,10 +124,81 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                 }
 
                 if (skipper != null && singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
-                    final DocIdSetIterator rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue, skipper);
-                    if (rangeIterator != null) {
-                        return ConstantScoreScorerSupplier.fromIterator(rangeIterator, score(), scoreMode, maxDoc);
-                    }
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            return null;
+                        }
+
+                        @Override
+                        public long cost() {
+                            return singleton.cost();
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() throws IOException {
+                            return new BulkScorer() {
+
+                                @Override
+                                public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+                                    // make max inclusive
+                                    max = max - 1;
+
+                                    // want range [min, max)
+                                    System.out.println("min value: " + min + " max value: " + max);
+                                    skipper.advance(min);
+
+                                    // Iterator over first level chunks that intersect the range min/max
+                                    // while: [min, max] has overlap with [minDocID, maxDocID]
+                                    while (skipper.minDocID(0) != NO_MORE_DOCS
+                                            && min <= skipper.maxDocID(0) && max >= skipper.minDocID(0)) {
+
+                                        int minDoc = skipper.minDocID(0);
+                                        int maxDoc = skipper.maxDocID(0);
+                                        int minDocInBlock = Math.max(min, minDoc);
+                                        int maxDocInBlock = Math.min(maxDoc, max);
+
+                                        long minVal = skipper.minValue(0);
+                                        long maxVal = skipper.maxValue(0);
+
+                                        if (minVal <= lowerValue && upperValue <= maxVal) {
+                                            // Skipper block is entirely contained within range
+                                            // Collect all accepted Doc
+                                            for (int doc = minDocInBlock; doc <= minDocInBlock; doc++) {
+                                                if (acceptDocs == null || acceptDocs.get(doc)) {
+                                                    collector.collect(doc);
+                                                }
+                                            }
+                                        } else if (minVal <= upperValue && lowerValue <= maxVal) {
+                                            // Skipper range overlaps with query range
+                                            // Collect accepted docs within [lowerValue, upperValue]
+                                            rangeReader.tryCollectMatches(
+                                                    collector,
+                                                    acceptDocs,
+                                                    minDocInBlock,
+                                                    maxDocInBlock,
+                                                    lowerValue,
+                                                    upperValue
+                                            );
+                                        }
+                                        // Else: Skipper block does not intersect range
+
+                                        int nextSkipperStart = skipper.maxDocID(0) + 1;
+                                        System.out.println("nextSkipperStart: " + nextSkipperStart);
+
+
+                                        skipper.advance(nextSkipperStart);
+                                    }
+                                    return max;
+                                }
+
+                                @Override
+                                public long cost() {
+                                    return singleton.cost() ;
+                                }
+                            };
+                        }
+                    };
                 }
 
                 if (skipper != null) {
@@ -352,7 +411,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
         if (startDoc > doc) {
             doc = docValues.advance(startDoc);
         }
-        for (; doc < DocIdSetIterator.NO_MORE_DOCS; doc = docValues.nextDoc()) {
+        for (; doc < NO_MORE_DOCS; doc = docValues.nextDoc()) {
             if (predicate.test(docValues.longValue())) {
                 break;
             }

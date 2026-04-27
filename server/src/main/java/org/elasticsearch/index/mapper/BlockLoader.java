@@ -15,7 +15,9 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -271,6 +273,10 @@ public interface BlockLoader {
          */
         default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper) throws IOException {
             return null;
+        }
+
+        default void tryCollectMatches(LeafCollector collect, Bits acceptedDocs, int firstDoc, int lastDoc, long lowerValue, long upperValue) throws IOException {
+            return;
         }
     }
 

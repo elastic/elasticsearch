@@ -33,12 +33,14 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
@@ -2430,6 +2432,82 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         }
                     };
                 }
+
+                private void loadBlock(int blockIndex) throws IOException {
+                    if (blockIndex != currentBlockIndex) {
+                        assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
+                        if (currentBlockIndex + 1 != blockIndex) {
+                            valuesData.seek(indexReader.get(blockIndex));
+                        }
+                        currentBlockIndex = blockIndex;
+                        if (bitsPerOrd == -1) {
+                            decoder.decodeBlock(valuesData, currentBlock, numericBlockSize);
+                        } else {
+                            decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
+                        }
+                    }
+                }
+
+                @Override
+                public void tryCollectMatches(LeafCollector collector, Bits acceptedDocs, int firstDoc, int lastDoc, long lowerValue, long upperValue) throws IOException {
+
+                    int docsCount = lastDoc - firstDoc + 1;
+
+                    int firstBlock = firstDoc >>> numericBlockShift;
+                    int lastBlock = lastDoc >>> numericBlockShift;
+
+
+                    int docId = firstDoc;
+
+                    // first block
+                    {
+                        loadBlock(firstBlock);
+                        int firstInBlock = firstDoc & numericBlockMask;
+                        int lastInBlock = firstBlock == lastBlock ? lastDoc & numericBlockMask : numericBlockMask;
+
+                        for (int idx = firstInBlock; idx <= lastInBlock; idx++) {
+                            long val = currentBlock[idx];
+                            if (val >= lowerValue && val <= upperValue) {
+                                if (acceptedDocs == null || acceptedDocs.get(docId)) {
+                                    collector.collect(docId);
+                                }
+                            }
+                            docId++;
+                        }
+                    }
+
+                    // middle blocks
+                    for (int blockId = firstBlock + 1; blockId < lastBlock; blockId++) {
+                        loadBlock(blockId);
+                        for (int idx = 0; idx <= numericBlockMask; idx++) {
+                            long val = currentBlock[idx];
+                            if (val >= lowerValue && val <= upperValue) {
+                                if (acceptedDocs == null || acceptedDocs.get(docId++)) {
+                                    collector.collect(docId);
+                                }
+                            }
+                            docId++;
+                        }
+                    }
+
+                    // last block if different from first
+                    if (lastBlock > firstBlock) {
+                        loadBlock(lastBlock);
+                        int firstInBlock = 0;
+                        int lastInBlock = lastDoc & numericBlockMask;
+
+                        for (int idx = firstInBlock; idx <= lastInBlock; idx++) {
+                            long val = currentBlock[idx];
+                            if (val >= lowerValue && val <= upperValue) {
+                                if (acceptedDocs == null || acceptedDocs.get(docId)) {
+                                    collector.collect(docId);
+                                }
+                            }
+                            docId++;
+                        }
+                    }
+                }
+
 
                 @Override
                 SortedOrdinalReader sortedOrdinalReader() {

@@ -1660,27 +1660,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (resolved.equals(ua)) {
                     return enrich;
                 }
-                if (resolved.resolved() && enrich.policy() != null) {
-                    if (resolved instanceof FieldAttribute fa) {
-                        resolved = fa.flagTypeConflicts();
-                    }
-                    if (resolved.resolved()) {
-                        final DataType dataType = resolved.dataType();
-                        if (dataType != NULL) {
-                            String matchType = enrich.policy().getType();
-                            DataType[] allowed = allowedEnrichTypes(matchType);
-                            if (Arrays.asList(allowed).contains(dataType) == false) {
-                                resolved = ua.withUnresolvedMessage(
-                                    Strings.format(
-                                        "Unsupported type [%s] for enrich matching field [%s]; only [%s] allowed for type [%s]",
-                                        dataType.typeName(),
-                                        ua.name(),
-                                        Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", ")),
-                                        matchType
-                                    )
-                                );
-                            }
-                        }
+                DataType dataType = resolved.dataType();
+                // For type-conflicted fields, defer to ResolveUnionTypes (which may implicitly cast compatible conflicts) and ultimately
+                // UnionTypesCleanup (which produces the "Cannot use field ... due to ambiguities" error for incompatible ones). Reading
+                // dataType() off an InvalidMappedField returns UNSUPPORTED, which would otherwise produce a misleading error here.
+                boolean deferToUnionTypes = resolved instanceof FieldAttribute fa && fa.hasTypeConflicts();
+                if (deferToUnionTypes == false && resolved.resolved() && enrich.policy() != null && dataType != NULL) {
+                    String matchType = enrich.policy().getType();
+                    DataType[] allowed = allowedEnrichTypes(matchType);
+                    if (Arrays.asList(allowed).contains(dataType) == false) {
+                        resolved = ua.withUnresolvedMessage(
+                            Strings.format(
+                                "Unsupported type [%s] for enrich matching field [%s]; only [%s] allowed for type [%s]",
+                                dataType.typeName(),
+                                ua.name(),
+                                Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", ")),
+                                matchType
+                            )
+                        );
                     }
                 }
                 return new Enrich(

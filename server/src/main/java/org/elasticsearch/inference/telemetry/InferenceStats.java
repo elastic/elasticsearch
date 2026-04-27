@@ -65,6 +65,8 @@ public record InferenceStats(
     /**
      * Merges the cluster-level constant attributes (e.g. stack version, production release flag)
      * into the provided per-request attribute map and returns the combined map.
+     * Use this only when no {@link Model} is available (e.g. model-not-found errors).
+     * Prefer {@link #serviceAttributes} or {@link #serviceAndResponseAttributes} otherwise.
      */
     public Map<String, Object> withConstantAttributes(Map<String, Object> attributes) {
         var result = new HashMap<>(attributes);
@@ -72,8 +74,12 @@ public record InferenceStats(
         return result;
     }
 
-    public static Map<String, Object> serviceAttributes(Model model) {
-        return Map.of(SERVICE_ATTRIBUTE, model.getConfigurations().getService(), TASK_TYPE_ATTRIBUTE, model.getTaskType().toString());
+    public Map<String, Object> serviceAttributes(Model model) {
+        var result = new HashMap<String, Object>();
+        result.put(SERVICE_ATTRIBUTE, model.getConfigurations().getService());
+        result.put(TASK_TYPE_ATTRIBUTE, model.getTaskType().toString());
+        result.putAll(constantAttributes);
+        return result;
     }
 
     public static Map<String, Object> responseAttributes(@Nullable Throwable throwable) {
@@ -88,10 +94,9 @@ public record InferenceStats(
         return Map.of(ERROR_TYPE_ATTRIBUTE, throwable.getClass().getSimpleName());
     }
 
-    public static Map<String, Object> serviceAndResponseAttributes(Model model, @Nullable Throwable throwable) {
-        var metricAttributes = new HashMap<String, Object>();
-        metricAttributes.putAll(serviceAttributes(model));
-        metricAttributes.putAll(responseAttributes(throwable));
-        return metricAttributes;
+    public Map<String, Object> serviceAndResponseAttributes(Model model, @Nullable Throwable throwable) {
+        var result = serviceAttributes(model);
+        result.putAll(responseAttributes(throwable));
+        return result;
     }
 }

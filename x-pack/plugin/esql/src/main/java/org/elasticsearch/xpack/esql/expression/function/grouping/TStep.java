@@ -72,29 +72,6 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     public static final Duration ONE_NANOSECOND = Duration.ofNanos(1);
     public static final Duration ONE_MILLISECOND = Duration.ofMillis(1);
 
-    /**
-     * Candidate step sizes in milliseconds (descending order) used when deriving a step from a target bucket count.
-     * Mirrors the primary fixed-duration units in {@link Bucket}'s date rounding picker.
-     */
-    static final long[] STEP_CANDIDATES_MILLIS = {
-        86_400_000L,  // 1 day
-        43_200_000L,  // 12 hours
-        10_800_000L,  // 3 hours
-        3_600_000L,   // 1 hour
-        1_800_000L,   // 30 minutes
-        600_000L,     // 10 minutes
-        300_000L,     // 5 minutes
-        60_000L,      // 1 minute
-        30_000L,      // 30 seconds
-        10_000L,      // 10 seconds
-        5_000L,       // 5 seconds
-        1_000L,       // 1 second
-        100L,         // 100 milliseconds
-        50L,          // 50 milliseconds
-        10L,          // 10 milliseconds
-        1L            // 1 millisecond
-    };
-
     private final Configuration configuration;
     private final Expression step;
     @Nullable
@@ -392,25 +369,16 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     /**
-     * Derives a fixed-width step duration from the target bucket count and the [from, to] range.
-     * Picks the finest granularity from {@link #STEP_CANDIDATES_MILLIS} such that
-     * {@code ceil(range / step) <= count}.
+     * Derives a fixed-width step duration from the target bucket count and the [from, to] range
+     * by delegating to {@link Bucket.DateRoundingPicker}.
      */
     private Duration deriveStepDuration(FoldContext foldContext) {
         int count = ((Number) step.fold(foldContext)).intValue();
         long fromMs = foldBoundToMillis(start, foldContext);
         long toMs = foldBoundToMillis(end, foldContext);
-        long rangeMs = toMs - fromMs;
-        if (count <= 0 || rangeMs <= 0) {
-            return Duration.ofMillis(1);
-        }
-        for (int i = STEP_CANDIDATES_MILLIS.length - 1; i >= 0; i--) {
-            long stepMs = STEP_CANDIDATES_MILLIS[i];
-            if ((rangeMs + stepMs - 1) / stepMs <= count) {
-                return Duration.ofMillis(stepMs);
-            }
-        }
-        return Duration.ofMillis(STEP_CANDIDATES_MILLIS[0]);
+        var rounding = new Bucket.DateRoundingPicker(count, fromMs, toMs, ZoneOffset.UTC, 0L).pickRounding().prepareForUnknown();
+        long fromRounded = rounding.round(fromMs);
+        return Duration.ofMillis(rounding.nextRoundingValue(fromRounded) - fromRounded);
     }
 
     private long foldBoundToMillis(Expression bound, FoldContext foldContext) {

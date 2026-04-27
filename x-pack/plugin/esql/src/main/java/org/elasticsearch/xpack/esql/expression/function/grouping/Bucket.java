@@ -73,7 +73,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         .name("bucket", "bin");
     public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
 
-    private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId, long offset) {
+    public record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId, long offset) {
 
         // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
         // That way you never end up with more than the target number of buckets.

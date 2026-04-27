@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -23,7 +24,11 @@ import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSou
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.containsString;
@@ -59,6 +64,10 @@ public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
     /**
      * When one group overflows, that group gets null and a warning; other groups get correct sums.
      * Uses 3 groups (working, failing, working) to exercise the full flow.
+     * <p>
+     * {@link HashAggregationOperator} may emit multiple result pages (partial emit); this test
+     * merges rows across pages and asserts one outcome per group.
+     * </p>
      */
     public void testOverflowInGroupingProducesNullAndWarning() {
         List<Page> results = new ArrayList<>();
@@ -93,25 +102,29 @@ public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
         }
 
         assertDriverContext(driverContext);
-        assertThat(results.size(), equalTo(1));
-        Page page = results.get(0);
-        assertThat(page.getBlockCount(), equalTo(2));
-        assertThat(page.getPositionCount(), equalTo(3));
 
-        LongBlock groupsBlock = (LongBlock) page.getBlock(0);
-        LongBlock sumBlock = (LongBlock) page.getBlock(1);
-        for (int i = 0; i < 3; i++) {
-            long group = groupsBlock.getLong(i);
-            if (group == 0L) {
-                assertThat(sumBlock.getLong(i), equalTo(3L));
-            } else if (group == 1L) {
-                assertThat(sumBlock.isNull(i), equalTo(true));
-            } else if (group == 2L) {
-                assertThat(sumBlock.getLong(i), equalTo(9L));
-            } else {
-                fail("unexpected group " + group);
+        Map<Long, Long> sumsByGroup = new HashMap<>();
+        Set<Long> nullSumGroups = new HashSet<>();
+        int totalPositions = 0;
+        for (Page page : results) {
+            assertThat(page.getBlockCount(), equalTo(2));
+            LongBlock groupsBlock = page.getBlock(0);
+            LongBlock sumBlock = page.getBlock(1);
+            totalPositions += page.getPositionCount();
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                long group = groupsBlock.getLong(i);
+                assertFalse("duplicate output row for group " + group, sumsByGroup.containsKey(group) || nullSumGroups.contains(group));
+                if (sumBlock.isNull(i)) {
+                    nullSumGroups.add(group);
+                } else {
+                    sumsByGroup.put(group, sumBlock.getLong(i));
+                }
             }
         }
+        assertThat(totalPositions, equalTo(3));
+        assertThat(sumsByGroup.get(0L), equalTo(3L));
+        assertThat(sumsByGroup.get(2L), equalTo(9L));
+        assertThat(nullSumGroups, equalTo(Set.of(1L)));
 
         assertThat(warnings, hasItem(containsString("long overflow")));
     }

@@ -12,9 +12,9 @@ package org.elasticsearch.test.apmintegration;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.junit.rules.ExternalResource;
 
 import java.io.BufferedReader;
@@ -91,13 +91,19 @@ public class RecordingApmServer extends ExternalResource {
             if (running) {
                 try (InputStream requestBody = exchange.getRequestBody()) {
                     if (requestBody != null) {
-                        if ("/v1/metrics".equals(path)) {
-                            received.addAll(OtlpMetricsParser.parse(requestBody));
-                        } else {
-                            List<String> lines = readJsonMessages(requestBody);
-                            for (String line : lines) {
-                                ApmIntakeMessageParser.parseLine(line).ifPresent(received::add);
+                        switch (path) {
+                            case "/v1/metrics" -> received.addAll(OtlpMetricsParser.parse(requestBody));
+                            case "/v1/traces" -> received.addAll(OtlpTracesParser.parse(requestBody));
+                            case "/intake/v2/events" -> {
+                                List<String> lines = readJsonMessages(requestBody);
+                                for (String line : lines) {
+                                    ApmIntakeMessageParser.parseLine(line).ifPresent(msg -> {
+                                        logger.debug("APM telemetry received: {}", msg);
+                                        received.add(msg);
+                                    });
+                                }
                             }
+                            default -> logger.debug("ignoring request to unhandled path [{}]", path);
                         }
                     }
                 } catch (Throwable t) {

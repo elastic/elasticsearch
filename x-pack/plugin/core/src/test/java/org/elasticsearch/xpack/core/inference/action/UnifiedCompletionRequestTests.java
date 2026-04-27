@@ -35,6 +35,7 @@ import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
+import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -46,11 +47,9 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
-import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionRequest> {
@@ -494,39 +493,24 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         }
     }
 
-    // Versions before MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED throw an exception when serializing non-text content
-    // Those are tested in testMultimodalContentIsNotBackwardsCompatible
+    /**
+     * Versions before {@link UnifiedCompletionUtils#MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED} throw an exception when serializing
+     * non-text content, so we filter those out of the bwc versions to avoid test failures.
+     * The logic is tested directly by {@link #testMultimodalContentIsNotBackwardsCompatible}
+     */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
         return super.bwcVersions().stream().filter(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)).toList();
     }
 
     public void testMultimodalContentIsNotBackwardsCompatible() throws IOException {
-        var unsupportedVersions = DEFAULT_BWC_VERSIONS.stream()
-            .filter(Predicate.not(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)))
-            .toList();
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            var testInstance = createTestInstance();
-            for (var unsupportedVersion : unsupportedVersions) {
-                if (testInstance.containsMultimodalContent()) {
-                    var statusException = assertThrows(
-                        ElasticsearchStatusException.class,
-                        () -> copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), unsupportedVersion)
-                    );
-                    assertThat(statusException.status(), is(RestStatus.BAD_REQUEST));
-                    assertThat(
-                        statusException.getMessage(),
-                        is(
-                            "Cannot send a multimodal chat completion request to an older node. "
-                                + "Please wait until all nodes are upgraded before using multimodal chat completion inputs"
-                        )
-                    );
-                } else {
-                    // If the instance doesn't contain multimodal content, assert that it can still be serialized
-                    assertBwcSerialization(testInstance, unsupportedVersion);
-                }
-            }
-        }
+        testSerializationIsNotBackwardsCompatible(
+            MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED,
+            UnifiedCompletionRequest::containsMultimodalContent,
+            """
+                Cannot send a multimodal chat completion request to an older node. \
+                Please wait until all nodes are upgraded before using multimodal chat completion inputs"""
+        );
     }
 
     public void testContainsMultimodalContentWithNullContent() {

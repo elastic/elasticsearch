@@ -87,9 +87,6 @@ Vector Search:
 
 
 ## 9.3.2 [elasticsearch-9.3.2-release-notes]
-```{applies_to}
-stack: ga 9.3.2
-```
 
 ### Features and enhancements [elasticsearch-9.3.2-features-enhancements]
 

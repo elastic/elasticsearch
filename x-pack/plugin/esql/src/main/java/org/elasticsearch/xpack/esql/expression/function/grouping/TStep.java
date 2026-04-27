@@ -189,7 +189,15 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public boolean needsTimestampBounds() {
-        return step.resolved() && step.dataType() == DataType.TIME_DURATION && (start == null && end == null);
+        // ResolveTimestampBoundsAware (Batch 1 "Initialize") runs before ImplicitCasting
+        // (Batch 2 "Resolution"), so a string literal like "1 hour" still has KEYWORD type here.
+        // Accept foldable KEYWORD as a proxy for "will become TIME_DURATION after casting", so
+        // bounds are injected before postAnalysisVerification runs.
+        // Integer (bucket-count) steps intentionally stay excluded: they require explicit from/to
+        // bounds and must not silently inherit them from the request filter.
+        return step.resolved()
+            && (step.dataType() == DataType.TIME_DURATION || (step.dataType() == DataType.KEYWORD && step.foldable()))
+            && (start == null && end == null);
     }
 
     @Override

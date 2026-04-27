@@ -1,0 +1,121 @@
+---
+setup:
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_query/dataset
+          capabilities: [data_sources]
+      test_runner_features: capabilities
+      reason: "ES|QL dataset CRUD API"
+
+---
+"get-empty":
+  - do:
+      esql.get_dataset: { }
+
+  - match: { datasets: [] }
+
+---
+"invalid-dataset-names":
+  # Name must be lowercase.
+  - do:
+      catch: /invalid dataset name/
+      esql.put_dataset:
+        name: "MyDataset"
+        body:
+          data_source: parent
+          resource: "s3://x/"
+
+  # Name must not contain invalid characters.
+  - do:
+      catch: /invalid dataset name/
+      esql.put_dataset:
+        name: "bad#name"
+        body:
+          data_source: parent
+          resource: "s3://x/"
+
+  # Whitespace-only name — validate() short-circuits with "name is missing" before the
+  # invalid-char / lowercase checks, so the assertion differs.
+  - do:
+      catch: /dataset name is missing/
+      esql.put_dataset:
+        name: " "
+        body:
+          data_source: parent
+          resource: "s3://x/"
+
+  # Leading underscore is reserved for dot-indices / hidden names.
+  - do:
+      catch: /invalid dataset name/
+      esql.put_dataset:
+        name: "_leading"
+        body:
+          data_source: parent
+          resource: "s3://x/"
+
+---
+"missing-data-source":
+  - do:
+      catch: /Required \[data_source\]/
+      esql.put_dataset:
+        name: ds
+        body:
+          resource: "s3://x/"
+          settings: { }
+
+---
+"missing-resource":
+  - do:
+      catch: /Required \[resource\]/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+
+---
+"parent-data-source-not-found":
+  # Data-source-side PUT requires a loaded validator plugin, so we can't create a parent here.
+  # This exercises the dispatch-time parent lookup failure: dataset PUT with a non-existent parent
+  # surfaces a 404 (ResourceNotFoundException) without reaching the validator dispatch path.
+  - do:
+      catch: missing
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent_does_not_exist
+          resource: "s3://x/"
+          settings: { }
+
+---
+"delete-missing":
+  - do:
+      catch: missing
+      esql.delete_dataset:
+        name: ghost
+
+---
+"get-missing":
+  # Concrete-name miss -> 404. Wildcard miss -> 200 [].
+  - do:
+      catch: missing
+      esql.get_dataset:
+        name: ghost
+
+  - do:
+      esql.get_dataset:
+        name: "no_match_*"
+
+  - match: { datasets: [] }
+
+---
+"cluster-state-visibility":
+  # DatasetMetadata.context() includes API, so if a dataset existed it would appear under
+  # metadata.esql_dataset. With no datasets present, the custom is absent.
+  - do:
+      cluster.state: { }
+
+  - is_false: metadata.esql_dataset
+
+  # Counterpart assertion for the data source side: even if one existed, it would not appear here.
+  - is_false: metadata.esql_datasource

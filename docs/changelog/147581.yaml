@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 147581
-summary: Fix `NativeBinaryQuantizedVectorScorer.bulkScore` segfault
-type: bug

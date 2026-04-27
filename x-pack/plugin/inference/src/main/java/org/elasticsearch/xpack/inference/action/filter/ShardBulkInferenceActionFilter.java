@@ -486,7 +486,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             Map<String, Object> requestCountAttributes = new HashMap<>();
             requestCountAttributes.putAll(serviceAndResponseAttributes(model, throwable));
             requestCountAttributes.put("inference_source", "semantic_text_bulk");
-            inferenceStats.requestCount().incrementBy(incrementBy, requestCountAttributes);
+            inferenceStats.requestCount().incrementBy(incrementBy, inferenceStats.withConstantAttributes(requestCountAttributes));
         }
 
         /**

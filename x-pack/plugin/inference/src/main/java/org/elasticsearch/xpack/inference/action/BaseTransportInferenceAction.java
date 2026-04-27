@@ -148,7 +148,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
         }, e -> {
             try {
-                inferenceStats.inferenceDuration().record(timer.elapsedMillis(), responseAttributes(e));
+                inferenceStats.inferenceDuration().record(timer.elapsedMillis(), inferenceStats.withConstantAttributes(responseAttributes(e)));
             } catch (Exception metricsException) {
                 log.atDebug().withThrowable(metricsException).log("Failed to record metrics when the model is missing, dropping metrics");
             }
@@ -182,7 +182,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         metricAttributes.putAll(InferenceStats.serviceAttributes(model));
         metricAttributes.putAll(responseAttributes(unwrapCause(t)));
 
-        inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
+        inferenceStats.inferenceDuration().record(timer.elapsedMillis(), inferenceStats.withConstantAttributes(metricAttributes));
     }
 
     private void inferOnServiceWithMetrics(
@@ -270,7 +270,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         Map<String, Object> requestCountAttributes = new HashMap<>();
         requestCountAttributes.putAll(InferenceStats.serviceAttributes(model));
 
-        inferenceStats.requestCount().incrementBy(1, requestCountAttributes);
+        inferenceStats.requestCount().incrementBy(1, inferenceStats.withConstantAttributes(requestCountAttributes));
     }
 
     private void recordRequestDurationMetrics(
@@ -283,7 +283,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         Map<String, Object> metricAttributes = new HashMap<>();
         metricAttributes.putAll(serviceAndResponseAttributes(model, unwrapCause(t)));
 
-        inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
+        inferenceStats.inferenceDuration().record(timer.elapsedMillis(), inferenceStats.withConstantAttributes(metricAttributes));
     }
 
     private void inferOnService(Model model, Request request, InferenceService service, ActionListener<InferenceServiceResults> listener) {

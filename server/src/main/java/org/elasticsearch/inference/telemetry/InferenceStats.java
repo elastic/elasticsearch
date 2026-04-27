@@ -12,7 +12,6 @@ package org.elasticsearch.inference.telemetry;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -21,15 +20,28 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDuration, LongHistogram deploymentDuration) {
+public record InferenceStats(
+    LongCounter requestCount,
+    LongHistogram inferenceDuration,
+    LongHistogram deploymentDuration,
+    Map<String, Object> constantAttributes
+) {
+
+    static final String STACK_VERSION_ATTRIBUTE = "stack_version";
+    static final String IS_PRODUCTION_RELEASE_ATTRIBUTE = "is_production_release";
+    static final String SERVICE_ATTRIBUTE = "service";
+    static final String TASK_TYPE_ATTRIBUTE = "task_type";
+    static final String STATUS_CODE_ATTRIBUTE = "status_code";
+    static final String ERROR_TYPE_ATTRIBUTE = "error_type";
 
     public InferenceStats {
         Objects.requireNonNull(requestCount);
         Objects.requireNonNull(inferenceDuration);
         Objects.requireNonNull(deploymentDuration);
+        Objects.requireNonNull(constantAttributes);
     }
 
-    public static InferenceStats create(MeterRegistry meterRegistry) {
+    public static InferenceStats create(MeterRegistry meterRegistry, String stackVersion, boolean isProductionRelease) {
         return new InferenceStats(
             meterRegistry.registerLongCounter(
                 "es.inference.requests.count.total",
@@ -45,28 +57,35 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
                 "es.inference.trained_model.deployment.time",
                 "Inference API time spent waiting for Trained Model Deployments",
                 "ms"
-            )
+            ),
+            Map.of(STACK_VERSION_ATTRIBUTE, stackVersion, IS_PRODUCTION_RELEASE_ATTRIBUTE, isProductionRelease)
         );
     }
 
-    public static Map<String, Object> serviceAttributes(Model model) {
-        return Map.of("service", model.getConfigurations().getService(), "task_type", model.getTaskType().toString());
+    /**
+     * Merges the cluster-level constant attributes (e.g. stack version, production release flag)
+     * into the provided per-request attribute map and returns the combined map.
+     */
+    public Map<String, Object> withConstantAttributes(Map<String, Object> attributes) {
+        var result = new HashMap<>(attributes);
+        result.putAll(constantAttributes);
+        return result;
     }
 
-    public static Map<String, Object> serviceAttributes(UnparsedModel model) {
-        return Map.of("service", model.service(), "task_type", model.taskType().toString());
+    public static Map<String, Object> serviceAttributes(Model model) {
+        return Map.of(SERVICE_ATTRIBUTE, model.getConfigurations().getService(), TASK_TYPE_ATTRIBUTE, model.getTaskType().toString());
     }
 
     public static Map<String, Object> responseAttributes(@Nullable Throwable throwable) {
         if (Objects.isNull(throwable)) {
-            return Map.of("status_code", 200);
+            return Map.of(STATUS_CODE_ATTRIBUTE, 200);
         }
 
         if (throwable instanceof ElasticsearchStatusException ese) {
-            return Map.of("status_code", ese.status().getStatus(), "error_type", String.valueOf(ese.status().getStatus()));
+            return Map.of(STATUS_CODE_ATTRIBUTE, ese.status().getStatus(), ERROR_TYPE_ATTRIBUTE, String.valueOf(ese.status().getStatus()));
         }
 
-        return Map.of("error_type", throwable.getClass().getSimpleName());
+        return Map.of(ERROR_TYPE_ATTRIBUTE, throwable.getClass().getSimpleName());
     }
 
     public static Map<String, Object> serviceAndResponseAttributes(Model model, @Nullable Throwable throwable) {

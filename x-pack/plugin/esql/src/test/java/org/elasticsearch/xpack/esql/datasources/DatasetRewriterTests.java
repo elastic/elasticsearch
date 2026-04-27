@@ -101,6 +101,22 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("datasets=[logs]"));
     }
 
+    public void testIndexModeNonStandardRejected() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        for (IndexMode unsupported : new IndexMode[] { IndexMode.TIME_SERIES, IndexMode.LOOKUP, IndexMode.LOGSDB }) {
+            VerificationException ex = expectThrows(
+                VerificationException.class,
+                () -> DatasetRewriter.rewrite(relationOfWithMode("logs", unsupported), project)
+            );
+            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("index mode [" + unsupported.getName() + "]"));
+            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("not supported yet"));
+            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs"));
+        }
+    }
+
     public void testSecretSettingUnwrappedToPlaintext() {
         DataSource parent = dataSource(
             "s3_parent",
@@ -116,7 +132,11 @@ public class DatasetRewriterTests extends ESTestCase {
     // --
 
     private static UnresolvedRelation relationOf(String pattern) {
-        return new UnresolvedRelation(Source.EMPTY, new IndexPattern(Source.EMPTY, pattern), false, List.of(), IndexMode.STANDARD, null);
+        return relationOfWithMode(pattern, IndexMode.STANDARD);
+    }
+
+    private static UnresolvedRelation relationOfWithMode(String pattern, IndexMode indexMode) {
+        return new UnresolvedRelation(Source.EMPTY, new IndexPattern(Source.EMPTY, pattern), false, List.of(), indexMode, null);
     }
 
     private static DataSource dataSource(String name, Map<String, DataSourceSetting> settings) {

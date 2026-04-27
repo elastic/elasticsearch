@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -63,6 +64,14 @@ public final class DatasetRewriter {
         }
         if (datasetNames.isEmpty()) {
             return relation;
+        }
+        if (relation.indexMode() != null && relation.indexMode() != IndexMode.STANDARD) {
+            throw new VerificationException(
+                "FROM <dataset> with index mode ["
+                    + relation.indexMode().getName()
+                    + "] is not supported yet; datasets requested: "
+                    + datasetNames
+            );
         }
         if (indexNames.isEmpty() == false) {
             throw new VerificationException(

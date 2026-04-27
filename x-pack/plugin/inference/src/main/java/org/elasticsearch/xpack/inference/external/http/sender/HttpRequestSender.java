@@ -115,7 +115,13 @@ public class HttpRequestSender implements Sender {
             } catch (Exception e) {
                 // Consider making this an error log because it's not recoverable
                 logger.warn("Failed to execute http sender start thread", e);
-                startupNotifier.onFailure(e);
+                startupNotifier.onFailure(
+                    new ElasticsearchStatusException(
+                        "Failed to begin initializing inference components",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        e
+                    )
+                );
             }
         }
         // Preserve context before wrapping with timeout so both the normal completion path and
@@ -145,8 +151,11 @@ public class HttpRequestSender implements Sender {
             service.start();
             startupNotifier.onResponse(null);
         } catch (Exception e) {
+            // Consider making this an error log because it's not recoverable
             logger.warn("Failed to initialize http sender components", e);
-            startupNotifier.onFailure(e);
+            startupNotifier.onFailure(
+                new ElasticsearchStatusException("Failed to initialize inference components", RestStatus.INTERNAL_SERVER_ERROR, e)
+            );
         }
     }
 

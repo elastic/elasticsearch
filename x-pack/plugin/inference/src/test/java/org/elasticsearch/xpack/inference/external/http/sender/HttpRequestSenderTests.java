@@ -167,7 +167,8 @@ public class HttpRequestSenderTests extends ESTestCase {
         try (var sender = senderFactory.createSender()) {
             var exception = expectThrows(ElasticsearchException.class, () -> startSynchronously(sender));
 
-            assertThat(exception.getMessage(), is("failed"));
+            assertThat(exception.getMessage(), is("Failed to initialize inference components"));
+            assertThat(exception.getCause().getMessage(), is("failed"));
         }
     }
 
@@ -276,7 +277,8 @@ public class HttpRequestSenderTests extends ESTestCase {
 
         for (var future : futures) {
             var exception = expectThrows(ElasticsearchException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
-            assertThat(exception.getMessage(), is("failed"));
+            assertThat(exception.getMessage(), is("Failed to initialize inference components"));
+            assertThat(exception.getCause().getMessage(), is("failed"));
         }
         verify(mockManager, times(1)).start();
     }

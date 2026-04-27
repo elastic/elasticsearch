@@ -245,7 +245,6 @@ public class IndexShardRoutingTable {
     public ShardIterator activeInitializingShardsRankedIt(
         @Nullable ResponseCollectorService collector,
         @Nullable Map<String, Long> nodeSearchCounts,
-        double explorationProbability,
         @Nullable Map<String, Long> liveInflightRequests,
         long inflightCap,
         int warmupResponsesCountThreshold
@@ -258,7 +257,6 @@ public class IndexShardRoutingTable {
                     shuffler.shuffle(activeShards, seed),
                     collector,
                     nodeSearchCounts,
-                    explorationProbability,
                     liveInflightRequests,
                     inflightCap,
                     warmupResponsesCountThreshold
@@ -271,7 +269,6 @@ public class IndexShardRoutingTable {
             shuffler.shuffle(activeShards, seed),
             collector,
             nodeSearchCounts,
-            explorationProbability,
             liveInflightRequests,
             inflightCap,
             warmupResponsesCountThreshold
@@ -281,7 +278,6 @@ public class IndexShardRoutingTable {
             allInitializingShards,
             collector,
             nodeSearchCounts,
-            explorationProbability,
             liveInflightRequests,
             inflightCap,
             warmupResponsesCountThreshold
@@ -368,7 +364,6 @@ public class IndexShardRoutingTable {
         List<ShardRouting> shards,
         final ResponseCollectorService collector,
         final Map<String, Long> nodeSearchCounts,
-        double explorationProbability,
         @Nullable Map<String, Long> liveInflightRequests,
         long inflightCap,
         int warmupResponsesCountThreshold
@@ -384,28 +379,25 @@ public class IndexShardRoutingTable {
         ArrayList<ShardRouting> sortedShards = new ArrayList<>(shards);
         sortedShards.sort(new NodeRankComparator(rankNodes(nodeStats, nodeSearchCounts)));
 
-        // ε-greedy exploration: with probability ε, promote an exploration candidate to winner.
-        // A node is an exploration candidate if it has no stats at all, or if it has stats but
-        // hasn't completed enough responses to be considered warmed up (caches populated, EWMA
-        // converged). Without this warmup period, a node that just got its first stats would
-        // have an artificially low queue (because it was throttled during exploration) and ARS
-        // would route all traffic to it at once.
-        // The live in-flight cap acts as a backstop, even if the coin flip succeeds,
-        // skip the node if it already has too many in-flight requests
-        if (explorationProbability > 0 && Randomness.get().nextDouble() < explorationProbability) {
-            ShardRouting candidate = findExplorationCandidate(
-                sortedShards,
-                nodeStats,
-                collector,
-                liveInflightRequests,
-                inflightCap,
-                warmupResponsesCountThreshold
-            );
-            if (candidate != null) {
-                // TODO: this remove call is O(n) but the number of replicas is in low digits usually, or low single digits at huge scale
-                sortedShards.remove(candidate);
-                sortedShards.add(0, candidate);
-            }
+        // Cap-based admission: if any node still in warmup has slack under the in-flight cap,
+        // promote it to winner. The cap is the rate regulator — at steady state a warming node
+        // sees at most `inflightCap` concurrent requests, giving an admission rate of
+        // inflightCap / E[response_time] regardless of cluster QPS, fan-out, or replica count.
+        // Without this, a stat-less node would sort last (nullsLast) and never receive traffic;
+        // with it, every warming node gets a controlled trickle until it graduates.
+        ShardRouting candidate = findExplorationCandidate(
+            sortedShards,
+            nodeStats,
+            collector,
+            nodeSearchCounts,
+            liveInflightRequests,
+            inflightCap,
+            warmupResponsesCountThreshold
+        );
+        if (candidate != null && candidate.equals(sortedShards.get(0)) == false) {
+            // TODO: this remove call is O(n) but the number of replicas is in low digits usually, or low single digits at huge scale
+            sortedShards.remove(candidate);
+            sortedShards.add(0, candidate);
         }
 
         // adjust the non-winner nodes' stats so they will get a chance to receive queries
@@ -424,47 +416,68 @@ public class IndexShardRoutingTable {
     }
 
     /**
-     * Returns a shard whose node needs exploration traffic, or null if all nodes are warmed up.
-     * A node needs exploration if it has no stats, or if its response count (tracked separately
-     * by {@link ResponseCollectorService}) is below the warmup threshold — meaning its EWMA and
-     * caches haven't had enough traffic to reach steady state.
-     * The live in-flight cap filters out nodes that already have too many concurrent requests.
-     * When multiple eligible shards exist, one is chosen at random.
+     * Returns a shard whose node needs exploration traffic, or null if no warming node has
+     * slack under the in-flight cap. A node needs exploration if it has no stats, or if its
+     * response count (tracked separately by {@link ResponseCollectorService}) is below the
+     * warmup threshold — meaning its EWMA and caches haven't had enough traffic to reach
+     * steady state.
+     * <p>
+     * Among warming nodes below the cap, the one with the fewest in-flight requests is
+     * preferred. This gives every warming node a fair share of admission (rather than piling
+     * onto whichever is iterated first) and turns the cap into a self-pacing rate regulator:
+     * traffic to a warming node is bounded by {@code inflightCap / E[response_time]} req/s.
+     * <p>
+     * The in-flight signal is the max of two sources: {@code nodeSearchCounts} (snapshot at
+     * query start, incremented in-place after each shard decision in the current query — this
+     * prevents a single high-fan-out query from picking the same warming node for every shard)
+     * and {@code liveInflightRequests} (live count maintained across all coordinator queries —
+     * this prevents concurrent queries from each seeing zero in-flight and swarming together).
      */
     static ShardRouting findExplorationCandidate(
         List<ShardRouting> shards,
         Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
         ResponseCollectorService collector,
+        Map<String, Long> nodeSearchCounts,
         @Nullable Map<String, Long> liveInflightRequests,
         long inflightCap,
         int warmupResponsesCountThreshold
     ) {
-        List<ShardRouting> candidates = null;
+        ShardRouting best = null;
+        long bestInflight = Long.MAX_VALUE;
+        int tiesAtBest = 0;
         for (ShardRouting shard : shards) {
-            if (shard.currentNodeId() == null) {
+            String nodeId = shard.currentNodeId();
+            if (nodeId == null) {
                 continue;
             }
-            Optional<ResponseCollectorService.ComputedNodeStats> stats = nodeStats.get(shard.currentNodeId());
-            boolean needsExploration = stats.isEmpty() || collector.getResponseCount(shard.currentNodeId()) < warmupResponsesCountThreshold;
+            Optional<ResponseCollectorService.ComputedNodeStats> stats = nodeStats.get(nodeId);
+            boolean needsExploration = stats.isEmpty() || collector.getResponseCount(nodeId) < warmupResponsesCountThreshold;
             if (needsExploration == false) {
                 continue;
             }
-            // backstop for the probabilistic element to check live in-flight count to avoid overwhelming the node
-            if (liveInflightRequests != null && inflightCap > 0) {
-                long inflight = liveInflightRequests.getOrDefault(shard.currentNodeId(), 0L);
-                if (inflight >= inflightCap) {
-                    continue;
+            long inQueryCount = nodeSearchCounts.getOrDefault(nodeId, 0L);
+            long liveCount = liveInflightRequests == null ? 0L : liveInflightRequests.getOrDefault(nodeId, 0L);
+            long inflight = Math.max(inQueryCount, liveCount);
+            if (inflightCap > 0 && inflight >= inflightCap) {
+                continue;
+            }
+            if (inflight < bestInflight) {
+                best = shard;
+                bestInflight = inflight;
+                tiesAtBest = 1;
+            } else if (inflight == bestInflight) {
+                // Reservoir sampling: among candidates tied at the minimum inflight count,
+                // pick one uniformly at random. This matters when synchronous queries leave
+                // every warming node at zero inflight between calls — without random tie-break,
+                // iteration order would route every query to the same warming node and starve
+                // the rest.
+                tiesAtBest++;
+                if (Randomness.get().nextInt(tiesAtBest) == 0) {
+                    best = shard;
                 }
             }
-            if (candidates == null) {
-                candidates = new ArrayList<>(1);
-            }
-            candidates.add(shard);
         }
-        if (candidates == null) {
-            return null;
-        }
-        return candidates.get(Randomness.get().nextInt(candidates.size()));
+        return best;
     }
 
     private static class NodeRankComparator implements Comparator<ShardRouting> {

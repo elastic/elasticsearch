@@ -24,17 +24,12 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(numClientNodes = 1, numDataNodes = 3)
 public class SearchReplicaSelectionIT extends ESIntegTestCase {
-
-    private static void setTransientSettings(Settings settings) {
-        assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(settings).get());
-    }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -53,23 +48,18 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         client.prepareIndex("test").setSource("field", "value").get();
         refresh();
 
-        // Set exploration probability to 1.0 so every search explores a warming node.
-        // With the default warmup threshold (30 responses), nodes stay as exploration candidates
-        // for many searches, giving the random selection enough tries to hit all 3.
-        setTransientSettings(Settings.builder().put(OperationRouting.ARS_EXPLORATION_PROBABILITY.getKey(), 1.0).build());
-
-        try {
-            Set<String> nodeIds = new HashSet<>();
-            for (int i = 0; i < 50; i++) {
-                assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
-                    nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-                });
-                if (nodeIds.size() == 3) break;
-            }
-            assertEquals("all 3 nodes should have been explored", 3, nodeIds.size());
-        } finally {
-            setTransientSettings(Settings.builder().putNull(OperationRouting.ARS_EXPLORATION_PROBABILITY.getKey()).build());
+        // Cap-based admission: while any replica is below the warmup threshold, each search
+        // routes to the warming replica with the fewest in-flight requests. Searches here are
+        // synchronous so in-flight is 0 between calls — selection rotates across warming nodes
+        // until all three reach the warmup threshold (30 responses by default).
+        Set<String> nodeIds = new HashSet<>();
+        for (int i = 0; i < 50; i++) {
+            assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
+                nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
+            });
+            if (nodeIds.size() == 3) break;
         }
+        assertEquals("all 3 nodes should have been explored", 3, nodeIds.size());
 
         // After enough searches, all replicas have computed stats and the chosen replica
         // should match the lowest ARS rank from the formula.
@@ -104,8 +94,9 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
     }
 
     /**
-     * Verifies that when a new node joins a cluster that already has ARS stats, probabilistic
-     * exploration gives the new node some traffic without flooding it.
+     * Verifies that when a new node joins a cluster that already has ARS stats, cap-based
+     * admission gives the new node some traffic without flooding it. The in-flight cap is
+     * the rate regulator: warming-node traffic is bounded by inflightCap / E[response_time].
      */
     public void testWarmingNodeExploredButNotFlooded() {
         Client client = internalCluster().coordOnlyNodeClient();
@@ -144,9 +135,10 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
 
         // Send several searches and count how many distinct shards are routed to the new node.
         final String targetNodeId = newNodeId;
+        final int numSearches = 10;
         int totalShardDecisions = 0;
         int newNodeShardDecisions = 0;
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < numSearches; i++) {
             var response = client.prepareSearch("probe_test").setQuery(matchAllQuery()).setSize(100).get();
             try {
                 Set<String> countedShards = new HashSet<>();
@@ -166,7 +158,16 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
             }
         }
 
+        // Cap-based admission: per query, at most `inflightCap` shard decisions can target the
+        // warming node before nodeSearchCounts hits the cap and routing falls back to ARS for
+        // the remaining shards. Across `numSearches` synchronous queries the analytic ceiling
+        // is `inflightCap × numSearches`. Anything ≤ that is the design working as intended.
+        long inflightCap = OperationRouting.ARS_INFLIGHT_CAP.get(Settings.EMPTY);
         assertThat("warming node should receive some traffic from exploration", newNodeShardDecisions, greaterThanOrEqualTo(1));
-        assertThat("warming node should not dominate shard routing", newNodeShardDecisions, lessThan(totalShardDecisions / 2));
+        assertThat(
+            "warming node decisions must stay within cap × searches",
+            (long) newNodeShardDecisions,
+            lessThanOrEqualTo(inflightCap * numSearches)
+        );
     }
 }

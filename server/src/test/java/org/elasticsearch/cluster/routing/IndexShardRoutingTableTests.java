@@ -28,7 +28,8 @@ public class IndexShardRoutingTableTests extends ESTestCase {
 
     /**
      * Stat-less nodes receive no rank entry from {@code rankNodes} and sort last via nullsLast.
-     * They receive traffic through ε-greedy exploration, not through rank manipulation.
+     * They receive traffic through cap-based admission in {@code findExplorationCandidate},
+     * not through rank manipulation.
      */
     public void testRankNodesExcludesStatlessNodes() {
         TestThreadPool threadPool = new TestThreadPool("test");
@@ -81,18 +82,22 @@ public class IndexShardRoutingTableTests extends ESTestCase {
             nodeStats.put("node2", Optional.empty());
 
             // stat-less node is a candidate
-            ShardRouting candidate = IndexShardRoutingTable.findExplorationCandidate(shards, nodeStats, collector, null, 0, 30);
+            ShardRouting candidate = IndexShardRoutingTable.findExplorationCandidate(shards, nodeStats, collector, Map.of(), null, 0, 30);
             assertNotNull(candidate);
             assertEquals("node2", candidate.currentNodeId());
 
             // backstop: at the in-flight cap → not a candidate
-            candidate = IndexShardRoutingTable.findExplorationCandidate(shards, nodeStats, collector, Map.of("node2", 8L), 8, 30);
+            candidate = IndexShardRoutingTable.findExplorationCandidate(shards, nodeStats, collector, Map.of(), Map.of("node2", 8L), 8, 30);
             assertNull(candidate);
 
             // below the in-flight cap → still a candidate
-            candidate = IndexShardRoutingTable.findExplorationCandidate(shards, nodeStats, collector, Map.of("node2", 7L), 8, 30);
+            candidate = IndexShardRoutingTable.findExplorationCandidate(shards, nodeStats, collector, Map.of(), Map.of("node2", 7L), 8, 30);
             assertNotNull(candidate);
             assertEquals("node2", candidate.currentNodeId());
+
+            // within-query: nodeSearchCounts at the cap → not a candidate (even if live count is 0)
+            candidate = IndexShardRoutingTable.findExplorationCandidate(shards, nodeStats, collector, Map.of("node2", 8L), Map.of(), 8, 30);
+            assertNull("nodeSearchCounts hitting the cap must block the candidate", candidate);
         } finally {
             terminate(threadPool);
         }
@@ -121,6 +126,7 @@ public class IndexShardRoutingTableTests extends ESTestCase {
                 shards,
                 nodeStats,
                 collector,
+                Map.of(),
                 null,
                 0,
                 warmupThreshold
@@ -134,8 +140,69 @@ public class IndexShardRoutingTableTests extends ESTestCase {
             }
             nodeStats.put("node2", collector.getNodeStatistics("node2"));
 
-            candidate = IndexShardRoutingTable.findExplorationCandidate(shards, nodeStats, collector, null, 0, warmupThreshold);
+            candidate = IndexShardRoutingTable.findExplorationCandidate(shards, nodeStats, collector, Map.of(), null, 0, warmupThreshold);
             assertNull("node with responses >= warmup threshold should not be a candidate", candidate);
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testFindExplorationCandidatePrefersColdestByInflight() {
+        TestThreadPool threadPool = new TestThreadPool("test");
+        try {
+            ResponseCollectorService collector = newCollector(threadPool);
+            // Two warming nodes, both eligible. node3 has fewer in-flight requests, so it
+            // should win — this gives every warming node a fair share of admission instead
+            // of piling onto whichever shard the iterator visits first.
+            for (int i = 0; i < 5; i++) {
+                collector.addNodeStatistics("node2", 2, 200_000, 100_000);
+                collector.addNodeStatistics("node3", 2, 200_000, 100_000);
+            }
+
+            List<ShardRouting> shards = List.of(startedShard(true, "node2"), startedShard(false, "node3"));
+            Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = new HashMap<>();
+            nodeStats.put("node2", collector.getNodeStatistics("node2"));
+            nodeStats.put("node3", collector.getNodeStatistics("node3"));
+
+            ShardRouting candidate = IndexShardRoutingTable.findExplorationCandidate(
+                shards,
+                nodeStats,
+                collector,
+                Map.of(),
+                Map.of("node2", 5L, "node3", 1L),
+                8,
+                30
+            );
+            assertNotNull(candidate);
+            assertEquals("coldest-by-inflight node should win", "node3", candidate.currentNodeId());
+
+            // flip the inflight counts — winner flips too
+            candidate = IndexShardRoutingTable.findExplorationCandidate(
+                shards,
+                nodeStats,
+                collector,
+                Map.of(),
+                Map.of("node2", 1L, "node3", 5L),
+                8,
+                30
+            );
+            assertNotNull(candidate);
+            assertEquals("node2", candidate.currentNodeId());
+
+            // within-query: nodeSearchCounts overrides liveInflightRequests when higher
+            // (after a single query has picked node3 several times, its nodeSearchCount climbs
+            // even before liveInflightRequests catches up — this prevents fan-out swarming)
+            candidate = IndexShardRoutingTable.findExplorationCandidate(
+                shards,
+                nodeStats,
+                collector,
+                Map.of("node3", 6L),
+                Map.of("node2", 5L, "node3", 1L),
+                8,
+                30
+            );
+            assertNotNull(candidate);
+            assertEquals("nodeSearchCounts must be honored when higher than liveInflight", "node2", candidate.currentNodeId());
         } finally {
             terminate(threadPool);
         }
@@ -155,7 +222,7 @@ public class IndexShardRoutingTableTests extends ESTestCase {
             nodeStats.put("node1", collector.getNodeStatistics("node1"));
             nodeStats.put("node2", collector.getNodeStatistics("node2"));
 
-            ShardRouting candidate = IndexShardRoutingTable.findExplorationCandidate(shards, nodeStats, collector, null, 0, 30);
+            ShardRouting candidate = IndexShardRoutingTable.findExplorationCandidate(shards, nodeStats, collector, Map.of(), null, 0, 30);
             assertNull("no candidates when all nodes are warmed up", candidate);
         } finally {
             terminate(threadPool);

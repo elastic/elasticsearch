@@ -43,18 +43,9 @@ public class OperationRouting {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Double> ARS_EXPLORATION_PROBABILITY = Setting.doubleSetting(
-        "cluster.routing.ars_exploration_probability",
-        0.1,
-        0.0,
-        1.0,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
     public static final Setting<Long> ARS_INFLIGHT_CAP = Setting.longSetting(
         "cluster.routing.ars_inflight_cap",
-        32,
+        8,
         0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -62,14 +53,13 @@ public class OperationRouting {
 
     public static final Setting<Integer> ARS_WARMUP_RESPONSES = Setting.intSetting(
         "cluster.routing.ars_warmup_responses_threshold",
-        30,
+        60,
         0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     private boolean useAdaptiveReplicaSelection;
-    private volatile double explorationProbability;
     private volatile long inflightCap;
     private volatile int warmupResponsesCountThreshold;
 
@@ -77,8 +67,6 @@ public class OperationRouting {
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
-        this.explorationProbability = ARS_EXPLORATION_PROBABILITY.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(ARS_EXPLORATION_PROBABILITY, v -> this.explorationProbability = v);
         this.inflightCap = ARS_INFLIGHT_CAP.get(settings);
         clusterSettings.addSettingsUpdateConsumer(ARS_INFLIGHT_CAP, v -> this.inflightCap = v);
         this.warmupResponsesCountThreshold = ARS_WARMUP_RESPONSES.get(settings);
@@ -356,7 +344,6 @@ public class OperationRouting {
             return indexShard.activeInitializingShardsRankedIt(
                 collectorService,
                 nodeCounts,
-                explorationProbability,
                 liveInflightRequests,
                 inflightCap,
                 warmupResponsesCountThreshold

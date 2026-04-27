@@ -143,10 +143,7 @@ public class ChangePointOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(
-            () -> Releasables.close(currentGroupPages),
-            () -> Releasables.close(outputPages),
-            encoder);
+        Releasables.close(() -> Releasables.close(currentGroupPages), () -> Releasables.close(outputPages), encoder);
     }
 
     @Override

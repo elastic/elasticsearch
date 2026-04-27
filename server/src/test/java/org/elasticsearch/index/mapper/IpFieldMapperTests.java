@@ -535,6 +535,98 @@ public class IpFieldMapperTests extends MapperTestCase {
         );
     }
 
+    public void testMultiValueNoAcceptsSingleValue() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+        mapper.parse(source(b -> b.field("field", "::1")));
+    }
+
+    public void testMultiValueNoRejectsArray() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "::1", "::2")))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * Single malformed value routes to the {@code _ignored} fallback. Only one {@link FieldMapper#parse(DocumentParserContext)} call
+     * fires, so enforcement does not trip.
+     */
+    public void testMultiValueNoAcceptsSingleIgnoreMalformedValue() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "ip").field("ignore_malformed", true);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        mapper.parse(source(b -> b.field("field", "not-an-ip")));
+    }
+
+    /**
+     * Both values are malformed and would route to the {@code _ignored} fallback. Enforcement still throws on the second
+     * {@link FieldMapper#parse(DocumentParserContext)} call before either is handled.
+     */
+    public void testMultiValueNoRejectsTwoIgnoreMalformedFallbacks() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "ip").field("ignore_malformed", true);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "not-an-ip", "also-not-an-ip")))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
+    public void testMultiValueNoRejectsNormalPlusIgnoreMalformedFallback() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "ip").field("ignore_malformed", true);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "::1", "not-an-ip")))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * Mirror of {@link #testMultiValueNoRejectsNormalPlusIgnoreMalformedFallback} with the order reversed: first value is malformed
+     * and would route to the {@code _ignored} fallback, second is a valid IP. Enforcement still fires on the second parse call.
+     */
+    public void testMultiValueNoRejectsIgnoreMalformedFallbackPlusNormal() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "ip").field("ignore_malformed", true);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "not-an-ip", "::1")))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
     @Override
     protected String randomSyntheticSourceKeep() {
         return "all";

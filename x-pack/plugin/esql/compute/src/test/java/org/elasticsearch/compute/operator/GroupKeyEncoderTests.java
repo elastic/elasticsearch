@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -19,8 +21,8 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
 
     private GroupKeyEncoder encoder(int[] groupChannels, List<ElementType> elementTypes) {
         BlockFactory bf = blockFactory();
-        var scratch = new BreakingBytesRefBuilder(bf.breaker(), "group-key-encoder-test");
-        return new GroupKeyEncoder(groupChannels, elementTypes, scratch);
+        PagedBytesBuilder row = new PagedBytesBuilder(bf.bigArrays().recycler(), bf.breaker(), "group-key-encoder-test", 64);
+        return new GroupKeyEncoder(groupChannels, elementTypes, row);
     }
 
     public void testSameIntValuesSameKey() {
@@ -235,7 +237,12 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
         }
     }
 
-    private static BytesRef copy(BytesRef ref) {
-        return BytesRef.deepCopyOf(ref);
+    private static BytesRef copy(PagedBytesCursor cursor) {
+        byte[] bytes = new byte[cursor.remaining()];
+        int pos = 0;
+        while (cursor.remaining() > 0) {
+            bytes[pos++] = cursor.readByte();
+        }
+        return new BytesRef(bytes);
     }
 }

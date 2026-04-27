@@ -235,6 +235,35 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         assertTrue(future.isCompletedExceptionally());
     }
 
+    public void testComputePrefetchBytesAllColumns() {
+        BlockMetaData block = createBlockWithColumns(
+            new ColMeta("col_a", 100, 500),
+            new ColMeta("col_b", 700, 300),
+            new ColMeta("col_c", 1100, 200)
+        );
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(1000L));
+    }
+
+    public void testComputePrefetchBytesWithProjection() {
+        BlockMetaData block = createBlockWithColumns(
+            new ColMeta("col_a", 100, 500),
+            new ColMeta("col_b", 700, 300),
+            new ColMeta("col_c", 1100, 200)
+        );
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("col_a", "col_c")), equalTo(700L));
+    }
+
+    public void testComputePrefetchBytesEmptyProjection() {
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 500));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("nonexistent")), equalTo(0L));
+    }
+
+    public void testComputePrefetchBytesEmptyBlock() {
+        BlockMetaData block = new BlockMetaData();
+        block.setRowCount(0);
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(0L));
+    }
+
     public void testPrefetchedChunkCovers() {
         ByteBuffer data = ByteBuffer.allocate(100);
         ColumnChunkPrefetcher.PrefetchedChunk chunk = new ColumnChunkPrefetcher.PrefetchedChunk(200, 100, data);

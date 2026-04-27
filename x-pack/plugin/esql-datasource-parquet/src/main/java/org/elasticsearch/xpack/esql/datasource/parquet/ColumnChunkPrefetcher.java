@@ -145,6 +145,22 @@ final class ColumnChunkPrefetcher {
     }
 
     /**
+     * Computes the total bytes that a prefetch would consume for the given row group and projection.
+     * This is the sum of {@link ColumnChunkMetaData#getTotalSize()} for each projected column chunk,
+     * which bounds the data payload fetched by {@link #prefetchAsync}.
+     */
+    static long computePrefetchBytes(BlockMetaData block, java.util.Set<String> projectedColumns) {
+        long totalBytes = 0;
+        for (ColumnChunkMetaData col : block.getColumns()) {
+            if (projectedColumns != null && projectedColumns.contains(col.getPath().toDotString()) == false) {
+                continue;
+            }
+            totalBytes += col.getTotalSize();
+        }
+        return totalBytes;
+    }
+
+    /**
      * Computes the byte ranges for column chunks in a row group. Each column chunk has a
      * starting position and total size in the file metadata.
      */

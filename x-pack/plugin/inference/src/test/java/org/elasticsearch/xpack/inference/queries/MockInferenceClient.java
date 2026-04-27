@@ -94,9 +94,7 @@ public class MockInferenceClient extends NoOpClient {
             ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;
             String inferenceId = inferenceRequest.getInferenceEntityId();
             MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
-            if (settings != null
-                && settings.taskType() != TaskType.SPARSE_EMBEDDING
-                && settings.taskType() != TaskType.TEXT_EMBEDDING) {
+            if (settings != null && settings.taskType() != TaskType.SPARSE_EMBEDDING && settings.taskType() != TaskType.TEXT_EMBEDDING) {
                 inferenceListener.onFailure(
                     new IllegalArgumentException(
                         "Inference endpoint ["
@@ -115,9 +113,7 @@ public class MockInferenceClient extends NoOpClient {
 
             String inferenceId = inferenceRequest.getModelId();
             MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
-            if (settings != null
-                && settings.taskType() != TaskType.TEXT_EMBEDDING
-                && settings.taskType() != TaskType.SPARSE_EMBEDDING) {
+            if (settings != null && settings.taskType() != TaskType.TEXT_EMBEDDING && settings.taskType() != TaskType.SPARSE_EMBEDDING) {
                 inferenceListener.onFailure(
                     new IllegalArgumentException(
                         "Inference endpoint ["

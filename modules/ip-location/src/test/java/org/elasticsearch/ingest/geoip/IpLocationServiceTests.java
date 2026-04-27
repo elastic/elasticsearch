@@ -67,9 +67,7 @@ public class IpLocationServiceTests extends ESTestCase {
     public void setup() throws IOException {
         boolean multiProject = randomBoolean();
         projectId = multiProject ? randomProjectIdOrDefault() : ProjectId.DEFAULT;
-        projectResolver = multiProject
-            ? TestProjectResolvers.singleProject(projectId)
-            : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
+        projectResolver = multiProject ? TestProjectResolvers.singleProject(projectId) : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
 
         geoIpConfigDir = createTempDir().resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);

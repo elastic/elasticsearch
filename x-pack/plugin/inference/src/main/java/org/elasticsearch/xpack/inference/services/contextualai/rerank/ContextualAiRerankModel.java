@@ -53,7 +53,7 @@ public class ContextualAiRerankModel extends ContextualAiModel {
             inferenceEntityId,
             ContextualAiRerankServiceSettings.fromMap(serviceSettings, context),
             ContextualAiRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secretSettings)
+            DefaultSecretSettings.fromMap(secretSettings, context)
         );
     }
 

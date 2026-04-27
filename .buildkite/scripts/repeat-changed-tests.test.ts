@@ -30,6 +30,16 @@ describe("toGradleProject", () => {
       ":x-pack:plugin:ml:qa:native-multi-node-tests"
     );
   });
+
+  test("prefixes test- on children of test/external-modules", () => {
+    expect(toGradleProject("test/external-modules/apm-integration")).toBe(
+      ":test:external-modules:test-apm-integration"
+    );
+  });
+
+  test("leaves sibling test paths unchanged", () => {
+    expect(toGradleProject("test/fixtures/some-fixture")).toBe(":test:fixtures:some-fixture");
+  });
 });
 
 describe("toFqcn", () => {
@@ -151,6 +161,21 @@ describe("classifyChangedFiles", () => {
         kind: "test",
         sourceSet: "test",
         fqcn: "org.elasticsearch.xpack.core.SomeTests",
+      },
+    ]);
+  });
+
+  test("classifies external-modules javaRestTest with test- prefix", () => {
+    const result = classifyChangedFiles([
+      "test/external-modules/apm-integration/src/javaRestTest/java/org/elasticsearch/test/apmintegration/ApmAgentTracesIT.java",
+    ]);
+
+    expect(result).toEqual([
+      {
+        gradleProject: ":test:external-modules:test-apm-integration",
+        kind: "javaRestTest",
+        sourceSet: "javaRestTest",
+        fqcn: "org.elasticsearch.test.apmintegration.ApmAgentTracesIT",
       },
     ]);
   });

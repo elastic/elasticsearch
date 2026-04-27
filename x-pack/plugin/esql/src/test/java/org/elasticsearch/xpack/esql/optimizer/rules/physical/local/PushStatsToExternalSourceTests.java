@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -424,6 +425,61 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
         assertEquals(1000L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
+    // --- cross-type stats merge tests (UNION_BY_NAME type widening) ---
+
+    /**
+     * When splits come from files with different physical types for the same column
+     * (e.g. INTEGER in file A, LONG in file B after UNION_BY_NAME widening), the
+     * optimizer should correctly merge Integer and Long stats and push down MIN/MAX.
+     */
+    public void testMinMaxWithCrossTypeStatsAcrossSplits() {
+        SplitStats split1 = buildSplitStatsWithMinMax("salary", 30000, 80000, 500L, 0L);
+        SplitStats split2 = buildSplitStatsWithMinMax("salary", 25000L, 90000L, 500L, 0L);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
+        var agg = aggregateExec(ext, alias("mn", new Min(Source.EMPTY, SALARY)), alias("mx", new Max(Source.EMPTY, SALARY)));
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(2, local.output().size());
+        Page page = local.supplier().get();
+        assertNotNull(page);
+        // Min(Integer(30000), Long(25000)) → Long(25000), coerced to Integer block by buildBlock
+        assertEquals(25000, as(page.getBlock(0), IntBlock.class).getInt(0));
+        // Max(Integer(80000), Long(90000)) → Long(90000), coerced to Integer block by buildBlock
+        assertEquals(90000, as(page.getBlock(1), IntBlock.class).getInt(0));
+    }
+
+    public void testMinMaxWithCrossTypeIntegerDoubleStatsAcrossSplits() {
+        SplitStats split1 = buildSplitStatsWithMinMax("score", 3, 80, 500L, 0L);
+        SplitStats split2 = buildSplitStatsWithMinMax("score", 1.5, 99.9, 500L, 0L);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
+        var agg = aggregateExec(ext, alias("mn", new Min(Source.EMPTY, SCORE)), alias("mx", new Max(Source.EMPTY, SCORE)));
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(2, local.output().size());
+        Page page = local.supplier().get();
+        assertNotNull(page);
+        // Min(Integer(3), Double(1.5)) → Double(1.5), coerced to DoubleBlock
+        assertEquals(1.5, as(page.getBlock(0), DoubleBlock.class).getDouble(0), 0.001);
+        // Max(Integer(80), Double(99.9)) → Double(99.9), coerced to DoubleBlock
+        assertEquals(99.9, as(page.getBlock(1), DoubleBlock.class).getDouble(0), 0.001);
+    }
+
+    /**
+     * When splits have incompatible stat types (Long + Double), merged stats are cleared
+     * to null and pushdown must NOT produce a misleading constant. The rule should fall
+     * back to the original aggregate.
+     */
+    public void testMinMaxWithIncompatibleLongDoubleStatsDoesNotPushDown() {
+        SplitStats split1 = buildSplitStatsWithMinMax("score", 10L, 50L, 500L, 0L);
+        SplitStats split2 = buildSplitStatsWithMinMax("score", 5.0, 60.0, 500L, 0L);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
+        var agg = aggregateExec(ext, alias("mn", new Min(Source.EMPTY, SCORE)), alias("mx", new Max(Source.EMPTY, SCORE)));
+
+        PhysicalPlan result = applyRule(agg);
+        // Should NOT be pushed down to LocalSourceExec — stats are incompatible and cleared
+        as(result, AggregateExec.class);
     }
 
     // --- filter tests ---

@@ -24,7 +24,7 @@ import static org.elasticsearch.inference.UnifiedCompletionRequest.INCLUDE_STREA
 public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
 
     public static final String STREAM_FIELD = "stream";
-    private static final String NUMBER_OF_RETURNED_CHOICES_FIELD = "n";
+    public static final String NUMBER_OF_RETURNED_CHOICES_FIELD = "n";
     private static final String STREAM_OPTIONS_FIELD = "stream_options";
     private static final String INCLUDE_USAGE_FIELD = "include_usage";
 

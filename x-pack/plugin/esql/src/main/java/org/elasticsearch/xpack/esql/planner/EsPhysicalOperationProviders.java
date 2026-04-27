@@ -84,7 +84,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField2;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -99,6 +101,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -249,7 +252,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             functionConfig = functionEsField.functionConfig();
         }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
-        MultiTypeEsField unionTypes = findUnionTypes(attr);
+        UnionTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes == null) {
             BlockLoader blockLoader = shardContext.blockLoader(
                 fieldName,
@@ -262,11 +265,23 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             );
             return ValuesSourceReaderOperator.load(blockLoader);
         }
-        // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
-        String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
-        Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
+        Expression conversion;
+        if (unionTypes instanceof MultiTypeEsField legacy) {
+            // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
+            String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
+            conversion = legacy.getConversionExpressionForIndex(indexName);
+        } else {
+            // Type-keyed lookup: resolve the field's local data type from the shard context, falling back to "unmapped" when the field has
+            // no local mapping. The conversion map is keyed by DataType.typeName().
+            MappedFieldType mft = shardContext.fieldType(fieldName);
+            conversion = mft == null
+                ? null
+                : ((MultiTypeEsField2) unionTypes).getConversionExpressionForType(
+                    EsqlDataTypeRegistry.INSTANCE.fromEs(mft.typeName(), mft.getMetricType())
+                );
+        }
         if (conversion == null) {
-            Expression potentiallyUnmapped = unionTypes.getPotentiallyUnmappedExpression();
+            Expression potentiallyUnmapped = unionTypes.getUnmappedConversionExpression();
             if (!(potentiallyUnmapped instanceof AbstractConvertFunction convert)) {
                 return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
             }
@@ -394,9 +409,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
     }
 
-    private static @Nullable MultiTypeEsField findUnionTypes(Attribute attr) {
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField multiTypeEsField) {
-            return multiTypeEsField;
+    private static @Nullable UnionTypeEsField findUnionTypes(Attribute attr) {
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField unionTypeEsField) {
+            return unionTypeEsField;
         }
         return null;
     }

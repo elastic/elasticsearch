@@ -31,7 +31,7 @@ import java.util.Set;
  * this class instead of the {@link InvalidMappedField}.
  * This class is sent to the data nodes to inform them that they have to convert the type directly during field extraction.
  */
-public class MultiTypeEsField extends EsField {
+public class MultiTypeEsField extends EsField implements UnionTypeEsField {
     private static final TransportVersion POTENTIALLY_UNMAPPED_EXPRESSION = TransportVersion.fromName(
         "esql_potentially_unmapped_expression"
     );
@@ -91,6 +91,11 @@ public class MultiTypeEsField extends EsField {
     }
 
     public @Nullable Expression getPotentiallyUnmappedExpression() {
+        return potentiallyUnmappedExpression;
+    }
+
+    @Override
+    public @Nullable Expression getUnmappedConversionExpression() {
         return potentiallyUnmappedExpression;
     }
 

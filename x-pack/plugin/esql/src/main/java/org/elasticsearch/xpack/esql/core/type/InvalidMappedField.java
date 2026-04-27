@@ -63,7 +63,7 @@ public class InvalidMappedField extends EsField {
         );
     }
 
-    private InvalidMappedField(
+    protected InvalidMappedField(
         String name,
         String errorMessage,
         Map<String, EsField> properties,
@@ -142,7 +142,7 @@ public class InvalidMappedField extends EsField {
         return isPotentiallyUnmapped;
     }
 
-    private static String makeErrorMessage(Map<String, Set<String>> typesToIndices, boolean includeInsistKeyword) {
+    static String makeErrorMessage(Map<String, Set<String>> typesToIndices, boolean includeInsistKeyword) {
         StringBuilder errorMessage = new StringBuilder();
         var isInsistKeywordOnlyKeyword = includeInsistKeyword && typesToIndices.containsKey(DataType.KEYWORD.typeName()) == false;
         errorMessage.append("mapped as [");

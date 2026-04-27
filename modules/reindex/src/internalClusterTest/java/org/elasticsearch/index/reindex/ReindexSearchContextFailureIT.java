@@ -43,22 +43,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
  * Asserts on the errors returned from a reindexing task when the underlying search context is no longer available.
  * {@link SearchContextMissingException} is ordinarily surfaced as a 4xx, but reindex should wrap the failure so the
  * task reports a 5xx.
- * <p>
- * This test covers the <em>point-in-time</em> local reindex path ({@link ReindexPlugin#REINDEX_PIT_SEARCH_FEATURE}).
- * It injects a {@link SearchContextMissingException} on the second PIT search (the first page after opening the PIT
- * succeeds, the second fails), and then asserts on the returned error
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class ReindexSearchContextFailureIT extends ESIntegTestCase {
 
-    private static final String SOURCE = "rsc-fail-source";
-    private static final String DEST = "rsc-fail-dest";
-    private static final int NUM_DOCS = 10;
-
     private static final AtomicBoolean INJECT = new AtomicBoolean(false);
     /**
-     * Counts {@link TransportSearchAction} invocations when injection is on. For PIT reindex, fail on the second search
-     * (first page after PIT is opened, then second page) so the first page completes before the injected error.
+     * Counts {@link TransportSearchAction} invocations
      */
     private static final AtomicInteger PIT_USER_SEARCH_INVOCATIONS = new AtomicInteger(0);
     private static final AtomicBoolean INJECTION_APPLIED = new AtomicBoolean(false);
@@ -75,26 +66,34 @@ public class ReindexSearchContextFailureIT extends ESIntegTestCase {
         INJECTION_APPLIED.set(false);
     }
 
+    /**
+     * This test covers the <em>point-in-time</em> local reindex path ({@link ReindexPlugin#REINDEX_PIT_SEARCH_FEATURE}).
+     * The first page after opening the PIT succeeds. The test then injects a {@link SearchContextMissingException}
+     * on the second PIT search, asserting on the returned error
+     */
     public void testReindexFailsWith500WhenPitSearchContextMissing() {
+        String source = "rsc-fail-source";
+        String dest = "rsc-fail-dest";
+        int numDocs = randomIntBetween(10,50);
         assumeTrue("PIT-based reindex path", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         client().admin()
             .indices()
-            .prepareCreate(SOURCE)
+            .prepareCreate(source)
             .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
             .get();
         indexRandom(
             true,
             false,
             true,
-            IntStream.range(0, NUM_DOCS)
-                .mapToObj(i -> prepareIndex(SOURCE).setId(Integer.toString(i)).setSource("n", Integer.toString(i)))
+            IntStream.range(0, numDocs)
+                .mapToObj(i -> prepareIndex(source).setId(Integer.toString(i)).setSource("n", Integer.toString(i)))
                 .collect(Collectors.toList())
         );
-        assertHitCount(client().prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), NUM_DOCS);
+        assertHitCount(client().prepareSearch(source).setSize(0).setTrackTotalHits(true), numDocs);
 
         INJECT.set(true);
         ReindexRequestBuilder reindex = new ReindexRequestBuilder(client());
-        reindex.source(SOURCE).destination(DEST);
+        reindex.source(source).destination(dest);
         reindex.setSlices(1);
         reindex.source().setSize(1);
         // First PIT page succeeds; the second shard query fails with an injected SearchContextMissingException, which
@@ -135,6 +134,7 @@ public class ReindexSearchContextFailureIT extends ESIntegTestCase {
                         chain.proceed(task, action, request, listener);
                         return;
                     }
+                    // Fail on the second PIT search
                     if (isPitReindexUserSearchAction(action) && PIT_USER_SEARCH_INVOCATIONS.incrementAndGet() == 2) {
                         applySearchContextMissingFailure(listener);
                         return;

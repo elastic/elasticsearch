@@ -688,7 +688,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                             pitIdForResume,
                             searchAfterValues,
                             startTimeEpochMillis.get(),
-                            worker.getStatus(),
+                            worker.getStatusForRelocation(),
                             remoteVersion
                         );
                     } else {
@@ -698,7 +698,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                         workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
                             paginatedHitSourceResponse.getScrollId(),
                             startTimeEpochMillis.get(),
-                            worker.getStatus(),
+                            worker.getStatusForRelocation(),
                             remoteVersion
                         );
                     }
@@ -710,7 +710,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                     BytesReference pitId = paginatedHitSource instanceof PitPaginatedHitSource pit ? pit.getPitId() : null;
                     final BulkByScrollResponse response = new BulkByScrollResponse(
                         TimeValue.MINUS_ONE,
-                        task.getStatus(),
+                        workerResumeInfo.status(),
                         List.of(),
                         List.of(),
                         false,

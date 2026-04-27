@@ -12,10 +12,12 @@ package org.elasticsearch.index.reindex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -78,6 +80,11 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      * Reference to any the last delayed prepareBulkRequest call. Used during rethrottling and canceling to reschedule the request.
      */
     private final AtomicReference<DelayedPrepareBulkRequest> delayedPrepareBulkRequestReference = new AtomicReference<>();
+    /// Set to {@code true} by {@link #getStatusForRelocation()} to indicate a worker's status (most importantly requests_per_second)
+    /// has been snapshotted for relocation. Once set, {@link #rethrottle} must fail RPS changes because they will not take effect, the task
+    /// will continue running on relocation node with snapshotted RPS rate.
+    /// Guarded by {@code synchronized (delayedPrepareBulkRequestReference)} so no need for volatile.
+    private boolean statusCapturedForRelocation = false;
 
     public WorkerBulkByScrollTaskState(BulkByScrollTask task, Integer sliceId, float requestsPerSecond) {
         this.task = task;
@@ -103,6 +110,17 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
             task.getReasonCancelled(),
             throttledUntil()
         );
+    }
+
+    /// Captures/snapshots the worker status for relocation and sets the {@link #statusCapturedForRelocation} flag so that concurrent
+    /// {@link #rethrottle} calls are rejected. The flag and status read are performed atomically under the same lock
+    /// that rethrottle acquires, preventing a race where rethrottle will set a new RPS rate, which isn't in the status and therefore
+    /// won't be the RPS we use once relocated.
+    public BulkByScrollTask.Status getStatusForRelocation() {
+        synchronized (delayedPrepareBulkRequestReference) {
+            statusCapturedForRelocation = true;
+            return getStatus();
+        }
     }
 
     /**
@@ -263,6 +281,9 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      */
     public void rethrottle(float newRequestsPerSecond) {
         synchronized (delayedPrepareBulkRequestReference) {
+            if (statusCapturedForRelocation) {
+                throw new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.CONFLICT);
+            }
             logger.debug("[{}]: rethrottling to [{}] requests per second", task.getId(), newRequestsPerSecond);
             setRequestsPerSecond(newRequestsPerSecond);
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -97,15 +99,36 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         final int runningSubtasks = leaderState.runningSliceSubTasks();
 
         if (runningSubtasks > 0) {
+            // Pre-check: a child already completed for relocation, we can't rethrottle since it's rate is baked into Status for relocation.
+            if (leaderState.anySliceCompletedDueToRelocation()) {
+                listener.onFailure(new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.CONFLICT));
+                return;
+            }
+
             RethrottleRequest subRequest = new RethrottleRequest();
             subRequest.setRequestsPerSecond(newRequestsPerSecond / runningSubtasks);
             subRequest.setTargetParentTaskId(new TaskId(localNodeId, task.getId()));
             logger.debug("rethrottling children of task [{}] to [{}] requests per second", task.getId(), subRequest.getRequestsPerSecond());
             client.execute(ReindexPlugin.RETHROTTLE_ACTION, subRequest, listener.delegateFailureAndWrap((l, r) -> {
+                // Post-check: a child completed for relocation after the first check, and might not have been rethrottled.
+                if (leaderState.anySliceCompletedDueToRelocation()) {
+                    l.onFailure(new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.CONFLICT));
+                    return;
+                }
+                for (TaskOperationFailure failure : r.getTaskFailures()) {
+                    if (failure.getCause() instanceof ElasticsearchStatusException ese && ese.status() == RestStatus.CONFLICT) {
+                        l.onFailure(ese);
+                        return;
+                    }
+                }
                 r.rethrowFailures("Rethrottle");
                 l.onResponse(task.taskInfoGivenSubtaskInfo(localNodeId, r.getTasks()));
             }));
         } else {
+            if (leaderState.anySliceCompletedDueToRelocation()) {
+                listener.onFailure(new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.CONFLICT));
+                return;
+            }
             logger.debug("children of task [{}] are already finished, nothing to rethrottle", task.getId());
             listener.onResponse(task.taskInfo(localNodeId, true));
         }
@@ -119,7 +142,12 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         ActionListener<TaskInfo> listener
     ) {
         logger.debug("rethrottling local task [{}] to [{}] requests per second", task.getId(), newRequestsPerSecond);
-        task.getWorkerState().rethrottle(newRequestsPerSecond);
+        try {
+            task.getWorkerState().rethrottle(newRequestsPerSecond);
+        } catch (ElasticsearchStatusException e) {
+            listener.onFailure(e);
+            return;
+        }
         listener.onResponse(task.taskInfo(localNodeId, true));
     }
 

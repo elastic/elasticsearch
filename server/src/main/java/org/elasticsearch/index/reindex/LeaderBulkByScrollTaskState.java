@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -49,6 +50,8 @@ public class LeaderBulkByScrollTaskState {
      * The latest PIT ID from slice responses. Updated on each completion so we close the most recent context.
      */
     private final AtomicReference<BytesReference> latestPitId = new AtomicReference<>();
+    /// Is {@code true} if any slice has completed in preparation to be relocated.
+    private final AtomicBoolean anySliceCompletedDueToRelocation = new AtomicBoolean();
 
     public LeaderBulkByScrollTaskState(BulkByScrollTask task, int slices) {
         this.task = task;
@@ -91,6 +94,11 @@ public class LeaderBulkByScrollTaskState {
         return runningSubtasks.get();
     }
 
+    /// Returns {@code true} if any slice has completed in preparation to be relocated.
+    public boolean anySliceCompletedDueToRelocation() {
+        return anySliceCompletedDueToRelocation.get();
+    }
+
     private void addResultsToList(List<BulkByScrollTask.StatusOrException> sliceStatuses) {
         for (Result t : results.asList()) {
             if (t.response != null) {
@@ -106,6 +114,9 @@ public class LeaderBulkByScrollTaskState {
      */
     public void onSliceResponse(ActionListener<BulkByScrollResponse> listener, int sliceId, BulkByScrollResponse response) {
         results.setOnce(sliceId, new Result(sliceId, response));
+        if (response != null && response.getTaskResumeInfo().isPresent()) {
+            anySliceCompletedDueToRelocation.set(true);
+        }
         if (response != null && response.getPitId().isPresent()) {
             latestPitId.set(response.getPitId().get());
         }

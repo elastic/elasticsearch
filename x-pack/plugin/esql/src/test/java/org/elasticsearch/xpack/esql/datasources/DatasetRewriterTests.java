@@ -215,6 +215,52 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(tablePathString(out), equalTo("s3://a/"));
     }
 
+    public void testWildcardAtUnionAllCapSucceeds() {
+        // UnionAll extends Fork which caps at 8 branches — the upper bound the rewriter can hand off.
+        // A wildcard expanding to exactly the cap proves the bucketing + UnionAll construction path
+        // is bounded-time at the platform's largest supported shape.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        java.util.Map<String, Dataset> datasets = new java.util.HashMap<>();
+        for (int i = 0; i < 8; i++) {
+            datasets.put(
+                "logs_" + i,
+                new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
+            );
+        }
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        long start = System.nanoTime();
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER);
+        long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(8));
+        assertThat("rewrite should be fast at the UnionAll branch cap", elapsedMs, org.hamcrest.Matchers.lessThan(500L));
+    }
+
+    public void testWildcardOverUnionAllCapSurfacesPlatformLimit() {
+        // A wildcard matching more than 8 datasets crosses Fork's 8-branch cap. The rewriter doesn't
+        // pre-check this — it produces the UnionAll, and Fork's constructor surfaces the limit. The
+        // failure is loud (IllegalArgumentException), not silent. Tracked as a follow-up to either
+        // raise the cap or reject this case with a friendlier message at the rewriter.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        java.util.Map<String, Dataset> datasets = new java.util.HashMap<>();
+        for (int i = 0; i < 9; i++) {
+            datasets.put(
+                "logs_" + i,
+                new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
+            );
+        }
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER)
+        );
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("up to 8 branches"));
+    }
+
     public void testCommaSeparatedDatasetsAndWildcardCombine() {
         // `FROM logs_a, metrics_*` mixes a literal dataset name with a wildcard that expands to
         // additional datasets — all dataset-side, so a UnionAll of all three children.

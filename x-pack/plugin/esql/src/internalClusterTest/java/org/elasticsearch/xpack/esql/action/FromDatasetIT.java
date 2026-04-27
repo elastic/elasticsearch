@@ -396,6 +396,31 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWildcardSpanningIndexAndDatasetRejected() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        // Real index plus a dataset, both matching the same wildcard. The resolver expands the
+        // pattern through IndexAbstractionResolver and finds both abstractions; the rewriter buckets
+        // them and fires the mixed-FROM rejection — same path as a literal `FROM idx, ds` mix.
+        createIndex("logs_index");
+        ensureGreen("logs_index");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("logs_dataset", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_* | LIMIT 1"), TIMEOUT));
+        Throwable cause = ex;
+        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("mixing indices and datasets") == false) {
+            cause = cause.getCause();
+        }
+        assertThat("error chain should contain wildcard-mix rejection", cause, org.hamcrest.Matchers.notNullValue());
+    }
+
     public void testFromUnknownNameFallsThroughToIndexResolution() throws Exception {
         assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
 

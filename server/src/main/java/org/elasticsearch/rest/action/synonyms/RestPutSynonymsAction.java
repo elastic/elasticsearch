@@ -54,6 +54,6 @@ public class RestPutSynonymsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return SynonymCapabilities.PUT_SYNONYM_SET_CAPABILITIES;
+        return SynonymCapabilities.CAPABILITIES;
     }
 }

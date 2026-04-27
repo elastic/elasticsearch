@@ -104,11 +104,7 @@ teardown:
 ---
 "Append to non-existent set creates it":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /_synonyms/{id}
-          capabilities: [ synonyms_replace_all_param ]
+      cluster_features: [ "synonyms.replace_all_param" ]
       reason: "synonyms replace_all body field support needed"
 
   - do:
@@ -132,11 +128,7 @@ teardown:
 ---
 "Append adds rules without removing existing ones":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /_synonyms/{id}
-          capabilities: [ synonyms_replace_all_param ]
+      cluster_features: [ "synonyms.replace_all_param" ]
       reason: "synonyms replace_all body field support needed"
 
   - do:
@@ -171,11 +163,7 @@ teardown:
 ---
 "Append with matching ID overwrites existing rule":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /_synonyms/{id}
-          capabilities: [ synonyms_replace_all_param ]
+      cluster_features: [ "synonyms.replace_all_param" ]
       reason: "synonyms replace_all body field support needed"
 
   - do:
@@ -209,11 +197,7 @@ teardown:
 ---
 "Put without append replaces existing rules":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /_synonyms/{id}
-          capabilities: [ synonyms_replace_all_param ]
+      cluster_features: [ "synonyms.replace_all_param" ]
       reason: "synonyms replace_all body field support needed"
 
   - do:

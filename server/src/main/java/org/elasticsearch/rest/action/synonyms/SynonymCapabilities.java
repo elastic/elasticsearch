@@ -13,10 +13,6 @@ import java.util.Set;
 
 /**
  * "Capabilities" constants for the synonyms REST handlers.
- * <p>
- * {@link #CAPABILITIES} is shared by {@link RestPutSynonymRuleAction} and {@link RestDeleteSynonymRuleAction}.
- * {@link #PUT_SYNONYM_SET_CAPABILITIES} is used by {@link RestPutSynonymsAction} which additionally supports
- * the {@code replace_all} body field.
  */
 public final class SynonymCapabilities {
 
@@ -25,11 +21,6 @@ public final class SynonymCapabilities {
     }
 
     private static final String SYNONYMS_REFRESH_PARAM = "synonyms_refresh_param";
-    private static final String SYNONYMS_REPLACE_ALL_PARAM = "synonyms_replace_all_param";
 
-    /** Capabilities for {@code PUT /_synonyms/{id}/{ruleId}} and {@code DELETE /_synonyms/{id}/{ruleId}}. */
     public static final Set<String> CAPABILITIES = Set.of(SYNONYMS_REFRESH_PARAM);
-
-    /** Capabilities for {@code PUT /_synonyms/{id}}, which also supports the {@code replace_all} body field. */
-    public static final Set<String> PUT_SYNONYM_SET_CAPABILITIES = Set.of(SYNONYMS_REFRESH_PARAM, SYNONYMS_REPLACE_ALL_PARAM);
 }

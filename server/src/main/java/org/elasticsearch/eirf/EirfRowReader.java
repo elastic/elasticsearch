@@ -77,9 +77,13 @@ public final class EirfRowReader {
 
     public byte getTypeByte(int col) {
         if (col >= rowColumnCount) {
-            return EirfType.NULL;
+            return EirfType.ABSENT;
         }
         return rowData.get(typeBytesOffset + col);
+    }
+
+    public boolean isAbsent(int col) {
+        return getTypeByte(col) == EirfType.ABSENT;
     }
 
     public boolean isNull(int col) {

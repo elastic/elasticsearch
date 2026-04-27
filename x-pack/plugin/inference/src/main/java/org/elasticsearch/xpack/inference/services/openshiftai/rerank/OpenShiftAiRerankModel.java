@@ -65,7 +65,7 @@ public class OpenShiftAiRerankModel extends OpenShiftAiModel {
             service,
             OpenShiftAiRerankServiceSettings.fromMap(serviceSettings, context),
             OpenShiftAiRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

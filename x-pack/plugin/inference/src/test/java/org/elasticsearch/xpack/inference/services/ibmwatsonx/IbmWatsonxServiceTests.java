@@ -1142,6 +1142,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             assertThat(
                 thrownException.getMessage(),
                 is(Strings.format("The [%s] service does not support task type [%s]", IbmWatsonxService.NAME, TaskType.SPARSE_EMBEDDING))
+
             );
         }
     }

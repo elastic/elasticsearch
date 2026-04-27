@@ -334,6 +334,8 @@ public final class LookupQueryOperator implements Operator {
             Status::new
         );
 
+        private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
+
         private final int pagesReceived;
         private final int pagesEmitted;
         private final long rowsReceived;
@@ -424,7 +426,7 @@ public final class LookupQueryOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
+            return ESQL_STREAMING_LOOKUP_JOIN;
         }
     }
 }

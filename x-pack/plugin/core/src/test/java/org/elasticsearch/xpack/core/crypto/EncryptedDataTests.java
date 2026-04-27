@@ -12,6 +12,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class EncryptedDataTests extends AbstractXContentSerializingTestCase<EncryptedData> {
 
     @Override
@@ -42,11 +44,10 @@ public class EncryptedDataTests extends AbstractXContentSerializingTestCase<Encr
         }
     }
 
-    public void testToStringDoesNotLeakPayload() {
+    public void testToStringRedactsPayload() {
         EncryptedData data = createTestInstance();
         String str = data.toString();
-        assertTrue(str.contains(data.keyId()));
-        assertTrue(str.contains("payloadLength="));
-        assertFalse(str.contains(java.util.Base64.getEncoder().encodeToString(data.payload())));
+        assertThat(str, containsString(data.keyId()));
+        assertThat(str, containsString("::es_redacted::"));
     }
 }

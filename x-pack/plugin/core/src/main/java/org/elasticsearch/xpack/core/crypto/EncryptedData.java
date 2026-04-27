@@ -81,4 +81,9 @@ public record EncryptedData(String keyId, byte[] payload) implements Writeable, 
     public int hashCode() {
         return Objects.hash(keyId, Arrays.hashCode(payload));
     }
+
+    @Override
+    public String toString() {
+        return "EncryptedData{keyId=" + keyId + ", payload=::es_redacted::}";
+    }
 }

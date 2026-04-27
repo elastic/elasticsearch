@@ -126,6 +126,7 @@ import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Distinct;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -133,6 +134,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -10953,6 +10955,74 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var defaultLimit = as(plan, Limit.class);
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
         as(defaultLimit.child(), LocalRelation.class);
+    }
+
+    public void testDistinctIsRewrittenToLimitByOneOverChildOutput() {
+        assumeTrue("Requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+        var plan = optimizedPlan("FROM test | DISTINCT");
+
+        plan.forEachDown(p -> assertThat(p, not(instanceOf(Distinct.class))));
+
+        var limit = as(plan, Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(1000));
+        var limitBy = as(limit.child(), LimitBy.class);
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(1));
+        var relation = as(limitBy.child(), EsRelation.class);
+
+        assertThat(limitBy.groupings(), equalTo(relation.output().stream().map(a -> (Expression) a).toList()));
+    }
+
+    public void testDistinctAfterKeepLimitsToProjectedColumns() {
+        assumeTrue("Requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+        var plan = optimizedPlan("FROM test | KEEP first_name, last_name | DISTINCT");
+
+        plan.forEachDown(p -> assertThat(p, not(instanceOf(Distinct.class))));
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(1000));
+        var limitBy = as(limit.child(), LimitBy.class);
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(1));
+        assertThat(limitBy.groupings(), hasSize(2));
+        assertThat(limitBy.groupings().get(0), instanceOf(FieldAttribute.class));
+        assertThat(((FieldAttribute) limitBy.groupings().get(0)).name(), equalTo("first_name"));
+        assertThat(((FieldAttribute) limitBy.groupings().get(1)).name(), equalTo("last_name"));
+    }
+
+    /**
+     * METRICS_INFO injects a {@code _doc} {@code MetadataAttribute} into the underlying
+     * {@code EsRelation} so it can address Lucene rows directly. Placing DISTINCT between the TS
+     * source and METRICS_INFO puts {@code _doc} in {@code Distinct.child().output()}. Because every
+     * row has a unique {@code _doc} value, including it as a group key would silently turn DISTINCT
+     * into a no-op (each row its own group). The surrogate must filter it out.
+     */
+    public void testDistinctSurrogateExcludesDocAttribute() {
+        assumeTrue("Requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+        var plan = planMetrics("TS k8s | DISTINCT | METRICS_INFO");
+
+        plan.forEachDown(p -> assertThat(p, not(instanceOf(Distinct.class))));
+
+        Holder<LimitBy> found = new Holder<>();
+        plan.forEachDown(LimitBy.class, found::set);
+        LimitBy limitBy = found.get();
+        assertThat(limitBy, not(equalTo(null)));
+        for (Expression g : limitBy.groupings()) {
+            assertThat(((Attribute) g).dataType(), not(equalTo(DataType.DOC_DATA_TYPE)));
+        }
+        var relation = as(limitBy.child(), EsRelation.class);
+        assertThat(relation.output().stream().anyMatch(a -> a.dataType() == DataType.DOC_DATA_TYPE), equalTo(true));
+    }
+
+    public void testDistinctChainedWithLimit() {
+        assumeTrue("Requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+        var plan = optimizedPlan("FROM test | DISTINCT | LIMIT 10");
+
+        plan.forEachDown(p -> assertThat(p, not(instanceOf(Distinct.class))));
+
+        var limit = as(plan, Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        var limitBy = as(limit.child(), LimitBy.class);
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(1));
     }
 
     public void testTopSnippetsQueryMustBeFoldable() {

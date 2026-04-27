@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
+import org.elasticsearch.xpack.esql.plan.logical.Distinct;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -92,6 +93,18 @@ public class FieldNameUtils {
             }
             projectAll.set(true);
         });
+
+        // DISTINCT dedupes on the full row, so it implicitly needs every field of its child --
+        // unless its subtree already narrows the schema, in which case the explicit-collection path below
+        // picks the right fields. Without this hint a downstream STATS would short-circuit field collection
+        // and leave the relation with no attributes.
+        if (projectAll.get() == false) {
+            parsed.forEachDown(Distinct.class, d -> {
+                if (d.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
+                    projectAll.set(true);
+                }
+            });
+        }
 
         if (projectAll.get()) {
             return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());

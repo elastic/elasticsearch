@@ -1,0 +1,244 @@
+//
+// DISTINCT command - integration tests
+//
+
+distinctSingleColumn
+required_capability: distinct_command
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
+| KEEP gender
+| DISTINCT
+| SORT gender
+;
+
+gender:keyword
+F
+M
+;
+
+
+distinctSingleColumnWithNulls
+required_capability: distinct_command
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10010, 10011)
+| KEEP gender
+| DISTINCT
+| SORT gender NULLS LAST
+;
+
+gender:keyword
+F
+M
+null
+;
+
+
+distinctMultipleColumns
+required_capability: distinct_command
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10010, 10011)
+| KEEP gender, languages
+| DISTINCT
+| SORT gender NULLS LAST, languages
+;
+
+gender:keyword | languages:integer
+F              | 5
+M              | 2
+null           | 4
+null           | 5
+;
+
+
+distinctAfterEval
+required_capability: distinct_command
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003)
+| EVAL high_languages = languages > 3
+| KEEP high_languages
+| DISTINCT
+| SORT high_languages
+;
+
+high_languages:boolean
+false
+true
+;
+
+
+distinctChainedWithLimit
+required_capability: distinct_command
+
+FROM employees
+| KEEP gender
+| DISTINCT
+| SORT gender NULLS LAST
+| LIMIT 2
+;
+
+gender:keyword
+F
+M
+;
+
+
+distinctRemovesDuplicateRows
+required_capability: distinct_command
+
+ROW a = 1
+| EVAL b = 2
+| KEEP a, b
+| DISTINCT
+;
+
+a:integer | b:integer
+1         | 2
+;
+
+
+distinctMultivalueGroupKey
+required_capability: distinct_command
+
+FROM employees
+| WHERE emp_no IN (10001, 10009)
+| KEEP job_positions
+| DISTINCT
+| SORT job_positions
+;
+
+job_positions:keyword
+[Accountant, Senior Python Developer]
+[Internship, Senior Python Developer]
+;
+
+
+// Full-row DISTINCT over the entire 100-row table: every employee row is unique on the full
+// schema so DISTINCT is an identity, but this still exercises the wide-schema field-loading
+// and grouping path. {@code COUNT(*)} after a no-KEEP {@code DISTINCT} previously returned 0
+// because the pre-analyzer couldn't tell that DISTINCT needs every field, see FieldNameUtils.
+distinctOverFullRowCountStar
+required_capability: distinct_command
+
+FROM employees
+| DISTINCT
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+
+// FROM ... METADATA exposes {@code _index} as part of the schema; DISTINCT must include it
+// among the group keys. With a single index every row carries the same {@code _index} value,
+// so the dedup result mirrors a no-metadata DISTINCT plus a constant column.
+distinctWithMetadataIndex
+required_capability: distinct_command
+
+FROM employees METADATA _index
+| WHERE emp_no IN (10001, 10002, 10010, 10011)
+| KEEP _index, gender
+| DISTINCT
+| SORT gender NULLS LAST
+;
+
+_index:keyword | gender:keyword
+employees      | F
+employees      | M
+employees      | null
+;
+
+
+// METADATA {@code _id} carries a real {@code KEYWORD} data type (unlike the internal
+// {@code _doc} attribute) so it participates in DISTINCT like any other column. Without _id
+// the four-row input would collapse to three distinct genders {M, F, null}; with _id each
+// employee's unique id keeps every row separate, so the count is four. We assert via COUNT
+// because auto-generated {@code _id} values aren't stable across runs.
+distinctWithMetadataIdParticipatesInDedup
+required_capability: distinct_command
+
+FROM employees METADATA _id
+| WHERE emp_no IN (10001, 10002, 10010, 10011)
+| KEEP _id, gender
+| DISTINCT
+| STATS c = COUNT(*)
+;
+
+c:long
+4
+;
+
+
+// DISTINCT with no columns at all: every row is "the same row" and dedup must collapse the
+// 100-row input to a single (empty) row. The grammar rejects {@code DROP *} so we engineer
+// the empty schema with a {@code KEEP foo | DROP foo} cycle, then attach a marker column for
+// display purposes.
+distinctAfterDroppingAllColumns
+required_capability: distinct_command
+
+FROM employees
+| KEEP gender
+| DROP gender
+| DISTINCT
+| EVAL marker = 1
+;
+
+marker:integer
+1
+;
+
+
+distinctTsSingleDimension
+required_capability: distinct_command
+
+TS k8s
+| KEEP cluster
+| DISTINCT
+| SORT cluster
+;
+
+cluster:keyword
+prod
+qa
+staging
+;
+
+
+distinctTsCountField
+required_capability: distinct_command
+
+TS k8s
+| DISTINCT
+| STATS c = COUNT(@timestamp)
+;
+
+c:long
+9
+;
+
+
+distinctTsAfterStats
+required_capability: distinct_command
+
+TS k8s
+| STATS c = COUNT(events_received) BY cluster, pod
+| KEEP cluster, pod
+| DISTINCT
+| SORT cluster, pod
+;
+
+cluster:keyword | pod:keyword
+prod            | one
+prod            | three
+prod            | two
+qa              | one
+qa              | three
+qa              | two
+staging         | one
+staging         | three
+staging         | two
+;

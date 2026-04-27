@@ -30,13 +30,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer.BBQ_CORRECTIONS_BYTES;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createBinarizedIndexData;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createBinarizedQueryData;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeBinarizedVectorData;
 
 public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests {
-
-    public static final int BBQ_CORRECTIONS_BYTES = 14;
 
     public enum DirectoryType {
         NIOFS,

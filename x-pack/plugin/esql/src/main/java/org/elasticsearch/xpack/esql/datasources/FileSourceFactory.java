@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.MetadataAggregateOperatorFactoryProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.MetadataAggregateReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -181,6 +183,33 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .pushdownSupport(pushdownSupport)
                 .onClose(onClose)
                 .build();
+        };
+    }
+
+    @Override
+    public MetadataAggregateOperatorFactoryProvider metadataAggregateOperatorFactory() {
+        return context -> {
+            StoragePath path = context.path();
+            Map<String, Object> config = context.config();
+            StorageProvider storage;
+            if (config != null && config.isEmpty() == false) {
+                storage = storageRegistry.createProvider(path.scheme(), settings, config);
+            } else {
+                storage = storageRegistry.provider(path);
+            }
+            FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config);
+            if (format instanceof MetadataAggregateReader == false) {
+                // Should not happen: PushAggregatesToExternalSource only emits the runtime
+                // aggregate node when the reader supports the SPI. Guard defensively.
+                throw new IllegalStateException("format reader for [" + path.objectName() + "] does not support metadata aggregation");
+            }
+            return new MetadataAggregateOperator.Factory(
+                storage,
+                (MetadataAggregateReader) format,
+                context.sliceQueue(),
+                context.aggregates(),
+                context.columnsToProbe()
+            );
         };
     }
 

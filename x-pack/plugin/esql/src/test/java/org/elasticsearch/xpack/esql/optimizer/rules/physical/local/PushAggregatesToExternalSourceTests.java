@@ -25,9 +25,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.MetadataAggregateReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -35,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalMetadataAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -427,6 +431,164 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), AggregateExec.class);
     }
 
+    // --- Runtime metadata-aggregate path (no planning-time stats, reader implements
+    // MetadataAggregateReader so the rule emits an ExternalMetadataAggregateExec instead
+    // of giving up). ---
+    //
+    // Tests in this section use applyMetadataAwareRule(...), which wires a FormatReaderRegistry
+    // whose parquet reader is a StubMetadataAggregateReader (implements MetadataAggregateReader).
+    // The default applyRule(...) instead uses StubFormatReader (no MetadataAggregateReader),
+    // suppressing the runtime branch — see testRuntimeAggregateNotEmittedWhenReaderDoesNotSupportMetadataAggregate.
+
+    public void testRuntimeAggregateEmittedInInitialModeWithoutStats() {
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), (Map<String, Object>) null);
+        var agg = aggregateExec(
+            AggregatorMode.INITIAL,
+            ext,
+            countStarAlias(),
+            alias("mn", new Min(Source.EMPTY, SCORE)),
+            alias("mx", new Max(Source.EMPTY, SCORE))
+        );
+
+        ExternalMetadataAggregateExec runtime = as(applyMetadataAwareRule(agg), ExternalMetadataAggregateExec.class);
+        // Output/splits/aggregates must be carried over verbatim from the original plan.
+        assertEquals(agg.intermediateAttributes(), runtime.output());
+        assertEquals(ext.splits(), runtime.splits());
+        assertEquals(agg.aggregates(), runtime.aggregates());
+        assertEquals(ext.sourcePath(), runtime.sourcePath());
+        assertEquals(ext.sourceType(), runtime.sourceType());
+        assertEquals(ext.config(), runtime.config());
+        // Children: ExternalMetadataAggregateExec is a LeafExec — the original ExternalSourceExec is replaced entirely.
+        assertEquals(List.of(), runtime.children());
+    }
+
+    public void testRuntimeAggregateNotEmittedInSingleMode() {
+        assertPlanUnchanged(AggregatorMode.SINGLE, countStarAlias());
+    }
+
+    public void testRuntimeAggregateNotEmittedInFinalMode() {
+        assertPlanUnchanged(AggregatorMode.FINAL, countStarAlias());
+    }
+
+    public void testRuntimeAggregateNotEmittedWhenReaderDoesNotSupportMetadataAggregate() {
+        // Note the use of applyRule(agg) rather than applyMetadataAwareRule(agg): we want the default
+        // registry, whose parquet reader is StubFormatReader (no MetadataAggregateReader). Everything
+        // else (INITIAL mode, non-empty splits, supported aggregates) would otherwise drive the rule
+        // into the runtime branch — only the missing SPI capability should suppress it.
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), (Map<String, Object>) null);
+        var agg = aggregateExec(AggregatorMode.INITIAL, ext, countStarAlias());
+
+        PhysicalPlan result = applyRule(agg);
+        assertSame("Rule must return the input plan unchanged when reader is not metadata-aware", agg, result);
+        assertSame("Child ExternalSourceExec must remain unchanged", ext, result.children().get(0));
+    }
+
+    public void testRuntimeAggregateNotEmittedWithEmptySplits() {
+        // No per-split entries at all — splits().isEmpty() short-circuits the runtime branch.
+        ExternalSourceExec ext = externalSource(Map.of());
+        var agg = aggregateExec(AggregatorMode.INITIAL, ext, countStarAlias());
+
+        PhysicalPlan result = applyMetadataAwareRule(agg);
+        assertSame(agg, result);
+        assertSame(ext, result.children().get(0));
+        assertEquals(List.of(), ext.splits());
+    }
+
+    public void testRuntimeAggregateNotEmittedWithFilteredCount() {
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), (Map<String, Object>) null);
+        Count filteredCount = (Count) new Count(Source.EMPTY, AGE).withFilter(greaterThanOf(AGE, of(10L)));
+        var agg = aggregateExec(AggregatorMode.INITIAL, ext, alias("c", filteredCount));
+
+        PhysicalPlan result = applyMetadataAwareRule(agg);
+        assertSame(agg, result);
+        assertSame(ext, result.children().get(0));
+    }
+
+    public void testRuntimeAggregateColumnsToProbeIncludesMinMaxFieldsButNotCountStar() {
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), (Map<String, Object>) null);
+        var agg = aggregateExec(
+            AggregatorMode.INITIAL,
+            ext,
+            countStarAlias(),
+            alias("mn", new Min(Source.EMPTY, AGE)),
+            alias("mx", new Max(Source.EMPTY, SCORE))
+        );
+
+        ExternalMetadataAggregateExec runtime = as(applyMetadataAwareRule(agg), ExternalMetadataAggregateExec.class);
+        // COUNT(*) contributes no column; MIN(age) and MAX(score) each contribute their attribute.
+        // Order is insertion order (LinkedHashSet) — aggregates are processed in declaration order.
+        assertEquals(List.of("age", "score"), runtime.columnsToProbe());
+    }
+
+    public void testRuntimeAggregateColumnsToProbeDeduplicatesRepeatedAttribute() {
+        // MIN(age) and MAX(age) reference the same attribute; the LinkedHashSet must
+        // collapse them into a single "age" entry in columnsToProbe (the reader only needs
+        // to extract stats for "age" once). The aggregate list, however, must keep BOTH
+        // functions so the operator emits separate value blocks for MIN(age) and MAX(age).
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), (Map<String, Object>) null);
+        var agg = aggregateExec(
+            AggregatorMode.INITIAL,
+            ext,
+            alias("mn", new Min(Source.EMPTY, AGE)),
+            alias("mx", new Max(Source.EMPTY, AGE))
+        );
+
+        ExternalMetadataAggregateExec runtime = as(applyMetadataAwareRule(agg), ExternalMetadataAggregateExec.class);
+        assertEquals(List.of("age"), runtime.columnsToProbe());
+        assertEquals("dedup applies only to columnsToProbe, not to the aggregate list", agg.aggregates(), runtime.aggregates());
+        assertEquals(2, runtime.aggregates().size());
+    }
+
+    public void testRuntimeAggregateColumnsToProbePreservesFirstSeenOrder() {
+        // First-seen wins: MIN(score) registers "score" first, then COUNT(age) adds "age",
+        // then MAX(score) is a no-op for set membership. Result must be ["score", "age"].
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), (Map<String, Object>) null);
+        var agg = aggregateExec(
+            AggregatorMode.INITIAL,
+            ext,
+            alias("mn", new Min(Source.EMPTY, SCORE)),
+            alias("c", new Count(Source.EMPTY, AGE)),
+            alias("mx", new Max(Source.EMPTY, SCORE))
+        );
+
+        ExternalMetadataAggregateExec runtime = as(applyMetadataAwareRule(agg), ExternalMetadataAggregateExec.class);
+        assertEquals(List.of("score", "age"), runtime.columnsToProbe());
+    }
+
+    public void testRuntimeAggregateNotEmittedForGroupedAggregate() {
+        // Sanity check: GROUP BY makes aggregatePushdownSupport return NO, so the rule exits
+        // before the runtime branch even when the reader supports MetadataAggregateReader.
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), (Map<String, Object>) null);
+        ReferenceAttribute groupField = referenceAttribute("dept", DataType.KEYWORD);
+        var agg = new AggregateExec(
+            Source.EMPTY,
+            ext,
+            List.of(groupField),
+            List.of(countStarAlias()),
+            AggregatorMode.INITIAL,
+            AbstractPhysicalOperationProviders.intermediateAttributes(List.of(countStarAlias()), List.of(groupField)),
+            null
+        );
+
+        PhysicalPlan result = applyMetadataAwareRule(agg);
+        assertSame(agg, result);
+        assertSame(ext, result.children().get(0));
+    }
+
+    /**
+     * Helper for the common "rule must return the input plan unchanged" assertion. Builds an
+     * INITIAL/SINGLE/FINAL-mode aggregate over a metadata-aware ExternalSourceExec with one
+     * split and asserts both the top-level node and its child are returned by reference.
+     */
+    private static void assertPlanUnchanged(AggregatorMode mode, NamedExpression... aggregates) {
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), (Map<String, Object>) null);
+        var agg = aggregateExec(mode, ext, aggregates);
+
+        PhysicalPlan result = applyMetadataAwareRule(agg);
+        assertSame("Rule must return the input plan unchanged", agg, result);
+        assertSame("Child ExternalSourceExec must remain unchanged", ext, result.children().get(0));
+    }
+
     // --- helpers ---
 
     @SafeVarargs
@@ -503,6 +665,15 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
     }
 
     private static FormatReaderRegistry buildParquetRegistry() {
+        return buildParquetRegistry(false);
+    }
+
+    /**
+     * Build a registry whose parquet {@link FormatReader} optionally also implements
+     * {@link MetadataAggregateReader}. The runtime branch in
+     * {@code PushAggregatesToExternalSource} only fires for the latter.
+     */
+    private static FormatReaderRegistry buildParquetRegistry(boolean supportsMetadataAggregate) {
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
         AggregatePushdownSupport parquetSupport = (aggregates, groupings) -> {
             if (groupings.isEmpty() == false) {
@@ -516,7 +687,14 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
             }
             return AggregatePushdownSupport.Pushability.YES;
         };
-        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(parquetSupport), null, null);
+        registry.registerLazy(
+            "parquet",
+            (settings, blockFactory) -> supportsMetadataAggregate
+                ? new StubMetadataAggregateReader(parquetSupport)
+                : new StubFormatReader(parquetSupport),
+            null,
+            null
+        );
         return registry;
     }
 
@@ -530,6 +708,15 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
     private static PhysicalPlan applyRule(AggregateExec agg) {
         return new PushAggregatesToExternalSource().apply(agg, buildContext(buildParquetRegistry()));
+    }
+
+    /**
+     * Apply the rule with a registry whose parquet reader implements {@link MetadataAggregateReader}.
+     * Use this for tests that exercise the runtime metadata-aggregate branch; use {@link #applyRule}
+     * for tests that need the default reader (no MetadataAggregateReader, runtime branch suppressed).
+     */
+    private static PhysicalPlan applyMetadataAwareRule(AggregateExec agg) {
+        return new PushAggregatesToExternalSource().apply(agg, buildContext(buildParquetRegistry(true)));
     }
 
     /**
@@ -574,5 +761,22 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Stub reader that also implements {@link MetadataAggregateReader} so the runtime
+     * metadata-aggregate branch in {@code PushAggregatesToExternalSource} fires. The
+     * {@link #aggregateMetadata} method is never called from these tests (the rule only
+     * inspects the {@code instanceof} relationship at planning time), so it throws.
+     */
+    private static class StubMetadataAggregateReader extends StubFormatReader implements MetadataAggregateReader {
+        StubMetadataAggregateReader(AggregatePushdownSupport support) {
+            super(support);
+        }
+
+        @Override
+        public SplitStats aggregateMetadata(StorageObject object, List<String> columns, long byteRangeStart, long byteRangeEnd) {
+            throw new UnsupportedOperationException("planning-time tests should not invoke aggregateMetadata");
+        }
     }
 }

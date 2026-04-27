@@ -112,6 +112,7 @@ import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.MetadataAggregateOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -141,6 +142,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalMetadataAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -373,6 +375,8 @@ public class LocalExecutionPlanner {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
         } else if (node instanceof ExternalSourceExec externalSource) {
             return planExternalSource(externalSource, context);
+        } else if (node instanceof ExternalMetadataAggregateExec externalAgg) {
+            return planExternalMetadataAggregate(externalAgg, context);
         }
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
@@ -1405,6 +1409,41 @@ public class LocalExecutionPlanner {
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
+        return PhysicalOperation.fromSource(factory, layout.build());
+    }
+
+    private PhysicalOperation planExternalMetadataAggregate(
+        ExternalMetadataAggregateExec externalAgg,
+        LocalExecutionPlannerContext context
+    ) {
+        if (operatorFactoryRegistry == null) {
+            throw new IllegalStateException("OperatorFactoryRegistry is required for external metadata aggregation");
+        }
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(externalAgg.output());
+
+        StoragePath path = StoragePath.of(externalAgg.sourcePath());
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(externalAgg.splits());
+        // Drive parallelism by split count, capped to the configured task concurrency.
+        int instanceCount = Math.min(externalAgg.splits().size(), context.queryPragmas().taskConcurrency());
+        if (instanceCount < 1) {
+            instanceCount = 1;
+        }
+
+        MetadataAggregateOperatorContext opCtx = new MetadataAggregateOperatorContext(
+            externalAgg.sourceType(),
+            path,
+            externalAgg.config(),
+            sliceQueue,
+            externalAgg.aggregates(),
+            externalAgg.intermediateAttributes(),
+            externalAgg.columnsToProbe(),
+            operatorFactoryRegistry.executor(),
+            operatorFactoryRegistry.fileReadExecutor()
+        );
+
+        SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.metadataAggregateFactory(opCtx);
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
     }

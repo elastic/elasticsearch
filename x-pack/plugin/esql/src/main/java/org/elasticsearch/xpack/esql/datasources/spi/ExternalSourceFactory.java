@@ -33,6 +33,19 @@ public interface ExternalSourceFactory {
         return null;
     }
 
+    /**
+     * Optional capability for formats whose readers can produce per-file aggregate metadata
+     * (row count / null-count / min / max) without scanning row data. Returns a provider that
+     * the local execution planner uses to construct {@code MetadataAggregateOperator}
+     * instances when {@code PushAggregatesToExternalSource} elects the runtime path.
+     * <p>
+     * The default implementation returns {@code null}, meaning the format does not support
+     * metadata-only aggregation; the optimizer rule will preserve the original scan plan.
+     */
+    default MetadataAggregateOperatorFactoryProvider metadataAggregateOperatorFactory() {
+        return null;
+    }
+
     default SplitProvider splitProvider() {
         return SplitProvider.SINGLE;
     }

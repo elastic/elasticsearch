@@ -1,0 +1,59 @@
+// Multi-file metadata-aggregation tests. Exercises the runtime metadata aggregation
+// path (MetadataAggregateOperator + range-aware MetadataAggregateReader) which only
+// fires when the entire aggregate set is COUNT/MIN/MAX, no GROUP BY, and no per-split
+// SplitStats are available at planning time. Multi-file globs satisfy the latter
+// because FileSplitProvider does not pre-populate SplitStats for newly created splits.
+//
+// Fixture: build.gradle splits employees.csv (100 rows) into 3 contiguous shards under
+// iceberg-fixtures/multifile/employees_NN.parquet. Lives in the parquet QA module
+// rather than shared testFixtures because the CSV QA has no multifile fixture.
+
+multiFileCountStar
+required_capability: external_command
+EXTERNAL "{{employees_multifile}}"
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+multiFileCountSalary
+required_capability: external_command
+EXTERNAL "{{employees_multifile}}"
+| STATS c = COUNT(salary);
+
+c:long
+100
+;
+
+multiFileSalaryMinMax
+required_capability: external_command
+EXTERNAL "{{employees_multifile}}"
+| STATS min_salary = MIN(salary), max_salary = MAX(salary);
+
+min_salary:integer | max_salary:integer
+25324              | 74999
+;
+
+multiFileEmpNoMinMax
+required_capability: external_command
+EXTERNAL "{{employees_multifile}}"
+| STATS min_emp_no = MIN(emp_no), max_emp_no = MAX(emp_no), c = COUNT(*);
+
+min_emp_no:integer | max_emp_no:integer | c:long
+10001              | 10100              | 100
+;
+
+// Inline arithmetic over MIN/COUNT/MAX where the same column (salary) is referenced by
+// both MIN and MAX. Forces ReplaceAggregateNestedExpressionWithEval to split the
+// expression into three raw aggregates + an EVAL; the runtime metadata-aggregate path
+// must then dedup "salary" in columnsToProbe but keep all three aggregates so the EVAL
+// can recombine them. Expected: 25324 + 100 + 74999 = 100423.
+multiFileMinPlusCountPlusMaxInline
+required_capability: external_command
+EXTERNAL "{{employees_multifile}}"
+| STATS x = MIN(salary) + COUNT(emp_no) + MAX(salary);
+
+x:long
+100423
+;

@@ -56,9 +56,15 @@ dependencies {
 def serverProject = project(xpackModule('esql:qa:server'))
 def parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixtures")
 def parquetFixtureDir = file("${parquetFixtureOutputDir}/standalone")
+def parquetMultiFileFixtureDir = file("${parquetFixtureOutputDir}/multifile")
 def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 def testFixturesDataDir = testFixturesProject.file('src/main/resources/data')
 def csvToParquetFixtures = ['employees', 'web_logs', 'books']
+// CSVs split into N contiguous shards under iceberg-fixtures/multifile/ so the
+// {{<name>_multifile}} template (resolved by AbstractExternalSourceSpecTestCase) finds files
+// to glob over. Contiguous shards give each file a non-overlapping value range, exercising
+// the per-split metadata aggregation merge path (see ParquetFixtureGenerator splitCount mode).
+def csvToParquetMultiFileFixtures = [employees: 3]
 
 tasks.register('syncIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
@@ -87,8 +93,35 @@ csvToParquetFixtures.each { baseName ->
   generateParquetTasks.add(tasks.named(taskName))
 }
 
+def generateParquetMultiFileTasks = []
+csvToParquetMultiFileFixtures.each { baseName, splitCount ->
+  def taskName = "generateParquetMultiFile_${baseName}"
+  def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
+  def parquetTemplate = file("${parquetMultiFileFixtureDir}/${baseName}.parquet")
+  // Output files are <stem>_NN.parquet (zero-padded to 2 digits) — see ParquetFixtureGenerator
+  // splitCount mode. Listing them individually (rather than outputs.dir) avoids the
+  // processJavaRestTestResources duplicate-entry error when the directory overlaps with
+  // the resources srcDir below.
+  def shardFiles = (0..<splitCount).collect { idx ->
+    file(String.format("${parquetMultiFileFixtureDir}/%s_%02d.parquet", baseName, idx))
+  }
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
+    dependsOn testFixturesProject.tasks.named('processResources')
+    classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [csvInput.path, parquetTemplate.path, splitCount.toString()]
+    inputs.file(csvInput)
+    shardFiles.each { outputs.file(it) }
+    doFirst { parquetMultiFileFixtureDir.mkdirs() }
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  }
+  generateParquetMultiFileTasks.add(tasks.named(taskName))
+}
+
 tasks.register('generateParquetFixtures') {
   dependsOn generateParquetTasks
+  dependsOn generateParquetMultiFileTasks
 }
 
 sourceSets.javaRestTest.resources.srcDir file("${buildDir}/parquet-fixtures")

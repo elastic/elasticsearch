@@ -290,6 +290,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         if (query.contains(MULTIFILE_SUFFIX)) {
             // HTTP does not support directory listing, so skip multi-file glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
+            // Azure Blob storage provider does not yet support glob expansion
+            assumeTrue("AZURE backend does not support multi-file glob patterns", storageBackend != StorageBackend.AZURE);
             // CSV format does not yet support multi-file glob patterns
             assumeTrue("CSV format does not support multi-file glob patterns", "csv".equals(format) == false);
 

@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Build-time generator for Parquet fixture files. Converts CSV to Parquet.
@@ -38,29 +39,66 @@ public final class ParquetFixtureGenerator {
 
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.out and Path.of")
     public static void main(String[] args) throws IOException {
-        if (args.length != 2) {
-            System.err.println("Usage: ParquetFixtureGenerator <source-csv-path> <output-parquet-path>");
+        if (args.length < 2 || args.length > 3) {
+            System.err.println("Usage: ParquetFixtureGenerator <source-csv-path> <output-parquet-path> [<split-count>]");
             System.exit(1);
         }
         Path sourcePath = Path.of(args[0]);
         Path outputPath = Path.of(args[1]);
+        int splitCount = args.length == 3 ? Integer.parseInt(args[2]) : 1;
+        if (splitCount < 1) {
+            throw new IllegalArgumentException("split-count must be >= 1, got " + splitCount);
+        }
         if (Files.exists(sourcePath) == false) {
             throw new IOException("Source CSV not found: " + sourcePath);
         }
-        Files.createDirectories(outputPath.getParent());
-        byte[] parquetBytes = generateFromCsv(sourcePath);
-        Files.write(outputPath, parquetBytes);
-        System.out.println("Generated Parquet fixture: " + outputPath);
+        if (splitCount == 1) {
+            Files.createDirectories(outputPath.getParent());
+            byte[] parquetBytes = generateFromCsv(sourcePath, 0, Integer.MAX_VALUE);
+            Files.write(outputPath, parquetBytes);
+            System.out.println("Generated Parquet fixture: " + outputPath);
+            return;
+        }
+        // Multi-file mode: outputPath is a template like /path/employees.parquet — emit
+        // /path/employees_00.parquet … _NN.parquet by splitting rows into contiguous chunks.
+        // Contiguous (rather than round-robin) gives each file a non-overlapping value range
+        // so MIN/MAX statistics differ across files, which exercises the per-split metadata
+        // aggregation merge path more thoroughly than identical row distributions.
+        Path parent = outputPath.getParent();
+        Files.createDirectories(parent);
+        String fileName = outputPath.getFileName().toString();
+        int dot = fileName.lastIndexOf('.');
+        String stem = dot < 0 ? fileName : fileName.substring(0, dot);
+        String ext = dot < 0 ? "" : fileName.substring(dot);
+
+        CsvFixtureParser.CsvFixtureResult parsed = CsvFixtureParser.parseCsvFile(sourcePath);
+        int totalRows = parsed.rows().size();
+        for (int i = 0; i < splitCount; i++) {
+            int start = (int) ((long) totalRows * i / splitCount);
+            int end = (int) ((long) totalRows * (i + 1) / splitCount);
+            String shardName = String.format(Locale.ROOT, "%s_%02d%s", stem, i, ext);
+            Path shardPath = parent.resolve(shardName);
+            byte[] shardBytes = generateFromParsed(parsed, start, end);
+            Files.write(shardPath, shardBytes);
+            System.out.println("Generated Parquet fixture shard [" + start + "," + end + "): " + shardPath);
+        }
     }
 
-    private static byte[] generateFromCsv(Path sourcePath) throws IOException {
-        CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
-        List<CsvFixtureParser.ColumnSpec> columns = result.schema();
-        List<Object[]> rows = result.rows();
+    private static byte[] generateFromCsv(Path sourcePath, int rowStart, int rowEnd) throws IOException {
+        return generateFromParsed(CsvFixtureParser.parseCsvFile(sourcePath), rowStart, rowEnd);
+    }
 
+    private static byte[] generateFromParsed(CsvFixtureParser.CsvFixtureResult result, int rowStart, int rowEnd) throws IOException {
+        List<CsvFixtureParser.ColumnSpec> columns = result.schema();
+        List<Object[]> allRows = result.rows();
+        List<Object[]> rows = allRows.subList(Math.max(0, rowStart), Math.min(rowEnd, allRows.size()));
+
+        // Detect list-typed columns over the full dataset, not just the slice, so shards
+        // emitted by multi-file mode share an identical schema regardless of which shard a
+        // list value happens to land in.
         boolean[] isListColumn = new boolean[columns.size()];
         for (int c = 0; c < columns.size(); c++) {
-            for (Object[] row : rows) {
+            for (Object[] row : allRows) {
                 if (c < row.length && row[c] instanceof List) {
                     isListColumn[c] = true;
                     break;

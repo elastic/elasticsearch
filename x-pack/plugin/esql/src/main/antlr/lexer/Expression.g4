@@ -149,6 +149,17 @@ NAMED_OR_POSITIONAL_DOUBLE_PARAMS
 // If at all, the double mode push is needed for parentheses below, as EXPLAIN and FORK use parentheses.
 OPENING_BRACKET : '[' -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
 CLOSING_BRACKET : ']' -> popMode, popMode;
+// When '(' immediately follows IN and is followed by a source command keyword, dispatch into
+// DEFAULT_MODE so the subquery body is tokenized as a query (FROM, TS, ROW, ...). The rule itself
+// matches the lookahead text — '(' WS* KEYWORD — then seeks the input back to just after '(' so
+// the keyword is re-tokenized. The IN gate is essential: without it, any '(' followed by 'from'
+// (e.g. avg(from)) would be misclassified as a subquery start.
+IN_SUBQUERY_LP
+    : {this.lastDefaultChannelType == IN && this.isDevVersion()}?
+      '(' WS* ('from' | 'row' | 'show' | 'ts' | 'promql') WS*
+      { _input.seek(_tokenStartCharIndex + 1); }
+      -> type(LP), pushMode(DEFAULT_MODE)
+    ;
 LP : '(' -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
 RP : ')' -> popMode, popMode;
 

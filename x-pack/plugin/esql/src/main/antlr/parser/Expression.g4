@@ -13,6 +13,7 @@ booleanExpression
     | left=booleanExpression operator=AND right=booleanExpression                #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
+    | {this.isDevVersion()}? valueExpression (NOT)? IN subquery                  #logicalInSubquery
     | valueExpression IS NOT? NULL                                               #isNull
     | matchBooleanExpression                                                     #matchExpression
     ;

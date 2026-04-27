@@ -61,6 +61,14 @@ public @interface Aggregator {
     boolean processNulls() default false;
 
     /**
+     * When {@code true}, the generated aggregator will short-circuit constant-valued
+     * vectors by combining only a single value instead of iterating over all positions.
+     * This is safe for aggregations like {@code MIN} and {@code MAX} where
+     * {@code combine(state, v, v, ..., v)} equals {@code combine(state, v)}.
+     */
+    boolean combineOnceForConstant() default false;
+
+    /**
      * Exceptions thrown by the `combine*(...)` methods to catch and convert
      * into a warning and turn into a null value.
      */

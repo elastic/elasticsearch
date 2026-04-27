@@ -17,8 +17,11 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
-@Aggregator({ @IntermediateState(name = "max", type = "BYTES_REF"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@Aggregator(
+    value = { @IntermediateState(name = "max", type = "BYTES_REF"), @IntermediateState(name = "seen", type = "BOOLEAN") },
+    combineOnceForConstant = true
+)
+@GroupingAggregator(combineOnceForConstant = true)
 class MinIpAggregator {
     private static final BytesRef INIT_VALUE = new BytesRef(new byte[] { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 });
 

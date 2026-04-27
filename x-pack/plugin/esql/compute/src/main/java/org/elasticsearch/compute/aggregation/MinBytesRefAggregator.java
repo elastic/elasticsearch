@@ -23,8 +23,11 @@ import org.elasticsearch.core.Releasables;
  * Aggregator for `Min`, that works with BytesRef values.
  * Gets the smallest BytesRef value, based on its bytes natural order (Delegated to {@link BytesRef#compareTo}).
  */
-@Aggregator({ @IntermediateState(name = "min", type = "BYTES_REF"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@Aggregator(
+    value = { @IntermediateState(name = "min", type = "BYTES_REF"), @IntermediateState(name = "seen", type = "BOOLEAN") },
+    combineOnceForConstant = true
+)
+@GroupingAggregator(combineOnceForConstant = true)
 class MinBytesRefAggregator {
     private static boolean isBetter(BytesRef value, BytesRef otherValue) {
         return value.compareTo(otherValue) < 0;

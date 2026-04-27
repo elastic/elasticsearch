@@ -106,6 +106,11 @@ public final class MaxIpAggregatorFunction implements AggregatorFunction {
 
   private void addRawVector(BytesRefVector valueVector) {
     BytesRef valueScratch = new BytesRef();
+    if (valueVector.isConstant()) {
+      BytesRef valueValue = valueVector.getBytesRef(0, valueScratch);
+      MaxIpAggregator.combine(state, valueValue);
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
       MaxIpAggregator.combine(state, valueValue);
@@ -114,6 +119,11 @@ public final class MaxIpAggregatorFunction implements AggregatorFunction {
 
   private void addRawVector(BytesRefVector valueVector, BooleanVector mask) {
     BytesRef valueScratch = new BytesRef();
+    if (valueVector.isConstant()) {
+      BytesRef valueValue = valueVector.getBytesRef(0, valueScratch);
+      MaxIpAggregator.combine(state, valueValue);
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

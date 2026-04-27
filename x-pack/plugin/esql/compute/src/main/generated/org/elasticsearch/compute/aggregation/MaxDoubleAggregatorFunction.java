@@ -104,6 +104,12 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector vVector) {
+    if (vVector.isConstant()) {
+      state.seen(true);
+      double vValue = vVector.getDouble(0);
+      state.doubleValue(MaxDoubleAggregator.combine(state.doubleValue(), vValue));
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       double vValue = vVector.getDouble(valuesPosition);
@@ -112,6 +118,12 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector vVector, BooleanVector mask) {
+    if (vVector.isConstant()) {
+      state.seen(true);
+      double vValue = vVector.getDouble(0);
+      state.doubleValue(MaxDoubleAggregator.combine(state.doubleValue(), vValue));
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

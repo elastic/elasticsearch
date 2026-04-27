@@ -104,6 +104,12 @@ public final class MaxFloatAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(FloatVector vVector) {
+    if (vVector.isConstant()) {
+      state.seen(true);
+      float vValue = vVector.getFloat(0);
+      state.floatValue(MaxFloatAggregator.combine(state.floatValue(), vValue));
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       float vValue = vVector.getFloat(valuesPosition);
@@ -112,6 +118,12 @@ public final class MaxFloatAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(FloatVector vVector, BooleanVector mask) {
+    if (vVector.isConstant()) {
+      state.seen(true);
+      float vValue = vVector.getFloat(0);
+      state.floatValue(MaxFloatAggregator.combine(state.floatValue(), vValue));
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

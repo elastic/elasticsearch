@@ -11,8 +11,11 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
-@Aggregator({ @IntermediateState(name = "max", type = "LONG"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@Aggregator(
+    value = { @IntermediateState(name = "max", type = "LONG"), @IntermediateState(name = "seen", type = "BOOLEAN") },
+    combineOnceForConstant = true
+)
+@GroupingAggregator(combineOnceForConstant = true)
 class MaxLongAggregator {
 
     public static long init() {

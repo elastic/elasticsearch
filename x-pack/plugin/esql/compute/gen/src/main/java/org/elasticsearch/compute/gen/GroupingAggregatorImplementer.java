@@ -97,6 +97,7 @@ public class GroupingAggregatorImplementer {
     private final boolean hasOnlyBlockArguments;
     private final boolean allArgumentsSupportVectors;
     private final boolean processNulls;
+    private final boolean combineOnceForConstant;
 
     public GroupingAggregatorImplementer(
         Elements elements,
@@ -104,10 +105,12 @@ public class GroupingAggregatorImplementer {
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
         List<TypeMirror> warnExceptions,
-        boolean processNulls
+        boolean processNulls,
+        boolean combineOnceForConstant
     ) {
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
+        this.combineOnceForConstant = combineOnceForConstant;
 
         this.init = requireStaticMethod(
             declarationType,
@@ -475,6 +478,10 @@ public class GroupingAggregatorImplementer {
             return builder.build();
         }
 
+        if (valuesAreVector && combineOnceForConstant) {
+            emitConstantVectorGroupingShortCircuit(builder, groupsIsBlock);
+        }
+
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
             if (groupsIsBlock) {
@@ -545,6 +552,42 @@ public class GroupingAggregatorImplementer {
         }
         builder.endControlFlow();
         return builder.build();
+    }
+
+    /**
+     * Emits a constant-vector fast path for grouping aggregations. Reads the single
+     * constant value once before the group loop so that the per-group iteration only
+     * needs to resolve group IDs.
+     */
+    private void emitConstantVectorGroupingShortCircuit(MethodSpec.Builder builder, boolean groupsIsBlock) {
+        Argument firstArg = aggParams.getFirst();
+        builder.beginControlFlow("if ($L.isConstant())", firstArg.vectorName());
+        {
+            for (Argument a : aggParams) {
+                a.read(builder, a.vectorName(), "0");
+            }
+            builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
+            {
+                if (groupsIsBlock) {
+                    builder.beginControlFlow("if (groups.isNull(groupPosition))");
+                    builder.addStatement("continue");
+                    builder.endControlFlow();
+                    builder.addStatement("int groupStart = groups.getFirstValueIndex(groupPosition)");
+                    builder.addStatement("int groupEnd = groupStart + groups.getValueCount(groupPosition)");
+                    builder.beginControlFlow("for (int g = groupStart; g < groupEnd; g++)");
+                    builder.addStatement("int groupId = groups.getInt(g)");
+                } else {
+                    builder.addStatement("int groupId = groups.getInt(groupPosition)");
+                }
+                combineRawInput(builder);
+                if (groupsIsBlock) {
+                    builder.endControlFlow();
+                }
+            }
+            builder.endControlFlow();
+            builder.addStatement("return");
+        }
+        builder.endControlFlow();
     }
 
     private void combineRawInput(MethodSpec.Builder builder) {

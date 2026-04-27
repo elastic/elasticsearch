@@ -134,6 +134,21 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, FloatVector vVector) {
+    if (vVector.isConstant()) {
+      float vValue = vVector.getFloat(0);
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), vValue));
+        }
+      }
+      return;
+    }
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -222,6 +237,21 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, FloatVector vVector) {
+    if (vVector.isConstant()) {
+      float vValue = vVector.getFloat(0);
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), vValue));
+        }
+      }
+      return;
+    }
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -303,6 +333,14 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
   }
 
   private void addRawInput(int positionOffset, IntVector groups, FloatVector vVector) {
+    if (vVector.isConstant()) {
+      float vValue = vVector.getFloat(0);
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), vValue));
+      }
+      return;
+    }
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);

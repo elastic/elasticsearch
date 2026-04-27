@@ -104,6 +104,12 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector vVector) {
+    if (vVector.isConstant()) {
+      state.seen(true);
+      int vValue = vVector.getInt(0);
+      state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       int vValue = vVector.getInt(valuesPosition);
@@ -112,6 +118,12 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector vVector, BooleanVector mask) {
+    if (vVector.isConstant()) {
+      state.seen(true);
+      int vValue = vVector.getInt(0);
+      state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

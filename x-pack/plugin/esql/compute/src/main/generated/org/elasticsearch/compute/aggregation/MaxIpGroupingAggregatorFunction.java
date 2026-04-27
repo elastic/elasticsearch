@@ -137,6 +137,21 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, BytesRefVector valueVector) {
     BytesRef valueScratch = new BytesRef();
+    if (valueVector.isConstant()) {
+      BytesRef valueValue = valueVector.getBytesRef(0, valueScratch);
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          MaxIpAggregator.combine(state, groupId, valueValue);
+        }
+      }
+      return;
+    }
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -227,6 +242,21 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
   private void addRawInput(int positionOffset, IntBigArrayBlock groups,
       BytesRefVector valueVector) {
     BytesRef valueScratch = new BytesRef();
+    if (valueVector.isConstant()) {
+      BytesRef valueValue = valueVector.getBytesRef(0, valueScratch);
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          MaxIpAggregator.combine(state, groupId, valueValue);
+        }
+      }
+      return;
+    }
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -309,6 +339,14 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
 
   private void addRawInput(int positionOffset, IntVector groups, BytesRefVector valueVector) {
     BytesRef valueScratch = new BytesRef();
+    if (valueVector.isConstant()) {
+      BytesRef valueValue = valueVector.getBytesRef(0, valueScratch);
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        MaxIpAggregator.combine(state, groupId, valueValue);
+      }
+      return;
+    }
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);

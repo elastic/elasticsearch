@@ -13,30 +13,30 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link MaxIntAggregator}.
+ * {@link AggregatorFunction} implementation for {@link CombineCountingMinLongAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class MaxIntAggregatorFunction implements AggregatorFunction {
+public final class CombineCountingMinLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("max", ElementType.INT),
+      new IntermediateStateDesc("min", ElementType.LONG),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final DriverContext driverContext;
 
-  private final IntState state;
+  private final LongState state;
 
   private final List<Integer> channels;
 
-  MaxIntAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  CombineCountingMinLongAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = new IntState(MaxIntAggregator.init());
+    this.state = new LongState(CombineCountingMinLongAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -60,8 +60,8 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    IntBlock vBlock = page.getBlock(channels.get(0));
-    IntVector vVector = vBlock.asVector();
+    LongBlock vBlock = page.getBlock(channels.get(0));
+    LongVector vVector = vBlock.asVector();
     if (vVector == null) {
       if (vBlock.areAllValuesNull()) {
         /*
@@ -82,8 +82,8 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawInputNotMasked(Page page) {
-    IntBlock vBlock = page.getBlock(channels.get(0));
-    IntVector vVector = vBlock.asVector();
+    LongBlock vBlock = page.getBlock(channels.get(0));
+    LongVector vVector = vBlock.asVector();
     if (vVector == null) {
       if (vBlock.areAllValuesNull()) {
         /*
@@ -103,25 +103,25 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
     addRawVector(vVector);
   }
 
-  private void addRawVector(IntVector vVector) {
+  private void addRawVector(LongVector vVector) {
     if (vVector.isConstant()) {
       state.seen(true);
-      int vValue = vVector.getInt(0);
-      state.intValue(MaxIntAggregator.combine(state.intValue(), vValue));
+      long vValue = vVector.getLong(0);
+      state.longValue(CombineCountingMinLongAggregator.combine(state.longValue(), vValue));
       return;
     }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
-      int vValue = vVector.getInt(valuesPosition);
-      state.intValue(MaxIntAggregator.combine(state.intValue(), vValue));
+      long vValue = vVector.getLong(valuesPosition);
+      state.longValue(CombineCountingMinLongAggregator.combine(state.longValue(), vValue));
     }
   }
 
-  private void addRawVector(IntVector vVector, BooleanVector mask) {
+  private void addRawVector(LongVector vVector, BooleanVector mask) {
     if (vVector.isConstant()) {
       state.seen(true);
-      int vValue = vVector.getInt(0);
-      state.intValue(MaxIntAggregator.combine(state.intValue(), vValue));
+      long vValue = vVector.getLong(0);
+      state.longValue(CombineCountingMinLongAggregator.combine(state.longValue(), vValue));
       return;
     }
     state.seen(true);
@@ -129,12 +129,12 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      int vValue = vVector.getInt(valuesPosition);
-      state.intValue(MaxIntAggregator.combine(state.intValue(), vValue));
+      long vValue = vVector.getLong(valuesPosition);
+      state.longValue(CombineCountingMinLongAggregator.combine(state.longValue(), vValue));
     }
   }
 
-  private void addRawBlock(IntBlock vBlock) {
+  private void addRawBlock(LongBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
       int vValueCount = vBlock.getValueCount(p);
       if (vValueCount == 0) {
@@ -144,13 +144,13 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
-        int vValue = vBlock.getInt(vOffset);
-        state.intValue(MaxIntAggregator.combine(state.intValue(), vValue));
+        long vValue = vBlock.getLong(vOffset);
+        state.longValue(CombineCountingMinLongAggregator.combine(state.longValue(), vValue));
       }
     }
   }
 
-  private void addRawBlock(IntBlock vBlock, BooleanVector mask) {
+  private void addRawBlock(LongBlock vBlock, BooleanVector mask) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
@@ -163,8 +163,8 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
-        int vValue = vBlock.getInt(vOffset);
-        state.intValue(MaxIntAggregator.combine(state.intValue(), vValue));
+        long vValue = vBlock.getLong(vOffset);
+        state.longValue(CombineCountingMinLongAggregator.combine(state.longValue(), vValue));
       }
     }
   }
@@ -173,8 +173,8 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block maxUncast = page.getBlock(channels.get(0));
-    if (maxUncast.areAllValuesNull()) {
+    Block minUncast = page.getBlock(channels.get(0));
+    if (minUncast.areAllValuesNull()) {
       /*
        * All values are null so we can skip processing this block.
        * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
@@ -186,8 +186,8 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
        */
       return;
     }
-    IntVector max = ((IntBlock) maxUncast).asVector();
-    assert max.getPositionCount() == 1;
+    LongVector min = ((LongBlock) minUncast).asVector();
+    assert min.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(1));
     if (seenUncast.areAllValuesNull()) {
       /*
@@ -204,7 +204,7 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
     if (seen.getBoolean(0)) {
-      state.intValue(MaxIntAggregator.combine(state.intValue(), max.getInt(0)));
+      state.longValue(CombineCountingMinLongAggregator.combine(state.longValue(), min.getLong(0)));
       state.seen(true);
     }
   }
@@ -220,7 +220,7 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
       blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
       return;
     }
-    blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1);
+    blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1);
   }
 
   @Override

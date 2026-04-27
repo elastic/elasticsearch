@@ -104,6 +104,12 @@ public final class MaxLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector vVector) {
+    if (vVector.isConstant()) {
+      state.seen(true);
+      long vValue = vVector.getLong(0);
+      state.longValue(MaxLongAggregator.combine(state.longValue(), vValue));
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       long vValue = vVector.getLong(valuesPosition);
@@ -112,6 +118,12 @@ public final class MaxLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector vVector, BooleanVector mask) {
+    if (vVector.isConstant()) {
+      state.seen(true);
+      long vValue = vVector.getLong(0);
+      state.longValue(MaxLongAggregator.combine(state.longValue(), vValue));
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

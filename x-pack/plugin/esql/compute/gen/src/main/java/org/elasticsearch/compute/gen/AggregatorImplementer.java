@@ -91,6 +91,7 @@ public class AggregatorImplementer {
     private final boolean hasOnlyBlockArguments;
     private final boolean tryToUseVectors;
     private final boolean processNulls;
+    private final boolean combineOnceForConstant;
 
     public AggregatorImplementer(
         Elements elements,
@@ -98,9 +99,11 @@ public class AggregatorImplementer {
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
         List<TypeMirror> warnExceptions,
-        boolean processNulls
+        boolean processNulls,
+        boolean combineOnceForConstant
     ) {
         this.processNulls = processNulls;
+        this.combineOnceForConstant = combineOnceForConstant;
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
 
@@ -386,6 +389,10 @@ public class AggregatorImplementer {
             throw new IllegalStateException("The BlockArgument type does not support vectors because all values are multi-valued");
         }
 
+        if (combineOnceForConstant) {
+            emitConstantVectorShortCircuit(builder, masked);
+        }
+
         if (first != null) {
             builder.addComment("Find the first value up front in the Vector path which is more complex but should be faster");
             builder.addStatement("int valuesPosition = 0");
@@ -411,6 +418,27 @@ public class AggregatorImplementer {
         }
         builder.endControlFlow();
         return builder.build();
+    }
+
+    /**
+     * Emits a constant-vector short-circuit at the top of {@code addRawVector}. When every
+     * position holds the same value (a {@code ConstantXVector}), aggregations whose combine
+     * function is idempotent over repeated values (min, max) only need to process position 0.
+     */
+    private void emitConstantVectorShortCircuit(MethodSpec.Builder builder, boolean masked) {
+        Argument firstArg = aggParams.getFirst();
+        builder.beginControlFlow("if ($L.isConstant())", firstArg.vectorName());
+        {
+            if (aggState.hasSeen()) {
+                builder.addStatement("state.seen(true)");
+            }
+            for (Argument a : aggParams) {
+                a.read(builder, a.vectorName(), "0");
+            }
+            combineRawInput(builder, false);
+            builder.addStatement("return");
+        }
+        builder.endControlFlow();
     }
 
     private void addRawVectorWithFirst(MethodSpec.Builder builder, boolean firstPass, boolean masked) {

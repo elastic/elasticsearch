@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.search.TokenPruningConfigTests;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
+import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -223,7 +225,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         final TestIndex testIndex = new TestIndex("test-index-1", Map.of(field, EMBEDDING_INFERENCE_ID), Map.of());
         final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
             field,
-            new TextEmbeddingQueryVectorBuilder(EMBEDDING_INFERENCE_ID, "foo"),
+            new EmbeddingQueryVectorBuilder(EMBEDDING_INFERENCE_ID, new InferenceStringGroup("foo"), null),
             50,
             500,
             50f,

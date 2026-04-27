@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -81,7 +81,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
         Integer dimensions = randomBoolean() ? null : randomIntBetween(32, 256);
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
 
-        var commonSettings = JinaAIServiceSettingsTests.createRandom();
+        var commonSettings = JinaAICommonServiceSettingsTests.createRandom();
         var embeddingType = randomBoolean() ? null : randomFrom(JinaAIEmbeddingType.values());
         var dimensionsSetByUser = randomBoolean();
         var multimodalModel = randomBoolean();
@@ -102,7 +102,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
         Integer dimensions = randomIntBetween(32, 256);
         Integer maxInputTokens = randomIntBetween(128, 256);
 
-        var commonSettings = JinaAIServiceSettingsTests.createRandom();
+        var commonSettings = JinaAICommonServiceSettingsTests.createRandom();
         var embeddingType = randomFrom(JinaAIEmbeddingType.values());
         var dimensionsSetByUser = randomBoolean();
         var multimodalModel = randomBoolean();
@@ -162,7 +162,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
             serviceSettings,
             is(
                 new JinaAIEmbeddingServiceSettings(
-                    new JinaAIServiceSettings(model, new RateLimitSettings(requestsPerMinute)),
+                    new JinaAICommonServiceSettings(model, new RateLimitSettings(requestsPerMinute)),
                     similarity,
                     dimensions,
                     maxInputTokens,
@@ -182,7 +182,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
             serviceSettings,
             is(
                 new JinaAIEmbeddingServiceSettings(
-                    new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT)),
+                    new JinaAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT)),
                     null,
                     null,
                     null,
@@ -280,7 +280,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
             TEST_MULTIMODAL_MODEL
         );
         var originalServiceSettings = new JinaAIEmbeddingServiceSettings(
-            new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
+            new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
             INITIAL_TEST_SIMILARITY,
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS,
@@ -294,7 +294,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
             updatedServiceSettings,
             is(
                 new JinaAIEmbeddingServiceSettings(
-                    new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+                    new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
                     INITIAL_TEST_SIMILARITY,
                     INITIAL_TEST_DIMENSIONS,
                     TEST_MAX_INPUT_TOKENS,
@@ -308,7 +308,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
         var originalServiceSettings = new JinaAIEmbeddingServiceSettings(
-            new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
+            new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
             INITIAL_TEST_SIMILARITY,
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS,
@@ -321,7 +321,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new JinaAIEmbeddingServiceSettings(
-            new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+            new JinaAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
             TEST_SIMILARITY,
             TEST_DIMENSIONS,
             TEST_MAX_INPUT_TOKENS,
@@ -404,7 +404,7 @@ public class JinaAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerializ
         var dimensionsSetByUser = instance.dimensionsSetByUser();
         var multimodal = instance.isMultimodal();
         switch (randomInt(6)) {
-            case 0 -> commonSettings = randomValueOtherThan(commonSettings, JinaAIServiceSettingsTests::createRandom);
+            case 0 -> commonSettings = randomValueOtherThan(commonSettings, JinaAICommonServiceSettingsTests::createRandom);
             case 1 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
             case 2 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
             case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));

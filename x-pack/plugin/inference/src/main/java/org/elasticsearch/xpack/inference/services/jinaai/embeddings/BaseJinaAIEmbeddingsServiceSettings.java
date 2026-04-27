@@ -19,7 +19,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 
 import java.io.IOException;
@@ -50,7 +50,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
     @FunctionalInterface
     public interface ConstructorInvoker<T extends BaseJinaAIEmbeddingsServiceSettings> {
         T construct(
-            JinaAIServiceSettings commonSettings,
+            JinaAICommonServiceSettings commonSettings,
             @Nullable SimilarityMeasure similarity,
             @Nullable Integer dimensions,
             @Nullable Integer maxInputTokens,
@@ -67,7 +67,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
         ConstructorInvoker<T> constructor
     ) {
         var validationException = new ValidationException();
-        var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context, validationException);
+        var commonServiceSettings = JinaAICommonServiceSettings.fromMap(map, context, validationException);
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var maxInputTokens = extractOptionalPositiveInteger(
@@ -129,7 +129,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
         return existingSettings.update(similarityToUse, embeddingSize);
     }
 
-    private final JinaAIServiceSettings commonSettings;
+    private final JinaAICommonServiceSettings commonSettings;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
@@ -138,7 +138,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
     private final boolean multimodalModel;
 
     public BaseJinaAIEmbeddingsServiceSettings(
-        JinaAIServiceSettings commonSettings,
+        JinaAICommonServiceSettings commonSettings,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
@@ -156,7 +156,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
     }
 
     public BaseJinaAIEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        this.commonSettings = new JinaAIServiceSettings(in);
+        this.commonSettings = new JinaAICommonServiceSettings(in);
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.dimensions = in.readOptionalVInt();
         this.maxInputTokens = in.readOptionalVInt();
@@ -189,7 +189,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
 
     protected abstract void optionallyWriteMultimodalField(XContentBuilder builder) throws IOException;
 
-    public JinaAIServiceSettings getCommonSettings() {
+    public JinaAICommonServiceSettings getCommonSettings() {
         return commonSettings;
     }
 

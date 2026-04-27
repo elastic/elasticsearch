@@ -14,7 +14,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
@@ -40,7 +40,7 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
     }
 
     private JinaAITextEmbeddingServiceSettings(
-        JinaAIServiceSettings commonServiceSettings,
+        JinaAICommonServiceSettings commonServiceSettings,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
@@ -52,7 +52,7 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
     }
 
     public JinaAITextEmbeddingServiceSettings(
-        JinaAIServiceSettings commonServiceSettings,
+        JinaAICommonServiceSettings commonServiceSettings,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,

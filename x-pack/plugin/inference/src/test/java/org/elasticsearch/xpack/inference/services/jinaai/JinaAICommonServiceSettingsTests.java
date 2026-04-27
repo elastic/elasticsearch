@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIServiceSettings> {
+public class JinaAICommonServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAICommonServiceSettings> {
 
     private static final String TEST_MODEL_ID = "test-model";
     private static final String INITIAL_TEST_MODEL_ID = "initial-model";
@@ -39,41 +39,41 @@ public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTest
     private static final int INITIAL_TEST_RATE_LIMIT = 100;
     private static final int DEFAULT_RATE_LIMIT = 2000;
 
-    public static JinaAIServiceSettings createRandom() {
+    public static JinaAICommonServiceSettings createRandom() {
         var model = randomAlphaOfLength(15);
 
-        return new JinaAIServiceSettings(model, RateLimitSettingsTests.createRandom());
+        return new JinaAICommonServiceSettings(model, RateLimitSettingsTests.createRandom());
     }
 
     public void testFromMap_AllFields_CreatesSettingsCorrectly() {
         var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
 
-        var serviceSettings = JinaAIServiceSettings.fromMap(
+        var serviceSettings = JinaAICommonServiceSettings.fromMap(
             settingsMap,
             randomFrom(ConfigurationParseContext.values()),
             new ValidationException()
         );
 
-        assertThat(serviceSettings, is(new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
+        assertThat(serviceSettings, is(new JinaAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
     public void testFromMap_OnlyMandatoryFields_UsesDefaultRateLimit_Success() {
         var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, null);
 
-        var serviceSettings = JinaAIServiceSettings.fromMap(
+        var serviceSettings = JinaAICommonServiceSettings.fromMap(
             settingsMap,
             randomFrom(ConfigurationParseContext.values()),
             new ValidationException()
         );
 
-        assertThat(serviceSettings, is(new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
+        assertThat(serviceSettings, is(new JinaAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
     }
 
     public void testFromMap_NoModelId_ThrowsValidationError() {
         var settingsMap = buildServiceSettingsMap(null, TEST_RATE_LIMIT);
 
         var validationException = new ValidationException();
-        var serviceSettings = JinaAIServiceSettings.fromMap(
+        var serviceSettings = JinaAICommonServiceSettings.fromMap(
             settingsMap,
             randomFrom(ConfigurationParseContext.values()),
             validationException
@@ -89,17 +89,26 @@ public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     public void testUpdateCommonServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
         var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
-        var originalServiceSettings = new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
+        var originalServiceSettings = new JinaAICommonServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
         var validationException = new ValidationException();
 
         var updatedServiceSettings = originalServiceSettings.updateCommonServiceSettings(settingsMap, validationException);
 
-        assertThat(updatedServiceSettings, is(new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
+        assertThat(
+            updatedServiceSettings,
+            is(new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)))
+        );
         assertThat(validationException.validationErrors(), is(empty()));
     }
 
     public void testUpdateCommonServiceSettings_EmptyMap_DoesNotChangeSettings() {
-        var originalServiceSettings = new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
+        var originalServiceSettings = new JinaAICommonServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
         var validationException = new ValidationException();
 
         var serviceSettings = originalServiceSettings.updateCommonServiceSettings(new HashMap<>(), validationException);
@@ -109,7 +118,7 @@ public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTest
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT));
+        var serviceSettings = new JinaAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
@@ -126,17 +135,17 @@ public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTest
     }
 
     @Override
-    protected Writeable.Reader<JinaAIServiceSettings> instanceReader() {
-        return JinaAIServiceSettings::new;
+    protected Writeable.Reader<JinaAICommonServiceSettings> instanceReader() {
+        return JinaAICommonServiceSettings::new;
     }
 
     @Override
-    protected JinaAIServiceSettings createTestInstance() {
+    protected JinaAICommonServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected JinaAIServiceSettings mutateInstance(JinaAIServiceSettings instance) throws IOException {
+    protected JinaAICommonServiceSettings mutateInstance(JinaAICommonServiceSettings instance) throws IOException {
         var modelId = instance.modelId();
         var rateLimitSettings = instance.rateLimitSettings();
         switch (randomInt(1)) {
@@ -145,7 +154,7 @@ public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTest
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new JinaAIServiceSettings(modelId, rateLimitSettings);
+        return new JinaAICommonServiceSettings(modelId, rateLimitSettings);
     }
 
     public static Map<String, Object> buildServiceSettingsMap(@Nullable String modelId, @Nullable Integer rateLimit) {
@@ -163,7 +172,7 @@ public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTest
     }
 
     @Override
-    protected JinaAIServiceSettings mutateInstanceForVersion(JinaAIServiceSettings instance, TransportVersion version) {
+    protected JinaAICommonServiceSettings mutateInstanceForVersion(JinaAICommonServiceSettings instance, TransportVersion version) {
         return instance;
     }
 }

@@ -18,8 +18,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -40,7 +40,9 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
     private static final int DEFAULT_RATE_LIMIT = 2000;
 
     public static JinaAIRerankServiceSettings createRandom() {
-        return new JinaAIRerankServiceSettings(new JinaAIServiceSettings(randomAlphaOfLength(10), RateLimitSettingsTests.createRandom()));
+        return new JinaAIRerankServiceSettings(
+            new JinaAICommonServiceSettings(randomAlphaOfLength(10), RateLimitSettingsTests.createRandom())
+        );
     }
 
     public void testFromMap_AllFields_CreatesSettingsCorrectly() {
@@ -50,7 +52,7 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
         assertThat(
             serviceSettings,
-            is(new JinaAIRerankServiceSettings(new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))))
+            is(new JinaAIRerankServiceSettings(new JinaAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))))
         );
     }
 
@@ -61,7 +63,7 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
         assertThat(
             serviceSettings,
-            is(new JinaAIRerankServiceSettings(new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT))))
+            is(new JinaAIRerankServiceSettings(new JinaAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT))))
         );
     }
 
@@ -83,26 +85,30 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
         var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
         var originalServiceSettings = new JinaAIRerankServiceSettings(
-            new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT))
+            new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT))
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
 
         assertThat(
             updatedServiceSettings,
-            is(new JinaAIRerankServiceSettings(new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))))
+            is(
+                new JinaAIRerankServiceSettings(
+                    new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))
+                )
+            )
         );
     }
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
         var originalServiceSettings = new JinaAIRerankServiceSettings(
-            new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT))
+            new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT))
         );
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new JinaAIRerankServiceSettings(
-            new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))
+            new JinaAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -131,7 +137,10 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
     @Override
     protected JinaAIRerankServiceSettings mutateInstance(JinaAIRerankServiceSettings instance) throws IOException {
-        JinaAIServiceSettings commonSettings = randomValueOtherThan(instance.getCommonSettings(), JinaAIServiceSettingsTests::createRandom);
+        JinaAICommonServiceSettings commonSettings = randomValueOtherThan(
+            instance.getCommonSettings(),
+            JinaAICommonServiceSettingsTests::createRandom
+        );
         return new JinaAIRerankServiceSettings(commonSettings);
     }
 
@@ -141,6 +150,6 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
     }
 
     public static Map<String, Object> buildServiceSettingsMap(@Nullable String modelId, @Nullable Integer rateLimit) {
-        return JinaAIServiceSettingsTests.buildServiceSettingsMap(modelId, rateLimit);
+        return JinaAICommonServiceSettingsTests.buildServiceSettingsMap(modelId, rateLimit);
     }
 }

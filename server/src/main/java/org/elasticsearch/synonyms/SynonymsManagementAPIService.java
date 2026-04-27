@@ -501,18 +501,18 @@ public class SynonymsManagementAPIService {
         boolean refresh,
         ActionListener<SynonymsReloadResult> listener
     ) {
-        putSynonymsSet(synonymSetId, synonymsSet, refresh, false, listener);
+        putSynonymsSet(synonymSetId, synonymsSet, refresh, true, listener);
     }
 
     public void putSynonymsSet(
         String synonymSetId,
         SynonymRule[] synonymsSet,
         boolean refresh,
-        boolean append,
+        boolean replaceAll,
         ActionListener<SynonymsReloadResult> listener
     ) {
-        if (append) {
-            appendSynonymsSet(synonymSetId, synonymsSet, refresh, listener);
+        if (replaceAll == false) {
+            addToSynonymsSet(synonymSetId, synonymsSet, refresh, listener);
             return;
         }
         if (checkSynonymRuleCount(synonymsSet.length, listener) == false) {
@@ -555,17 +555,39 @@ public class SynonymsManagementAPIService {
     }
 
     /**
-     * Appends synonym rules to an existing set without deleting existing rules. If the set does not
+     * Adds synonym rules to an existing set without deleting existing rules. If the set does not
      * exist yet it is created. Rules whose IDs match existing rules are overwritten.
      */
-    private void appendSynonymsSet(
+    private void addToSynonymsSet(
         String synonymSetId,
         SynonymRule[] synonymsSet,
         boolean refresh,
         ActionListener<SynonymsReloadResult> listener
     ) {
-        // Count existing rules to check the limit and distinguish CREATED from UPDATED.
-        // IndexNotFoundException means the index doesn't exist yet — treat as zero existing rules.
+        // Use GET instead of search to avoid stale results when determining CREATED vs UPDATED.
+        // IndexNotFoundException means the index doesn't exist yet — new set, zero existing rules.
+        client.prepareGet(SYNONYMS_ALIAS_NAME, synonymSetId)
+            .execute(ActionListener.wrap(getResponse -> {
+                UpdateSynonymsResultStatus status = getResponse.isExists()
+                    ? UpdateSynonymsResultStatus.UPDATED
+                    : UpdateSynonymsResultStatus.CREATED;
+                countExistingRulesAndAdd(synonymSetId, synonymsSet, refresh, status, listener);
+            }, e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    bulkAddToSynonymsSet(synonymSetId, synonymsSet, 0, refresh, UpdateSynonymsResultStatus.CREATED, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
+    }
+
+    private void countExistingRulesAndAdd(
+        String synonymSetId,
+        SynonymRule[] synonymsSet,
+        boolean refresh,
+        UpdateSynonymsResultStatus status,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setQuery(
                 QueryBuilders.boolQuery()
@@ -577,20 +599,17 @@ public class SynonymsManagementAPIService {
             .setTrackTotalHits(true)
             .execute(ActionListener.wrap(searchResponse -> {
                 long existingCount = searchResponse.getHits().getTotalHits().value();
-                UpdateSynonymsResultStatus status = existingCount == 0
-                    ? UpdateSynonymsResultStatus.CREATED
-                    : UpdateSynonymsResultStatus.UPDATED;
-                bulkAppendSynonymsSet(synonymSetId, synonymsSet, existingCount, refresh, status, listener);
+                bulkAddToSynonymsSet(synonymSetId, synonymsSet, existingCount, refresh, status, listener);
             }, e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                    bulkAppendSynonymsSet(synonymSetId, synonymsSet, 0, refresh, UpdateSynonymsResultStatus.CREATED, listener);
+                    bulkAddToSynonymsSet(synonymSetId, synonymsSet, 0, refresh, status, listener);
                 } else {
                     listener.onFailure(e);
                 }
             }));
     }
 
-    private void bulkAppendSynonymsSet(
+    private void bulkAddToSynonymsSet(
         String synonymSetId,
         SynonymRule[] synonymsSet,
         long existingCount,

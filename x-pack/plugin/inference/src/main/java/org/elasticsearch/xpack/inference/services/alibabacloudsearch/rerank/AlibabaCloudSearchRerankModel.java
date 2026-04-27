@@ -43,7 +43,7 @@ public class AlibabaCloudSearchRerankModel extends AlibabaCloudSearchModel {
             service,
             AlibabaCloudSearchRerankServiceSettings.fromMap(serviceSettings, context),
             AlibabaCloudSearchRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

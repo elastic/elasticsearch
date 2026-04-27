@@ -21,11 +21,13 @@ import java.util.Objects;
 public class HierarchicalKMeans {
 
     public static final int MAXK = 128;
-    public static final int MAX_ITERATIONS_DEFAULT = 6;
     public static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     public static final float DEFAULT_SOAR_LAMBDA = 1.0f;
     public static final int NO_SOAR_ASSIGNMENT = -1;
     private static final int MIN_VECTORS_PRE_THREAD = 64;
+
+    public static final boolean USE_BALANCING = true;
+    public static final int MAX_ITERATIONS_DEFAULT = USE_BALANCING ? 2 : 6;
 
     final int dimension;
     final int maxIterations;
@@ -134,9 +136,10 @@ public class HierarchicalKMeans {
 
         // partition the space
         KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
+
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
-            KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), localSampleSize);
+            KMeansLocal kMeansLocal = buildKmeansLocalFinal(vectors.size(), localSampleSize);
             kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
         }
         return kMeansIntermediate;
@@ -154,7 +157,7 @@ public class HierarchicalKMeans {
         int[] assignments = new int[vectors.size()];
         // ensure we don't over assign to cluster 0 without adjusting it
         Arrays.fill(assignments, -1);
-        float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, k);
+        float[][] centroids = LloydKMeansLocal.pickInitialCentroids(vectors, k);
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, vectors::ordToDoc);
         KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), m);
         kMeansLocal.cluster(vectors, kMeansIntermediate);
@@ -188,7 +191,7 @@ public class HierarchicalKMeans {
             // Give ourselves 30% margin for the target size
             final int count = centroidVectorCount[c];
             final int adjustedCentroid = c + centroidIndexOffset;
-            if (100 * count > 134 * targetSize) {
+            if (count > targetSize) {
                 final ClusteringFloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
 
                 // TODO: consider iterative here instead of recursive
@@ -227,9 +230,29 @@ public class HierarchicalKMeans {
     private KMeansLocal buildKmeansLocal(int numVectors, int localSampleSize) {
         int numWorkers = Math.min(this.numWorkers, numVectors / MIN_VECTORS_PRE_THREAD);
         // if there is no executor or there is no enough vectors for more than one thread, use the serial version
-        return executor == null || numWorkers <= 1
-            ? new LloydKMeansLocalSerial(localSampleSize, maxIterations)
-            : new LloydKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+        if (USE_BALANCING) {
+            return executor == null || numWorkers <= 1
+                ? new BalancedOTKMeansLocalSerial(localSampleSize, maxIterations)
+                : new BalancedOTKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+        } else {
+            return executor == null || numWorkers <= 1
+                ? new LloydKMeansLocalSerial(localSampleSize, maxIterations)
+                : new LloydKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+        }
+    }
+
+    private KMeansLocal buildKmeansLocalFinal(int numVectors, int localSampleSize) {
+        int numWorkers = Math.min(this.numWorkers, numVectors / MIN_VECTORS_PRE_THREAD);
+        // if there is no executor or there is no enough vectors for more than one thread, use the serial version
+        if (USE_BALANCING) {
+            return executor == null || numWorkers <= 1
+                ? new BalancedASKMeansLocalSerial(localSampleSize, maxIterations)
+                : new BalancedASKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+        } else {
+            return executor == null || numWorkers <= 1
+                ? new LloydKMeansLocalSerial(localSampleSize, maxIterations)
+                : new LloydKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+        }
     }
 
     static ClusteringFloatVectorValues createClusterSlice(

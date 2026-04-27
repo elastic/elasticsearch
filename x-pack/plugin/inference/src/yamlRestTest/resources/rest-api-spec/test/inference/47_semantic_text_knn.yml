@@ -703,7 +703,7 @@ setup:
                   model_text: test
 
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Field [inference_field] does not use a [text_embedding] model" }
+  - match: { error.root_cause.0.reason: "Field [inference_field] requires an embedding or text embedding model, but the configured model type is [sparse_embedding] which is not compatible with knn queries" }
 
   # Specify the inference ID so that dense vector inference results are generated for the query text
   - do:
@@ -722,7 +722,7 @@ setup:
                   model_text: test
 
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Field [inference_field] does not use a [text_embedding] model" }
+  - match: { error.root_cause.0.reason: "Field [inference_field] requires an embedding or text embedding model, but the configured model type is [sparse_embedding] which is not compatible with knn queries" }
 
 ---
 "Text expansion query against semantic_text field using a dense vector model returns an failure":

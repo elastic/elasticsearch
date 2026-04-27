@@ -57,7 +57,6 @@ public class EvilLoggerTests extends ESTestCase {
 
     @Override
     public void setUp() throws Exception {
-        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
         super.setUp();
         LogConfigurator.registerErrorListener();
     }

@@ -27,6 +27,9 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -290,6 +293,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
             mappingUpdate
         );
+        ShardRouting shardRouting = newShardRouting(ShardRouting.Role.DEFAULT);
+        when(shard.routingEntry()).thenReturn(shardRouting);
         addMockCloseImplementation(shard);
 
         randomlySetIgnoredPrimaryResponse(items[0]);
@@ -505,6 +510,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteResponse noopUpdateResponse = new UpdateResponse(shardId, "id", 0, 2, 1, DocWriteResponse.Result.NOOP);
 
         IndexShard shard = mockShard(null, null);
+        ShardRouting shardRouting = newShardRouting(ShardRouting.Role.DEFAULT);
+        when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
@@ -560,6 +567,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
             indexResult
         );
+        ShardRouting shardRouting = newShardRouting(ShardRouting.Role.DEFAULT);
+        when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
@@ -621,6 +630,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
             indexResult
         );
+        ShardRouting shardRouting = newShardRouting(ShardRouting.Role.DEFAULT);
+        when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
@@ -684,6 +695,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
             indexResult
         );
+        ShardRouting shardRouting = newShardRouting(ShardRouting.Role.DEFAULT);
+        when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
@@ -728,6 +741,60 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         verify(documentParsingProvider).newMeteringParserDecorator(updateResponse);
     }
 
+    private ShardRouting newShardRouting(ShardRouting.Role role) {
+        final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
+        return ShardRouting.newUnassigned(shardId, true, RecoverySource.ExistingStoreRecoverySource.INSTANCE, unassignedInfo, role);
+    }
+
+    public void testRequestItemAreNotReplacedByPreparedRequestWhenRunningInServerless() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+        DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
+
+        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
+
+        Translog.Location resultLocation = new Translog.Location(42, 42, 42);
+        Engine.IndexResult indexResult = new FakeIndexResult(1, 1, 13, false, resultLocation, "id");
+        IndexShard shard = mockShard(indexSettings, null);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            indexResult
+        );
+        ShardRouting shardRouting = newShardRouting(ShardRouting.Role.INDEX_ONLY);
+        when(shard.routingEntry()).thenReturn(shardRouting);
+
+        UpdateHelper updateHelper = mock(UpdateHelper.class);
+        when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
+            new UpdateHelper.Result(
+                updateResponse,
+                DocWriteResponse.Result.UPDATED,
+                Collections.singletonMap("field", "value"),
+                Requests.INDEX_CONTENT_TYPE
+            )
+        );
+
+        BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
+        TransportShardBulkAction.executeBulkItemRequest(
+            context,
+            updateHelper,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            (listener, mappingVersion) -> {},
+            ASSERTING_DONE_LISTENER,
+            documentParsingProvider
+        );
+        assertFalse(context.hasMoreOperationsToExecute());
+
+        // Check that the translog is successfully advanced
+        assertThat(context.getLocationToSync(), equalTo(resultLocation));
+        assertThat(bulkShardRequest.items()[0].request(), equalTo(writeRequest));
+
+        verify(documentParsingProvider).newMeteringParserDecorator(updateResponse);
+    }
+
     public void testUpdateWithDelete() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
@@ -741,6 +808,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Engine.DeleteResult deleteResult = new FakeDeleteResult(1, 1, resultSeqNo, found, resultLocation, "id");
         IndexShard shard = mockShard(indexSettings, null);
         when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong())).thenReturn(deleteResult);
+        ShardRouting shardRouting = newShardRouting(ShardRouting.Role.DEFAULT);
+        when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
@@ -786,6 +855,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
         IndexShard shard = mockShard(null, null);
+        ShardRouting shardRouting = newShardRouting(ShardRouting.Role.DEFAULT);
+        when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         final ElasticsearchException err = new ElasticsearchException("oops");
@@ -916,6 +987,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 return success;
             }
         });
+        ShardRouting shardRouting = newShardRouting(ShardRouting.Role.DEFAULT);
+        when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
@@ -1003,6 +1076,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 mappingUpdate,
                 success2
             );
+            ShardRouting shardRouting = newShardRouting(ShardRouting.Role.DEFAULT);
+            when(shard.routingEntry()).thenReturn(shardRouting);
             addMockCloseImplementation(shard);
 
             randomlySetIgnoredPrimaryResponse(items[0]);
@@ -1178,6 +1253,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             // on the third attempt, return a successful result, indicating that no mapping update needs to be executed
             successfulResult
         );
+        ShardRouting shardRouting = newShardRouting(ShardRouting.Role.DEFAULT);
+        when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(

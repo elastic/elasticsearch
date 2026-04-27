@@ -1030,6 +1030,47 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
     }
 
+    /**
+     * Keyword high-cardinality doc values have used the SeparateCount format since 9.4.0. This test pins that contract for the
+     * current index version.
+     */
+    public void testHighCardinalityDocValuesUsesSeparateCountFormat() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("cardinality", "high").endObject())
+        );
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
+
+        assertFalse(
+            "primary keyword high-cardinality doc_values must be written in SeparateCount format (with .counts companion) for the "
+                + "current index version",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
+    }
+
+    /**
+     * Keyword high-cardinality doc values are written via a MultiValuedBinaryDocValuesField. As of 9.4.0 they use the SeparateCount. The
+     * primary write path must produce SeparateCount output regardless of indexCreatedVersion so the read path
+     * (AbstractBinaryDocValuesQuery / BytesRefsFromBinaryMultiSeparateCountBlockLoader) can decode it.
+     */
+    public void testHighCardinalityDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+        DocumentMapper mapper = createMapperService(
+            legacyVersion,
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("cardinality", "high").endObject())
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
+
+        assertFalse(
+            "primary keyword high-cardinality doc_values must be written in SeparateCount format (with .counts companion) even for "
+                + "legacy index versions",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
+    }
+
     public void testMultiValueSortedSet() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         MapperService mapperService = createSytheticSourceMapperService(

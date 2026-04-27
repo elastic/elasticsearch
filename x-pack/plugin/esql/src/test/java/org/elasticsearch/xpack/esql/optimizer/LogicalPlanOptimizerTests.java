@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -11011,6 +11012,24 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         var relation = as(limitBy.child(), EsRelation.class);
         assertThat(relation.output().stream().anyMatch(a -> a.dataType() == DataType.DOC_DATA_TYPE), equalTo(true));
+    }
+
+    public void testDistinctSurrogateExcludesUnsupportedAttribute() {
+        assumeTrue("Requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+        var analyzer = analyzerWithEnrichPolicies().addIndex("test_with_unsupported", "mapping-multi-field-with-nested.json");
+        var plan = optimize(analyzer.query("FROM test_with_unsupported | DISTINCT"));
+
+        plan.forEachDown(p -> assertThat(p, not(instanceOf(Distinct.class))));
+
+        Holder<LimitBy> found = new Holder<>();
+        plan.forEachDown(LimitBy.class, found::set);
+        LimitBy limitBy = found.get();
+        assertThat(limitBy, not(equalTo(null)));
+        for (Expression g : limitBy.groupings()) {
+            assertThat(g, not(instanceOf(UnsupportedAttribute.class)));
+        }
+        var relation = as(limitBy.child(), EsRelation.class);
+        assertThat(relation.output().stream().anyMatch(a -> a instanceof UnsupportedAttribute), equalTo(true));
     }
 
     public void testDistinctChainedWithLimit() {

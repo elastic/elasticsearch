@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -58,13 +59,11 @@ public class Distinct extends UnaryPlan implements SurrogateLogicalPlan, Telemet
         Literal one = new Literal(source(), 1, DataType.INTEGER);
         List<Expression> groupings = new ArrayList<>();
         for (Attribute attr : child().output()) {
-            if (attr.dataType() != DataType.DOC_DATA_TYPE) {
-                groupings.add(attr);
+            if (attr.dataType() == DataType.DOC_DATA_TYPE || attr instanceof UnsupportedAttribute) {
+                continue;
             }
+            groupings.add(attr);
         }
-        // After {@code DROP *} (or any pipeline that strips every column) there are no group keys,
-        // so dedup collapses all rows to one. Plain {@code LIMIT 1} expresses that and is also
-        // grammatically valid where {@code LIMIT 1 BY ()} is not.
         if (groupings.isEmpty()) {
             return new Limit(source(), one, child());
         }

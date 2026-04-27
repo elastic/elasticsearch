@@ -242,3 +242,37 @@ staging         | one
 staging         | three
 staging         | two
 ;
+
+
+distinctOverUnionTypeWithCast
+required_capability: distinct_command
+
+FROM employees, employees_incompatible METADATA _index
+| EVAL emp_no_long = emp_no::long
+| KEEP _index, emp_no_long
+| WHERE emp_no_long IN (10001, 10002)
+| DISTINCT
+| SORT _index, emp_no_long
+;
+
+_index:keyword          | emp_no_long:long
+employees               | 10001
+employees               | 10002
+employees_incompatible  | 10001
+employees_incompatible  | 10002
+;
+
+
+distinctOverUnionTypesFullSchemaCount
+required_capability: distinct_command
+
+FROM employees, employees_incompatible METADATA _index
+| EVAL emp_no_long = emp_no::long
+| WHERE emp_no_long IN (10001, 10002)
+| DISTINCT
+| STATS c = COUNT(emp_no_long)
+;
+
+c:long
+4
+;

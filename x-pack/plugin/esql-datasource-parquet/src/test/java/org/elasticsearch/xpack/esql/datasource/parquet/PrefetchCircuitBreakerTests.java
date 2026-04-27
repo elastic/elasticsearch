@@ -19,6 +19,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -53,8 +54,6 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         .named("value")
         .named("test_schema");
 
-    private static final MessageType WIDE_SCHEMA = buildWideSchema(10);
-
     /**
      * Reads a multi-row-group file with a limited breaker and verifies the breaker
      * returns to zero after full iteration completes.
@@ -86,7 +85,8 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
      * is acceptable — the key assertion is that the breaker returns to zero.
      */
     public void testPrefetchWithTightBreakerLimit() throws Exception {
-        byte[] parquetData = createMultiRowGroupFile(WIDE_SCHEMA, 5000, 50 * 1024);
+        MessageType wideSchema = buildWideSchema(10);
+        byte[] parquetData = createMultiRowGroupFile(wideSchema, 5000, 50 * 1024);
         var breaker = new TrackingBreaker("test", ByteSizeValue.ofMb(2));
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
@@ -96,7 +96,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
                 try {
                     Page page = iter.next();
                     page.releaseBlocks();
-                } catch (org.elasticsearch.common.breaker.CircuitBreakingException e) {
+                } catch (CircuitBreakingException e) {
                     break;
                 }
             }

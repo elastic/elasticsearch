@@ -39,6 +39,11 @@ public class SearchShardsResponseBwcIT extends ESRestTestCase {
     private static final String REMOTE_CLUSTER_ALIAS = "my_remote_cluster";
 
     @Override
+    protected String getTestRestCluster() {
+        return MultiClusterSearchClusters.localClusterHosts();
+    }
+
+    @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;
     }

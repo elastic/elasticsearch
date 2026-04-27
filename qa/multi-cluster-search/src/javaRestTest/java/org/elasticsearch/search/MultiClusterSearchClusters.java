@@ -41,19 +41,26 @@ public final class MultiClusterSearchClusters {
     private MultiClusterSearchClusters() {}
 
     /**
-     * Populates legacy {@code tests.rest.*} system properties and seeds the remote with {@code remote_cluster/10_basic.yml}.
+     * Seeds the remote cluster with {@code remote_cluster/10_basic.yml}.
      * Call from each IT class {@code @BeforeClass} (after {@code @ClassRule} has started clusters).
      */
     public static void beforeSuite() throws Exception {
-        installDynamicTestClusterProperties();
         MultiClusterRemoteYamlSeed.ensureSeeded();
     }
 
-    public static void installDynamicTestClusterProperties() {
-        System.setProperty("tests.rest.cluster", LOCAL.getHttpAddresses());
-        System.setProperty("tests.rest.remote_cluster", REMOTE.getHttpAddresses());
-        System.setProperty("tests.rest.remote_cluster_version", remoteSemanticVersionForYamlSkips().toString());
-        System.setProperty("tests.rest.suite", "multi_cluster");
+    /**
+     * Returns the HTTP addresses of the local cluster as a comma-delimited {@code host:port} string,
+     * suitable for use as the {@code tests.rest.cluster} value or direct client construction.
+     */
+    public static String localClusterHosts() {
+        return LOCAL.getHttpAddresses();
+    }
+
+    /**
+     * The semantic version string of the remote cluster, used by YAML test suite skipping logic.
+     */
+    public static String remoteClusterVersion() {
+        return remoteSemanticVersionForYamlSkips().toString();
     }
 
     private static Version remoteSemanticVersionForYamlSkips() {
@@ -126,14 +133,11 @@ public final class MultiClusterSearchClusters {
     }
 
     /**
-     * Parses the {@code tests.rest.remote_cluster} system property into a list of {@link HttpHost} objects.
+     * Returns the HTTP hosts of the remote cluster, parsed from the live cluster addresses.
      */
     public static List<HttpHost> remoteClusterHosts() {
-        String address = System.getProperty("tests.rest.remote_cluster");
-        if (address == null || address.isBlank()) {
-            throw new IllegalStateException("Required system property [tests.rest.remote_cluster] is not set");
-        }
-        String[] parts = address.split(",");
+        String addresses = REMOTE.getHttpAddresses();
+        String[] parts = addresses.split(",");
         List<HttpHost> hosts = new ArrayList<>(parts.length);
         for (String part : parts) {
             int portSep = part.lastIndexOf(':');

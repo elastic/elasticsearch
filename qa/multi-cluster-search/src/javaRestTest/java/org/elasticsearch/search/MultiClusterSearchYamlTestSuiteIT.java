@@ -41,10 +41,12 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     @BeforeClass
     public static void readRemoteClusterVersionAndSeedRemote() throws Exception {
         MultiClusterSearchClusters.beforeSuite();
-        String remoteClusterVersion = System.getProperty("tests.rest.remote_cluster_version");
-        if (remoteClusterVersion != null) {
-            remoteEsVersion = remoteClusterVersion;
-        }
+        remoteEsVersion = MultiClusterSearchClusters.remoteClusterVersion();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return MultiClusterSearchClusters.localClusterHosts();
     }
 
     @Override

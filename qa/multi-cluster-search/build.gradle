@@ -47,8 +47,6 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
     systemProperty('tests.rest.suite', 'multi_cluster')
     systemProperty('tests.multi_cluster.bwc_version', bwcVersion.toString())
     systemProperty('tests.multi_cluster.reverse', 'false')
-    dependsOn sourceSets.javaRestTest.classesTaskName
-    dependsOn sourceSets.test.classesTaskName
   }
 
   // Reverse version: old local coordinator + new remote.
@@ -62,8 +60,6 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
     systemProperty('tests.rest.suite', 'multi_cluster')
     systemProperty('tests.multi_cluster.bwc_version', bwcVersion.toString())
     systemProperty('tests.multi_cluster.reverse', 'true')
-    dependsOn sourceSets.javaRestTest.classesTaskName
-    dependsOn sourceSets.test.classesTaskName
     mustRunAfter "${baseName}#multi-cluster"
   }
 

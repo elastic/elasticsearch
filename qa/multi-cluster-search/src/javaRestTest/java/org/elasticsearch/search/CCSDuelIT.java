@@ -140,7 +140,6 @@ public class CCSDuelIT extends ESRestTestCase {
     public void init() throws Exception {
         super.initClient();
         if (init == false) {
-            init = true;
             // Index with private randomness so the two clusters get different documents.
             RandomizedContext.current().runWithPrivateRandomness(random().nextLong() + "multi_cluster".hashCode(), (Callable<Void>) () -> {
                 indexDocuments(client(), "multi_cluster-");
@@ -153,12 +152,18 @@ public class CCSDuelIT extends ESRestTestCase {
                         return null;
                     });
             }
+            init = true;
         }
     }
 
     private static RestClient buildRemoteClient() {
         List<HttpHost> hosts = MultiClusterSearchClusters.remoteClusterHosts();
         return RestClient.builder(hosts.toArray(HttpHost[]::new)).build();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return MultiClusterSearchClusters.localClusterHosts();
     }
 
     @Override

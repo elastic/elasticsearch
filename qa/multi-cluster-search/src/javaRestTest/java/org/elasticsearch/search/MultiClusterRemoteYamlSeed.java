@@ -11,6 +11,8 @@ package org.elasticsearch.search;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.test.ClasspathUtils;
@@ -39,6 +41,7 @@ import static org.elasticsearch.test.rest.yaml.section.ExecutableSection.XCONTEN
  */
 public final class MultiClusterRemoteYamlSeed {
 
+    private static final Logger logger = LogManager.getLogger(MultiClusterRemoteYamlSeed.class);
     private static final Object LOCK = new Object();
     private static boolean seeded;
 
@@ -47,9 +50,6 @@ public final class MultiClusterRemoteYamlSeed {
     /** Idempotent: safe from every test class {@code @BeforeClass} in this module. */
     public static void ensureSeeded() throws Exception {
         if ("multi_cluster".equals(System.getProperty(ESClientYamlSuiteTestCase.REST_TESTS_SUITE)) == false) {
-            return;
-        }
-        if (System.getProperty("tests.rest.remote_cluster") == null) {
             return;
         }
         synchronized (LOCK) {
@@ -95,6 +95,7 @@ public final class MultiClusterRemoteYamlSeed {
                 try {
                     testSection.getPrerequisiteSection().evaluate(ctx, candidate.getTestPath());
                 } catch (AssumptionViolatedException e) {
+                    logger.debug("skipping seeding section [{}]: {}", testSection.getName(), e.getMessage());
                     continue;
                 }
                 for (ExecutableSection executableSection : testSection.getExecutableSections()) {

@@ -100,99 +100,24 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         // Change point cannot work with empty input, so skip this test
     }
 
-    public void testGroupedChangepointPerGroupPerPage() {
+    public void testNonGroupedFlushOnFinish() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Pages split at rows 30 and 60 — one group per page:
-        // page0 [rows 0-29]: grp=A, values=[0×15, 1×15] -> step at row 15
-        // page1 [rows 30-59]: grp=B, values=[1×15, 0×15] -> step at row 45
-        // page2 [rows 60-89]: grp=C, values=[0×15, 1×15] -> step at row 75
-        List<Long> valuesColumn = Stream.of(
-            nCopies(15, 0L),
-            nCopies(15, 1L),
-            nCopies(15, 1L),
-            nCopies(15, 0L),
-            nCopies(15, 0L),
-            nCopies(15, 1L)
-        ).flatMap(List::stream).toList();
-        List<String> groupsColumn = Stream.of(nCopies(30, "A"), nCopies(30, "B"), nCopies(30, "C")).flatMap(List::stream).toList();
-        List<Page> pages = buildPages(blockFactory, List.of(30, 60), valuesColumn, groupsColumn);
+        // Non-grouped mode: a single implicit group spans all input pages, so finish() must
+        // drain the buffer through the detector and emit one annotated page per input page.
+        // page0 [rows  0-29]: values=[0×30]
+        // page1 [rows 30-59]: values=[0×15, 1×15] -> step at global row 45 (page1 pos 15)
+        // page2 [rows 60-89]: values=[1×30]
+        List<Long> valuesColumn = Stream.of(nCopies(45, 0L), nCopies(45, 1L)).flatMap(List::stream).toList();
+        List<Page> inputPages = buildPages(blockFactory, List.of(30, 60), valuesColumn);
 
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
+        List<Page> outputPages = invokeChangePoint(ctx, inputPages);
         try {
-            assertChangePointAt(outputPages.get(0), 15);
-            assertChangePointAt(outputPages.get(1), 15);
-            assertChangePointAt(outputPages.get(2), 15);
-        } finally {
-            outputPages.forEach(Page::releaseBlocks);
-        }
-    }
-
-    public void testGroupedChangepointInGroupSplitOnFirstPage() {
-        DriverContext ctx = driverContext();
-        BlockFactory blockFactory = ctx.blockFactory();
-
-        // Pages split at rows 40 and 80 — group A share a page0 with group B:
-        // page0 [rows 0-39]: grp=A, values=[0×15, 1×20] -> step at row 15
-        //                    grp=B, values=[1×5]
-        // page1 [rows 40-79]: grp=B, values=[1×40]
-        // page2 [rows 80-119]: grp=B, values=[1×40]
-        List<String> groupsColumn = Stream.concat(nCopies(35, "A").stream(), nCopies(85, "B").stream()).toList();
-        List<Long> valuesColumn = Stream.concat(nCopies(15, 0L).stream(), nCopies(105, 1L).stream()).toList();
-        List<Page> pages = buildPages(blockFactory, List.of(40, 80), valuesColumn, groupsColumn);
-
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
-        try {
-            assertChangePointAt(outputPages.get(0), 15);
-            assertNoChangePoints(outputPages.get(1));
-            assertNoChangePoints(outputPages.get(2));
-        } finally {
-            outputPages.forEach(Page::releaseBlocks);
-        }
-    }
-
-    public void testChangePointInGroupSplitByPageOnMiddlePage() {
-        DriverContext ctx = driverContext();
-        BlockFactory blockFactory = ctx.blockFactory();
-
-        // Pages split at rows 10 and 45 — group switch and step both fall on page1:
-        //   page0 [rows  0-9]:  grp=A  values=[0×10]
-        //   page1 [rows 10-44]: grp=A  values=[0×15, 1×15]  -> step at row 25
-        //                       grp=B  values=[0×5]
-        //   page2 [rows 45-69]: grp=B  values=[0×25]
-        List<String> groupsColumn = Stream.concat(nCopies(40, "A").stream(), nCopies(30, "B").stream()).toList();
-        List<Long> valuesColumn = Stream.of(nCopies(25, 0L), nCopies(15, 1L), nCopies(30, 0L)).flatMap(List::stream).toList();
-        List<Page> pages = buildPages(blockFactory, List.of(10, 45), valuesColumn, groupsColumn);
-
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
-        try {
+            assertThat(outputPages, hasSize(3));
             assertNoChangePoints(outputPages.get(0));
             assertChangePointAt(outputPages.get(1), 15);
             assertNoChangePoints(outputPages.get(2));
-        } finally {
-            outputPages.forEach(Page::releaseBlocks);
-        }
-    }
-
-    public void testGroupedChangePointSplitOnLastPage() {
-        DriverContext ctx = driverContext();
-        BlockFactory blockFactory = ctx.blockFactory();
-
-        // Pages split at rows 40 and 80 — group A spans the first two pages, B starts mid-last-page:
-        // page0 [rows 0-39]: grp=A, values=[1×40]
-        // page1 [rows 40-79]: grp=A, values=[1×40]
-        // page2 [rows 80-119]: grp=A, values=[1×5]
-        //                      grp=B, values=[0×20, 1×15]  -> step at row 105
-        List<String> groupsColumn = Stream.concat(nCopies(85, "A").stream(), nCopies(35, "B").stream()).toList();
-        List<Long> valuesColumn = Stream.of(nCopies(85, 1L), nCopies(20, 0L), nCopies(15, 1L)).flatMap(List::stream).toList();
-        List<Page> pages = buildPages(blockFactory, List.of(40, 80), valuesColumn, groupsColumn);
-
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
-        try {
-            assertNoChangePoints(outputPages.get(0));
-            assertNoChangePoints(outputPages.get(1));
-            assertChangePointAt(outputPages.get(2), 25);
         } finally {
             outputPages.forEach(Page::releaseBlocks);
         }
@@ -203,7 +128,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
 
         List<Page> inputPages = buildPages(blockFactory, List.of(), nCopies(30, null));
-        List<Page> outputPages = invokeChangePoint(ctx, inputPages, 0, (Integer) null);
+        List<Page> outputPages = invokeChangePoint(ctx, inputPages);
 
         try {
             assertThat(outputPages, hasSize(1));
@@ -227,13 +152,195 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     public void testNoInputPagesProducesWarning() {
         DriverContext ctx = driverContext();
 
-        List<Page> outputPages = invokeChangePoint(ctx, List.of(), 0, (Integer) null);
+        List<Page> outputPages = invokeChangePoint(ctx, List.of());
 
         assertThat(outputPages, hasSize(0));
         assertWarnings(
             "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]"
         );
+    }
+
+    public void testGroupedChangepointPerGroupPerPage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // Pages split at rows 30 and 60 — one group per page:
+        // page0 [rows 0-29]: grp=A, values=[0×15, 1×15] -> step at row 15
+        // page1 [rows 30-59]: grp=B, values=[1×15, 0×15] -> step at row 45
+        // page2 [rows 60-89]: grp=C, values=[0×15, 1×15] -> step at row 75
+        List<Long> valuesColumn = Stream.of(
+            nCopies(15, 0L),
+            nCopies(15, 1L),
+            nCopies(15, 1L),
+            nCopies(15, 0L),
+            nCopies(15, 0L),
+            nCopies(15, 1L)
+        ).flatMap(List::stream).toList();
+        List<String> groupsColumn = Stream.of(nCopies(30, "A"), nCopies(30, "B"), nCopies(30, "C")).flatMap(List::stream).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(30, 60), valuesColumn, groupsColumn);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages, 1);
+        try {
+            assertThat(outputPages, hasSize(3));
+            assertChangePointAt(outputPages.get(0), 15);
+            assertChangePointAt(outputPages.get(1), 15);
+            assertChangePointAt(outputPages.get(2), 15);
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testChangePointInGroupSplitOnMiddlePage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // Pages split at rows 10 and 45 — group switch and step both fall on page1:
+        //   page0 [rows  0-9]:  grp=A  values=[0×10]
+        //   page1 [rows 10-44]: grp=A  values=[0×15, 1×15]  -> step at row 25
+        //                       grp=B  values=[0×5]
+        //   page2 [rows 45-69]: grp=B  values=[0×25]
+        List<String> groupsColumn = Stream.concat(nCopies(40, "A").stream(), nCopies(30, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.of(nCopies(25, 0L), nCopies(15, 1L), nCopies(30, 0L)).flatMap(List::stream).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(10, 45), valuesColumn, groupsColumn);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages, 1);
+        try {
+            assertThat(outputPages, hasSize(4));
+            assertNoChangePoints(outputPages.get(0));
+            assertChangePointAt(outputPages.get(1), 15);
+            assertNoChangePoints(outputPages.get(2));
+            assertNoChangePoints(outputPages.get(3));
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testGroupedChangePointSplitOnLastPage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // Pages split at rows 40 and 80 — group A spans the first two pages, B starts mid-last-page:
+        // page0 [rows 0-39]: grp=A, values=[1×40]
+        // page1 [rows 40-79]: grp=A, values=[1×40]
+        // page2 [rows 80-119]: grp=A, values=[1×5]
+        //                      grp=B, values=[0×20, 1×15]  -> step at row 105
+        List<String> groupsColumn = Stream.concat(nCopies(85, "A").stream(), nCopies(35, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.of(nCopies(85, 1L), nCopies(20, 0L), nCopies(15, 1L)).flatMap(List::stream).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(40, 80), valuesColumn, groupsColumn);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages, 1);
+        try {
+            assertThat(outputPages, hasSize(4));
+            assertNoChangePoints(outputPages.get(0));
+            assertNoChangePoints(outputPages.get(1));
+            assertNoChangePoints(outputPages.get(2));
+            assertChangePointAt(outputPages.get(3), 20);
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testGroupedThreeGroupsOnSinglePage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // Single page, three groups — exercises pageChangePoints accumulating across all three groups:
+        // page0 [rows  0-29]: grp=A, values=[0×15, 1×15] -> step at row 15
+        // page0 [rows 30-59]: grp=B, values=[0×15, 1×15] -> step at row 45
+        // page0 [rows 60-89]: grp=C, values=[0×15, 1×15] -> step at row 75
+        List<String> groupsColumn = Stream.of(nCopies(30, "A"), nCopies(30, "B"), nCopies(30, "C")).flatMap(List::stream).toList();
+        List<Long> valuesColumn = Stream.of(
+            nCopies(15, 0L),
+            nCopies(15, 1L),
+            nCopies(15, 0L),
+            nCopies(15, 1L),
+            nCopies(15, 0L),
+            nCopies(15, 1L)
+        ).flatMap(List::stream).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(), valuesColumn, groupsColumn);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages, 1);
+        try {
+            assertThat(outputPages, hasSize(3));
+            assertChangePointAt(outputPages.get(0), 15);
+            assertChangePointAt(outputPages.get(1), 15);
+            assertChangePointAt(outputPages.get(2), 15);
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testGroupedBoundaryAtLastPositionOfPage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // Page split at row 30 — group boundary falls on the LAST position of page0, so page0's
+        // trailing slice is a 1-row group-B prefix. Exercises the i == positionCount - 1 slice path.
+        // page0 [rows  0-28]: grp=A (29 rows), values=[0×15, 1×14] -> step at A-pos 15
+        // page0 [row     29]: grp=B (1 row),   values=[0]
+        // page1 [rows 30-59]: grp=B (30 rows), values=[0×14, 1×16]
+        // -> group B is 31 rows total, [0×15, 1×16], step at B-pos 15 (= page1 pos 14)
+        List<String> groupsColumn = Stream.concat(nCopies(29, "A").stream(), nCopies(31, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(14, 1L), nCopies(15, 0L), nCopies(16, 1L))
+            .flatMap(List::stream)
+            .toList();
+        List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages, 1);
+        try {
+            assertThat(outputPages, hasSize(3));
+            assertThat(outputPages.get(0).getPositionCount(), equalTo(29));
+            assertThat(outputPages.get(1).getPositionCount(), equalTo(1));
+            assertThat(outputPages.get(2).getPositionCount(), equalTo(30));
+            assertChangePointAt(outputPages.get(0), 15);
+            assertNoChangePoints(outputPages.get(1));
+            assertChangePointAt(outputPages.get(2), 14);
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testGroupedChangepointExactlyOnLastRowOfPage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // Page split at row 30 — step falls on the last row of page0:
+        // page0 [rows 0-29]: grp=A, values=[0×29, 1×1] -> step at row 29
+        // page1 [rows 30-59]: grp=A, values=[1×30]
+        List<String> groupsColumn = nCopies(60, "A");
+        List<Long> valuesColumn = Stream.concat(nCopies(29, 0L).stream(), nCopies(31, 1L).stream()).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages, 1);
+        try {
+            assertThat(outputPages, hasSize(2));
+            assertChangePointAt(outputPages.get(0), 29);
+            assertNoChangePoints(outputPages.get(1));
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testGroupedChangePointExactlyOnFirstRowOfPage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // Page split at row 30 — step falls on the first row of page1:
+        // page0 [rows 0-29]: grp=A, values=[0×30]
+        // page1 [rows 30-59]: grp=A, values=[1×30] -> step at row 30
+        List<String> groupsColumn = nCopies(60, "A");
+        List<Long> valuesColumn = Stream.concat(nCopies(30, 0L).stream(), nCopies(30, 1L).stream()).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages, 1);
+        try {
+            assertThat(outputPages, hasSize(2));
+            assertNoChangePoints(outputPages.get(0));
+            assertChangePointAt(outputPages.get(1), 0);
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
     }
 
     public void testGroupedSingleRowGroupProducesWarnings() {
@@ -248,8 +355,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
             .toList();
         List<Page> pages = buildPages(blockFactory, List.of(1), valuesColumn, groupsColumn);
 
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
+        List<Page> outputPages = invokeChangePoint(ctx, pages, 1);
         try {
+            assertThat(outputPages, hasSize(2));
             assertNoChangePoints(outputPages.get(0));
             assertChangePointAt(outputPages.get(1), 15);
             assertWarnings(
@@ -262,7 +370,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testGroupedAllNullGroupAtEndProducesWarnings() {
+    public void testGroupedAllNullGroupProducesWarnings() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
@@ -273,36 +381,11 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(5, (Long) null)).flatMap(List::stream).toList();
         List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
 
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
+        List<Page> outputPages = invokeChangePoint(ctx, pages, 1);
         try {
+            assertThat(outputPages, hasSize(2));
             assertChangePointAt(outputPages.get(0), 15);
             assertNoChangePoints(outputPages.get(1));
-            assertWarnings(
-                "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; "
-                    + "found [0]",
-                "Line 1:1: java.lang.IllegalArgumentException: values contain nulls; skipping them"
-            );
-        } finally {
-            outputPages.forEach(Page::releaseBlocks);
-        }
-    }
-
-    public void testGroupedAllNullGroupAtStartProducesWarnings() {
-        DriverContext ctx = driverContext();
-        BlockFactory blockFactory = ctx.blockFactory();
-
-        // Page split at row 5 — group A is a leading all-null page, group B follows:
-        // page0 [rows  0-4]: grp=A, values=[null×5] -> (no change point, null warning produced)
-        // page1 [rows  5-34]: grp=B, values=[0×15, 1×15] -> step at row 20
-        List<String> groupsColumn = Stream.concat(nCopies(5, "A").stream(), nCopies(30, "B").stream()).toList();
-        List<Long> valuesColumn = Stream.of(nCopies(5, (Long) null), nCopies(15, 0L), nCopies(15, 1L)).flatMap(List::stream).toList();
-        List<Page> pages = buildPages(blockFactory, List.of(5), valuesColumn, groupsColumn);
-
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
-        try {
-            assertNoChangePoints(outputPages.get(0));
-            assertChangePointAt(outputPages.get(1), 15);
             assertWarnings(
                 "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
                 "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; "
@@ -328,8 +411,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         ).toList();
         List<Page> pages = buildPages(blockFactory, List.of(1001), valuesColumn, groupsColumn);
 
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
+        List<Page> outputPages = invokeChangePoint(ctx, pages, 1);
         try {
+            assertThat(outputPages, hasSize(2));
             assertChangePointAt(outputPages.get(0), 500);
             assertChangePointAt(outputPages.get(1), 500);
             assertWarnings(
@@ -341,13 +425,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testGroupedNoInputPages() {
-        DriverContext ctx = driverContext();
-        List<Page> outputPages = invokeChangePoint(ctx, List.of(), 1, 0);
-        assertThat(outputPages, hasSize(0));
-    }
-
-    public void testMultipleGroupingKeys() {
+    public void testCompositeGroupingKeys() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
@@ -381,135 +459,26 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         ).flatMap(List::stream).toList();
 
         Page inputPage = buildPage(blockFactory, valuesColumn, regionsColumn, servicesColumn);
-        List<Page> outputPages = invokeChangePoint(ctx, List.of(inputPage), 2, new int[] { 0, 1 });
+        List<Page> outputPages = invokeChangePoint(ctx, List.of(inputPage), 1, 2);
         try {
-            assertThat(outputPages, hasSize(1));
-            BytesRefBlock typeBlock = outputPages.get(0).getBlock(3);
-            DoubleBlock pvalueBlock = outputPages.get(0).getBlock(4);
-
+            assertThat(outputPages, hasSize(4));
+            int stepAt = 13;
             for (int g = 0; g < 4; g++) {
-                int stepAt = g * groupSize + 13;
-                assertThat("expected change type at " + stepAt, typeBlock.isNull(stepAt), equalTo(false));
+                BytesRefBlock typeBlock = outputPages.get(g).getBlock(3);
+                DoubleBlock pvalueBlock = outputPages.get(g).getBlock(4);
+                assertThat("expected change type at " + stepAt + " (group " + g + ")", typeBlock.isNull(stepAt), equalTo(false));
                 assertThat(typeBlock.getBytesRef(stepAt, new BytesRef()).utf8ToString(), equalTo("step_change"));
-                assertThat("expected pvalue at " + stepAt, pvalueBlock.isNull(stepAt), equalTo(false));
+                assertThat("expected pvalue at " + stepAt + " (group " + g + ")", pvalueBlock.isNull(stepAt), equalTo(false));
             }
         } finally {
             outputPages.forEach(Page::releaseBlocks);
         }
     }
 
-    public void testGroupedTwoChangepointsOnSinglePage() {
+    public void testGroupedNoInputPages() {
         DriverContext ctx = driverContext();
-        BlockFactory blockFactory = ctx.blockFactory();
-
-        // Single page, two groups — multiple flushGroup calls on the same boundary page:
-        // page0 [rows 0-29]: grp=A, values=[0×15, 1×15] -> step at row 15
-        // page0 [rows 30-59]: grp=B, values=[0×15, 1×15] -> step at row 45
-        List<String> groupsColumn = Stream.concat(nCopies(30, "A").stream(), nCopies(30, "B").stream()).toList();
-        List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(15, 0L), nCopies(15, 1L))
-            .flatMap(List::stream)
-            .toList();
-        List<Page> pages = buildPages(blockFactory, List.of(), valuesColumn, groupsColumn);
-
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
-        try {
-            assertChangePointAt(outputPages.get(0), 15);
-            assertChangePointAt(outputPages.get(0), 45);
-        } finally {
-            outputPages.forEach(Page::releaseBlocks);
-        }
-    }
-
-    public void testGroupedThreeGroupsOnSinglePage() {
-        DriverContext ctx = driverContext();
-        BlockFactory blockFactory = ctx.blockFactory();
-
-        // Single page, three groups — exercises pageChangePoints accumulating across all three groups:
-        // page0 [rows  0-29]: grp=A, values=[0×15, 1×15] -> step at row 15
-        // page0 [rows 30-59]: grp=B, values=[0×15, 1×15] -> step at row 45
-        // page0 [rows 60-89]: grp=C, values=[0×15, 1×15] -> step at row 75
-        List<String> groupsColumn = Stream.of(nCopies(30, "A"), nCopies(30, "B"), nCopies(30, "C")).flatMap(List::stream).toList();
-        List<Long> valuesColumn = Stream.of(
-            nCopies(15, 0L),
-            nCopies(15, 1L),
-            nCopies(15, 0L),
-            nCopies(15, 1L),
-            nCopies(15, 0L),
-            nCopies(15, 1L)
-        ).flatMap(List::stream).toList();
-        List<Page> pages = buildPages(blockFactory, List.of(), valuesColumn, groupsColumn);
-
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
-        try {
-            assertChangePointAt(outputPages.get(0), 15);
-            assertChangePointAt(outputPages.get(0), 45);
-            assertChangePointAt(outputPages.get(0), 75);
-        } finally {
-            outputPages.forEach(Page::releaseBlocks);
-        }
-    }
-
-    public void testGroupBoundaryAtFirstPositionOfPage() {
-        DriverContext ctx = driverContext();
-        BlockFactory blockFactory = ctx.blockFactory();
-
-        // Page split at row 30 — group boundary falls exactly at the first position of page1:
-        // page0 [rows 0-29]: grp=A, values=[0×15, 1×15] -> step at row 15
-        // page1 [rows 30-59]: grp=B, values=[0×15, 1×15] -> step at row 45
-        List<String> groupsColumn = Stream.concat(nCopies(30, "A").stream(), nCopies(30, "B").stream()).toList();
-        List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(15, 0L), nCopies(15, 1L))
-            .flatMap(List::stream)
-            .toList();
-        List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
-
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
-        try {
-            assertThat(outputPages, hasSize(2));
-            assertChangePointAt(outputPages.get(0), 15);
-            assertChangePointAt(outputPages.get(1), 15);
-        } finally {
-            outputPages.forEach(Page::releaseBlocks);
-        }
-    }
-
-    public void testGroupedChangepointExactlyOnLastRowOfPage() {
-        DriverContext ctx = driverContext();
-        BlockFactory blockFactory = ctx.blockFactory();
-
-        // Page split at row 30 — step falls on the last row of page0:
-        // page0 [rows 0-29]: grp=A, values=[0×29, 1×1] -> step at row 29
-        // page1 [rows 30-59]: grp=A, values=[1×30]
-        List<String> groupsColumn = nCopies(60, "A");
-        List<Long> valuesColumn = Stream.concat(nCopies(29, 0L).stream(), nCopies(31, 1L).stream()).toList();
-        List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
-
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
-        try {
-            assertChangePointAt(outputPages.get(0), 29);
-            assertNoChangePoints(outputPages.get(1));
-        } finally {
-            outputPages.forEach(Page::releaseBlocks);
-        }
-    }
-
-    public void testGroupedChangePointExactlyOnFirstRowOfPage() {
-        DriverContext ctx = driverContext();
-        BlockFactory blockFactory = ctx.blockFactory();
-
-        // Page split at row 30 — step falls on the first row of page1:
-        // page0 [rows 0-29]: grp=A, values=[0×30]
-        // page1 [rows 30-59]: grp=A, values=[1×30] -> step at row 30
-        List<String> groupsColumn = nCopies(60, "A");
-        List<Long> valuesColumn = Stream.concat(nCopies(30, 0L).stream(), nCopies(30, 1L).stream()).toList();
-        List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
-
-        List<Page> outputPages = invokeChangePoint(ctx, pages);
-        try {
-            assertNoChangePoints(outputPages.get(0));
-            assertChangePointAt(outputPages.get(1), 0);
-        } finally {
-            outputPages.forEach(Page::releaseBlocks);
-        }
+        List<Page> outputPages = invokeChangePoint(ctx, List.of(), 1);
+        assertThat(outputPages, hasSize(0));
     }
 
     private static List<Page> buildPages(
@@ -542,50 +511,32 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         return pages;
     }
 
-    private static Page buildPage(BlockFactory blockFactory, List<Long> valuesColumn) {
-        try (LongBlock.Builder v = blockFactory.newLongBlockBuilder(valuesColumn.size())) {
+    @SafeVarargs
+    private static Page buildPage(BlockFactory blockFactory, List<Long> valuesColumn, List<String>... groupColumns) {
+        // Layout: value at block 0, grouping columns at blocks 1..N.
+        int size = valuesColumn.size();
+        Block[] blocks = new Block[groupColumns.length + 1];
+        try (LongBlock.Builder v = blockFactory.newLongBlockBuilder(size)) {
             for (Long val : valuesColumn) {
                 if (val == null) v.appendNull();
                 else v.appendLong(val);
             }
-            return new Page(v.build());
+            blocks[0] = v.build();
         }
-    }
-
-    @SafeVarargs
-    private static Page buildPage(BlockFactory blockFactory, List<Long> valuesColumn, List<String>... groupColumns) {
-        int size = valuesColumn.size();
-        Block[] blocks = new Block[groupColumns.length + 1];
         for (int g = 0; g < groupColumns.length; g++) {
             assert groupColumns[g].size() == size;
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(size)) {
                 for (String val : groupColumns[g]) {
                     builder.appendBytesRef(new BytesRef(val));
                 }
-                blocks[g] = builder.build();
+                blocks[g + 1] = builder.build();
             }
-        }
-        try (LongBlock.Builder v = blockFactory.newLongBlockBuilder(size)) {
-            for (Long val : valuesColumn) {
-                if (val == null) v.appendNull();
-                else v.appendLong(val);
-            }
-            blocks[groupColumns.length] = v.build();
         }
         return new Page(blocks);
     }
 
-    private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages) {
-        return invokeChangePoint(ctx, inputPages, 1, new int[] { 0 });
-    }
-
-    private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages, int keyChannel, Integer groupingChannel) {
-        int[] channels = groupingChannel == null ? new int[0] : new int[] { groupingChannel };
-        return invokeChangePoint(ctx, inputPages, keyChannel, channels);
-    }
-
-    private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages, int keyChannel, int[] groupingChannels) {
-        try (ChangePointOperator op = new ChangePointOperator(ctx, keyChannel, groupingChannels, new TestWarningsSource(null))) {
+    private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages, int... groupingChannels) {
+        try (ChangePointOperator op = new ChangePointOperator(ctx, 0, groupingChannels, new TestWarningsSource(null))) {
             List<Page> outputPages = new ArrayList<>();
             for (Page page : inputPages) {
                 while (op.needsInput() == false) {
@@ -606,8 +557,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     }
 
     private void assertChangePointAt(Page page, int position) {
-        BytesRefBlock typeBlock = page.getBlock(2);
-        DoubleBlock pvalueBlock = page.getBlock(3);
+        // change_type and change_pvalue are the last two blocks regardless of input shape.
+        BytesRefBlock typeBlock = page.getBlock(page.getBlockCount() - 2);
+        DoubleBlock pvalueBlock = page.getBlock(page.getBlockCount() - 1);
 
         assertThat("expected change type at " + position, typeBlock.isNull(position), equalTo(false));
         assertThat("expected pvalue at " + position, pvalueBlock.isNull(position), equalTo(false));
@@ -615,8 +567,8 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     }
 
     private void assertNoChangePoints(Page page) {
-        Block typeBlock = page.getBlock(2);
-        Block pvalueBlock = page.getBlock(3);
+        Block typeBlock = page.getBlock(page.getBlockCount() - 2);
+        Block pvalueBlock = page.getBlock(page.getBlockCount() - 1);
         for (int j = 0; j < page.getPositionCount(); j++) {
             assertThat("unexpected change type at " + j, typeBlock.isNull(j), equalTo(true));
             assertThat("unexpected pvalue at " + j, pvalueBlock.isNull(j), equalTo(true));

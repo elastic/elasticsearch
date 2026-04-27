@@ -33,7 +33,7 @@ import java.util.List;
  * Find spikes, dips and change points in a list of values.
  * <p>
  * In grouped mode the operator streams output per group: as soon as a group
- * boundary is detected in the (pre-sorted) input, the completed group is
+ * boundary is detected in the grouped input, the completed group is
  * flushed through the change-point detector, annotated, and queued for output.
  * <p>
  * In non-grouped mode all input is buffered until {@code finish()} because
@@ -46,8 +46,6 @@ import java.util.List;
 public class ChangePointOperator implements Operator {
     private static final Logger logger = LogManager.getLogger(ChangePointOperator.class);
     public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
-
-    private record ChangePointAnnotation(int positionInPage, ChangeType changeType) {}
 
     public record Factory(int channel, List<Integer> groupingChannels, WarningSourceLocation source) implements OperatorFactory {
 
@@ -68,16 +66,11 @@ public class ChangePointOperator implements Operator {
     private final int[] groupingChannels;
     private final WarningSourceLocation source;
 
-    // Group tracking
+    // Group tracking: each buffered page belongs wholly to the currently-open group.
+    // Pages spanning a group boundary are split via Page#slice.
     private GroupKeyEncoder encoder;
     private BytesRef currentGroupKey;
     private final Deque<Page> currentGroupPages;
-
-    // Boundary page: a page that spans two or more groups.
-    // Held until all groups it contains have completed detection.
-    private Page pendingBoundaryPage;
-    private int pendingBoundaryGroupStart;
-    private List<ChangePointAnnotation> pendingBoundaryChangePoints;
 
     private final Deque<Page> outputPages;
     private boolean finished;
@@ -121,9 +114,10 @@ public class ChangePointOperator implements Operator {
     public void finish() {
         if (finished == false) {
             finished = true;
-            // Flush the last (or only) group
-            if (groupingChannels.length == 0 || currentGroupPages.isEmpty() == false || pendingBoundaryPage != null) {
-                flushGroup(null, null, -1, -1);
+            // Non-grouped mode flushes even with no input so that the "not enough buckets"
+            // indeterminate-warning path is still exercised.
+            if (groupingChannels.length == 0 || currentGroupPages.isEmpty() == false) {
+                flushGroup();
             }
             emitWarnings();
         }
@@ -149,12 +143,10 @@ public class ChangePointOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(() -> Releasables.close(currentGroupPages), () -> {
-            if (pendingBoundaryPage != null) {
-                pendingBoundaryPage.releaseBlocks();
-                pendingBoundaryPage = null;
-            }
-        }, () -> Releasables.close(outputPages), encoder);
+        Releasables.close(
+            () -> Releasables.close(currentGroupPages),
+            () -> Releasables.close(outputPages),
+            encoder);
     }
 
     @Override
@@ -163,49 +155,48 @@ public class ChangePointOperator implements Operator {
     }
 
     /**
-     * Accepts a page, invokes changepoint detection on group boundary change
-     * (in grouped mode) or buffers it for later.
+     * Accepts a page and routes its rows into {@link #currentGroupPages}, invoking
+     * change-point detection whenever a group boundary is crossed.
      * <p>
-     * In non-grouped mode the encoder is null and the boundary-detection loop
-     * is skipped entirely — every page is simply buffered for the single
-     * implicit group that is flushed on {@link #finish()}.
+     * In grouped mode a page that spans multiple groups is sliced into per-group
+     * segments via {@link Page#slice}, so every buffered page belongs
+     * wholly to a single group. In non-grouped mode every page is buffered for
+     * the single implicit group that is flushed on {@link #finish()}.
      */
     private void processPage(Page page) {
-        // Lazily initialise the group-key encoder on the first grouped page
         if (groupingChannels.length > 0 && encoder == null) {
             initEncoder(page);
             currentGroupKey = BytesRef.deepCopyOf(encoder.encode(page, 0));
         }
 
-        // Detect group boundaries and flush completed groups
-        int scanStart = 0;
-        List<ChangePointAnnotation> pageChangePoints = null;
-
-        if (encoder != null) {
-            for (int i = 0; i < page.getPositionCount(); i++) {
-                BytesRef key = encoder.encode(page, i);
-                if (key.equals(currentGroupKey)) {
-                    continue;
-                }
-                // Group boundary at position i — flush the completed group.
-                if (pageChangePoints == null) {
-                    pageChangePoints = new ArrayList<>();
-                }
-                flushGroup(page, pageChangePoints, scanStart, i);
-                scanStart = i;
-                currentGroupKey = BytesRef.deepCopyOf(key);
-            }
+        if (groupingChannels.length == 0) {
+            currentGroupPages.add(page);
+            return;
         }
 
-        // Track the page
-        if (pageChangePoints == null || scanStart == 0) {
-            // No boundary, or boundary only at position 0 — entire page is current group
+        int positionCount = page.getPositionCount();
+        int scanStart = 0;
+        for (int i = 0; i < positionCount; i++) {
+            BytesRef key = encoder.encode(page, i);
+            if (key.equals(currentGroupKey)) {
+                continue;
+            }
+            // Group boundary at position i — slice off the completed segment and flush.
+            if (i > scanStart) {
+                currentGroupPages.add(page.slice(scanStart, i));
+            }
+            flushGroup();
+            scanStart = i;
+            currentGroupKey = BytesRef.deepCopyOf(key);
+        }
+
+        if (scanStart == 0) {
+            // Whole page belongs to the currently-open group
             currentGroupPages.add(page);
         } else {
-            // Page has boundary(ies) — hold it until the last group it contains completes
-            pendingBoundaryPage = page;
-            pendingBoundaryGroupStart = scanStart;
-            pendingBoundaryChangePoints = pageChangePoints;
+            // We had at least one boundary, buffer the remainder of the page
+            currentGroupPages.add(page.slice(scanStart, positionCount));
+            page.releaseBlocks();
         }
     }
 
@@ -219,62 +210,29 @@ public class ChangePointOperator implements Operator {
     }
 
     /**
-     * Collects values from accumulated pages, runs change-point detection, then
-     * annotates and emits all pages belonging to that group.
+     * Runs change-point detection over the pages buffered in {@link #currentGroupPages}
+     * (which all belong to a single, now-completed group), annotates each page with the
+     * change-type / p-value columns, and moves them to the output queue.
      */
-    private void flushGroup(Page newBoundaryPage, List<ChangePointAnnotation> newBoundaryChangePoints, int spanStart, int spanEnd) {
-        // 1. Collect values from the group's pages
+    private void flushGroup() {
+        // 1. Collect values across the group's pages.
         List<Double> values = new ArrayList<>();
         List<Integer> bucketIndexes = new ArrayList<>();
         int groupRowIndex = 0;
-        int groupRowCount = 0;
-
-        if (pendingBoundaryPage != null) {
-            int pendingSpanEnd = pendingBoundaryPage.getPositionCount();
-            groupRowIndex = accumulateValues(
-                pendingBoundaryPage,
-                pendingBoundaryGroupStart,
-                pendingSpanEnd,
-                values,
-                bucketIndexes,
-                groupRowIndex,
-                groupRowCount
-            );
-            groupRowCount += pendingSpanEnd - pendingBoundaryGroupStart;
-        }
         for (Page page : currentGroupPages) {
-            groupRowIndex = accumulateValues(page, 0, page.getPositionCount(), values, bucketIndexes, groupRowIndex, groupRowCount);
-            groupRowCount += page.getPositionCount();
-        }
-        if (newBoundaryPage != null && spanStart < spanEnd) {
-            accumulateValues(newBoundaryPage, spanStart, spanEnd, values, bucketIndexes, groupRowIndex, groupRowCount);
+            groupRowIndex = accumulateValues(page, values, bucketIndexes, groupRowIndex);
         }
 
         // 2. Detect change point
         ChangeType changeType = detectChangePoint(values, bucketIndexes);
         int changePointIndex = changeType.changePoint(); // group-local row index, or -1
-
-        if (changeType instanceof ChangeType.Indeterminable indeterminable) {
+        if (changeType instanceof ChangeType.Indeterminable indeterminable && hasIndeterminableChangePoint == false) {
             hasIndeterminableChangePoint = true;
             indeterminableChangePointReason = indeterminable.getReason();
         }
 
-        // 3. Annotate and emit pages in input order
+        // 3. Annotate and emit pages
         int cumulativeRows = 0;
-
-        // 3a. Resolve the pending boundary page (its trailing rows belonged to this now-completed group).
-        if (pendingBoundaryPage != null) {
-            int spanRows = pendingBoundaryPage.getPositionCount() - pendingBoundaryGroupStart;
-            if (changePointIndex >= 0 && changePointIndex < spanRows) {
-                pendingBoundaryChangePoints.add(new ChangePointAnnotation(pendingBoundaryGroupStart + changePointIndex, changeType));
-            }
-            outputPages.add(annotatePageWithChangePoints(pendingBoundaryPage, pendingBoundaryChangePoints));
-            pendingBoundaryPage = null;
-            pendingBoundaryChangePoints = null;
-            cumulativeRows += spanRows;
-        }
-
-        // 3b. Annotate and emit all pages fully within this group.
         while (currentGroupPages.isEmpty() == false) {
             Page page = currentGroupPages.peekFirst();
             int pageCpPos = -1;
@@ -283,51 +241,31 @@ public class ChangePointOperator implements Operator {
                 && changePointIndex < cumulativeRows + page.getPositionCount()) {
                 pageCpPos = changePointIndex - cumulativeRows;
             }
-            Page annotated = annotatePageWithChangePoints(
-                page,
-                pageCpPos >= 0 ? List.of(new ChangePointAnnotation(pageCpPos, changeType)) : List.of()
-            );
+            Page annotated = annotatePageWithChangePoint(page, pageCpPos, changeType);
             currentGroupPages.removeFirst();
             outputPages.add(annotated);
             cumulativeRows += page.getPositionCount();
         }
-
-        // 3c. Record change point on the new boundary page (if it falls in this group's leading rows).
-        if (newBoundaryPage != null && spanStart < spanEnd) {
-            int spanRows = spanEnd - spanStart;
-            if (changePointIndex >= 0 && changePointIndex >= cumulativeRows && changePointIndex < cumulativeRows + spanRows) {
-                newBoundaryChangePoints.add(new ChangePointAnnotation(spanStart + (changePointIndex - cumulativeRows), changeType));
-            }
-        }
     }
 
     /**
-     * Extracts values from a range of rows in a page and appends them to the
-     * provided lists. Updates warning flags for nulls, multivalued entries,
-     * and the per-group value count limit.
+     * Extracts values from {@code page} and appends them to the provided lists.
+     * Updates warning flags for nulls, multivalued entries, and the per-group
+     * value count limit.
      *
      * @return the updated {@code groupRowIndex}
      */
-    private int accumulateValues(
-        Page page,
-        int startPos,
-        int endPos,
-        List<Double> values,
-        List<Integer> bucketIndexes,
-        int groupRowIndex,
-        int groupRowCount
-    ) {
+    private int accumulateValues(Page page, List<Double> values, List<Integer> bucketIndexes, int groupRowIndex) {
         Block inputBlock = page.getBlock(channel);
-        for (int i = startPos; i < endPos; i++) {
-            if (groupRowCount >= INPUT_VALUE_COUNT_LIMIT) {
+        int positionCount = page.getPositionCount();
+        for (int i = 0; i < positionCount; i++) {
+            if (groupRowIndex >= INPUT_VALUE_COUNT_LIMIT) {
+                // Past the limit, no further rows are added; account for the rest in one shot.
                 tooManyValues = true;
-                groupRowIndex++;
-                groupRowCount++;
-                continue;
+                return groupRowIndex + (positionCount - i);
             }
 
             Object value = BlockUtils.toJavaObject(inputBlock, i);
-            groupRowCount++;
             if (value == null) {
                 hasNulls = true;
                 groupRowIndex++;
@@ -352,17 +290,18 @@ public class ChangePointOperator implements Operator {
     }
 
     /**
-     * Appends two columns (change_type, change_pvalue) to the page.
-     * Positions listed in {@code changePoints} get the detected type/pvalue;
-     * all other positions get null.
+     * Appends change_type and change_pvalue columns to the page. When
+     * {@code changePointPosition >= 0}, that position is annotated with
+     * {@code changeType}; all other positions are null. A negative position
+     * means the page contains no change point.
      */
-    private Page annotatePageWithChangePoints(Page page, List<ChangePointAnnotation> changePoints) {
+    private Page annotatePageWithChangePoint(Page page, int changePointPosition, ChangeType changeType) {
         BlockFactory blockFactory = driverContext.blockFactory();
         Block changeTypeBlock = null;
         Block changePvalueBlock = null;
         boolean success = false;
         try {
-            if (changePoints.isEmpty()) {
+            if (changePointPosition < 0) {
                 changeTypeBlock = blockFactory.newConstantNullBlock(page.getPositionCount());
                 changePvalueBlock = blockFactory.newConstantNullBlock(page.getPositionCount());
             } else {
@@ -370,13 +309,10 @@ public class ChangePointOperator implements Operator {
                     BytesRefBlock.Builder typeBuilder = blockFactory.newBytesRefBlockBuilder(page.getPositionCount());
                     DoubleBlock.Builder pvalueBuilder = blockFactory.newDoubleBlockBuilder(page.getPositionCount())
                 ) {
-                    int cpIdx = 0;
                     for (int i = 0; i < page.getPositionCount(); i++) {
-                        if (cpIdx < changePoints.size() && i == changePoints.get(cpIdx).positionInPage()) {
-                            ChangePointAnnotation cp = changePoints.get(cpIdx);
-                            typeBuilder.appendBytesRef(new BytesRef(cp.changeType().getWriteableName()));
-                            pvalueBuilder.appendDouble(cp.changeType().pValue());
-                            cpIdx++;
+                        if (i == changePointPosition) {
+                            typeBuilder.appendBytesRef(new BytesRef(changeType.getWriteableName()));
+                            pvalueBuilder.appendDouble(changeType.pValue());
                         } else {
                             typeBuilder.appendNull();
                             pvalueBuilder.appendNull();

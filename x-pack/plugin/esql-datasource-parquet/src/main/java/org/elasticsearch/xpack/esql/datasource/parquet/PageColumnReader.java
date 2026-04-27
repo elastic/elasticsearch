@@ -45,14 +45,10 @@ import java.util.BitSet;
  * </ol>
  *
  * <p>Only handles flat columns (maxRepLevel == 0). List columns must use the row-at-a-time path.
- * When a Parquet record filter is active, this reader is bypassed entirely (see
- * {@code ParquetFormatReader.ParquetColumnIterator#advanceRowGroup}) because page-index filtering
- * changes the semantics of pages returned by {@link PageReader}.
  *
- * <p>TODO: selective reading (RowSelection + PredicateEvaluator) is blocked on Stage 7 of the
- * performance backport plan. When added, readBatch should gain a predicate parameter that applies
- * per-page filtering via RowRanges, enabling page skipping for filtered queries without falling
- * back to the ColumnReader path.
+ * <p>When {@link RowRanges} are provided, pages whose row span does not overlap the selected
+ * ranges are skipped entirely in {@link #loadNextPage()}, enabling page-level filtering for
+ * the optimized reader path.
  */
 final class PageColumnReader {
 

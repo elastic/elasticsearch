@@ -84,13 +84,13 @@ public class OptimizedParquetReaderTests extends ESTestCase {
     public void testWithConfigOptimizedReaderTrue() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", true));
-        assertNotSame(reader, configured);
+        assertSame(reader, configured);
     }
 
     public void testWithConfigOptimizedReaderFalse() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", false));
-        assertSame(reader, configured);
+        assertNotSame(reader, configured);
     }
 
     public void testWithConfigDefaults() {

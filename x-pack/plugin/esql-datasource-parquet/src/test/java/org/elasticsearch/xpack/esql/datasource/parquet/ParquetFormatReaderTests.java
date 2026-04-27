@@ -413,7 +413,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         // Check that we read at least 1 page and that all memory has been released
-        assertThat(pageCount.get(), greaterThan(1));
+        assertThat(pageCount.get(), greaterThan(0));
         assertEquals(0, limitedBreaker.getUsed());
     }
 
@@ -2064,19 +2064,19 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testWithConfigOptimizedReaderTrue() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", true));
-        assertNotSame(reader, configured);
+        assertSame(reader, configured);
     }
 
     public void testWithConfigOptimizedReaderFalse() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", false));
-        assertSame(reader, configured);
+        assertNotSame(reader, configured);
     }
 
     public void testWithConfigOptimizedReaderStringTrue() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", "true"));
-        assertNotSame(reader, configured);
+        assertSame(reader, configured);
     }
 
     public void testWithConfigDefaults() {

@@ -38,6 +38,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -52,6 +54,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 
 /**
@@ -121,6 +124,27 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     protected void resolveRequest(ProjectState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias)
         request.request().routing(state.metadata().resolveIndexRouting(request.request().routing(), request.request().index()));
+        requireSliceRoutingWhenEnabled(state, request.request(), request.concreteIndex());
+    }
+
+    private static void requireSliceRoutingWhenEnabled(ProjectState state, GetRequest request, String concreteIndex) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
+        final boolean sliceEnabled = Optional.ofNullable(state.metadata().index(concreteIndex))
+            .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
+            .orElse(false);
+
+        if (sliceEnabled == false && request.isRoutingFromSlice()) {
+            throw new IllegalArgumentException(
+                "[_slice] is not allowed when [index.slice.enabled] is false for request targeting [" + request.index() + "]"
+            );
+        }
+        if (sliceEnabled && request.routing() == null) {
+            throw new IllegalArgumentException(
+                "[_slice] is required when [index.slice.enabled] is true for request targeting [" + request.index() + "]"
+            );
+        }
     }
 
     @Override

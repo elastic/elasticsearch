@@ -110,6 +110,11 @@ final class PlainParquetReadOptions {
             return this;
         }
 
+        Builder withUseColumnIndexFilter(boolean useColumnIndexFilter) {
+            this.useColumnIndexFilter = useColumnIndexFilter;
+            return this;
+        }
+
         Builder withMaxAllocationInBytes(int maxAllocationSize) {
             this.maxAllocationSize = maxAllocationSize;
             return this;

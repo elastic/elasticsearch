@@ -45,14 +45,10 @@ import java.util.BitSet;
  * </ol>
  *
  * <p>Only handles flat columns (maxRepLevel == 0). List columns must use the row-at-a-time path.
- * When a Parquet record filter is active, this reader is bypassed entirely (see
- * {@code ParquetFormatReader.ParquetColumnIterator#advanceRowGroup}) because page-index filtering
- * changes the semantics of pages returned by {@link PageReader}.
  *
- * <p>TODO: selective reading (RowSelection + PredicateEvaluator) is blocked on Stage 7 of the
- * performance backport plan. When added, readBatch should gain a predicate parameter that applies
- * per-page filtering via RowRanges, enabling page skipping for filtered queries without falling
- * back to the ColumnReader path.
+ * <p>When {@link RowRanges} are provided, pages whose row span does not overlap the selected
+ * ranges are skipped entirely in {@link #loadNextPage()}, enabling page-level filtering for
+ * the optimized reader path.
  */
 final class PageColumnReader {
 
@@ -861,7 +857,7 @@ final class PageColumnReader {
                 int fromPage = Math.min(remaining, availableInPage());
                 BytesRef[] vals = readBinaryValues(fromPage);
                 for (int i = 0; i < fromPage; i++) {
-                    allValues[produced + i] = isUuid ? new BytesRef(ParquetFormatReader.formatUuid(vals[i].bytes)) : vals[i];
+                    allValues[produced + i] = isUuid ? new BytesRef(ParquetColumnDecoding.formatUuid(vals[i].bytes)) : vals[i];
                 }
                 advancePosition(fromPage);
                 produced += fromPage;
@@ -892,7 +888,7 @@ final class PageColumnReader {
                 if (pageNulls.get(i)) {
                     allNulls.set(produced + i);
                 } else if (isUuid) {
-                    allValues[produced + i] = new BytesRef(ParquetFormatReader.formatUuid(vals[valIdx++].bytes));
+                    allValues[produced + i] = new BytesRef(ParquetColumnDecoding.formatUuid(vals[valIdx++].bytes));
                 } else {
                     allValues[produced + i] = vals[valIdx++];
                 }

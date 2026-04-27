@@ -174,7 +174,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                         searchResponse.getSuggest(),
                         searchResponse.isTimedOut(),
                         searchResponse.isTerminatedEarly(),
-                        searchResponse.getProfileResults() == null ? null : new SearchProfileResults(searchResponse.getProfileResults()),
+                        searchResponse.getProfileShardResults() == null ? null : new SearchProfileResults(searchResponse.getProfileShardResults()),
                         searchResponse.getNumReducePhases(),
                         searchResponse.getScrollId(),
                         searchResponse.getTotalShards(),

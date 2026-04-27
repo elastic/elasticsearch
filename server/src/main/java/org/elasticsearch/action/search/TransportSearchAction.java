@@ -1054,11 +1054,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    private static SearchProfileResults getSearchProfileResults(
-        SearchResponse searchResponse,
-        SearchCoordinatorContext searchCoordinatorContext
-    ) {
-        Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileResults();
+    static SearchProfileResults getSearchProfileResults(SearchResponse searchResponse, SearchCoordinatorContext searchCoordinatorContext) {
+        Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileShardResults();
         SearchProfileResults profile = profileResults == null || profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
 
         if (profile != null) {

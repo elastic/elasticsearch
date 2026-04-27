@@ -459,16 +459,28 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     /**
      * If profiling was enabled, this returns an object containing the profile results from
-     * each shard.  If profiling was not enabled, this will return null
+     * each shard.  If profiling was not enabled, this will return an empty map.
      *
      * @return The profile results or an empty map
      */
     @Nullable
-    public Map<String, SearchProfileShardResult> getProfileResults() {
+    public Map<String, SearchProfileShardResult> getProfileShardResults() {
         if (profileResults == null) {
             return Collections.emptyMap();
         }
         return profileResults.getShardResults();
+    }
+
+    /**
+     * The {@link SearchProfileResults} backing this response, including coordinator request metadata when attached
+     * ({@link SearchProfileResults#getOriginalSource()} / {@link SearchProfileResults#getRequestIndices()}).
+     * {@code null} when profiling did not produce a profile object.
+     * <p>
+     * For per-shard timings only, {@link #getProfileShardResults()} returns the shard map (empty when profiling was off).
+     */
+    @Nullable
+    public SearchProfileResults getSearchProfileResults() {
+        return profileResults;
     }
 
     /**

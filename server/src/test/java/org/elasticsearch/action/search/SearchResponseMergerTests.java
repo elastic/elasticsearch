@@ -17,6 +17,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -30,10 +31,14 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESTestCase;
@@ -370,11 +375,139 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(0, mergedResponse.getFailedShards());
                 assertEquals(0, mergedResponse.getShardFailures().length);
-                assertEquals(expectedProfile, mergedResponse.getProfileResults());
+                assertEquals(expectedProfile, mergedResponse.getProfileShardResults());
             } finally {
                 mergedResponse.decRef();
             }
         }
+    }
+
+    /**
+     * When a non-{@link SearchCoordinatorContext#none()} snapshot is supplied and any sub-response carries profile shards, the merged
+     * {@link SearchProfileResults} must carry the coordinator {@link SearchSourceBuilder} and indices on
+     * {@link SearchResponse#getSearchProfileResults()}.
+     */
+    public void testMergeProfileResultsAppliesCoordinatorMetadata() throws InterruptedException {
+        SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
+        SearchSourceBuilder coordinatorSource = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).profile(true).size(7);
+        String[] coordinatorIndices = new String[] { "wildcard-*", "alias" };
+        SearchCoordinatorContext context = new SearchCoordinatorContext(coordinatorSource, coordinatorIndices);
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                0,
+                SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+                searchTimeProvider,
+                emptyReduceContextBuilder(),
+                context
+            )
+        ) {
+            // Add at least one response with a non-empty profile so that the merger constructs a SearchProfileResults.
+            SearchResponse profilingResponse = newProfileResponse(nonEmptyProfileShardResults());
+            try {
+                addResponse(merger, profilingResponse);
+            } finally {
+                profilingResponse.decRef();
+            }
+            for (int i = 1; i < numResponses; i++) {
+                SearchResponse extraResponse = newProfileResponse(SearchProfileResultsTests.createTestItem().getShardResults());
+                try {
+                    addResponse(merger, extraResponse);
+                } finally {
+                    extraResponse.decRef();
+                }
+            }
+            awaitResponsesAdded();
+            SearchResponse mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+            try {
+                assertFalse("profile shards should be present", mergedResponse.getProfileShardResults().isEmpty());
+                SearchProfileResults mergedProfile = mergedResponse.getSearchProfileResults();
+                assertNotNull(mergedProfile);
+                assertEquals(coordinatorSource, mergedProfile.getOriginalSource());
+                assertArrayEquals(coordinatorIndices, mergedProfile.getRequestIndices());
+            } finally {
+                mergedResponse.decRef();
+            }
+        }
+    }
+
+    /**
+     * If no sub-response carries profile shards, the merger must not synthesise a {@link SearchProfileResults}, even when the coordinator
+     * snapshot is non-empty.
+     */
+    public void testMergeDoesNotApplyCoordinatorMetadataWhenProfileShardsAbsent() throws InterruptedException {
+        SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
+        SearchSourceBuilder coordinatorSource = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).profile(true);
+        String[] coordinatorIndices = new String[] { "no-profile-*" };
+        SearchCoordinatorContext context = new SearchCoordinatorContext(coordinatorSource, coordinatorIndices);
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                0,
+                SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+                searchTimeProvider,
+                emptyReduceContextBuilder(),
+                context
+            )
+        ) {
+            for (int i = 0; i < numResponses; i++) {
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
+                    null,
+                    1,
+                    1,
+                    0,
+                    100L,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponse.Clusters.EMPTY
+                );
+                try {
+                    addResponse(merger, searchResponse);
+                } finally {
+                    searchResponse.decRef();
+                }
+            }
+            awaitResponsesAdded();
+            SearchResponse mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+            try {
+                assertTrue("merged profile shards should be empty", mergedResponse.getProfileShardResults().isEmpty());
+                assertNull(mergedResponse.getSearchProfileResults());
+            } finally {
+                mergedResponse.decRef();
+            }
+        }
+    }
+
+    private static SearchResponse newProfileResponse(Map<String, SearchProfileShardResult> shards) {
+        SearchProfileResults profile = new SearchProfileResults(shards);
+        return new SearchResponse(
+            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+            null,
+            null,
+            false,
+            null,
+            profile,
+            1,
+            null,
+            1,
+            1,
+            0,
+            100L,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+    }
+
+    private static Map<String, SearchProfileShardResult> nonEmptyProfileShardResults() {
+        SearchShardTarget target = new SearchShardTarget(
+            "node-" + randomAlphaOfLength(6),
+            new ShardId("idx-" + randomAlphaOfLength(4), randomUUID(), 0),
+            null
+        );
+        SearchProfileShardResult shardResult = new SearchProfileShardResult(
+            new SearchProfileQueryPhaseResult(List.of(), new AggregationProfileShardResult(List.of())),
+            randomBoolean() ? null : new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())
+        );
+        return Map.of(target.toString(), shardResult);
     }
 
     public void testMergeCompletionSuggestions() throws InterruptedException {
@@ -936,7 +1069,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertNull(response.getScrollId());
                 assertSame(InternalAggregations.EMPTY, response.getAggregations());
                 assertNull(response.getSuggest());
-                assertEquals(0, response.getProfileResults().size());
+                assertEquals(0, response.getProfileShardResults().size());
                 assertNull(response.isTerminatedEarly());
                 assertEquals(0, response.getShardFailures().length);
             } finally {

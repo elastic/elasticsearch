@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.search.SearchHits;
@@ -44,13 +43,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class SynonymsManagementAPIServiceTests extends ESTestCase {
 
@@ -207,69 +204,6 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     /**
-     * Verifies that appending to a non-existent synonym set creates it (CREATED status) and
-     * does not issue a delete-by-query.
-     */
-    public void testAppendToNonExistentSetCreatesIt() throws Exception {
-        SynonymRule[] rules = randomSynonymsSet(3);
-
-        var client = new AppendTestClient(threadPool, 0);
-        var service = buildService(client, clusterService, rules.length + 1, SynonymsManagementAPIService.BULK_CHUNK_SIZE);
-
-        var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult>();
-        service.putSynonymsSet("my-set", rules, false, true, future);
-        var result = safeGet(future);
-
-        assertThat(result.synonymsOperationResult(), equalTo(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED));
-        assertThat("delete-by-query must not be issued on append", client.deleteByQueryIssued.get(), equalTo(false));
-        assertThat("bulk insert must be issued", client.bulkRequestCount.get(), equalTo(1));
-    }
-
-    /**
-     * Verifies that appending to an existing synonym set adds rules without deleting existing ones
-     * (UPDATED status).
-     */
-    public void testAppendToExistingSetUpdatesIt() throws Exception {
-        SynonymRule[] rules = randomSynonymsSet(3);
-        int existingCount = 5;
-
-        var client = new AppendTestClient(threadPool, existingCount);
-        var service = buildService(client, clusterService, existingCount + rules.length + 1, SynonymsManagementAPIService.BULK_CHUNK_SIZE);
-
-        var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult>();
-        service.putSynonymsSet("my-set", rules, false, true, future);
-        var result = safeGet(future);
-
-        assertThat(result.synonymsOperationResult(), equalTo(SynonymsManagementAPIService.UpdateSynonymsResultStatus.UPDATED));
-        assertThat("delete-by-query must not be issued on append", client.deleteByQueryIssued.get(), equalTo(false));
-        assertThat("bulk insert must be issued", client.bulkRequestCount.get(), equalTo(1));
-    }
-
-    /**
-     * Verifies that an append that would push the total rule count above the limit is rejected.
-     */
-    public void testAppendRejectedWhenLimitExceeded() throws Exception {
-        int maxRules = 10;
-        int existingCount = 8;
-        SynonymRule[] rules = randomSynonymsSet(3); // 8 + 3 = 11 > 10
-
-        var client = new AppendTestClient(threadPool, existingCount);
-        var service = buildService(client, clusterService, maxRules, SynonymsManagementAPIService.BULK_CHUNK_SIZE);
-
-        boolean[] failed = { false };
-        Exception[] holder = { null };
-        service.putSynonymsSet("my-set", rules, false, true, ActionListener.wrap(r -> fail("expected failure"), e -> {
-            failed[0] = true;
-            holder[0] = e;
-        }));
-
-        assertTrue("expected onFailure", failed[0]);
-        assertThat(holder[0], instanceOf(IllegalArgumentException.class));
-        assertThat(holder[0].getMessage(), containsString("The number of synonym rules in a synonym set cannot exceed " + maxRules));
-        assertThat("no bulk insert should be issued", client.bulkRequestCount.get(), equalTo(0));
-    }
-
-    /**
      * Fakes an existing synonym set of a known size: GET returns found, SEARCH returns {@code ruleCount} total hits,
      * and INDEX requests are counted so tests can assert none were issued.
      */
@@ -386,46 +320,4 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         }
     }
 
-    /**
-     * A client for append-mode tests that simulates SEARCH (rule count) and BULK (insert) responses.
-     * Fails the test if a delete-by-query is attempted.
-     */
-    private static class AppendTestClient extends NoOpClient {
-        final AtomicBoolean deleteByQueryIssued = new AtomicBoolean(false);
-        final AtomicInteger bulkRequestCount = new AtomicInteger();
-        private final long existingRuleCount;
-
-        AppendTestClient(ThreadPool threadPool, long existingRuleCount) {
-            super(threadPool);
-            this.existingRuleCount = existingRuleCount;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {
-            if (request instanceof SearchRequest) {
-                ActionListener.respondAndRelease(
-                    (ActionListener<SearchResponse>) listener,
-                    SearchResponseUtils.successfulResponse(
-                        SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(existingRuleCount, TotalHits.Relation.EQUAL_TO), Float.NaN)
-                    )
-                );
-                return;
-            }
-            if (request instanceof BulkRequest) {
-                bulkRequestCount.incrementAndGet();
-                ((ActionListener<BulkResponse>) listener).onResponse(new BulkResponse(new BulkItemResponse[0], 0L));
-                return;
-            }
-            if (DeleteByQueryAction.INSTANCE.equals(action)) {
-                deleteByQueryIssued.set(true);
-                fail("delete-by-query must not be issued during append");
-            }
-            super.doExecute(action, request, listener);
-        }
-    }
 }

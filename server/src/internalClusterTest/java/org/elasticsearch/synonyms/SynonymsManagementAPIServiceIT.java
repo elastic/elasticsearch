@@ -75,6 +75,44 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         assertEquals(rulesNumber, getResult.pageResults().length);
     }
 
+    public void testAppendSynonymsSet() throws Exception {
+        String synonymSetId = randomIdentifier();
+        SynonymRule[] initialRules = randomSynonymsSet(randomIntBetween(1, 5), randomIntBetween(1, 5));
+        SynonymRule[] appendedRules = randomSynonymsSet(randomIntBetween(1, 5), randomIntBetween(1, 5));
+
+        // Create via append (set does not exist yet)
+        PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> createFuture = new PlainActionFuture<>();
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, initialRules, false, true, createFuture);
+        assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, safeGet(createFuture).synonymsOperationResult());
+
+        // Append additional rules
+        PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> appendFuture = new PlainActionFuture<>();
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, appendedRules, false, true, appendFuture);
+        assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.UPDATED, safeGet(appendFuture).synonymsOperationResult());
+
+        // All rules are present
+        PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
+        synonymsManagementAPIService.getSynonymSetRules(synonymSetId, 0, maxSynonymRules, getFuture);
+        PagedResult<SynonymRule> result = safeGet(getFuture);
+        assertEquals(initialRules.length + appendedRules.length, result.totalResults());
+    }
+
+    public void testAppendSynonymsSetRejectsWhenLimitExceeded() throws Exception {
+        String synonymSetId = randomIdentifier();
+        SynonymRule[] initialRules = randomSynonymsSet(maxSynonymRules - 1, maxSynonymRules - 1);
+
+        PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> createFuture = new PlainActionFuture<>();
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, initialRules, false, createFuture);
+        safeGet(createFuture);
+
+        // Appending two more rules would exceed the limit
+        SynonymRule[] appendRules = randomSynonymsSet(2, 2);
+        PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> appendFuture = new PlainActionFuture<>();
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, appendRules, false, true, appendFuture);
+        var ex = expectThrows(IllegalArgumentException.class, () -> appendFuture.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(ex.getMessage(), containsString("cannot exceed " + maxSynonymRules));
+    }
+
     public void testGetAllSynonymSetRulesViaPit() throws Exception {
         int pitBatchSize = randomIntBetween(2, 5);
         int rulesNumber = pitBatchSize * randomIntBetween(3, 6);

@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
-import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParsingException;
@@ -41,13 +40,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
-// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
-@SuppressWarnings("unchecked")
 public class MultiGetRequest extends LegacyActionRequest
     implements
         Iterable<MultiGetRequest.Item>,
         CompositeIndicesRequest,
-        RealtimeRequest,
         ToXContentObject {
 
     private static final ParseField DOCS = new ParseField("docs");
@@ -316,7 +312,6 @@ public class MultiGetRequest extends LegacyActionRequest
         return this.realtime;
     }
 
-    @Override
     public MultiGetRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;

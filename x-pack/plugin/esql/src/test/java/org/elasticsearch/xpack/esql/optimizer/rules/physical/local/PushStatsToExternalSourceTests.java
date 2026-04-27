@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -22,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -38,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,6 +57,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class PushStatsToExternalSourceTests extends ESTestCase {
 
@@ -101,6 +107,21 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), LocalSourceExec.class);
     }
 
+    /**
+     * ORC's IntegerColumnStatistics returns {@code long} for all integer stats, even for INT32 columns.
+     * The block type must match the ESQL column type (INTEGER -> IntBlock), not the Java stat type.
+     */
+    public void testMaxWithLongStatForIntegerColumnProducesIntBlock() {
+        Map<String, Object> metadata = statsMetadata(100L, "salary", 0L, null);
+        metadata.put("_stats.columns.salary.max", 150000L);
+        var agg = aggregateExec(externalSource(metadata), alias("m", new Max(Source.EMPTY, SALARY)));
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        Block block = local.supplier().get().getBlock(0);
+        assertThat("Long stat for INTEGER column must produce IntBlock", block, instanceOf(IntBlock.class));
+        assertEquals(150000, ((IntBlock) block).getInt(0));
+    }
+
     public void testMultipleAggsPushedDown() {
         Map<String, Object> metadata = statsMetadata(500L, "score", 10L, null);
         metadata.put("_stats.columns.score.min", 1.0);
@@ -115,6 +136,45 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
         assertEquals(3, local.output().size());
+    }
+
+    // --- INITIAL mode: output schema must match AggregateExec.output() (regression for VerificationException) ---
+
+    public void testCountStarPushedInInitialMode() {
+        var agg = aggregateExec(AggregatorMode.INITIAL, externalSource(statsMetadata(1000L, null, null, null)), countStarAlias());
+        List<Attribute> expectedOutput = agg.output();
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals("output must match AggregateExec.output() for INITIAL mode", expectedOutput, local.output());
+        assertEquals("block count must match attribute count", local.output().size(), local.supplier().get().getBlockCount());
+        Page page = local.supplier().get();
+        assertEquals(1000L, as(page.getBlock(0), LongBlock.class).getLong(0));
+        assertTrue(as(page.getBlock(1), BooleanBlock.class).getBoolean(0));
+    }
+
+    public void testMultiAggPushedInInitialMode() {
+        Map<String, Object> metadata = statsMetadata(500L, "score", 10L, null);
+        metadata.put("_stats.columns.score.min", 1.0);
+        metadata.put("_stats.columns.score.max", 100.0);
+
+        var agg = aggregateExec(
+            AggregatorMode.INITIAL,
+            externalSource(metadata),
+            countStarAlias(),
+            alias("mn", new Min(Source.EMPTY, SCORE)),
+            alias("mx", new Max(Source.EMPTY, SCORE))
+        );
+        List<Attribute> expectedOutput = agg.output();
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals("output must match AggregateExec.output() for INITIAL mode", expectedOutput, local.output());
+        assertEquals("block count must match attribute count", local.output().size(), local.supplier().get().getBlockCount());
+    }
+
+    public void testNotPushedInFinalMode() {
+        var agg = aggregateExec(AggregatorMode.FINAL, externalSource(statsMetadata(500L, null, null, null)), countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
     }
 
     public void testNotPushedWithGroupings() {
@@ -140,7 +200,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     }
 
     public void testNotPushedWithMultipleSplitsWithoutStats() {
-        ExternalSourceExec ext = externalSourceWithSplits(statsMetadata(1000L, null, null, null), (Map<String, Object>[]) null);
+        ExternalSourceExec ext = externalSourceWithSplits(statsMetadata(1000L, null, null, null), (SplitStats[]) null);
         var agg = aggregateExec(ext, countStarAlias());
 
         as(applyRule(agg), AggregateExec.class);
@@ -149,9 +209,9 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     public void testPushedWithMultipleSplitsWithStats() {
         ExternalSourceExec ext = externalSourceWithSplits(
             Map.of(),
-            statsMetadata(100L, null, null, null),
-            statsMetadata(200L, null, null, null),
-            statsMetadata(300L, null, null, null)
+            buildSplitStats(100L, null, null, null),
+            buildSplitStats(200L, null, null, null),
+            buildSplitStats(300L, null, null, null)
         );
         var agg = aggregateExec(ext, countStarAlias());
 
@@ -160,15 +220,15 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     }
 
     public void testNotPushedWithMixedStatsAndNoStats() {
-        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), statsMetadata(100L, null, null, null), null);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), buildSplitStats(100L, null, null, null), null);
         var agg = aggregateExec(ext, countStarAlias());
 
         as(applyRule(agg), AggregateExec.class);
     }
 
     public void testMinMaxPushedWithMultipleSplitsWithStats() {
-        Map<String, Object> stats1 = splitStatsWithMinMax("age", 18, 50, 100L, 5L);
-        Map<String, Object> stats2 = splitStatsWithMinMax("age", 22, 65, 200L, 10L);
+        SplitStats stats1 = buildSplitStatsWithMinMax("age", 18, 50, 100L, 5L);
+        SplitStats stats2 = buildSplitStatsWithMinMax("age", 22, 65, 200L, 10L);
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), stats1, stats2);
 
         var agg = aggregateExec(ext, alias("mn", new Min(Source.EMPTY, AGE)), alias("mx", new Max(Source.EMPTY, AGE)));
@@ -181,7 +241,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     }
 
     public void testPushedWithSingleSplit() {
-        ExternalSourceExec ext = externalSourceWithSplits(statsMetadata(1000L, null, null, null), (Map<String, Object>) null);
+        ExternalSourceExec ext = externalSourceWithSplits(statsMetadata(1000L, null, null, null), (SplitStats) null);
         var agg = aggregateExec(ext, countStarAlias());
 
         as(applyRule(agg), LocalSourceExec.class);
@@ -367,11 +427,66 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         assertEquals(1000L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
     }
 
+    // --- cross-type stats merge tests (UNION_BY_NAME type widening) ---
+
+    /**
+     * When splits come from files with different physical types for the same column
+     * (e.g. INTEGER in file A, LONG in file B after UNION_BY_NAME widening), the
+     * optimizer should correctly merge Integer and Long stats and push down MIN/MAX.
+     */
+    public void testMinMaxWithCrossTypeStatsAcrossSplits() {
+        SplitStats split1 = buildSplitStatsWithMinMax("salary", 30000, 80000, 500L, 0L);
+        SplitStats split2 = buildSplitStatsWithMinMax("salary", 25000L, 90000L, 500L, 0L);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
+        var agg = aggregateExec(ext, alias("mn", new Min(Source.EMPTY, SALARY)), alias("mx", new Max(Source.EMPTY, SALARY)));
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(2, local.output().size());
+        Page page = local.supplier().get();
+        assertNotNull(page);
+        // Min(Integer(30000), Long(25000)) → Long(25000), coerced to Integer block by buildBlock
+        assertEquals(25000, as(page.getBlock(0), IntBlock.class).getInt(0));
+        // Max(Integer(80000), Long(90000)) → Long(90000), coerced to Integer block by buildBlock
+        assertEquals(90000, as(page.getBlock(1), IntBlock.class).getInt(0));
+    }
+
+    public void testMinMaxWithCrossTypeIntegerDoubleStatsAcrossSplits() {
+        SplitStats split1 = buildSplitStatsWithMinMax("score", 3, 80, 500L, 0L);
+        SplitStats split2 = buildSplitStatsWithMinMax("score", 1.5, 99.9, 500L, 0L);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
+        var agg = aggregateExec(ext, alias("mn", new Min(Source.EMPTY, SCORE)), alias("mx", new Max(Source.EMPTY, SCORE)));
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(2, local.output().size());
+        Page page = local.supplier().get();
+        assertNotNull(page);
+        // Min(Integer(3), Double(1.5)) → Double(1.5), coerced to DoubleBlock
+        assertEquals(1.5, as(page.getBlock(0), DoubleBlock.class).getDouble(0), 0.001);
+        // Max(Integer(80), Double(99.9)) → Double(99.9), coerced to DoubleBlock
+        assertEquals(99.9, as(page.getBlock(1), DoubleBlock.class).getDouble(0), 0.001);
+    }
+
+    /**
+     * When splits have incompatible stat types (Long + Double), merged stats are cleared
+     * to null and pushdown must NOT produce a misleading constant. The rule should fall
+     * back to the original aggregate.
+     */
+    public void testMinMaxWithIncompatibleLongDoubleStatsDoesNotPushDown() {
+        SplitStats split1 = buildSplitStatsWithMinMax("score", 10L, 50L, 500L, 0L);
+        SplitStats split2 = buildSplitStatsWithMinMax("score", 5.0, 60.0, 500L, 0L);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
+        var agg = aggregateExec(ext, alias("mn", new Min(Source.EMPTY, SCORE)), alias("mx", new Max(Source.EMPTY, SCORE)));
+
+        PhysicalPlan result = applyRule(agg);
+        // Should NOT be pushed down to LocalSourceExec — stats are incompatible and cleared
+        as(result, AggregateExec.class);
+    }
+
     // --- filter tests ---
 
     public void testCountPushedThroughOrFilterAllResolve() {
-        Map<String, Object> split1 = splitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
-        Map<String, Object> split2 = splitStatsWithMinMax("age", 60L, 80L, 500L, 0L);
+        SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        SplitStats split2 = buildSplitStatsWithMinMax("age", 60L, 80L, 500L, 0L);
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
         Expression filterCondition = new Or(Source.EMPTY, greaterThanOf(AGE, of(20L)), lessThanOrEqualOf(AGE, of(90L)));
         var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, filterCondition), countStarAlias());
@@ -381,8 +496,8 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     }
 
     public void testCountPushedThroughNotFilter() {
-        Map<String, Object> split1 = splitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
-        Map<String, Object> split2 = splitStatsWithMinMax("age", 60L, 80L, 500L, 0L);
+        SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        SplitStats split2 = buildSplitStatsWithMinMax("age", 60L, 80L, 500L, 0L);
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
         Expression filterCondition = new Not(Source.EMPTY, greaterThanOf(AGE, of(20L)));
         var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, filterCondition), countStarAlias());
@@ -395,8 +510,8 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
 
     @SafeVarargs
     @SuppressWarnings("varargs")
-    private static ExternalSourceExec externalSourceWithSplits(Map<String, Object> sourceMetadata, Map<String, Object>... perSplitStats) {
-        List<ExternalSplit> splits = new ArrayList<>(perSplitStats == null ? 1 : perSplitStats.length);
+    private static ExternalSourceExec externalSourceWithSplits(Map<String, Object> sourceMetadata, SplitStats... perSplitStats) {
+        List<ExternalSplit> splits = new ArrayList<>(perSplitStats == null ? 2 : perSplitStats.length);
         if (perSplitStats == null) {
             splits.add(fileSplit(0, null));
             splits.add(fileSplit(1, null));
@@ -428,7 +543,20 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         return List.of(referenceAttribute("x", DataType.INTEGER), AGE, SCORE, SALARY);
     }
 
-    private static FileSplit fileSplit(int index, Map<String, Object> stats) {
+    private static FileSplit fileSplit(int index, SplitStats stats) {
+        if (stats != null) {
+            return FileSplit.withSplitStats(
+                "parquet",
+                StoragePath.of("file:///split" + (index + 1) + ".parquet"),
+                0,
+                100,
+                "parquet",
+                Map.of(),
+                Map.of(),
+                null,
+                stats
+            );
+        }
         return new FileSplit(
             "parquet",
             StoragePath.of("file:///split" + (index + 1) + ".parquet"),
@@ -438,12 +566,17 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
             Map.of(),
             Map.of(),
             null,
-            stats
+            null
         );
     }
 
     private static AggregateExec aggregateExec(PhysicalPlan child, NamedExpression... aggregates) {
-        return new AggregateExec(Source.EMPTY, child, List.of(), List.of(aggregates), AggregatorMode.SINGLE, List.of(), null);
+        return aggregateExec(AggregatorMode.SINGLE, child, aggregates);
+    }
+
+    private static AggregateExec aggregateExec(AggregatorMode mode, PhysicalPlan child, NamedExpression... aggregates) {
+        List<Attribute> intermediateAttrs = AbstractPhysicalOperationProviders.intermediateAttributes(List.of(aggregates), List.of());
+        return new AggregateExec(Source.EMPTY, child, List.of(), List.of(aggregates), mode, intermediateAttrs, null);
     }
 
     private static EvalExec evalWithSimpleAlias(ExternalSourceExec child, String aliasName, String originalName) {
@@ -458,11 +591,29 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         return alias("c", new Count(Source.EMPTY, field));
     }
 
-    private static Map<String, Object> splitStatsWithMinMax(String colName, Object min, Object max, long rowCount, long nullCount) {
-        Map<String, Object> metadata = statsMetadata(rowCount, colName, nullCount, null);
-        metadata.put("_stats.columns." + colName + ".min", min);
-        metadata.put("_stats.columns." + colName + ".max", max);
-        return metadata;
+    private static SplitStats buildSplitStatsWithMinMax(String colName, Object min, Object max, long rowCount, long nullCount) {
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(rowCount);
+        int col = builder.addColumn(colName);
+        builder.nullCount(col, nullCount);
+        builder.min(col, min);
+        builder.max(col, max);
+        return builder.build();
+    }
+
+    private static SplitStats buildSplitStats(Long rowCount, String colName, Long nullCount, Long sizeBytes) {
+        SplitStats.Builder builder = new SplitStats.Builder();
+        if (rowCount != null) {
+            builder.rowCount(rowCount);
+        }
+        if (sizeBytes != null) {
+            builder.sizeInBytes(sizeBytes);
+        }
+        if (colName != null && nullCount != null) {
+            int col = builder.addColumn(colName);
+            builder.nullCount(col, nullCount);
+        }
+        return builder.build();
     }
 
     private static Map<String, Object> statsMetadata(Long rowCount, String colName, Long nullCount, Long sizeBytes) {

@@ -1445,3 +1445,64 @@ setup:
 
   - match: { _id: doc_1 }
   - exists: _source._inference_fields
+
+---
+"Calculates embedding results for new documents":
+  - requires:
+      cluster_features: "semantic_text.inference_using_embedding_task"
+      reason: EMBEDDING task type for semantic_text
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {}
+          }
+
+  - do:
+      indices.create:
+        index: test-embedding-inference-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              embedding_field:
+                type: semantic_text
+                inference_id: embedding-inference-id
+
+  - do:
+      index:
+        index: test-embedding-inference-index
+        id: doc_1
+        body:
+          embedding_field: "inference test"
+        refresh: true
+
+  - do:
+      search:
+        index: test-embedding-inference-index
+        body:
+          _source:
+            exclude_vectors: false
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits.0._source._inference_fields.embedding_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.embedding_field.inference.chunks.embedding_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.embedding_field.inference.chunks.embedding_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.embedding_field.inference.chunks.embedding_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.embedding_field.inference.chunks.embedding_field.0.end_offset: 14 }

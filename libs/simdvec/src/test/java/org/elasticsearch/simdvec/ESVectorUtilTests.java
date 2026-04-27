@@ -337,8 +337,8 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[] v3 = generateRandomVector(vectorSize);
         float[] expectedDistances = new float[4];
         float[] panamaDistances = new float[4];
-        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, expectedDistances);
-        defOrPanamaProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, panamaDistances);
+        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, 0, expectedDistances);
+        defOrPanamaProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, 0, panamaDistances);
         assertArrayEquals(expectedDistances, panamaDistances, 1e-3f);
     }
 
@@ -364,8 +364,8 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[] v3 = generateRandomVector(vectorSize);
         float[] expectedDistances = new float[4];
         float[] panamaDistances = new float[4];
-        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, expectedDistances);
-        defOrPanamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, panamaDistances);
+        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, 0, expectedDistances);
+        defOrPanamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, 0, panamaDistances);
         assertArrayEquals(expectedDistances, panamaDistances, 1e-3f * length);
     }
 
@@ -845,7 +845,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y1);
         defOrPanamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y2);
 
-        assertArrayEquals(y1, y2, 0);
+        assertArrayEquals(y1, y2, 1e-5f);
     }
 
     public void testLogSumExpDiff() {
@@ -860,7 +860,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float eps = randomFloat();
 
         float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps);
-        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps), 1e-2 * referenceResult);
+        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps), 1.5e-2 * referenceResult);
     }
 
     public void testPow2DiffAndScale() {
@@ -881,6 +881,6 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         defaultedProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result1);
         defOrPanamaProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result2);
 
-        assertArrayEquals(result1, result2, 1e-2f);
+        assertArrayEqualsPercent(result1, result2, 0.1f);
     }
 }

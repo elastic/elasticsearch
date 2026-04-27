@@ -132,6 +132,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return SETTINGS;
     }
 
+    protected XContentMeteringParserDecorator xContentMeteringParserDecorator() {
+        return XContentMeteringParserDecorator.NOOP;
+    }
+
     protected final Settings.Builder getIndexSettingsBuilder() {
         return Settings.builder().put(getIndexSettings());
     }
@@ -430,25 +434,22 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     /**
      * Build a {@link SourceToParse} with the id {@code "1"} and without any dynamic templates.
      */
-    public static SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+    public SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         return source("1", build, null);
     }
 
     /**
      * Build a {@link SourceToParse} without any dynamic templates.
      */
-    protected static SourceToParse source(
-        @Nullable String id,
-        CheckedConsumer<XContentBuilder, IOException> build,
-        @Nullable String routing
-    ) throws IOException {
+    protected SourceToParse source(@Nullable String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)
+        throws IOException {
         return source(id, build, routing, Map.of());
     }
 
     /**
      * Build a {@link SourceToParse}.
      */
-    protected static SourceToParse source(
+    protected SourceToParse source(
         @Nullable String id,
         CheckedConsumer<XContentBuilder, IOException> build,
         @Nullable String routing,
@@ -460,7 +461,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     /**
      * Build a {@link SourceToParse}.
      */
-    protected static SourceToParse source(
+    protected SourceToParse source(
         @Nullable String id,
         CheckedConsumer<XContentBuilder, IOException> build,
         @Nullable String routing,
@@ -478,7 +479,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             dynamicTemplates,
             dynamicTemplateParams,
             true,
-            XContentMeteringParserDecorator.NOOP,
+            xContentMeteringParserDecorator(),
             null
         );
     }

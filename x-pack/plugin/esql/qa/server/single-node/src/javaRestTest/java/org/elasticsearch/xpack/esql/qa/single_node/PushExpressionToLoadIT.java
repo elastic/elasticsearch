@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
@@ -411,6 +412,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
      * between rounding points (e.g. 11-99 rounds down to 10).
      */
     public void testRoundToLong() throws IOException {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         long value = randomLongBetween(11, 99);
         test(
             // index:false so the field uses doc values skippers, which the ROUND_TO block loader requires
@@ -429,6 +431,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
      * matches a rounding point.
      */
     public void testRoundToLongExactMatch() throws IOException {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         test(
             // index:false so the field uses doc values skippers, which the ROUND_TO block loader requires
             b -> b.startObject("test").field("type", "long").field("index", false).endObject(),

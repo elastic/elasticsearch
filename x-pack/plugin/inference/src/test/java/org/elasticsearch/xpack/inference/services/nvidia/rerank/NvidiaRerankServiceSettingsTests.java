@@ -55,7 +55,7 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
         assertThat(serviceSettings, is(new NvidiaRerankServiceSettings(TEST_MODEL_ID, TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
-    public void testFromMap_OnlyMandatoryFields_UsesDefaultRateLimit_Success() {
+    public void testFromMap_OnlyMandatoryFields_UsesDefaultValues_Success() {
         var serviceSettings = NvidiaRerankServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, null, null),
             randomFrom(ConfigurationParseContext.values())

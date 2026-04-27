@@ -56,7 +56,47 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
     private static final String INVALID_TEST_URL = "^^^";
     private static final String INVALID_SIMILARITY_STRING = "by_size";
 
-    public void testFromMap_AllFields_CreatesSettingsCorrectly() {
+    public void testFromMap_Request_AllFields_CreatesSettingsCorrectly() {
+        var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_URI.toString(),
+                null,
+                TEST_SIMILARITY_MEASURE.toString(),
+                TEST_MAX_INPUT_TOKENS,
+                TEST_RATE_LIMIT
+            ),
+            ConfigurationParseContext.REQUEST
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new NvidiaEmbeddingsServiceSettings(
+                    TEST_MODEL_ID,
+                    TEST_URI,
+                    null,
+                    TEST_SIMILARITY_MEASURE,
+                    TEST_MAX_INPUT_TOKENS,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testFromMap_Request_OnlyMandatoryFields_UsesDefaultValues_Success() {
+        var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null, null),
+            ConfigurationParseContext.REQUEST
+        );
+
+        assertThat(
+            serviceSettings,
+            is(new NvidiaEmbeddingsServiceSettings(TEST_MODEL_ID, DEFAULT_URI, null, null, null, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
+    }
+
+    public void testFromMap_Persistent_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 TEST_MODEL_ID,
@@ -84,7 +124,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         );
     }
 
-    public void testFromMap_OnlyMandatoryFields_UsesDefaultRateLimit_Success() {
+    public void testFromMap_Persistent_OnlyMandatoryFields_UsesDefaultValues_Success() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, null, TEST_DIMENSIONS, null, null, null),
             ConfigurationParseContext.PERSISTENT
@@ -125,34 +165,6 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         assertThat(
             thrownException.validationErrors().getFirst(),
             is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.MODEL_ID))
-        );
-    }
-
-    public void testFromMap_NoUrl_Success() {
-        var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(
-                TEST_MODEL_ID,
-                null,
-                TEST_DIMENSIONS,
-                TEST_SIMILARITY_MEASURE.toString(),
-                TEST_MAX_INPUT_TOKENS,
-                TEST_RATE_LIMIT
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        assertThat(
-            serviceSettings,
-            is(
-                new NvidiaEmbeddingsServiceSettings(
-                    TEST_MODEL_ID,
-                    DEFAULT_URI,
-                    TEST_DIMENSIONS,
-                    TEST_SIMILARITY_MEASURE,
-                    TEST_MAX_INPUT_TOKENS,
-                    new RateLimitSettings(TEST_RATE_LIMIT)
-                )
-            )
         );
     }
 
@@ -201,27 +213,6 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
             Error: unable to parse url [%s]. Reason: Illegal character in path""", INVALID_TEST_URL, ServiceFields.URL, INVALID_TEST_URL)));
     }
 
-    public void testFromMap_NoSimilarity_Success() {
-        var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), TEST_DIMENSIONS, null, TEST_MAX_INPUT_TOKENS, TEST_RATE_LIMIT),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        assertThat(
-            serviceSettings,
-            is(
-                new NvidiaEmbeddingsServiceSettings(
-                    TEST_MODEL_ID,
-                    TEST_URI,
-                    TEST_DIMENSIONS,
-                    null,
-                    TEST_MAX_INPUT_TOKENS,
-                    new RateLimitSettings(TEST_RATE_LIMIT)
-                )
-            )
-        );
-    }
-
     public void testFromMap_InvalidSimilarity_ThrowsValidationError() {
         var thrownException = expectThrows(
             ValidationException.class,
@@ -250,7 +241,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         );
     }
 
-    public void testFromMap_NoDimensions_Persistent_ThrowsValidationError() {
+    public void testFromMap_Persistent_NoDimensions_ThrowsValidationError() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
@@ -273,7 +264,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         );
     }
 
-    public void testFromMap_NoDimensions_Request_Success() {
+    public void testFromMap_Request_NoDimensions_Success() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 TEST_MODEL_ID,
@@ -301,18 +292,16 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         );
     }
 
-    public void testFromMap_WithDimensions_Request_Success_DimensionsIgnored() {
-        var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(
-                TEST_MODEL_ID,
-                TEST_URI.toString(),
-                TEST_DIMENSIONS,
-                TEST_SIMILARITY_MEASURE.toString(),
-                TEST_MAX_INPUT_TOKENS,
-                TEST_RATE_LIMIT
-            ),
-            ConfigurationParseContext.REQUEST
+    public void testFromMap_Request_WithDimensions_Success_DimensionsIgnored() {
+        HashMap<String, Object> serviceSettingsMap = buildServiceSettingsMap(
+            TEST_MODEL_ID,
+            TEST_URI.toString(),
+            TEST_DIMENSIONS,
+            TEST_SIMILARITY_MEASURE.toString(),
+            TEST_MAX_INPUT_TOKENS,
+            TEST_RATE_LIMIT
         );
+        var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(serviceSettingsMap, ConfigurationParseContext.REQUEST);
 
         assertThat(
             serviceSettings,
@@ -327,9 +316,10 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
                 )
             )
         );
+        assertThat(serviceSettingsMap, is(Map.of(ServiceFields.DIMENSIONS, TEST_DIMENSIONS)));
     }
 
-    public void testFromMap_ZeroDimensions_ThrowsValidationError() {
+    public void testFromMap_Persistent_ZeroDimensions_ThrowsValidationError() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
@@ -352,7 +342,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         );
     }
 
-    public void testFromMap_NegativeDimensions_ThrowsValidationError() {
+    public void testFromMap_Persistent_NegativeDimensions_ThrowsValidationError() {
         var negativeDimensions = -10;
         var thrownException = expectThrows(
             ValidationException.class,
@@ -377,34 +367,6 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
                     "[service_settings] Invalid value [%s]. [%s] must be a positive integer",
                     negativeDimensions,
                     ServiceFields.DIMENSIONS
-                )
-            )
-        );
-    }
-
-    public void testFromMap_NoMaxInputTokens_Success() {
-        var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(
-                TEST_MODEL_ID,
-                TEST_URI.toString(),
-                TEST_DIMENSIONS,
-                TEST_SIMILARITY_MEASURE.toString(),
-                null,
-                TEST_RATE_LIMIT
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        assertThat(
-            serviceSettings,
-            is(
-                new NvidiaEmbeddingsServiceSettings(
-                    TEST_MODEL_ID,
-                    TEST_URI,
-                    TEST_DIMENSIONS,
-                    TEST_SIMILARITY_MEASURE,
-                    null,
-                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
@@ -552,6 +514,24 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
                 )
             )
         );
+    }
+
+    public void testToXContent_DoesNotWriteOptionalValues_WritesDefaultValues() throws IOException {
+        var entity = new NvidiaEmbeddingsServiceSettings(TEST_MODEL_ID, (URI) null, null, null, null, null);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "model_id": "%s",
+                "url": "%s",
+                "rate_limit": {
+                    "requests_per_minute": %d
+                }
+            }
+            """, TEST_MODEL_ID, DEFAULT_URI.toString(), DEFAULT_RATE_LIMIT))));
     }
 
     @Override

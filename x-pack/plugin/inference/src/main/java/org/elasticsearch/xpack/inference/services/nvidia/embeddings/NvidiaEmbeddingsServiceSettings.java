@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -258,4 +259,8 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
         return Objects.hash(modelId, uri, dimensions, maxInputTokens, similarity, rateLimitSettings);
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

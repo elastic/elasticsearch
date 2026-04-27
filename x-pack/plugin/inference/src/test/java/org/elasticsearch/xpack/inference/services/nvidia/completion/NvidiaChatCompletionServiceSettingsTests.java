@@ -58,7 +58,7 @@ public class NvidiaChatCompletionServiceSettingsTests extends AbstractBWCWireSer
         );
     }
 
-    public void testFromMap_OnlyMandatoryFields_UsesDefaultRateLimitAndUri_Success() {
+    public void testFromMap_OnlyMandatoryFields_UsesDefaultValues_Success() {
         var serviceSettings = NvidiaChatCompletionServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, null, null),
             randomFrom(ConfigurationParseContext.values())

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.nvidia.completion;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
@@ -127,5 +128,10 @@ public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
     @Override
     public int hashCode() {
         return Objects.hash(modelId, uri, rateLimitSettings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

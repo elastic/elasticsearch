@@ -116,10 +116,6 @@ job_positions:keyword
 ;
 
 
-// Full-row DISTINCT over the entire 100-row table: every employee row is unique on the full
-// schema so DISTINCT is an identity, but this still exercises the wide-schema field-loading
-// and grouping path. {@code COUNT(*)} after a no-KEEP {@code DISTINCT} previously returned 0
-// because the pre-analyzer couldn't tell that DISTINCT needs every field, see FieldNameUtils.
 distinctOverFullRowCountStar
 required_capability: distinct_command
 
@@ -133,9 +129,6 @@ c:long
 ;
 
 
-// FROM ... METADATA exposes {@code _index} as part of the schema; DISTINCT must include it
-// among the group keys. With a single index every row carries the same {@code _index} value,
-// so the dedup result mirrors a no-metadata DISTINCT plus a constant column.
 distinctWithMetadataIndex
 required_capability: distinct_command
 
@@ -153,11 +146,6 @@ employees      | null
 ;
 
 
-// METADATA {@code _id} carries a real {@code KEYWORD} data type (unlike the internal
-// {@code _doc} attribute) so it participates in DISTINCT like any other column. Without _id
-// the four-row input would collapse to three distinct genders {M, F, null}; with _id each
-// employee's unique id keeps every row separate, so the count is four. We assert via COUNT
-// because auto-generated {@code _id} values aren't stable across runs.
 distinctWithMetadataIdParticipatesInDedup
 required_capability: distinct_command
 
@@ -173,10 +161,6 @@ c:long
 ;
 
 
-// DISTINCT with no columns at all: every row is "the same row" and dedup must collapse the
-// 100-row input to a single (empty) row. The grammar rejects {@code DROP *} so we engineer
-// the empty schema with a {@code KEEP foo | DROP foo} cycle, then attach a marker column for
-// display purposes.
 distinctAfterDroppingAllColumns
 required_capability: distinct_command
 

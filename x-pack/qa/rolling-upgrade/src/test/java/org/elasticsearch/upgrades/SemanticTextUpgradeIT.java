@@ -152,10 +152,11 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     private void performIndexQueryHighlightOps() throws IOException {
         indexDoc(getIndexName(), DOC_2_ID, DOC_VALUES.get(DOC_2_ID));
 
-        ObjectPath sparseQueryObjectPath = semanticQuery(getIndexName(), SPARSE_FIELD, SPARSE_MODEL, "test value", 3);
+        int totalChunks = DOC_VALUES.values().stream().mapToInt(List::size).sum();
+        ObjectPath sparseQueryObjectPath = semanticQuery(getIndexName(), SPARSE_FIELD, SPARSE_MODEL, "test value", totalChunks, 3);
         assertQueryResponseWithHighlights(sparseQueryObjectPath, SPARSE_FIELD, DOC_VALUES, Set.of(DOC_1_ID, DOC_2_ID));
 
-        ObjectPath denseQueryObjectPath = semanticQuery(getIndexName(), DENSE_FIELD, DENSE_MODEL, "test value", 3);
+        ObjectPath denseQueryObjectPath = semanticQuery(getIndexName(), DENSE_FIELD, DENSE_MODEL, "test value", totalChunks, 3);
         assertQueryResponseWithHighlights(denseQueryObjectPath, DENSE_FIELD, DOC_VALUES, Set.of(DOC_1_ID, DOC_2_ID));
     }
 
@@ -203,8 +204,14 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         assertOK(response);
     }
 
-    private ObjectPath semanticQuery(String indexName, String field, Model fieldModel, String query, Integer numOfHighlightFragments)
-        throws IOException {
+    private ObjectPath semanticQuery(
+        String indexName,
+        String field,
+        Model fieldModel,
+        String query,
+        int knnK,
+        Integer numOfHighlightFragments
+    ) throws IOException {
         // We can't perform a real semantic query because that requires performing inference, so instead we perform an equivalent nested
         // query
         final String embeddingsFieldName = SemanticTextField.getEmbeddingsFieldName(field);
@@ -229,7 +236,9 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
                     Arrays.fill(queryVector, 1.0f);
                 }
 
-                yield new KnnVectorQueryBuilder(embeddingsFieldName, queryVector, DOC_VALUES.size(), null, null, null, null);
+                // knnK must be at least the total number of expected child chunks across all expected docs; otherwise the nested
+                // promotion can collapse top-K children to fewer parents than the test asserts.
+                yield new KnnVectorQueryBuilder(embeddingsFieldName, queryVector, knnK, null, null, null, null);
             }
             default -> throw new UnsupportedOperationException("Unhandled task type [" + fieldModel.getTaskType() + "]");
         };
@@ -317,10 +326,11 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
                 indexDoc(indexName, INPUT_INDEX_BWC_DOC_UPGRADED, INPUT_INDEX_BWC_DOC_VALUES.get(INPUT_INDEX_BWC_DOC_UPGRADED));
 
                 final Set<String> expectedIds = Set.of(INPUT_INDEX_BWC_DOC_OLD, INPUT_INDEX_BWC_DOC_MIXED, INPUT_INDEX_BWC_DOC_UPGRADED);
-                ObjectPath sparseQueryObjectPath = semanticQuery(indexName, SPARSE_FIELD, SPARSE_MODEL, "bwc input", 5);
+                int totalChunks = INPUT_INDEX_BWC_DOC_VALUES.values().stream().mapToInt(List::size).sum();
+                ObjectPath sparseQueryObjectPath = semanticQuery(indexName, SPARSE_FIELD, SPARSE_MODEL, "bwc input", totalChunks, 5);
                 assertQueryResponseWithHighlights(sparseQueryObjectPath, SPARSE_FIELD, INPUT_INDEX_BWC_DOC_VALUES, expectedIds);
 
-                ObjectPath denseQueryObjectPath = semanticQuery(indexName, DENSE_FIELD, DENSE_MODEL, "bwc input", 5);
+                ObjectPath denseQueryObjectPath = semanticQuery(indexName, DENSE_FIELD, DENSE_MODEL, "bwc input", totalChunks, 5);
                 assertQueryResponseWithHighlights(denseQueryObjectPath, DENSE_FIELD, INPUT_INDEX_BWC_DOC_VALUES, expectedIds);
             }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");

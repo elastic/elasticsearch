@@ -429,9 +429,10 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
             inputIndex++;
             // When using the inference metadata fields format, all the input values are concatenated so that the
-            // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
-            // to apply to account for this.
-            offsetAdjustment = input.length() + 1; // Add one for separator char length
+            // chunk text offsets are expressed in the context of a single string. Accumulate the offset adjustment
+            // across all preceding inputs (including their separator chars) so that the next chunk's offsets land at
+            // the correct position in the merged string.
+            offsetAdjustment += input.length() + 1; // Add one for separator char length
         }
 
         if (inputsIt.hasNext() || chunkIt.hasNext()) {

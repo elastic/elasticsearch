@@ -259,65 +259,30 @@ Work around this limitation by converting the field to single value with one of 
 Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it. You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).
 
 
-## FROM subquery limitations [esql-limitations-from-subquery]
+## Subquery and view limitations [esql-limitations-subquery-views]
 
-[Subqueries](/reference/query-languages/esql/esql-subquery.md) in the `FROM` command have the following limitations:
+[Subqueries](/reference/query-languages/esql/esql-subquery.md) and
+[views](/reference/query-languages/esql/esql-views.md) are closely related,
+since both extend the
+[`FROM`](/reference/query-languages/esql/commands/from.md) command with
+branched query plans. They share the overall branching constraints but each
+has its own additional limitations, described in turn below.
 
-### Nested subqueries are not supported [_nested_subqueries_unsupported]
+### Subquery limitations [esql-limitations-subquery]
 
-A subquery cannot contain another subquery in the [`FROM`](/reference/query-languages/esql/commands/from.md) command. Only one level of nesting is allowed.
+:::{include} _snippets/common/subquery_limitations.md
+:::
 
-For example, this query is **not supported** because the inner `FROM` itself contains subqueries:
+### View limitations [esql-limitations-views]
 
-```esql
-FROM
-    (FROM
-        (FROM employees | WHERE emp_no > 10090),
-        (FROM sample_data | WHERE client_ip == "172.21.3.15")
-    ),
-    (FROM
-        (FROM employees | WHERE emp_no < 10010),
-        (FROM sample_data | WHERE client_ip == "172.21.0.5")
-    )
-| KEEP emp_no, languages, client_ip
-```
+[Views](/reference/query-languages/esql/esql-views.md) reuse the same
+branching model as subqueries, nested branching is generally not supported, but
+views can work around this limitation via
+[query compaction](/reference/query-languages/esql/esql-views.md#query-compaction).
+Beyond that, views have a few additional restrictions of their own, listed next.
 
-Instead, use only a single level of subqueries:
-
-```esql
-FROM
-    (FROM employees | WHERE emp_no > 10090),
-    (FROM sample_data | WHERE client_ip == "172.21.3.15"),
-    (FROM employees | WHERE emp_no < 10010),
-    (FROM sample_data | WHERE client_ip == "172.21.0.5")
-| KEEP emp_no, languages, client_ip
-```
-
-### FORK is not supported with subqueries [_fork_subqueries_unsupported]
-
-The [`FORK`](/reference/query-languages/esql/commands/fork.md) command cannot be used inside a subquery or after a `FROM` that contains subqueries.
-
-For example, using `FORK` **inside** a subquery is not supported:
-
-```esql
-FROM
-    (FROM employees
-     | FORK
-         (WHERE emp_no > 10090)
-         (WHERE emp_no < 10010))
-| KEEP emp_no, languages
-```
-
-And using `FORK` **after** a `FROM` with subqueries is also not supported:
-
-```esql
-FROM
-    employees,
-    (FROM sample_data | WHERE client_ip == "172.21.3.15")
-| FORK
-    (WHERE emp_no > 10090)
-    (WHERE client_ip IS NOT NULL)
-```
+:::{include} _snippets/common/view_limitations.md
+:::
 
 
 ## Kibana limitations [esql-limitations-kibana]

@@ -170,6 +170,11 @@ If you only have the directive within the subquery, null values will be returned
 :::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_metadata_outer.md
 :::
 
+## Limitations [esql-subquery-limitations]
+
+:::{include} _snippets/common/subquery_limitations.md
+:::
+
 ## Comparing views, subqueries and FORK
 
 :::{include} _snippets/common/comparing_views_subqueries_fork.md
@@ -182,4 +187,3 @@ If you only have the directive within the subquery, null values will be returned
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where subqueries are used.
 * [`FORK` command](/reference/query-languages/esql/commands/fork.md): the other branching construct in ES|QL, which shares the same branching limits.
 * [Query multiple indices](/reference/query-languages/esql/esql-multi-index.md): how index patterns, wildcards, and date math combine sources in a single `FROM`.
-* [FROM subquery limitations](/reference/query-languages/esql/limitations.md#esql-limitations-from-subquery): known limitations when using subqueries in the `FROM` command.

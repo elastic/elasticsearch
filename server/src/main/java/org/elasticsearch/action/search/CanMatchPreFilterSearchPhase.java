@@ -269,6 +269,9 @@ final class CanMatchPreFilterSearchPhase {
     }
 
     private void consumeResult(boolean canMatch, ShardSearchRequest request) {
+        if (canMatch == false) {
+            logger.info("shard [{}] pruned by can_match", request.shardId());
+        }
         CanMatchShardResponse result = new CanMatchShardResponse(canMatch, null);
         result.setShardIndex(request.shardRequestIndex());
         consumeResult(result);

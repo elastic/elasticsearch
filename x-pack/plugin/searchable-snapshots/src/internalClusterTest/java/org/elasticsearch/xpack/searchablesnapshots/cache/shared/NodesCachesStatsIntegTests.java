@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -40,6 +42,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
+    private static final Logger logger = LogManager.getLogger(NodesCachesStatsIntegTests.class);
 
     public void testNodesCachesStats() throws Exception {
         final String[] nodeNames = internalCluster().getNodeNames();
@@ -96,23 +99,48 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             final long cacheSize = SharedBlobCacheService.calculateCacheSize(clusterService.getSettings(), totalFsSize);
             assertThat(nodeCachesStats.getSize(), equalTo(cacheSize));
 
-            final long regionSize = SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
-            assertThat(nodeCachesStats.getRegionSize(), equalTo(regionSize));
+            final long expectedRegionSize = SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(clusterService.getSettings())
+                .getBytes();
+            final var regionSize = nodeCachesStats.getRegionSize();
+            final var numRegions = nodeCachesStats.getNumRegions();
+            final var writes = nodeCachesStats.getWrites();
+            final var bytesWritten = nodeCachesStats.getBytesWritten();
+            final var reads = nodeCachesStats.getReads();
+            final var bytesRead = nodeCachesStats.getBytesRead();
+            final var evictions = nodeCachesStats.getEvictions();
+            logger.info(
+                "---> nodeCachesStats for node [{}]: numRegions [{}], writes [{}], bytes written [{}], reads [{}], bytes read [{}], evictions [{}]",
+                nodeId,
+                numRegions,
+                writes,
+                bytesWritten,
+                reads,
+                bytesRead,
+                evictions
+            );
+            assertThat(regionSize, equalTo(expectedRegionSize));
 
-            assertThat(nodeCachesStats.getNumRegions(), equalTo(Math.toIntExact(cacheSize / regionSize)));
-            assertThat(nodeCachesStats.getWrites(), equalTo(0L));
-            assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
-            assertThat(nodeCachesStats.getReads(), equalTo(0L));
-            assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
-            assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
+            assertThat(numRegions, equalTo(Math.toIntExact(cacheSize / regionSize)));
+            assertThat(writes, equalTo(0L));
+            assertThat(bytesWritten, equalTo(0L));
+            assertThat(reads, equalTo(0L));
+            assertThat(bytesRead, equalTo(0L));
+            assertThat(evictions, equalTo(0L));
         }
 
         for (int i = 0; i < 20; i++) {
-            prepareSearch(mountedIndex).setQuery(
+            final var searchResponse = prepareSearch(mountedIndex).setQuery(
                 randomBoolean()
                     ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
                     : QueryBuilders.termQuery("test", "value" + randomIntBetween(0, 1000))
-            ).setSize(randomIntBetween(0, 1000)).get().decRef();
+            ).setSize(randomIntBetween(0, 1000)).get();
+            logger.info(
+                "search [{}]: totalShards={} skippedShards={}",
+                i,
+                searchResponse.getTotalShards(),
+                searchResponse.getSkippedShards()
+            );
+            searchResponse.decRef();
         }
 
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
@@ -150,18 +178,35 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             assertThat(response.hasFailures(), equalTo(false));
 
             for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {
-                if (nodeCachesStats.getNumRegions() > 0) {
-                    assertThat(nodeCachesStats.getWrites(), greaterThan(0L));
-                    assertThat(nodeCachesStats.getBytesWritten(), greaterThan(0L));
-                    assertThat(nodeCachesStats.getReads(), greaterThan(0L));
-                    assertThat(nodeCachesStats.getBytesRead(), greaterThan(0L));
-                    assertThat(nodeCachesStats.getEvictions(), greaterThan(0L));
+                final var nodeId = nodeCachesStats.getNode().getId();
+                final var numRegions = nodeCachesStats.getNumRegions();
+                final var writes = nodeCachesStats.getWrites();
+                final var bytesWritten = nodeCachesStats.getBytesWritten();
+                final var reads = nodeCachesStats.getReads();
+                final var bytesRead = nodeCachesStats.getBytesRead();
+                final var evictions = nodeCachesStats.getEvictions();
+                logger.info(
+                    "---> nodeCachesStats for node [{}]: numRegions [{}], writes [{}], bytes written [{}], reads [{}], bytes read [{}], evictions [{}]",
+                    nodeId,
+                    numRegions,
+                    writes,
+                    bytesWritten,
+                    reads,
+                    bytesRead,
+                    evictions
+                );
+                if (numRegions > 0) {
+                    assertThat(writes, greaterThan(0L));
+                    assertThat(bytesWritten, greaterThan(0L));
+                    assertThat(reads, greaterThan(0L));
+                    assertThat(bytesRead, greaterThan(0L));
+                    assertThat(evictions, greaterThan(0L));
                 } else {
-                    assertThat(nodeCachesStats.getWrites(), equalTo(0L));
-                    assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
-                    assertThat(nodeCachesStats.getReads(), equalTo(0L));
-                    assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
-                    assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
+                    assertThat(writes, equalTo(0L));
+                    assertThat(bytesWritten, equalTo(0L));
+                    assertThat(reads, equalTo(0L));
+                    assertThat(bytesRead, equalTo(0L));
+                    assertThat(evictions, equalTo(0L));
                 }
             }
         });

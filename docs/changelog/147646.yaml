@@ -1,0 +1,6 @@
+area: CCS
+issues:
+ - 146897
+pr: 147646
+summary: Do not allow double cluster prefixes
+type: bug

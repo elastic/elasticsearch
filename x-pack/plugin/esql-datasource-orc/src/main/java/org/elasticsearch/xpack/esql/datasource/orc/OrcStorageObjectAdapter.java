@@ -16,6 +16,8 @@ import org.apache.hadoop.fs.PositionedReadable;
 import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -33,6 +35,7 @@ import java.util.concurrent.ExecutionException;
  * any storage provider (HTTP, S3, local) without a real Hadoop installation.
  */
 public class OrcStorageObjectAdapter extends FileSystem {
+    private static final Logger logger = LogManager.getLogger(OrcStorageObjectAdapter.class);
 
     private final StorageObject storageObject;
     private final Path path;
@@ -143,7 +146,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
         StorageObjectInputStream(StorageObject storageObject) throws IOException {
             this.storageObject = storageObject;
             this.length = storageObject.length();
-            this.cacheKey = new FooterByteCache.Key(storageObject.path().toString(), this.length);
+            this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
             this.position = 0;
             this.streamStartPosition = 0;
             this.currentStream = storageObject.newStream();
@@ -200,6 +203,10 @@ public class OrcStorageObjectAdapter extends FileSystem {
                 bytesRead = stream.read(buffer, offset, len);
             }
 
+            // Opportunistic cache fill: uses pos + bytesRead (actual bytes returned) rather than
+            // pos + len (requested bytes) because PositionedReadable.read may return a short read.
+            // This caches a smaller suffix [length - bytesRead, length) which readFromTailCache
+            // handles correctly — its bounds check rejects requests that span outside the cached region.
             if (bytesRead > 0 && pos + bytesRead == length) {
                 byte[] tailBytes = new byte[bytesRead];
                 System.arraycopy(buffer, offset, tailBytes, 0, bytesRead);
@@ -229,7 +236,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
                         }
                     }
                 } catch (ExecutionException e) {
-                    // fall through to direct I/O
+                    logger.debug("footer cache load failed; retrying direct I/O", e.getCause());
                 }
             }
 

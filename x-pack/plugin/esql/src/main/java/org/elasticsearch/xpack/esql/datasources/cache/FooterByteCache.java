@@ -66,6 +66,8 @@ public class FooterByteCache {
      * Entries expire after this many seconds of inactivity. Chosen to comfortably cover the
      * duration of a single query (where concurrent splits keep the entry alive via access-time
      * resets) while ensuring that file modifications between queries trigger a fresh read.
+     * Hard-coded for now; worth exposing as a {@code Setting.timeSetting} when this cache
+     * graduates from a temporary static singleton to a proper cluster service.
      */
     static final long EXPIRE_AFTER_ACCESS_SECONDS = 30;
 
@@ -73,9 +75,18 @@ public class FooterByteCache {
      * Cache key identifying a file by its storage path and total length. Uses {@code (path, length)}
      * only — not {@code lastModified} — so that all range splits of the same file share one cache
      * entry regardless of any timing jitter in {@code StorageObject.lastModified()}.
-     * Callers must use a consistent, canonical path representation (e.g. normalized URI).
      */
-    public record Key(String path, long fileLength) {}
+    public record Key(String path, long fileLength) {
+
+        /**
+         * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},
+         * using its path string as the canonical identifier. All callers should prefer this factory
+         * over constructing {@code Key} directly so that path canonicalization happens in one place.
+         */
+        public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject, long length) {
+            return new Key(storageObject.path().toString(), length);
+        }
+    }
 
     private static final FooterByteCache INSTANCE = new FooterByteCache(DEFAULT_MAX_BYTES, DEFAULT_MAX_ENTRY_BYTES);
 
@@ -108,6 +119,10 @@ public class FooterByteCache {
      *
      * <p>If the loaded entry is empty or exceeds {@link #maxEntryBytes()}, it is returned to the
      * caller but immediately evicted so it does not consume cache budget or prevent future loads.
+     * This means oversized entries briefly occupy the cache between {@code computeIfAbsent} and
+     * {@code invalidate}. The alternative — manual {@code get}/{@code put} — was rejected because
+     * it loses thundering-herd protection for <em>all</em> first loads: N concurrent callers
+     * seeing {@code get(key) == null} would each invoke the loader independently.
      *
      * @throws ExecutionException if the loader throws an exception or returns null
      */

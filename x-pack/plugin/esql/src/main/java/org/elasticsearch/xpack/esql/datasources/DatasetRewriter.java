@@ -7,12 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.DataSource;
 import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,22 +29,46 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Rewrites {@code FROM <dataset>} to the same {@link UnresolvedExternalRelation} the {@code EXTERNAL}
- * command produces, so both paths converge at the existing resolver + analyzer. Runs once on the
- * parsed plan before pre-analysis. Phase 1 rejects mixed indices-and-datasets patterns.
+ * Rewrites {@code FROM <dataset>} (and patterns that match datasets) into the same
+ * {@link UnresolvedExternalRelation} the {@code EXTERNAL} command produces, so both paths converge at
+ * the existing resolver + analyzer. Runs once on the parsed plan before pre-analysis.
+ *
+ * <p>Pattern expansion (wildcards, exclusions, date math, hidden flag) is delegated to
+ * {@link IndexAbstractionResolver} with {@code resolveDatasets(true)} — the same machinery
+ * {@code FROM <index>} uses, so dataset names participate in the standard FROM syntax without a
+ * parallel resolution path. Phase 1 rejects patterns that resolve to a mix of indices and datasets.
  */
 public final class DatasetRewriter {
 
+    /**
+     * Permissive options for the rewriter's pattern-expansion step. We ask the resolver for
+     * <em>everything that exists</em> matching the pattern (including datasets), then bucket by
+     * abstraction type. Anything that doesn't resolve is left for the downstream analyzer to handle
+     * with the request's actual {@link IndicesOptions} — surfacing the right error at the right layer
+     * rather than competing with the analyzer.
+     */
+    private static final IndicesOptions REWRITER_OPTIONS = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            IndicesOptions.WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .build()
+        )
+        .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).resolveViews(false).build())
+        .build();
+
     private DatasetRewriter() {}
 
-    public static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata projectMetadata) {
+    public static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata projectMetadata, IndexNameExpressionResolver iner) {
         if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() == false || projectMetadata == null) {
             return parsed;
         }
@@ -48,21 +77,46 @@ public final class DatasetRewriter {
             return parsed;
         }
         DataSourceMetadata dataSourceMetadata = DataSourceMetadata.get(projectMetadata);
-        return parsed.transformUp(UnresolvedRelation.class, r -> rewriteOne(r, datasetMetadata, dataSourceMetadata));
+        IndexAbstractionResolver resolver = new IndexAbstractionResolver(iner);
+        return parsed.transformUp(
+            UnresolvedRelation.class,
+            r -> rewriteOne(r, projectMetadata, datasetMetadata, dataSourceMetadata, resolver)
+        );
     }
 
-    private static LogicalPlan rewriteOne(UnresolvedRelation relation, DatasetMetadata datasets, DataSourceMetadata dataSources) {
-        List<String> names = splitPattern(relation.indexPattern().indexPattern());
+    private static LogicalPlan rewriteOne(
+        UnresolvedRelation relation,
+        ProjectMetadata projectMetadata,
+        DatasetMetadata datasets,
+        DataSourceMetadata dataSources,
+        IndexAbstractionResolver resolver
+    ) {
+        Map<String, IndexAbstraction> indicesLookup = projectMetadata.getIndicesLookup();
+        // Expand the pattern through the same machinery FROM <index> uses; the resolver handles
+        // wildcards, exclusions, date math, and hidden flags identically for indices and datasets.
+        List<String> patterns = List.of(Strings.splitStringByCommaToArray(relation.indexPattern().indexPattern()));
+        var resolved = resolver.resolveIndexAbstractions(
+            patterns,
+            REWRITER_OPTIONS,
+            projectMetadata,
+            componentSelector -> indicesLookup.keySet(),
+            (name, selector) -> true,
+            true
+        );
+
         List<String> datasetNames = new ArrayList<>();
-        List<String> indexNames = new ArrayList<>();
-        for (String name : names) {
-            if (datasets.get(name) != null) {
+        List<String> nonDatasetNames = new ArrayList<>();
+        for (String name : resolved.getLocalIndicesList()) {
+            IndexAbstraction abs = indicesLookup.get(name);
+            if (abs != null && abs.getType() == IndexAbstraction.Type.DATASET) {
                 datasetNames.add(name);
-            } else {
-                indexNames.add(name);
+            } else if (abs != null) {
+                nonDatasetNames.add(name);
             }
         }
+
         if (datasetNames.isEmpty()) {
+            // No dataset references in this pattern; let the downstream analyzer resolve as usual.
             return relation;
         }
         if (relation.indexMode() != null && relation.indexMode() != IndexMode.STANDARD) {
@@ -77,9 +131,12 @@ public final class DatasetRewriter {
             };
             throw new VerificationException(message);
         }
-        if (indexNames.isEmpty() == false) {
+        if (nonDatasetNames.isEmpty() == false) {
             throw new VerificationException(
-                "FROM mixing indices and datasets is not supported; requested mix: indices=" + indexNames + ", datasets=" + datasetNames
+                "FROM mixing indices and datasets is not supported; requested mix: indices="
+                    + nonDatasetNames
+                    + ", datasets="
+                    + datasetNames
             );
         }
         List<LogicalPlan> children = new ArrayList<>(datasetNames.size());
@@ -95,10 +152,6 @@ public final class DatasetRewriter {
             children.add(new UnresolvedExternalRelation(relation.source(), path, toParams(relation.source(), merged)));
         }
         return children.size() == 1 ? children.get(0) : new UnionAll(relation.source(), children, List.of());
-    }
-
-    private static List<String> splitPattern(String pattern) {
-        return Arrays.stream(pattern.split(",")).map(String::trim).filter(s -> s.isEmpty() == false).toList();
     }
 
     /** Parent data source settings (secrets unwrapped to plaintext) overlaid by the dataset's settings. */

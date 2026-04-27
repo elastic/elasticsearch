@@ -13,10 +13,15 @@ import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -30,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -37,10 +43,12 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class DatasetRewriterTests extends ESTestCase {
 
+    private static final IndexNameExpressionResolver RESOLVER = TestIndexNameExpressionResolver.newInstance();
+
     public void testNoDatasetsLeavesPlanUnchanged() {
         UnresolvedRelation relation = relationOf("my_index");
         ProjectMetadata project = projectWith(Map.of(), Map.of());
-        assertSame(relation, DatasetRewriter.rewrite(relation, project));
+        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
     }
 
     public void testUnknownNameLeavesPlanUnchanged() {
@@ -51,37 +59,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         UnresolvedRelation relation = relationOf("not_a_dataset_or_index");
-        assertSame(relation, DatasetRewriter.rewrite(relation, project));
-    }
-
-    public void testWildcardPatternDoesNotMatchDataset() {
-        // Phase 1 looks up dataset names by exact string match — wildcard patterns are not expanded.
-        // Even when a dataset literally named like the glob would suggest is registered, the wildcard
-        // string falls through to standard index-pattern resolution. Wildcard expansion across
-        // datasets is tracked separately in elastic/esql-planning#578.
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Dataset dataset = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://logs/a/", null, Map.of());
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", dataset));
-
-        UnresolvedRelation relation = relationOf("logs_*");
-        assertSame(relation, DatasetRewriter.rewrite(relation, project));
-    }
-
-    public void testWildcardMixedWithDatasetIsRejectedAsMixedFrom() {
-        // `FROM <wildcard>, <literal_dataset>` falls into mixed-FROM territory because the wildcard
-        // string lands in the index bucket (literal-lookup miss) while the dataset name lands in the
-        // dataset bucket — Phase 1 rejection fires, identical to a literal index + dataset mix.
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Dataset dataset = new Dataset("employees", new DataSourceReference("s3_parent"), "s3://emp/", null, Map.of());
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("employees", dataset));
-
-        VerificationException ex = expectThrows(
-            VerificationException.class,
-            () -> DatasetRewriter.rewrite(relationOf("logs_*,employees"), project)
-        );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing indices and datasets"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs_*"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("employees"));
+        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
     }
 
     public void testSingleDatasetRewritesToUnresolvedExternalRelation() {
@@ -95,7 +73,7 @@ public class DatasetRewriterTests extends ESTestCase {
         );
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project);
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
 
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
@@ -109,7 +87,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of("region", "eu-west-2"));
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project);
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
         assertThat(paramValue((UnresolvedExternalRelation) rewritten, "region"), equalTo("eu-west-2"));
     }
 
@@ -119,7 +97,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("ds1,ds2"), project);
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("ds1,ds2"), project, RESOLVER);
 
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
@@ -129,17 +107,18 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testMixedIndicesAndDatasetsRejected() {
+        // Register a real index alongside the dataset so the resolver actually sees both abstractions.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs", dataset), Set.of("some_idx"));
 
         VerificationException ex = expectThrows(
             VerificationException.class,
-            () -> DatasetRewriter.rewrite(relationOf("some_idx,logs"), project)
+            () -> DatasetRewriter.rewrite(relationOf("some_idx,logs"), project, RESOLVER)
         );
         assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing indices and datasets"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("indices=[some_idx]"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("datasets=[logs]"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("some_idx"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs"));
     }
 
     public void testIndexModeNonStandardRejected() {
@@ -159,7 +138,7 @@ public class DatasetRewriterTests extends ESTestCase {
         for (Map.Entry<IndexMode, String> entry : expectedFragments.entrySet()) {
             VerificationException ex = expectThrows(
                 VerificationException.class,
-                () -> DatasetRewriter.rewrite(relationOfWithMode("logs", entry.getKey()), project)
+                () -> DatasetRewriter.rewrite(relationOfWithMode("logs", entry.getKey()), project, RESOLVER)
             );
             assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString(entry.getValue()));
             assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs"));
@@ -174,8 +153,84 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project);
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
         assertThat(paramValue((UnresolvedExternalRelation) rewritten, "access_key"), equalTo("AKIAEXAMPLE"));
+    }
+
+    // ---- Pattern expansion (parity with FROM <index> patterns via IndexNameExpressionResolver) ----
+
+    public void testWildcardMatchesDatasets() {
+        // `FROM logs_*` expands through IndexNameExpressionResolver and picks up every dataset whose
+        // name matches the glob — same machinery FROM <index> uses for indices and aliases.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
+
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER);
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testWildcardMatchingNoDatasetsLeavesPlanUnchanged() {
+        // Pattern matching no datasets and no indices is left for the analyzer to handle (which will
+        // error appropriately based on the request's IndicesOptions).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        UnresolvedRelation relation = relationOf("metrics_*");
+        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+    }
+
+    public void testWildcardSpanningIndicesAndDatasetsRejected() {
+        // `FROM logs_*` matching both real indices and datasets is mixed-FROM territory — same as a
+        // literal mix.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("logs_index"));
+
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER)
+        );
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing indices and datasets"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs_index"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs_dataset"));
+    }
+
+    public void testWildcardWithExclusion() {
+        // `FROM logs_*, -logs_test` picks up matching datasets minus the excluded one.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset test = new Dataset("logs_test", new DataSourceReference("s3_parent"), "s3://test/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_test", test));
+
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_*,-logs_test"), project, RESOLVER);
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        assertThat(tablePathString(out), equalTo("s3://a/"));
+    }
+
+    public void testCommaSeparatedDatasetsAndWildcardCombine() {
+        // `FROM logs_a, metrics_*` mixes a literal dataset name with a wildcard that expands to
+        // additional datasets — all dataset-side, so a UnionAll of all three children.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset m1 = new Dataset("metrics_1", new DataSourceReference("s3_parent"), "s3://m1/", null, Map.of());
+        Dataset m2 = new Dataset("metrics_2", new DataSourceReference("s3_parent"), "s3://m2/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "metrics_1", m1, "metrics_2", m2));
+
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_a,metrics_*"), project, RESOLVER);
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(3));
+        for (LogicalPlan child : union.children()) {
+            assertThat(child, instanceOf(UnresolvedExternalRelation.class));
+        }
     }
 
     // --
@@ -193,10 +248,32 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     private static ProjectMetadata projectWith(Map<String, DataSource> dataSources, Map<String, Dataset> datasets) {
-        return ProjectMetadata.builder(ProjectId.DEFAULT)
+        return projectWithIndices(dataSources, datasets, Set.of());
+    }
+
+    private static ProjectMetadata projectWithIndices(
+        Map<String, DataSource> dataSources,
+        Map<String, Dataset> datasets,
+        Set<String> indexNames
+    ) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(ProjectId.DEFAULT)
             .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(dataSources))
-            .datasets(datasets)
-            .build();
+            .datasets(datasets);
+        for (String name : indexNames) {
+            builder.put(
+                IndexMetadata.builder(name)
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .build()
+                    )
+                    .build(),
+                false
+            );
+        }
+        return builder.build();
     }
 
     private static String tablePathString(UnresolvedExternalRelation relation) {

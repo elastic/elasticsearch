@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
@@ -178,6 +179,7 @@ public class EsqlSession {
     private final Mapper mapper;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
@@ -226,6 +228,7 @@ public class EsqlSession {
         this.mapper = mapper;
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
+        this.indexNameExpressionResolver = services.indexNameExpressionResolver();
         this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
@@ -876,10 +879,11 @@ public class EsqlSession {
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
         // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
-        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. The rewriter
-        // bails internally when the feature flag is off or no datasets are registered, so index-only
-        // queries on dataset-free clusters pay only a feature-flag check + an empty-map lookup.
-        parsed = DatasetRewriter.rewrite(parsed, projectMetadata);
+        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Pattern
+        // expansion (wildcards, exclusions, date math, etc.) flows through the same
+        // IndexNameExpressionResolver path indices use. The rewriter bails internally when the feature
+        // flag is off or no datasets are registered.
+        parsed = DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver);
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         preAnalysisProfile.stop();
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in

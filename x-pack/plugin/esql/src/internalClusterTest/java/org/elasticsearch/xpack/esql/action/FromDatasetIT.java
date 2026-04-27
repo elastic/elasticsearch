@@ -170,6 +170,11 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     public void testFromMixedIndexAndDatasetRejected() throws Exception {
         assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
 
+        // Real ES index alongside the dataset so the resolver finds both abstractions and the
+        // mixed-FROM rejection actually fires (rather than the resolver silently filtering an unknown name).
+        createIndex("some_real_index");
+        ensureGreen("some_real_index");
+
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -338,6 +343,56 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows, hasSize(1));
             // 3 rows from employees + 2 from employees_alt
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(5L));
+        }
+    }
+
+    public void testFromDatasetWildcardExpansion() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        // employees + employees_alt = 3 + 2 = 5
+        try (var response = run(syncEsqlQueryRequest("FROM employees* | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(5L));
+        }
+    }
+
+    public void testFromDatasetWildcardWithExclusion() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        // employees* matches both, exclusion of employees_alt leaves only employees (3 rows)
+        try (var response = run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
         }
     }
 

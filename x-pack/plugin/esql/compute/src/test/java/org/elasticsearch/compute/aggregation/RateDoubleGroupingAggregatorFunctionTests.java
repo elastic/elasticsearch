@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -21,6 +22,7 @@ import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestWarningsSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -76,10 +78,8 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
         }
         // values, timestamps, temporality, slice, future_timestamps
         AggregatorMode aggregatorMode = AggregatorMode.INITIAL;
-        var aggregatorFactory = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false).groupingAggregatorFactory(
-            aggregatorMode,
-            List.of(1, 2, 3, 4, 5)
-        );
+        var aggregatorFactory = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false, TestWarningsSource.INSTANCE)
+            .groupingAggregatorFactory(aggregatorMode, List.of(1, 2, 3, 4, 5));
         final List<BlockHash.GroupSpec> groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.INT));
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator.Builder().mode(aggregatorMode)
             .aggregators(List.of(aggregatorFactory))
@@ -112,5 +112,41 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
             }
             out.close();
         }
+    }
+
+    public void testInvalidTemporalityWarning() {
+        BlockFactory blockFactory = blockFactory();
+        int positions = 10;
+
+        var values = blockFactory.newConstantDoubleBlockWith(10.0, positions);
+        var timestamps = blockFactory.newConstantLongBlockWith(1000, positions);
+        var temporalities = blockFactory.newConstantBytesRefBlockWith(new BytesRef("invalid_temporality"), positions);
+        var groupIds = blockFactory.newConstantIntBlockWith(0, positions);
+        var sliceIndices = blockFactory.newConstantIntBlockWith(0, positions);
+        var futureMaxTimestamps = blockFactory.newConstantLongBlockWith(Long.MAX_VALUE, positions);
+
+        Page page = new Page(groupIds, values, timestamps, temporalities, sliceIndices, futureMaxTimestamps);
+
+        var source = new TestWarningsSource("rate(field)");
+        var aggregator = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false, source).groupingAggregator(
+            driverContext(),
+            List.of(1, 2, 3, 4, 5)
+        );
+        try {
+            var addInput = aggregator.prepareProcessRawInputPage(null, page);
+            try (var groups = blockFactory.newConstantIntBlockWith(0, positions).asVector()) {
+                addInput.add(0, groups);
+            }
+            addInput.close();
+        } finally {
+            aggregator.close();
+            page.releaseBlocks();
+        }
+
+        assertCriticalWarnings(
+            "Line 1:1: evaluation of [rate(field)] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 1:1: org.elasticsearch.compute.aggregation.InvalidTemporalityException: "
+                + "Invalid temporality value: [invalid_temporality], expected [cumulative] or [delta]"
+        );
     }
 }

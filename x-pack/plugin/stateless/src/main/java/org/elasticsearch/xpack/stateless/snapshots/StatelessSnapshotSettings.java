@@ -17,8 +17,15 @@
 
 package org.elasticsearch.xpack.stateless.snapshots;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+
+import java.util.Iterator;
+import java.util.Map;
+
+import static org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME;
 
 public class StatelessSnapshotSettings {
 
@@ -63,6 +70,41 @@ public class StatelessSnapshotSettings {
         StatelessSnapshotEnabledStatus.class,
         "stateless.snapshot.enabled",
         StatelessSnapshotEnabledStatus.DISABLED,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(StatelessSnapshotEnabledStatus value) {}
+
+            @Override
+            public void validate(StatelessSnapshotEnabledStatus value, Map<Setting<?>, Object> settings) {
+                validateSettingsConsistency(value, (boolean) settings.get(RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING));
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return Iterators.single(RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING);
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Boolean> RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING = Setting.boolSetting(
+        RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME,
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                validateSettingsConsistency((StatelessSnapshotEnabledStatus) settings.get(STATELESS_SNAPSHOT_ENABLED_SETTING), value);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return Iterators.single(STATELESS_SNAPSHOT_ENABLED_SETTING);
+            }
+        },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -73,4 +115,21 @@ public class StatelessSnapshotSettings {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    private static void validateSettingsConsistency(
+        StatelessSnapshotSettings.StatelessSnapshotEnabledStatus statelessSnapshotEnabledStatus,
+        boolean relocationDuringSnapshotEnabled
+    ) {
+        if (statelessSnapshotEnabledStatus != StatelessSnapshotSettings.StatelessSnapshotEnabledStatus.ENABLED
+            && relocationDuringSnapshotEnabled) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Setting [%s] cannot be [true] unless setting [%s] is [%s]",
+                    StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING.getKey(),
+                    StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
+                    StatelessSnapshotSettings.StatelessSnapshotEnabledStatus.ENABLED
+                )
+            );
+        }
+    }
 }

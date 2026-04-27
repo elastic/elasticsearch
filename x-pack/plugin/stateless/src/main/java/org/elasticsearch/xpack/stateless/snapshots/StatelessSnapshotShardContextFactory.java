@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.Sta
 import java.io.IOException;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING;
 import static org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING;
 
 /**
@@ -51,6 +53,7 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
     private static final Logger logger = LogManager.getLogger(StatelessSnapshotShardContextFactory.class);
 
     private volatile StatelessSnapshotEnabledStatus statelessSnapshotEnabledStatus;
+    private volatile boolean relocationDuringSnapshotEnabled;
     private final BiFunction<ShardId, Long, BlobContainer> shardBlobContainerFunc;
     private final SnapshotsCommitService snapshotsCommitService;
     private final LocalPrimarySnapshotShardContextFactory localPrimaryFactory;
@@ -64,9 +67,9 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
         this.shardBlobContainerFunc = stateless.shardBlobContainerFunc();
         this.snapshotsCommitService = stateless.getSnapshotsCommitService();
         this.client = stateless.getClient();
-        stateless.getClusterService()
-            .getClusterSettings()
-            .initializeAndWatch(STATELESS_SNAPSHOT_ENABLED_SETTING, this::setStatelessSnapshotEnabledStatus);
+        final ClusterSettings clusterSettings = stateless.getClusterService().getClusterSettings();
+        clusterSettings.initializeAndWatch(STATELESS_SNAPSHOT_ENABLED_SETTING, this::setStatelessSnapshotEnabledStatus);
+        clusterSettings.initializeAndWatch(RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING, this::setRelocationDuringSnapshotEnabled);
         this.localPrimaryFactory = new LocalPrimarySnapshotShardContextFactory(
             stateless.getClusterService(),
             stateless.getIndicesService()
@@ -115,6 +118,7 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
                         snapshotCommitInfo.snapshotIndexCommit(),
                         snapshotCommitInfo.blobLocations(),
                         shardBlobContainerFunc,
+                        snapshotCommitInfo.isShardRelocated(),
                         snapshotCommitInfo.snapshotIndexCommit().closingBefore(listener)
                     )
                 );
@@ -147,6 +151,15 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
         this.statelessSnapshotEnabledStatus = statelessSnapshotEnabledStatus;
     }
 
+    private void setRelocationDuringSnapshotEnabled(boolean value) {
+        logger.info("relocation during snapshot is [{}]", value ? "enabled" : "disabled");
+        this.relocationDuringSnapshotEnabled = value;
+    }
+
+    boolean isRelocationDuringSnapshotEnabled() {
+        return relocationDuringSnapshotEnabled;
+    }
+
     private SubscribableListener<SnapshotShardContext> asyncCreateOnRemoteNode(
         ShardId shardId,
         Snapshot snapshot,
@@ -177,6 +190,7 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
                             null,
                             response.blobLocations(),
                             shardBlobContainerFunc,
+                            null,
                             listener
                         )
                     );

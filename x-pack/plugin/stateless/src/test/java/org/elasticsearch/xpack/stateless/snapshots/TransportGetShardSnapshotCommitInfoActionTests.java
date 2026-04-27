@@ -225,7 +225,7 @@ public class TransportGetShardSnapshotCommitInfoActionTests extends ESTestCase {
         // second call succeeds (retry on remoteNode2)
         when(snapshotsCommitService.acquireAndMaybeRegisterCommitForSnapshot(eq(shardId), any(Snapshot.class), eq(true), any())).thenThrow(
             new ShardNotFoundException(shardId)
-        ).thenReturn(new SnapshotsCommitService.SnapshotCommitInfo(null, Map.of(), expectedShardStateId));
+        ).thenReturn(new SnapshotsCommitService.SnapshotCommitInfo(null, Map.of(), expectedShardStateId, () -> false));
 
         // Execute shardOperation with the captured request as if it arrived at the remote node.
         // shardOperation fails because the shard relocated away.
@@ -475,7 +475,7 @@ public class TransportGetShardSnapshotCommitInfoActionTests extends ESTestCase {
     private String setupShardMocks(ShardId shardId) throws IOException {
         final var shardStateId = randomIdentifier();
         when(snapshotsCommitService.acquireAndMaybeRegisterCommitForSnapshot(eq(shardId), any(Snapshot.class), eq(true), any())).thenReturn(
-            new SnapshotsCommitService.SnapshotCommitInfo(null, Map.of(), shardStateId)
+            new SnapshotsCommitService.SnapshotCommitInfo(null, Map.of(), shardStateId, () -> false)
         );
         return shardStateId;
     }

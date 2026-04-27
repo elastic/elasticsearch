@@ -121,6 +121,7 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
                     return inputStream;
                 }
             },
+            () -> false,
             new PlainActionFuture<>()
         );
 
@@ -177,6 +178,7 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             snapshotIndexCommit,
             Map.of("file", new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), 0, 100)),
             (s, g) -> mock(BlobContainer.class),
+            () -> false,
             new PlainActionFuture<>()
         );
 
@@ -243,6 +245,7 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
                 new BlobLocation(new BlobFile(badBlobName, new PrimaryTermAndGeneration(1L, badGeneration)), 0, totalLength)
             ),
             (s, g) -> blobContainer,
+            () -> false,
             new PlainActionFuture<>()
         );
 
@@ -426,6 +429,7 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
                     return inputStream;
                 }
             },
+            () -> false,
             new PlainActionFuture<>()
         );
 

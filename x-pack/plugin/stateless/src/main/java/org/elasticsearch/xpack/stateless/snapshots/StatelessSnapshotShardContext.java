@@ -56,6 +56,7 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -73,6 +74,8 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
     private final SnapshotIndexCommit snapshotIndexCommit;
     private final Map<String, BlobLocation> fileToBlobLocations;
     private final BiFunction<ShardId, Long, BlobContainer> blobContainerFunc;
+    @Nullable // when snapshot runs on a different node from the primary
+    private final BooleanSupplier isShardRelocated;
 
     public StatelessSnapshotShardContext(
         ShardId shardId,
@@ -85,6 +88,7 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
         @Nullable SnapshotIndexCommit snapshotIndexCommit,
         Map<String, BlobLocation> fileToBlobLocations,
         BiFunction<ShardId, Long, BlobContainer> blobContainerFunc,
+        @Nullable BooleanSupplier isShardRelocated,
         ActionListener<ShardSnapshotResult> listener
     ) {
         super(snapshotId, indexId, shardStateIdentifier, snapshotStatus, repositoryMetaVersion, snapshotStartTime, listener);
@@ -92,6 +96,7 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
         this.snapshotIndexCommit = snapshotIndexCommit;
         this.fileToBlobLocations = fileToBlobLocations;
         this.blobContainerFunc = blobContainerFunc;
+        this.isShardRelocated = isShardRelocated;
     }
 
     @Override
@@ -163,7 +168,9 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
     }
 
     private Releasable maybeWithSnapshotIndexCommitRef() {
-        return snapshotIndexCommit != null ? withSnapshotIndexCommitRef(shardId, snapshotId(), snapshotIndexCommit, status()) : null;
+        return snapshotIndexCommit != null
+            ? withSnapshotIndexCommitRef(shardId, snapshotId(), snapshotIndexCommit, status(), isShardRelocated)
+            : null;
     }
 
     static class BlobStoreFileReader implements SnapshotShardContext.FileReader {

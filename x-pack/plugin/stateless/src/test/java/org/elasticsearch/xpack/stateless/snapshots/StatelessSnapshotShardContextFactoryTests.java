@@ -77,6 +77,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING;
 import static org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -167,7 +168,8 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
                         randomLongBetween(1, 900)
                     )
                 ),
-                randomIdentifier()
+                randomIdentifier(),
+                () -> false
             )
         );
 
@@ -276,7 +278,14 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
 
         final var clusterService = ClusterServiceUtils.createClusterService(
             new DeterministicTaskQueue().getThreadPool(),
-            new ClusterSettings(settings, Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, STATELESS_SNAPSHOT_ENABLED_SETTING))
+            new ClusterSettings(
+                settings,
+                Sets.addToCopy(
+                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                    STATELESS_SNAPSHOT_ENABLED_SETTING,
+                    RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING
+                )
+            )
         );
         when(stateless.getClusterService()).thenReturn(clusterService);
         final var indicesService = mock(IndicesService.class);

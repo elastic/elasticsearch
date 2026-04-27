@@ -76,7 +76,9 @@ import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -556,6 +558,53 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
                 assertFalse(testHarness.snapshotsCommitService.hasTrackingForShard(shardId));
             }
         }
+    }
+
+    public void testLatchingBooleanSupplier() {
+        final var relocated = new AtomicBoolean(false);
+        final var invocations = new AtomicInteger(0);
+        final BooleanSupplier source = () -> {
+            invocations.incrementAndGet();
+            return relocated.get();
+        };
+        // Constructor consults the delegate once: since source is false, it is retained.
+        final var supplier = new SnapshotsCommitService.LatchingBooleanSupplier(source);
+        assertThat(invocations.get(), equalTo(1));
+        assertSame(source, supplier.delegate());
+
+        // Before the latch, each call goes to the delegate.
+        assertFalse(supplier.getAsBoolean());
+        assertThat(invocations.get(), equalTo(2));
+
+        // Flipping to true triggers the latch: the delegate is consulted one last time and then released.
+        relocated.set(true);
+        assertTrue(supplier.getAsBoolean());
+        assertThat(invocations.get(), equalTo(3));
+        assertNull(supplier.delegate());
+
+        // Subsequent calls stay true without touching the delegate.
+        for (int i = 0; i < between(3, 10); i++) {
+            assertTrue(supplier.getAsBoolean());
+        }
+        assertThat(invocations.get(), equalTo(3));
+    }
+
+    public void testLatchingBooleanSupplierAlreadyTrueAtConstruction() {
+        final var invocations = new AtomicInteger(0);
+        final BooleanSupplier source = () -> {
+            invocations.incrementAndGet();
+            return true;
+        };
+        // Constructor consults the delegate once, sees true, and releases it immediately.
+        final var supplier = new SnapshotsCommitService.LatchingBooleanSupplier(source);
+        assertThat(invocations.get(), equalTo(1));
+        assertNull(supplier.delegate());
+
+        // Subsequent calls stay true without touching the delegate.
+        for (int i = 0; i < between(3, 10); i++) {
+            assertTrue(supplier.getAsBoolean());
+        }
+        assertThat(invocations.get(), equalTo(1));
     }
 
     public void testCommitIsReleasedWhenAcquireAndMaybeRegisterThrows() throws Exception {

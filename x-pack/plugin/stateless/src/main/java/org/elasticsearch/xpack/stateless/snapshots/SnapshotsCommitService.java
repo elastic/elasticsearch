@@ -49,10 +49,12 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.repositories.SnapshotShardContextHelper.NOOP_RELEASABLE;
 import static org.elasticsearch.repositories.SnapshotShardContextHelper.acquireSnapshotIndexCommit;
 import static org.elasticsearch.repositories.SnapshotShardContextHelper.closeSnapshotIndexCommit;
 import static org.elasticsearch.repositories.SnapshotShardContextHelper.maybeEnsureNotAborted;
@@ -124,7 +126,8 @@ public class SnapshotsCommitService implements ClusterStateListener {
     public record SnapshotCommitInfo(
         SnapshotIndexCommit snapshotIndexCommit,
         Map<String, BlobLocation> blobLocations,
-        @Nullable String shardStateId
+        @Nullable String shardStateId,
+        BooleanSupplier isShardRelocated
     ) {}
 
     /**
@@ -151,7 +154,16 @@ public class SnapshotsCommitService implements ClusterStateListener {
         final var snapshotIndexCommit = snapshotIndexCommitAndShardStateId.snapshotIndexCommit();
         final var shardStateId = snapshotIndexCommitAndShardStateId.shardStateId();
         // Local snapshot (snapshotStatus != null) may be concurrently aborted so that we inc-ref before using the index commit.
-        try (var ignored = withSnapshotIndexCommitRef(shardId, snapshot.getSnapshotId(), snapshotIndexCommit, snapshotStatus)) {
+        try (
+            var releasable = withSnapshotIndexCommitRef(
+                shardId,
+                snapshot.getSnapshotId(),
+                snapshotIndexCommit,
+                snapshotStatus,
+                indexShard::isRelocatedPrimary
+            )
+        ) {
+            assert releasable != NOOP_RELEASABLE : "commit cannot be released by relocation since it is not registered yet";
             final var indexCommit = snapshotIndexCommit.indexCommit();
             maybeEnsureNotAborted(snapshotStatus);
             final Map<String, BlobLocation> blobLocations = indexCommit.getFileNames()
@@ -165,7 +177,12 @@ public class SnapshotsCommitService implements ClusterStateListener {
             if (supportsRelocationDuringSnapshot) {
                 registerReleaseForSnapshot(shardId, snapshot, snapshotIndexCommit);
             }
-            return new SnapshotCommitInfo(snapshotIndexCommit, blobLocations, shardStateId);
+            return new SnapshotCommitInfo(
+                snapshotIndexCommit,
+                blobLocations,
+                shardStateId,
+                new LatchingBooleanSupplier(indexShard::isRelocatedPrimary)
+            );
         } catch (Exception e) {
             closeSnapshotIndexCommit(snapshotIndexCommit, shardId, snapshot);
             throw e;
@@ -315,5 +332,39 @@ public class SnapshotsCommitService implements ClusterStateListener {
     // package private for testing only
     void assertEmptyTracking() {
         assert snapshotsCommitReleasables.isEmpty() : "tracking is not empty: " + snapshotsCommitReleasables;
+    }
+
+    /**
+     * A {@link BooleanSupplier} that latches to {@code true} once the wrapped delegate first returns {@code true}, and then nullifies
+     * the delegate for garbage collection, e.g. allowing an {@link IndexShard} become eligible for GC once it is relocated.
+     */
+    static final class LatchingBooleanSupplier implements BooleanSupplier {
+        private volatile BooleanSupplier delegate;
+        private boolean latched; // no need for volatile since its read and write are fenced by the volatile delegate
+
+        LatchingBooleanSupplier(BooleanSupplier delegate) {
+            this.latched = Objects.requireNonNull(delegate).getAsBoolean();
+            this.delegate = this.latched ? null : delegate;
+        }
+
+        @Override
+        public boolean getAsBoolean() {
+            final var d = delegate;
+            if (d == null) {
+                assert latched : "delegate can only be null when latched is true";
+                return true;
+            }
+            final boolean result = d.getAsBoolean();
+            if (result) {
+                latched = true;
+                delegate = null; // nullify to release the delegate for GC
+            }
+            return result;
+        }
+
+        // Package-private for testing
+        BooleanSupplier delegate() {
+            return delegate;
+        }
     }
 }

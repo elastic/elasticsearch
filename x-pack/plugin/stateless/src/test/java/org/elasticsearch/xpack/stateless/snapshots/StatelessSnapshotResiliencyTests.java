@@ -390,6 +390,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING);
             res.add(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING);
+            res.add(StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING);
             res.add(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING);
             return Set.copyOf(res);
         }

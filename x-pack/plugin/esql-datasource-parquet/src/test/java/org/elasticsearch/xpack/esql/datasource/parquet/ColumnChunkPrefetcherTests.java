@@ -236,26 +236,47 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
     }
 
     public void testComputePrefetchBytesAllColumns() {
+        // All three ranges merge into [100, 1300) since gaps (100, 100) are within 512KB coalesce threshold
         BlockMetaData block = createBlockWithColumns(
             new ColMeta("col_a", 100, 500),
             new ColMeta("col_b", 700, 300),
             new ColMeta("col_c", 1100, 200)
         );
-        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(1000L));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(1200L));
     }
 
     public void testComputePrefetchBytesWithProjection() {
+        // col_a [100,600) and col_c [1100,1300): gap of 500 < 512KB, merged to [100, 1300) = 1200
         BlockMetaData block = createBlockWithColumns(
             new ColMeta("col_a", 100, 500),
             new ColMeta("col_b", 700, 300),
             new ColMeta("col_c", 1100, 200)
         );
-        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("col_a", "col_c")), equalTo(700L));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("col_a", "col_c")), equalTo(1200L));
     }
 
-    public void testComputePrefetchBytesEmptyProjection() {
+    public void testComputePrefetchBytesNoMatchingProjection() {
         BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 500));
         assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("nonexistent")), equalTo(0L));
+    }
+
+    public void testComputePrefetchBytesNullProjection() {
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 500));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(500L));
+    }
+
+    public void testComputePrefetchBytesSkipsZeroSizeColumns() {
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 500), new ColMeta("col_b", 700, 0));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(500L));
+    }
+
+    public void testComputePrefetchBytesIncludesCoalescingGaps() {
+        // Two columns separated by a gap smaller than DEFAULT_MAX_COALESCE_GAP (512KB).
+        // The merged range should include the gap bytes, not just the column data.
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 0, 100), new ColMeta("col_b", 200, 100));
+        long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(block, null);
+        // Merged range: [0, 300) = 300 bytes (includes the 100-byte gap)
+        assertThat(prefetchBytes, equalTo(300L));
     }
 
     public void testComputePrefetchBytesEmptyBlock() {

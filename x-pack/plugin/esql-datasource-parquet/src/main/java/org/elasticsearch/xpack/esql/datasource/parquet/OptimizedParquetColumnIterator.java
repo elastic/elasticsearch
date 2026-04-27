@@ -45,6 +45,7 @@ import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Optimized Parquet column iterator behind the {@code optimized_reader} feature flag.
@@ -80,13 +81,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private final String createdBy;
     private final String fileLocation;
     private final ColumnInfo[] columnInfos;
+    // TODO: use for column-index and dictionary-based optimizations in the filtered-read follow-up
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
     private final ParquetStorageObjectAdapter adapter;
     private final Set<String> projectedColumnPaths;
     private final CircuitBreaker breaker;
     private int rowBudget;
-    private long prefetchReservedBytes;
+    private final AtomicLong prefetchReservedBytes = new AtomicLong();
 
     private PageReadStore rowGroup;
     private ColumnReader[] columnReaders;
@@ -282,11 +284,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         BlockMetaData nextBlock = rowGroups.get(nextRgOrdinal);
         long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(nextBlock, projectedColumnPaths);
         if (prefetchBytes <= 0) {
+            // No data to prefetch (empty projection or zero-byte columns). This is safe because
+            // installPendingPrefetch tolerates pendingPrefetch == null — no invariant is broken.
             return;
         }
         try {
-            breaker.addEstimateBytesAndMaybeBreak(prefetchBytes, "parquet prefetch");
-            prefetchReservedBytes = prefetchBytes;
+            breaker.addEstimateBytesAndMaybeBreak(prefetchBytes, "esql_parquet_prefetch");
+            prefetchReservedBytes.set(prefetchBytes);
         } catch (CircuitBreakingException e) {
             logger.debug(
                 "Skipping prefetch for row group [{}] in [{}]: circuit breaker limit reached ({} bytes requested)",
@@ -305,6 +309,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         }
     }
 
+    /**
+     * Cancels the pending prefetch future and releases the breaker reservation. Note that
+     * {@link org.elasticsearch.common.util.concurrent.FutureUtils#cancel} only flips the
+     * future's cancelled state — it does not interrupt in-flight storage SDK reads. If the
+     * async read is already in progress, the SDK may still allocate a buffer that becomes
+     * untracked by the breaker until GC. Draining the future before releasing would risk
+     * blocking {@link #close()}, so we accept this brief discrepancy.
+     */
     private void cancelPendingPrefetch() {
         if (pendingPrefetch != null) {
             org.elasticsearch.common.util.concurrent.FutureUtils.cancel(pendingPrefetch);
@@ -318,9 +330,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
      * safe to call multiple times (subsequent calls are no-ops when reservation is zero).
      */
     private void releasePrefetchReservation() {
-        if (prefetchReservedBytes > 0) {
-            breaker.addWithoutBreaking(-prefetchReservedBytes);
-            prefetchReservedBytes = 0;
+        long reserved = prefetchReservedBytes.getAndSet(0);
+        if (reserved > 0) {
+            breaker.addWithoutBreaking(-reserved);
         }
     }
 

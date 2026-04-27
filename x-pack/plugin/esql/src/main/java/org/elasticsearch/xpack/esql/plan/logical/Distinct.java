@@ -1,0 +1,71 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.plan.logical;
+
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Removes duplicate rows from the result set, like SQL {@code DISTINCT}.
+ * <p>
+ * Implemented as a {@link SurrogateLogicalPlan} that rewrites to
+ * {@code LIMIT 1 BY <child.output()>} during the optimizer's substitutions phase.
+ * The node itself does not need to escape the coordinator, so it is not registered
+ * with the {@code NamedWriteableRegistry}.
+ */
+public class Distinct extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware {
+
+    public Distinct(Source source, LogicalPlan child) {
+        super(source, child);
+    }
+
+    @Override
+    public Distinct replaceChild(LogicalPlan newChild) {
+        return new Distinct(source(), newChild);
+    }
+
+    @Override
+    public boolean expressionsResolved() {
+        return true;
+    }
+
+    @Override
+    protected NodeInfo<Distinct> info() {
+        return NodeInfo.create(this, Distinct::new, child());
+    }
+
+    @Override
+    public String telemetryLabel() {
+        return "DISTINCT";
+    }
+
+    @Override
+    public LogicalPlan surrogate() {
+        Literal one = new Literal(source(), 1, DataType.INTEGER);
+        List<Expression> groupings = new ArrayList<>(child().output());
+        return new LimitBy(source(), one, child(), groupings);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("doesn't escape the coordinator node");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("doesn't escape the coordinator node");
+    }
+}

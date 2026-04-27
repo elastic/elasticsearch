@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Distinct;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -1179,6 +1180,44 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo
             | LIMIT -1 + 5 BY languages
             """));
+    }
+
+    public void testDistinct() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("FROM foo | DISTINCT");
+        Distinct distinct = as(plan, Distinct.class);
+        UnresolvedRelation relation = as(distinct.child(), UnresolvedRelation.class);
+        assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testDistinctAfterProcessingCommands() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("FROM foo | EVAL x = a + 1 | WHERE b > 0 | DISTINCT");
+        Distinct distinct = as(plan, Distinct.class);
+        as(distinct.child(), Filter.class);
+    }
+
+    public void testDistinctChained() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("FROM foo | DISTINCT | LIMIT 10");
+        Limit limit = as(plan, Limit.class);
+        as(limit.child(), Distinct.class);
+    }
+
+    public void testDistinctOnRow() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assertEqualsIgnoringIds(new Distinct(EMPTY, PROCESSING_CMD_INPUT), processingCommand("DISTINCT"));
+    }
+
+    public void testDistinctRejectsArguments() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, containsString("extraneous input 'a' expecting"), () -> query("FROM foo | DISTINCT a"));
+        expectThrows(ParsingException.class, containsString("extraneous input '*' expecting"), () -> query("FROM foo | DISTINCT *"));
+    }
+
+    public void testDistinctNotInReleaseBuild() {
+        assumeFalse("only runs on release build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, containsString("mismatched input 'distinct'"), () -> query("FROM foo | DISTINCT"));
     }
 
     public void testBasicSortCommand() {

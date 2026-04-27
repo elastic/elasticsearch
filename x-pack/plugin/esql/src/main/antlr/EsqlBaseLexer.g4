@@ -55,6 +55,7 @@ options {
  * all other commands.
  */
 import ChangePoint,
+       Distinct,
        Enrich,
        Explain,
        Expression,

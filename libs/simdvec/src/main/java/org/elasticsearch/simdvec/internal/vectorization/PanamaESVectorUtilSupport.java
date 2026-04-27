@@ -42,6 +42,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
     private static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
+    private static final VectorSpecies<Long> LONG_SPECIES = PanamaVectorConstants.PREFERRED_LONG_SPECIES;
     /** Whether integer vectors can be trusted to actually be fast. */
     static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
 
@@ -1440,5 +1441,37 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         IntVector pBits = p.add(MathUtils.EXPONENT_BIAS).lanewise(VectorOperators.LSHL, MathUtils.MANTISSA_BITS);
         FloatVector powerOf2 = pBits.reinterpretAsFloats();
         return m.mul(powerOf2).max(0.0f);
+    }
+
+    @Override
+    public void inRangeBitmask(long[] values, int first, int last, long lowerValue, long upperValue, long[] matches) {
+        int laneCount = LONG_SPECIES.length();
+        // Align start up to the next vector boundary
+        int alignedFirst = (first + laneCount - 1) & ~(laneCount - 1);
+        // Scalar prefix for any unaligned elements before the first full vector
+        for (int i = first; i < alignedFirst && i <= last; i++) {
+            long v = values[i];
+            if (lowerValue <= v && v <= upperValue) {
+                matches[i >>> 6] |= 1L << (i & 0x3f);
+            }
+        }
+        // SIMD loop: process aligned chunks of laneCount longs at a time.
+        // Because laneCount divides 64 (2, 4, or 8), each chunk maps cleanly to bits
+        // within a single matches word — no cross-word spillover.
+        LongVector lowerVec = LongVector.broadcast(LONG_SPECIES, lowerValue);
+        LongVector upperVec = LongVector.broadcast(LONG_SPECIES, upperValue);
+        int loopEnd = (last + 1) & ~(laneCount - 1);
+        for (int i = alignedFirst; i < loopEnd; i += laneCount) {
+            LongVector vec = LongVector.fromArray(LONG_SPECIES, values, i);
+            long mask = vec.compare(VectorOperators.GE, lowerVec).and(vec.compare(VectorOperators.LE, upperVec)).toLong();
+            matches[i >>> 6] |= mask << (i & 0x3f);
+        }
+        // Scalar tail for any remaining elements after the last full vector
+        for (int i = loopEnd; i <= last; i++) {
+            long v = values[i];
+            if (lowerValue <= v && v <= upperValue) {
+                matches[i >>> 6] |= 1L << (i & 0x3f);
+            }
+        }
     }
 }

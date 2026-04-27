@@ -275,7 +275,14 @@ public interface BlockLoader {
             return null;
         }
 
-        default void tryCollectMatches(LeafCollector collect, Bits acceptedDocs, int firstDoc, int lastDoc, long lowerValue, long upperValue) throws IOException {
+        default void tryCollectMatches(
+            LeafCollector collect,
+            Bits acceptedDocs,
+            int firstDoc,
+            int lastDoc,
+            long lowerValue,
+            long upperValue
+        ) throws IOException {
             return;
         }
     }

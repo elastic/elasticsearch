@@ -610,4 +610,14 @@ public class ESVectorUtil {
     public static void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
         IMPL.pow2DiffAndScaleNQT(v1, v2, a, eps, result);
     }
+
+    /**
+     * For each value at {@code values[first..last]} (inclusive), checks whether it lies in
+     * {@code [lowerValue, upperValue]} and sets the corresponding bit in {@code matches}.
+     * Bit {@code i} in the bitmask ({@code matches[i>>>6]}, bit position {@code i & 0x3f}) is
+     * set when {@code values[i]} is in range. Bits outside {@code [first, last]} are not modified.
+     */
+    public static void inRangeBitmask(long[] values, int first, int last, long lowerValue, long upperValue, long[] matches) {
+        IMPL.inRangeBitmask(values, first, last, lowerValue, upperValue, matches);
+    }
 }

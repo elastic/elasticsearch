@@ -98,6 +98,14 @@ public interface ESVectorUtilSupport {
 
     boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
 
+    /**
+     * For each value at {@code values[first..last]} (inclusive), checks whether it lies in
+     * {@code [lowerValue, upperValue]} and sets the corresponding bit in {@code matches}.
+     * Bit {@code i} in the bitmask ({@code matches[i>>>6]}, bit position {@code i & 0x3f}) is
+     * set when {@code values[i]} is in range. Bits outside {@code [first, last]} are not modified.
+     */
+    void inRangeBitmask(long[] values, int first, int last, long lowerValue, long upperValue, long[] matches);
+
     void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
 
     float logSumExpNQT(float[] vector);

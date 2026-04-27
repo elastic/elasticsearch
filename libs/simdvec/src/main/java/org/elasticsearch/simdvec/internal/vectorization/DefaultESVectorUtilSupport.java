@@ -520,6 +520,16 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void inRangeBitmask(long[] values, int first, int last, long lowerValue, long upperValue, long[] matches) {
+        for (int i = first; i <= last; i++) {
+            long v = values[i];
+            if (lowerValue <= v && v <= upperValue) {
+                matches[i >>> 6] |= 1L << (i & 0x3f);
+            }
+        }
+    }
+
+    @Override
     public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
         if (other.length != dest.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);

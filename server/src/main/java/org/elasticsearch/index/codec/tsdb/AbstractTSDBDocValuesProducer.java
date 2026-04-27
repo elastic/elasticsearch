@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 import org.elasticsearch.lucene.queries.BinaryDocValuesContainsTermQuery;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -2452,28 +2453,26 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     }
                 }
 
-                final long[] matches = new long[(numericBlockMask + 1) >>> 6];
+                final FixedBitSet matches = new FixedBitSet(new long[(numericBlockMask + 1) >>> 6], numericBlockMask + 1);
+
                 @Override
-                public void tryCollectMatches(LeafCollector collector, Bits acceptedDocs, int firstDoc, int lastDoc, long lowerValue, long upperValue) throws IOException {
+                public void tryCollectMatches(
+                    LeafCollector collector,
+                    Bits acceptedDocs,
+                    int firstDoc,
+                    int lastDoc,
+                    long lowerValue,
+                    long upperValue
+                ) throws IOException {
                     int firstBlock = firstDoc >>> numericBlockShift;
                     int lastBlock = lastDoc >>> numericBlockShift;
-                    int docId = firstDoc;
-
-//                    BitSetDocIdStream matches = new BitSetDocIdStream(new FixedBitSet(numericBlockMask), firstDoc);
                     for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
-                        Arrays.fill(matches, 0);
+                        matches.clear();
                         loadBlock(blockId);
                         int firstInBlock = blockId == firstBlock ? firstDoc & numericBlockMask : 0;
                         int lastInBlock = blockId == lastBlock ? lastDoc & numericBlockMask : numericBlockMask;
-                        for (int idx = firstInBlock; idx <= lastInBlock; idx++) {
-                            long val = currentBlock[idx];
-                            boolean match = (lowerValue <= val && val <= upperValue);
-//                            boolean match = (acceptedDocs == null || acceptedDocs.get(docId)) && (lowerValue <= val && val <= upperValue);
-                            matches[idx >>> 6] |= (match ? 1L << (idx & 0x3f) : 0);
-                            docId++;
-                        }
-
-                        var docIdMatches = new BitSetDocIdStream(new FixedBitSet(matches, numericBlockMask + 1), blockId << numericBlockShift);
+                        ESVectorUtil.inRangeBitmask(currentBlock, firstInBlock, lastInBlock, lowerValue, upperValue, matches.getBits());
+                        var docIdMatches = new BitSetDocIdStream(matches, blockId << numericBlockShift);
                         collector.collect(docIdMatches);
                     }
                 }

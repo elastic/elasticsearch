@@ -376,9 +376,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
   method: testApproximationDisabled
   issue: https://github.com/elastic/elasticsearch/issues/147144
-- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
-  method: testLicenseCheck
-  issue: https://github.com/elastic/elasticsearch/issues/147147
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145901

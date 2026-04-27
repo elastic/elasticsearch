@@ -1622,6 +1622,11 @@ public class EsqlCapabilities {
         TSTEP(Build.current().isSnapshot()),
 
         /**
+         * Support for tstep explicit bounds variant: TSTEP(step, from, to)
+         */
+        TSTEP_EXPLICIT_BOUNDS(TSTEP.isEnabled()),
+
+        /**
          * Allow qualifiers in attribute names.
          */
         NAME_QUALIFIERS(Build.current().isSnapshot()),

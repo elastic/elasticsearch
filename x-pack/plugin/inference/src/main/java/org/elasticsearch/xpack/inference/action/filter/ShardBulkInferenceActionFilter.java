@@ -85,7 +85,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -200,7 +199,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * @param field The target field.
      * @param sourceField The source field.
      * @param input The input to run inference on.
-     * @param inputOrder The original order of the input.
+     * @param inputOrder The original order of the input across all source fields for this target field
+     *                   (used only for sorting responses back into a stable order).
+     * @param sourceFieldInputIndex The 0-based index of this input within its source field's input array.
      * @param offsetAdjustment The adjustment to apply to the chunk text offsets.
      * @param chunkingSettings Additional explicitly specified chunking settings, or null to use model defaults
      */
@@ -210,6 +211,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         String sourceField,
         String input,
         int inputOrder,
+        int sourceFieldInputIndex,
         int offsetAdjustment,
         ChunkingSettings chunkingSettings
     ) {}
@@ -220,6 +222,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * @param sourceField The input that was used to run inference.
      * @param input The input that was used to run inference.
      * @param inputOrder The original order of the input.
+     * @param sourceFieldInputIndex The 0-based index of this input within its source field's input array.
      * @param offsetAdjustment The adjustment to apply to the chunk text offsets.
      * @param model The model used to run inference.
      * @param chunkedResults The actual results.
@@ -229,6 +232,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         String sourceField,
         String input,
         int inputOrder,
+        int sourceFieldInputIndex,
         int offsetAdjustment,
         Model model,
         ChunkedInference chunkedResults
@@ -430,6 +434,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     request.sourceField(),
                                     useLegacyFormat ? request.input() : null,
                                     request.inputOrder(),
+                                    request.sourceFieldInputIndex(),
                                     request.offsetAdjustment(),
                                     inferenceProvider.model,
                                     result
@@ -565,7 +570,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                         var slot = ensureResponseAccumulatorSlot(itemIndex);
                         slot.addOrUpdateResponse(
-                            new FieldInferenceResponse(field, sourceField, null, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
+                            new FieldInferenceResponse(field, sourceField, null, order++, -1, 0, null, EMPTY_CHUNKED_INFERENCE)
                         );
                         continue;
                     }
@@ -596,6 +601,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                     List<FieldInferenceRequest> requests = requestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                     int offsetAdjustment = 0;
+                    int sourceFieldInputIndex = 0;
                     for (String v : values) {
                         if (incrementIndexingPressurePreInference(indexRequest, itemIndex) == false) {
                             return inputLength;
@@ -603,15 +609,34 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                         if (v.isBlank()) {
                             slot.addOrUpdateResponse(
-                                new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
+                                new FieldInferenceResponse(
+                                    field,
+                                    sourceField,
+                                    v,
+                                    order++,
+                                    sourceFieldInputIndex,
+                                    0,
+                                    null,
+                                    EMPTY_CHUNKED_INFERENCE
+                                )
                             );
                         } else {
                             requests.add(
-                                new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment, chunkingSettings)
+                                new FieldInferenceRequest(
+                                    itemIndex,
+                                    field,
+                                    sourceField,
+                                    v,
+                                    order++,
+                                    sourceFieldInputIndex,
+                                    offsetAdjustment,
+                                    chunkingSettings
+                                )
                             );
                             inputLength += v.length();
                         }
 
+                        sourceFieldInputIndex++;
                         // When using the inference metadata fields format, all the input values are concatenated so that the
                         // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
                         // to apply to account for this.
@@ -717,9 +742,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
 
                     var lst = chunkMap.computeIfAbsent(resp.sourceField, k -> new ArrayList<>());
-                    var chunks = useLegacyFormat
-                        ? toSemanticTextFieldChunksLegacy(resp.input, resp.chunkedResults, indexRequest.getContentType())
-                        : toSemanticTextFieldChunks(resp.offsetAdjustment, resp.chunkedResults, indexRequest.getContentType());
+                    var chunks = toSemanticTextFieldChunks(
+                        useLegacyFormat,
+                        resp.input,
+                        resp.sourceFieldInputIndex,
+                        resp.offsetAdjustment,
+                        resp.chunkedResults,
+                        indexRequest.getContentType()
+                    );
                     lst.addAll(chunks);
                 }
 

@@ -146,6 +146,7 @@ class SemanticFieldValueFetcher implements ValueFetcher {
                     null,
                     offset.start(),
                     offset.end(),
+                    -1,
                     rawEmbeddings(embeddingsFieldLoader::write, source.sourceContentType())
                 )
             );

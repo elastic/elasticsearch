@@ -2378,9 +2378,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
                         matches.clear();
                         loadBlock(blockId);
+                        ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, matches.getBits());
+                        // For the first and last blocks, clear bits that fall outside the
+                        // requested doc range. Middle blocks are always fully covered.
                         int firstInBlock = blockId == firstBlock ? firstDoc & numericBlockMask : 0;
                         int lastInBlock = blockId == lastBlock ? lastDoc & numericBlockMask : numericBlockMask;
-                        ESVectorUtil.inRangeBitmask(currentBlock, firstInBlock, lastInBlock, lowerValue, upperValue, matches.getBits());
+                        matches.clear(0, firstInBlock);
+                        matches.clear(lastInBlock + 1, matches.length());
                         var docIdMatches = new BitSetDocIdStream(matches, blockId << numericBlockShift);
                         collector.collect(docIdMatches);
                     }

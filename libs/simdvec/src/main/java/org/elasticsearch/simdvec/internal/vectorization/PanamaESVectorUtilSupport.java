@@ -1444,34 +1444,18 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void inRangeBitmask(long[] values, int first, int last, long lowerValue, long upperValue, long[] matches) {
+    public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        // values.length is always a power of 2 >= 128 (TSDB numeric block size), and lane counts
+        // (2, 4, 8) all divide any such power of 2, so no scalar prefix or tail is ever needed.
+        // Each aligned chunk of laneCount longs produces a laneCount-bit mask that fits cleanly
+        // within one matches word — no cross-word spillover since laneCount divides 64.
         int laneCount = LONG_SPECIES.length();
-        // Align start up to the next vector boundary
-        int alignedFirst = (first + laneCount - 1) & ~(laneCount - 1);
-        // Scalar prefix for any unaligned elements before the first full vector
-        for (int i = first; i < alignedFirst && i <= last; i++) {
-            long v = values[i];
-            if (lowerValue <= v && v <= upperValue) {
-                matches[i >>> 6] |= 1L << (i & 0x3f);
-            }
-        }
-        // SIMD loop: process aligned chunks of laneCount longs at a time.
-        // Because laneCount divides 64 (2, 4, or 8), each chunk maps cleanly to bits
-        // within a single matches word — no cross-word spillover.
         LongVector lowerVec = LongVector.broadcast(LONG_SPECIES, lowerValue);
         LongVector upperVec = LongVector.broadcast(LONG_SPECIES, upperValue);
-        int loopEnd = (last + 1) & ~(laneCount - 1);
-        for (int i = alignedFirst; i < loopEnd; i += laneCount) {
+        for (int i = 0; i < values.length; i += laneCount) {
             LongVector vec = LongVector.fromArray(LONG_SPECIES, values, i);
             long mask = vec.compare(VectorOperators.GE, lowerVec).and(vec.compare(VectorOperators.LE, upperVec)).toLong();
-            matches[i >>> 6] |= mask << (i & 0x3f);
-        }
-        // Scalar tail for any remaining elements after the last full vector
-        for (int i = loopEnd; i <= last; i++) {
-            long v = values[i];
-            if (lowerValue <= v && v <= upperValue) {
-                matches[i >>> 6] |= 1L << (i & 0x3f);
-            }
+            matches[i >>> 6] |= mask << i;
         }
     }
 }

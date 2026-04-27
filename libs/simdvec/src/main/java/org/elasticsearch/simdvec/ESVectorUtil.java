@@ -612,12 +612,14 @@ public class ESVectorUtil {
     }
 
     /**
-     * For each value at {@code values[first..last]} (inclusive), checks whether it lies in
-     * {@code [lowerValue, upperValue]} and sets the corresponding bit in {@code matches}.
-     * Bit {@code i} in the bitmask ({@code matches[i>>>6]}, bit position {@code i & 0x3f}) is
-     * set when {@code values[i]} is in range. Bits outside {@code [first, last]} are not modified.
+     * For every index {@code i} in {@code [0, values.length)}, sets bit {@code i} in
+     * {@code matches} ({@code matches[i>>>6]}, bit position {@code i & 0x3f}) when
+     * {@code values[i]} lies in {@code [lowerValue, upperValue]}.
+     *
+     * <p>Requires {@code values.length} to be a power of 2 that is a multiple of the SIMD lane
+     * count (i.e. a power of 2 ≥ 128) and {@code matches.length == values.length >>> 6}.
      */
-    public static void inRangeBitmask(long[] values, int first, int last, long lowerValue, long upperValue, long[] matches) {
-        IMPL.inRangeBitmask(values, first, last, lowerValue, upperValue, matches);
+    public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
     }
 }

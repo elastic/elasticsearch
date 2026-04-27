@@ -520,8 +520,8 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void inRangeBitmask(long[] values, int first, int last, long lowerValue, long upperValue, long[] matches) {
-        for (int i = first; i <= last; i++) {
+    public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        for (int i = 0; i < values.length; i++) {
             long v = values[i];
             if (lowerValue <= v && v <= upperValue) {
                 matches[i >>> 6] |= 1L << (i & 0x3f);

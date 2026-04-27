@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,8 +27,15 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
     public static final String DEFAULT_REASON = "by user request";
     public static final boolean DEFAULT_WAIT_FOR_COMPLETION = false;
 
+    static final TransportVersion CANCEL_TASKS_PARENT_TASK_ONLY = TransportVersion.fromName("cancel_tasks_parent_task_only");
+
     private String reason = DEFAULT_REASON;
     private boolean waitForCompletion = DEFAULT_WAIT_FOR_COMPLETION;
+    /**
+     * When {@code true}, restricts matching to tasks that have no parent. Useful for callers (e.g. cancel-reindex) that want to operate
+     * only on top-level user-initiated tasks and treat sub-tasks as if they didn't exist.
+     */
+    private boolean parentTaskOnly = false;
 
     public CancelTasksRequest() {}
 
@@ -35,6 +43,9 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
         super(in);
         this.reason = in.readString();
         waitForCompletion = in.readBoolean();
+        if (in.getTransportVersion().supports(CANCEL_TASKS_PARENT_TASK_ONLY)) {
+            parentTaskOnly = in.readBoolean();
+        }
     }
 
     @Override
@@ -42,12 +53,21 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
         super.writeTo(out);
         out.writeString(reason);
         out.writeBoolean(waitForCompletion);
+        if (out.getTransportVersion().supports(CANCEL_TASKS_PARENT_TASK_ONLY)) {
+            out.writeBoolean(parentTaskOnly);
+        }
     }
 
     @Override
     public boolean match(Task task) {
         // Matching by target task ID is deferred to TransportCancelTasksAction
-        return task instanceof CancellableTask && matchesActionAndParent(task);
+        if ((task instanceof CancellableTask) == false || matchesActionAndParent(task) == false) {
+            return false;
+        }
+        if (parentTaskOnly && task.getParentTaskId().isSet()) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -75,6 +95,22 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
 
     public boolean waitForCompletion() {
         return waitForCompletion;
+    }
+
+    /**
+     * If {@code true}, the request rejects target tasks that have a parent (i.e. only matches top-level tasks). Defaults to {@code false}.
+     * <p>
+     * Implemented as part of {@link #match(Task)}; combined with an explicit {@code targetTaskId}, this causes {@code processTasks} to
+     * report {@link IllegalArgumentException} for sub-tasks (mirroring the existing "doesn't support this operation" behaviour for any
+     * other filter mismatch).
+     */
+    public CancelTasksRequest setParentTaskOnly(boolean parentTaskOnly) {
+        this.parentTaskOnly = parentTaskOnly;
+        return this;
+    }
+
+    public boolean parentTaskOnly() {
+        return parentTaskOnly;
     }
 
     @Override

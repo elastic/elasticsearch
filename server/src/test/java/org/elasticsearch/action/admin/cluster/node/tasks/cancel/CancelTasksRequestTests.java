@@ -55,6 +55,36 @@ public class CancelTasksRequestTests extends ESTestCase {
         );
     }
 
+    public void testMatch_parentTaskOnlyRejectsTasksWithParent() {
+        CancelTasksRequest request = new CancelTasksRequest();
+        request.setTargetTaskId(new TaskId("node-a", 42));
+        request.setParentTaskOnly(true);
+        assertFalse(
+            "parent_task_only should reject tasks that have a parent",
+            request.match(cancellableTask(42, REINDEX_ACTION, new TaskId("node-a", 7)))
+        );
+    }
+
+    public void testMatch_parentTaskOnlyAcceptsParentlessTasks() {
+        CancelTasksRequest request = new CancelTasksRequest();
+        request.setTargetTaskId(new TaskId("node-a", 42));
+        request.setParentTaskOnly(true);
+        assertTrue(
+            "parent_task_only should accept tasks that have no parent",
+            request.match(cancellableTask(42, REINDEX_ACTION, TaskId.EMPTY_TASK_ID))
+        );
+    }
+
+    public void testMatch_parentTaskOnlyDefaultsToFalseAndAcceptsTasksWithParent() {
+        CancelTasksRequest request = new CancelTasksRequest();
+        request.setTargetTaskId(new TaskId("node-a", 42));
+        assertFalse("default should be false", request.parentTaskOnly());
+        assertTrue(
+            "without parent_task_only, tasks with a parent should still match",
+            request.match(cancellableTask(42, REINDEX_ACTION, new TaskId("node-a", 7)))
+        );
+    }
+
     public void testGetDescription_NoTruncation() {
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
         cancelTasksRequest.setActions("action1", "action2");

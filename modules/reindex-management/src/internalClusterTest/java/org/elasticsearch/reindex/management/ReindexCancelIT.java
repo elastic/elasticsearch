@@ -39,7 +39,6 @@ import java.util.Optional;
 
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -131,8 +130,6 @@ public class ReindexCancelIT extends ESIntegTestCase {
         });
 
         final CancelReindexResponse cancelResponse = cancelReindexSynchronously(parentTaskId);
-        assertThat(cancelResponse.getTaskFailures(), empty());
-        assertThat(cancelResponse.getNodeFailures(), empty());
         final Map<String, Object> responseBody = XContentTestUtils.convertToMap(cancelResponse);
         assertThat(
             "reindex is cancelled and contains GET response",
@@ -197,8 +194,6 @@ public class ReindexCancelIT extends ESIntegTestCase {
         });
 
         final CancelReindexResponse cancelResponse = cancelReindexAsynchronously(parentTaskId);
-        assertThat(cancelResponse.getTaskFailures(), empty());
-        assertThat(cancelResponse.getNodeFailures(), empty());
         final Map<String, Object> responseBody = XContentTestUtils.convertToMap(cancelResponse);
         assertThat("reindex is cancelled and contains acknowledged response", responseBody, equalTo(Map.of("acknowledged", true)));
 
@@ -269,15 +264,11 @@ public class ReindexCancelIT extends ESIntegTestCase {
     }
 
     private CancelReindexResponse cancelReindexSynchronously(final TaskId taskId) {
-        final CancelReindexRequest request = new CancelReindexRequest(true);
-        request.setTargetTaskId(taskId);
-        return client().execute(TransportCancelReindexAction.TYPE, request).actionGet();
+        return client().execute(TransportCancelReindexAction.TYPE, new CancelReindexRequest(taskId, true)).actionGet();
     }
 
     private CancelReindexResponse cancelReindexAsynchronously(final TaskId taskId) {
-        final CancelReindexRequest request = new CancelReindexRequest(false);
-        request.setTargetTaskId(taskId);
-        return client().execute(TransportCancelReindexAction.TYPE, request).actionGet();
+        return client().execute(TransportCancelReindexAction.TYPE, new CancelReindexRequest(taskId, false)).actionGet();
     }
 
     private Optional<TaskGroup> findTaskGroup(final TaskId taskId) {

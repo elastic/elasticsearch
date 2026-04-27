@@ -329,7 +329,7 @@ public class HierarchicalKMeans {
         int i = 0;
         int limit = centroids.length - 3;
         for (; i < limit; i += 4) {
-            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], distances);
+            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], 0, distances);
             for (int j = 0; j < 4; j++) {
                 float distance = distances[j];
                 if (distance < minDistance) {

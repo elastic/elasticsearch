@@ -1211,13 +1211,16 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 );
             }
             default -> {
-                return calculateCentroidsFullRebuild(floatVectorValues, fieldInfo);
+                return calculateCentroidsFullRebuild(floatVectorValues, fieldInfo, mergeState);
             }
         }
     }
 
-    private CentroidAssignments calculateCentroidsFullRebuild(KMeansFloatVectorValues floatVectorValues, FieldInfo fieldInfo)
-        throws IOException {
+    private CentroidAssignments calculateCentroidsFullRebuild(
+        KMeansFloatVectorValues floatVectorValues,
+        FieldInfo fieldInfo,
+        MergeState mergeState
+    ) throws IOException {
         HierarchicalKMeans hierarchicalKMeans;
         if (mergeExec != null) {
             hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);

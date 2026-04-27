@@ -29,31 +29,16 @@ class LloydKMeansLocalSerial extends LloydKMeansLocal {
     }
 
     @Override
-    protected int stepLloyd(
+    protected boolean stepLloyd(
         ClusteringFloatVectorValues vectors,
         IntToIntFunction ordTranslator,
         float[][] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
-        NeighborHood[] neighborHoods,
-        float[][][] partialSumSlices,
-        int[][] partialCountSlices,
-        float[] centroidSkipSqDist
+        NeighborHood[] neighborHoods
     ) throws IOException {
         assert centroidChangedSlices.length == 1;
-        return stepLloydSlice(
-            vectors,
-            ordTranslator,
-            centroids,
-            centroidChangedSlices[0],
-            assignments,
-            neighborHoods,
-            0,
-            vectors.size(),
-            partialSumSlices[0],
-            partialCountSlices[0],
-            centroidSkipSqDist
-        );
+        return stepLloydSlice(vectors, ordTranslator, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size());
     }
 
     @Override

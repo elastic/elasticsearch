@@ -889,11 +889,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.storedFieldInBinaryFormat = builder.storedFieldInBinaryFormat;
         this.usesBinaryDocValuesForFallbackFields = builder.usesBinaryDocValuesForFallbackFields;
         this.docValuesParameters = builder.docValuesParameters.getValue();
-        this.dvFactory = new DocValuesFieldFactory(
-            this.docValuesParameters.multiValue(),
-            false, // match_only_text does not use doc values skippers
-            this.indexCreatedVersion
-        );
+        // match_only_text does not use doc values skippers
+        this.dvFactory = new DocValuesFieldFactory(this.docValuesParameters.multiValue(), false, this.indexCreatedVersion);
     }
 
     @Override
@@ -911,6 +908,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             fieldType().isWithinMultiField(),
             usesBinaryDocValuesForFallbackFields
         ).init(this);
+    }
+
+    @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue().isSingleValued();
     }
 
     @Override
@@ -978,7 +980,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     private void storeValueInFallbackField(String fallbackFieldName, BytesRef bytesRef, DocumentParserContext context) {
-        dvFactory.addBinaryField(context.doc(), fallbackFieldName, bytesRef, MultiValuedBinaryDocValuesField.ValueOrdering.SORTED);
+        dvFactory.addBinaryFieldLegacyEncodingAware(
+            context.doc(),
+            fallbackFieldName,
+            bytesRef,
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+        );
     }
 
     @Override

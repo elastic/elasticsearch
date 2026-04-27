@@ -70,7 +70,7 @@ public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
             service,
             AzureAiStudioChatCompletionServiceSettings.fromMap(serviceSettings, context),
             AzureAiStudioChatCompletionTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

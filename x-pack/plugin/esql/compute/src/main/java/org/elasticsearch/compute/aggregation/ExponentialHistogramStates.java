@@ -13,13 +13,13 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BreakingExponentialHistogramHolder;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
-import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 
 public final class ExponentialHistogramStates {
 
@@ -198,7 +198,7 @@ public final class ExponentialHistogramStates {
 
         private final CircuitBreaker breaker;
         private long longValue;
-        private ReleasableExponentialHistogram histogramValue;
+        private BreakingExponentialHistogramHolder histogramValue;
 
         public WithLongSingleState(CircuitBreaker breaker) {
             this.breaker = breaker;
@@ -213,20 +213,13 @@ public final class ExponentialHistogramStates {
             return longValue;
         }
 
-        public ReleasableExponentialHistogram histogramValue() {
-            assert isSeen();
-            return histogramValue;
-        }
-
         public void set(long longValue, ExponentialHistogram histogram) {
             assert histogram != null;
             this.longValue = longValue;
-            ReleasableExponentialHistogram newValue;
-            try (var copyBuilder = ExponentialHistogram.builder(histogram, new HistoBreaker(breaker))) {
-                newValue = copyBuilder.build();
+            if (histogramValue == null) {
+                histogramValue = BreakingExponentialHistogramHolder.create(breaker);
             }
-            Releasables.close(histogramValue);
-            this.histogramValue = newValue;
+            histogramValue.set(histogram);
         }
 
         @Override
@@ -240,7 +233,7 @@ public final class ExponentialHistogramStates {
                 blocks[offset + 2] = blockFactory.newConstantBooleanBlockWith(false, 1);
             } else {
                 blocks[offset] = blockFactory.newConstantLongBlockWith(longValue, 1);
-                blocks[offset + 1] = blockFactory.newConstantExponentialHistogramBlock(histogramValue, 1);
+                blocks[offset + 1] = blockFactory.newConstantExponentialHistogramBlock(histogramValue.accessor(), 1);
                 blocks[offset + 2] = blockFactory.newConstantBooleanBlockWith(true, 1);
             }
         }
@@ -250,7 +243,7 @@ public final class ExponentialHistogramStates {
             if (histogramValue == null) {
                 return blockFactory.newConstantNullBlock(1);
             } else {
-                return blockFactory.newConstantExponentialHistogramBlock(histogramValue, 1);
+                return blockFactory.newConstantExponentialHistogramBlock(histogramValue.accessor(), 1);
             }
         }
 
@@ -268,13 +261,13 @@ public final class ExponentialHistogramStates {
     public static final class WithLongGroupingState implements GroupingAggregatorState {
 
         private LongArray longValues;
-        private ObjectArray<ReleasableExponentialHistogram> histogramValues;
-        private final HistoBreaker breaker;
+        private ObjectArray<BreakingExponentialHistogramHolder> histogramValues;
+        private final CircuitBreaker breaker;
         private final BigArrays bigArrays;
 
         WithLongGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             LongArray longValues = null;
-            ObjectArray<ReleasableExponentialHistogram> histogramValues = null;
+            ObjectArray<BreakingExponentialHistogramHolder> histogramValues = null;
             boolean success = false;
             try {
                 longValues = bigArrays.newLongArray(1);
@@ -288,16 +281,18 @@ public final class ExponentialHistogramStates {
             this.longValues = longValues;
             this.histogramValues = histogramValues;
             this.bigArrays = bigArrays;
-            this.breaker = new HistoBreaker(breaker);
+            this.breaker = breaker;
         }
 
         public void set(int groupId, long longValue, ExponentialHistogram histogramValue) {
             assert histogramValue != null;
             ensureCapacity(groupId);
-            try (var copyBuilder = ExponentialHistogram.builder(histogramValue, breaker)) {
-                ReleasableExponentialHistogram old = histogramValues.getAndSet(groupId, copyBuilder.build());
-                Releasables.close(old);
+            BreakingExponentialHistogramHolder holder = histogramValues.get(groupId);
+            if (holder == null) {
+                holder = BreakingExponentialHistogramHolder.create(breaker);
+                histogramValues.set(groupId, holder);
             }
+            holder.set(histogramValue);
             longValues.set(groupId, longValue);
         }
 
@@ -318,7 +313,7 @@ public final class ExponentialHistogramStates {
                     if (seen(groupId)) {
                         seenBuilder.appendBoolean(true);
                         longBuilder.appendLong(longValues.get(groupId));
-                        histoBuilder.append(histogramValues.get(groupId));
+                        histoBuilder.append(histogramValues.get(groupId).accessor());
                     } else {
                         seenBuilder.appendBoolean(false);
                         longBuilder.appendLong(0L);
@@ -355,7 +350,7 @@ public final class ExponentialHistogramStates {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
                     if (seen(groupId)) {
-                        builder.append(histogramValues.get(groupId));
+                        builder.append(histogramValues.get(groupId).accessor());
                     } else {
                         builder.appendNull();
                     }

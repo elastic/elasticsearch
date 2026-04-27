@@ -20,6 +20,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 public abstract class ES93BinaryQuantizedVectorScorer {
 
     protected static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
+    public static final int BBQ_CORRECTIONS_BYTES = (Float.BYTES * 3) + Short.BYTES;
     protected final int dimensions;
     protected final int numBytes;
     protected final int byteSize;
@@ -27,7 +28,7 @@ public abstract class ES93BinaryQuantizedVectorScorer {
     public ES93BinaryQuantizedVectorScorer(int dimensions, int numBytes) {
         this.dimensions = dimensions;
         this.numBytes = numBytes;
-        this.byteSize = numBytes + (Float.BYTES * 3) + Short.BYTES;
+        this.byteSize = numBytes + BBQ_CORRECTIONS_BYTES;
     }
 
     public abstract float score(

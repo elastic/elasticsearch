@@ -42,6 +42,13 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     private final Map<Integer, FixedBitSet> skipCentroidsPerLeaf;
     private final Map<Integer, FixedBitSet> visitedCentroidsPerLeaf = new ConcurrentHashMap<>();
     private final Map<Integer, FixedBitSet> competitiveCentroidsPerLeaf = new ConcurrentHashMap<>();
+    /**
+     * True only when this query is the round-1 post-filter delegate (created by
+     * {@link #createPostFilterDelegate}); a subsequent retry round may consume the per-centroid
+     * tracking. False for the user-facing query, the post-filter fallback path, and round-2+
+     * retries (no further retry possible with {@code MAX_ROUNDS = 2}).
+     */
+    private final boolean trackCentroidsForRetry;
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
@@ -62,7 +69,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio,
         boolean doPrecondition
     ) {
-        this(field, query, k, numCands, filter, visitRatio, doPrecondition, null);
+        this(field, query, k, numCands, filter, visitRatio, doPrecondition, null, false);
     }
 
     IVFKnnFloatVectorQuery(
@@ -75,10 +82,25 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         boolean doPrecondition,
         Map<Integer, FixedBitSet> skipCentroidsPerLeaf
     ) {
+        this(field, query, k, numCands, filter, visitRatio, doPrecondition, skipCentroidsPerLeaf, false);
+    }
+
+    IVFKnnFloatVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query filter,
+        float visitRatio,
+        boolean doPrecondition,
+        Map<Integer, FixedBitSet> skipCentroidsPerLeaf,
+        boolean trackCentroidsForRetry
+    ) {
         super(field, visitRatio, k, numCands, filter, doPrecondition);
         this.query = query;
         this.originalQuery = query.clone();
         this.skipCentroidsPerLeaf = skipCentroidsPerLeaf;
+        this.trackCentroidsForRetry = trackCentroidsForRetry;
     }
 
     public float[] getQuery() {
@@ -208,7 +230,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
             numCands,
             k,
             knnCollectorManager.longAccumulator,
-            getSkipCentroids(context.ord)
+            getSkipCentroids(context.ord),
+            trackCentroidsForRetry
         );
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
@@ -217,8 +240,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         strategy.setCollector(knnCollector);
         reader.searchNearestVectors(field, query, knnCollector, acceptDocs);
 
-        storeVisitedCentroids(context.ord, strategy.visitedCentroids());
-        storeCompetitiveCentroids(context.ord, strategy.competitiveCentroids());
+        if (trackCentroidsForRetry) {
+            storeVisitedCentroids(context.ord, strategy.visitedCentroids());
+            storeCompetitiveCentroids(context.ord, strategy.competitiveCentroids());
+        }
 
         TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
             ? bulkKnnCollector.unsortedTopK()
@@ -279,7 +304,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
             null,
             scaledVisitRatio,
             doPrecondition,
-            null
+            null,
+            true
         );
     }
 
@@ -293,8 +319,13 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         // Expand the visit ratio for retry rounds proportional to the prior round's coverage,
         // capped at 1.0. We re-use the same dynamic-oversampling heuristic from createPostFilterDelegate
         // by computing an effective ratio from the request scale.
-        float visitRatioScale = requestK > 0 && k > 0 ? (float) requestK / k : 1.0f;
-        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * Math.max(1.0f, visitRatioScale)) : 0f;
+        // Floor at SAFETY_FACTOR so retry rounds always widen coverage by ≥20% vs round 1
+        // (without the floor, requestK/k is typically <1 when round 1 was almost successful,
+        // and the retry just shifts laterally rather than exploring more).
+        float visitRatioScale = requestK > 0 && k > 0
+            ? Math.max(POST_FILTER_OVERSAMPLE_SAFETY_FACTOR, (float) requestK / k)
+            : POST_FILTER_OVERSAMPLE_SAFETY_FACTOR;
+        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitRatioScale) : 0f;
         return new IVFKnnFloatVectorQuery(
             field,
             originalQuery,

@@ -60,7 +60,22 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         boolean doPrecondition,
         Map<Integer, FixedBitSet> skipCentroidsPerLeaf
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, skipCentroidsPerLeaf);
+        this(field, query, k, numCands, childFilter, parentsFilter, visitRatio, doPrecondition, skipCentroidsPerLeaf, false);
+    }
+
+    DiversifyingChildrenIVFKnnFloatVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query childFilter,
+        BitSetProducer parentsFilter,
+        float visitRatio,
+        boolean doPrecondition,
+        Map<Integer, FixedBitSet> skipCentroidsPerLeaf,
+        boolean trackCentroidsForRetry
+    ) {
+        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, skipCentroidsPerLeaf, trackCentroidsForRetry);
         this.parentsFilter = parentsFilter;
     }
 
@@ -72,7 +87,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = Math.min(NUM_CANDS_LIMIT, (int) Math.ceil(k * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity));
-        float visitOversampling = Math.max(1.1f, 1.2f / filterSelectivity);
+        float visitOversampling = Math.max(1.1f, 1.2f * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity);
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(
             field,
@@ -83,7 +98,8 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
             parentsFilter,
             scaledVisitRatio,
             doPrecondition,
-            null
+            null,
+            true
         );
     }
 
@@ -91,8 +107,11 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int requestK, int requestNumCands) {
         Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
-        float visitRatioScale = requestK > 0 && k > 0 ? (float) requestK / k : 1.0f;
-        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * Math.max(1.0f, visitRatioScale)) : 0f;
+        // Floor at SAFETY_FACTOR so retry rounds always widen coverage by ≥20% vs round 1.
+        float visitRatioScale = requestK > 0 && k > 0
+            ? Math.max(POST_FILTER_OVERSAMPLE_SAFETY_FACTOR, (float) requestK / k)
+            : POST_FILTER_OVERSAMPLE_SAFETY_FACTOR;
+        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitRatioScale) : 0f;
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(
             field,
             getOriginalQuery().clone(),

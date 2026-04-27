@@ -891,6 +891,12 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             int scoredDocs = 0;
             int limit = vectors - BULK_SIZE + 1;
             int i = 0;
+            // Half-cluster early-skip: if we score ~half this cluster's docs and not a single bulk
+            // has had its maxScore exceed the collector's minCompetitiveSimilarity, the rest of the
+            // cluster is unlikely to either — skip both the remainder of the bulk loop and the tail.
+            final int halfDocs = vectors / 2;
+            boolean anyBulkCompetitive = false;
+            boolean earlySkip = false;
             // read Docs
             for (; i < limit; i += BULK_SIZE) {
                 // read the doc ids
@@ -934,11 +940,16 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 }
                 if (knnCollector.minCompetitiveSimilarity() < maxScore) {
                     collectBulk(knnCollector, scores, BULK_SIZE);
+                    anyBulkCompetitive = true;
                 }
                 scoredDocs += docsToBulkScore;
+                if (anyBulkCompetitive == false && scoredDocs >= halfDocs) {
+                    earlySkip = true;
+                    break;
+                }
             }
-            // bulk process tail
-            if (i < vectors) {
+            // bulk process tail (skipped on early-skip)
+            if (earlySkip == false && i < vectors) {
                 int tailSize = vectors - i;
                 readDocIds(tailSize);
                 final int docsToBulkScore = acceptDocs == null

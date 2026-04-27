@@ -108,24 +108,25 @@ public abstract class SearchPhaseResult extends TransportResponse {
     }
 
     @Nullable
-    public ShardSearchRequest getShardSearchRequest() {
+    public final ShardSearchRequest getShardSearchRequest() {
         return shardSearchRequest;
     }
 
-    public void setShardSearchRequest(ShardSearchRequest shardSearchRequest) {
+    public final void setShardSearchRequest(ShardSearchRequest shardSearchRequest) {
         this.shardSearchRequest = shardSearchRequest;
     }
 
-    public RescoreDocIds getRescoreDocIds() {
+    public final RescoreDocIds getRescoreDocIds() {
         return rescoreDocIds;
     }
 
-    public void setRescoreDocIds(RescoreDocIds rescoreDocIds) {
+    public final void setRescoreDocIds(RescoreDocIds rescoreDocIds) {
         this.rescoreDocIds = rescoreDocIds;
     }
 
+    /**
+     * Writes this result to the stream output. Concrete implementation is up to each subclass.
+     */
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // TODO: this seems wrong, SearchPhaseResult should have a writeTo?
-    }
+    public abstract void writeTo(StreamOutput out) throws IOException;
 }

@@ -384,8 +384,9 @@ toc:
         children:
           - file: esql/esql-multi-index.md
           - file: esql/esql-cross-clusters.md
-          - file: esql/esql-subquery.md
           - file: esql/esql-cross-serverless-projects.md
+          - file: esql/esql-subquery.md
+          - file: esql/esql-views.md
       - file: esql/esql-advanced.md
         children:
           - file: esql/esql-process-data-with-dissect-grok.md

@@ -66,7 +66,7 @@ public class FireworksAiChatCompletionModel extends FireworksAiModel {
             service,
             FireworksAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
             new FireworksAiChatCompletionTaskSettings(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

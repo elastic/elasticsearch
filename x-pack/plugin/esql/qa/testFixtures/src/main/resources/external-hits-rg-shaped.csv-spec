@@ -96,7 +96,7 @@ sum_AdvEngineID:long | c:long | avg_ResolutionWidth:double | count_distinct_User
 
 q10_statsMobilePhoneModelUsers
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhoneModel | SORT u DESC | LIMIT 10;
+EXTERNAL "{{hits_rg_shaped}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhoneModel | SORT u DESC, MobilePhoneModel | LIMIT 10;
 
 u:integer | MobilePhoneModel:keyword
 31 | "iPad"
@@ -106,22 +106,22 @@ u:integer | MobilePhoneModel:keyword
 
 q11_statsMobilePhoneUsers
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhone, MobilePhoneModel | SORT u DESC | LIMIT 10;
+EXTERNAL "{{hits_rg_shaped}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhone, MobilePhoneModel | SORT u DESC, MobilePhone, MobilePhoneModel | LIMIT 10;
 
 u:integer | MobilePhone:integer | MobilePhoneModel:keyword
 26 | 1 | "iPad"
+1 | 5 | "iPad"
+1 | 6 | "GT-P7300B"
+1 | 7 | "iPad"
 1 | 19 | "iPad"
 1 | 32 | "iPad"
 1 | 32 | "iPhone"
-1 | 6 | "GT-P7300B"
-1 | 5 | "iPad"
-1 | 7 | "iPad"
 1 | 60 | "iPad"
 ;
 
 q12_statsSearchPhraseCount
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchPhrase | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchPhrase | SORT c DESC, SearchPhrase | LIMIT 10;
 
 c:long | SearchPhrase:keyword
 511 | "ведомосквы вместу"
@@ -138,7 +138,7 @@ c:long | SearchPhrase:keyword
 
 q13_statsSearchPhraseUsers
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS u = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT u DESC | LIMIT 10;
+EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS u = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT u DESC, SearchPhrase | LIMIT 10;
 
 u:integer | SearchPhrase:keyword
 47 | "ведомосквы вместу"
@@ -147,15 +147,15 @@ u:integer | SearchPhrase:keyword
 9 | "ведомосковский"
 7 | "авторий"
 6 | "ведомосква"
-3 | "активный отельство"
-3 | "покеты рецепт засня"
 3 | "usb на юбился воды вости на"
 3 | "автомобиль фильм произолотека у лову"
+3 | "активный отельство"
+3 | "покеты рецепт засня"
 ;
 
 q14_statsSearchEnginePhrase
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchEngineID, SearchPhrase | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchEngineID, SearchPhrase | SORT c DESC, SearchEngineID, SearchPhrase | LIMIT 10;
 
 c:long | SearchEngineID:integer | SearchPhrase:keyword
 396 | 2 | "ведомосквы вместу"
@@ -166,8 +166,8 @@ c:long | SearchEngineID:integer | SearchPhrase:keyword
 82 | 2 | "авторий"
 79 | 3 | "ведомосквы вместу"
 67 | 2 | "ведомосква"
-60 | 2 | "сварочные огниторговце"
 60 | 2 | "ведомосквы с ляйсан баллы"
+60 | 2 | "сварочные огниторговце"
 ;
 
 q15_statsUseridCount
@@ -223,18 +223,18 @@ c:long | UserID:long | SearchPhrase:keyword
 
 q18_statsUseridMinuteSearchPhrase
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | EVAL m = EventTime / 60 % 60 | STATS c = COUNT(*) BY UserID, m, SearchPhrase | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_rg_shaped}}" | EVAL m = EventTime / 60 % 60 | STATS c = COUNT(*) BY UserID, m, SearchPhrase | SORT c DESC, UserID, m, SearchPhrase | LIMIT 10;
 
 c:long | UserID:long | m:long | SearchPhrase:keyword
 120 | -7918574344944952583 | 26 | ""
 100 | -9154375582268094750 | 1 | ""
 80 | -8455721461950319637 | 21 | ""
-80 | -7725127544842036118 | 21 | ""
 80 | -8284294157038592779 | 11 | ""
-70 | -7018910098174567459 | 56 | ""
-70 | -7904263253391067902 | 34 | ""
-70 | -7918574344944952583 | 9 | ""
+80 | -7725127544842036118 | 21 | ""
 70 | -9158995094684353950 | 12 | ""
+70 | -7918574344944952583 | 9 | ""
+70 | -7904263253391067902 | 34 | ""
+70 | -7018910098174567459 | 56 | ""
 70 | -7018910098174567459 | 57 | ""
 ;
 

@@ -95,7 +95,7 @@ sum_AdvEngineID:long | c:long | avg_ResolutionWidth:double | count_distinct_User
 
 q10_statsMobilePhoneModelUsers
 required_capability: external_command
-EXTERNAL "{{hits_10k_2rg}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhoneModel | SORT u DESC | LIMIT 10;
+EXTERNAL "{{hits_10k_2rg}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhoneModel | SORT u DESC, MobilePhoneModel | LIMIT 10;
 
 u:integer | MobilePhoneModel:keyword
 22 | "iPad"
@@ -103,18 +103,18 @@ u:integer | MobilePhoneModel:keyword
 
 q11_statsMobilePhoneUsers
 required_capability: external_command
-EXTERNAL "{{hits_10k_2rg}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhone, MobilePhoneModel | SORT u DESC | LIMIT 10;
+EXTERNAL "{{hits_10k_2rg}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhone, MobilePhoneModel | SORT u DESC, MobilePhone, MobilePhoneModel | LIMIT 10;
 
 u:integer | MobilePhone:integer | MobilePhoneModel:keyword
 19 | 1 | "iPad"
-1 | 60 | "iPad"
-1 | 19 | "iPad"
 1 | 7 | "iPad"
+1 | 19 | "iPad"
+1 | 60 | "iPad"
 ;
 
 q12_statsSearchPhraseCount
 required_capability: external_command
-EXTERNAL "{{hits_10k_2rg}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchPhrase | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_10k_2rg}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchPhrase | SORT c DESC, SearchPhrase | LIMIT 10;
 
 c:long | SearchPhrase:keyword
 110 | "ведомосквы вместу"
@@ -123,15 +123,15 @@ c:long | SearchPhrase:keyword
 33 | "ведомосковский"
 20 | "ведомоскве варфейс"
 16 | "растика конд каторией в чебурек"
-14 | "коптимиквиды юристический"
 14 | "авторий"
+14 | "коптимиквиды юристический"
 13 | "ведомосква"
-12 | "сварочные огниторговце"
+12 | "ведомосквы с ляйсан баллы"
 ;
 
 q13_statsSearchPhraseUsers
 required_capability: external_command
-EXTERNAL "{{hits_10k_2rg}}" | WHERE SearchPhrase != "" | STATS u = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT u DESC | LIMIT 10;
+EXTERNAL "{{hits_10k_2rg}}" | WHERE SearchPhrase != "" | STATS u = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT u DESC, SearchPhrase | LIMIT 10;
 
 u:integer | SearchPhrase:keyword
 32 | "ведомосквы вместу"
@@ -141,14 +141,14 @@ u:integer | SearchPhrase:keyword
 5 | "авторий"
 4 | "ведомосква"
 3 | "покеты рецепт засня"
-2 | "погода в тюмени кость"
 2 | "usb на алекомедит джонс мультр"
+2 | "активный отельство"
 2 | "афиша липецк автосточка"
 ;
 
 q14_statsSearchEnginePhrase
 required_capability: external_command
-EXTERNAL "{{hits_10k_2rg}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchEngineID, SearchPhrase | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_10k_2rg}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchEngineID, SearchPhrase | SORT c DESC, SearchEngineID, SearchPhrase | LIMIT 10;
 
 c:long | SearchEngineID:integer | SearchPhrase:keyword
 87 | 2 | "ведомосквы вместу"
@@ -216,18 +216,18 @@ c:long | UserID:long | SearchPhrase:keyword
 
 q18_statsUseridMinuteSearchPhrase
 required_capability: external_command
-EXTERNAL "{{hits_10k_2rg}}" | EVAL m = EventTime / 60 % 60 | STATS c = COUNT(*) BY UserID, m, SearchPhrase | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_10k_2rg}}" | EVAL m = EventTime / 60 % 60 | STATS c = COUNT(*) BY UserID, m, SearchPhrase | SORT c DESC, UserID, m, SearchPhrase | LIMIT 10;
 
 c:long | UserID:long | m:long | SearchPhrase:keyword
 24 | -7918574344944952583 | 26 | ""
 20 | -9154375582268094750 | 1 | ""
 16 | -8455721461950319637 | 21 | ""
-16 | -7725127544842036118 | 21 | ""
 16 | -8284294157038592779 | 11 | ""
-14 | -7018910098174567459 | 56 | ""
-14 | -7904263253391067902 | 34 | ""
-14 | -7918574344944952583 | 9 | ""
+16 | -7725127544842036118 | 21 | ""
 14 | -9158995094684353950 | 12 | ""
+14 | -7918574344944952583 | 9 | ""
+14 | -7904263253391067902 | 34 | ""
+14 | -7018910098174567459 | 56 | ""
 14 | -7018910098174567459 | 57 | ""
 ;
 
@@ -388,7 +388,7 @@ c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long | Client
 1 | 0 | 1750.0 | 4649178432418992904 | 1948294990
 ;
 
-q32_statsWatchiIdClientIpAll
+q32_statsWatchIdClientIpAll
 required_capability: external_command
 EXTERNAL "{{hits_10k_2rg}}" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
 

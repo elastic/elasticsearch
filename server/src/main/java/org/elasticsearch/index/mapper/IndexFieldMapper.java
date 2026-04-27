@@ -17,6 +17,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
@@ -133,9 +134,14 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 value = value.toLowerCase(Locale.ROOT);
                 indexName = indexName.toLowerCase(Locale.ROOT);
             }
-            CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(
-                WildcardQuery.toAutomaton(new Term(null, value), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
-            );
+            CharacterRunAutomaton runAutomaton;
+            try {
+                runAutomaton = new CharacterRunAutomaton(
+                    WildcardQuery.toAutomaton(new Term(null, value), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+                );
+            } catch (TooComplexToDeterminizeException e) {
+                throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            }
             if (runAutomaton.run(indexName)) {
                 return Queries.ALL_DOCS_INSTANCE;
             }

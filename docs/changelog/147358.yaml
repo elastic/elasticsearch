@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147358
+summary: Fix wrong stats pushdown for multi-file glob queries
+type: enhancement

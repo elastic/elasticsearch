@@ -1093,6 +1093,7 @@ public class ComputeService {
                         plan,
                         SearchContextStats.from(localContexts),
                         formatReaderRegistry,
+                        coordinatorExternalSplits,
                         planTimeProfile
                     );
                     logicalPlanString = null;
@@ -1112,12 +1113,6 @@ public class ComputeService {
             } else {
                 localPlan = plan;
                 logicalPlanString = null;
-            }
-            if (coordinatorExternalSplits.isEmpty() == false) {
-                localPlan = localPlan.transformUp(
-                    ExternalSourceExec.class,
-                    exec -> exec.splits().isEmpty() ? exec.withSplits(coordinatorExternalSplits) : exec
-                );
             }
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);

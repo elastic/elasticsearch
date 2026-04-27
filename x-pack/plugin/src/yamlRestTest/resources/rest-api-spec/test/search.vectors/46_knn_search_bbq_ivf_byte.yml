@@ -1,0 +1,233 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.bbq_disk_byte_element_type"]
+      reason: Needs mapper.bbq_disk_byte_element_type feature
+  - skip:
+      features: "headers"
+  - do:
+      indices.create:
+        index: bbq_disk_byte
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                element_type: byte
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+
+  - do:
+      index:
+        index: bbq_disk_byte
+        id: "1"
+        body:
+          vector: [10,  41, -26,  81,   4,  26,  21, -40,
+                   23,  68, -48,  43,  -6,  10, -45,  35,
+                   39, -11,  64,  33, -52,  37, -29, -17,
+                  -28,  63,   5,  65, -39,  14,  12, -34,
+                  -36,  43, -35,  47, -36,  11, -17,  61,
+                  -29,  26,  56,   8,  31, -51,  38,  31,
+                   -4,  41,  -3,  -1,   0,   4, -68,  58,
+                  -87, 127,  25, -20, -13, -36, -13, -23]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_disk_byte
+
+  - do:
+      index:
+        index: bbq_disk_byte
+        id: "2"
+        body:
+          vector: [25,  66,   5,  71,  -5,  31,  59, -45,
+                  -10,  57,  -9,  -6,   0,  38, -48,   6,
+                   39,  20,  36,  15,  -7,  43, -37, -56,
+                   -2,  46, -22,  37, -29,  16,   4, -18,
+                  -18,  40, -28,  41, -57,  -8,   9,  55,
+                  -77, -18,  14,  25,  33, -31,  23, -21,
+                   10,  14,  -6,  20,   1,  21, -62,  73,
+                  -63, 115,  27,   1, -27, -20, -35,  -2]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_disk_byte
+
+  - do:
+      index:
+        index: bbq_disk_byte
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [18,  23, -15,  51,   2, -18,  44, -42,
+                   18,  44,  -7,  -7, -32,  42, -37,   6,
+                   59,  43,  66,  32, -13,  33, -27, -31,
+                  -14,  41,  12,  57, -33,  25, -14,  -7,
+                  -36,  51, -14,  39, -35,   2,  10,  51,
+                  -84,  -4,  35,   5,  24, -42,  21,   2,
+                   22, -26, -25,  15,  -1,  43, -57,  79,
+                  -87, 127,  25, -20, -13, -36, -13, -23]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_disk_byte
+
+  - do:
+      indices.forcemerge:
+        index: bbq_disk_byte
+        max_num_segments: 1
+
+  - do:
+      indices.refresh: { }
+---
+"Test knn search with byte vectors":
+  - do:
+      search:
+        index: bbq_disk_byte
+        body:
+          knn:
+            field: vector
+            query_vector: [16,   9, -10,  51, -14, -33,  60, -50,
+                           37,  73, -63,  57, -37,  25, -44,   2,
+                           30,  11,  29,  19, -17,  30, -35, -33,
+                          -28,  46, -26,  45, -18,  25,  -8, -22,
+                          -44,  24, -28,  41, -39, -13,   1,  30,
+                          -44,  17,  32,  20, -17, -31,  25,  -4,
+                          -15, -25, -13,  32, -24, -21, -74,  74,
+                          -55, 126,  27,  26,   4, -35, -54, -20]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }
+---
+"Test knn search with byte vectors and visit_percentage":
+  - do:
+      search:
+        index: bbq_disk_byte
+        body:
+          knn:
+            field: vector
+            query_vector: [16,   9, -10,  51, -14, -33,  60, -50,
+                           37,  73, -63,  57, -37,  25, -44,   2,
+                           30,  11,  29,  19, -17,  30, -35, -33,
+                          -28,  46, -26,  45, -18,  25,  -8, -22,
+                          -44,  24, -28,  41, -39, -13,   1,  30,
+                          -44,  17,  32,  20, -17, -31,  25,  -4,
+                          -15, -25, -13,  32, -24, -21, -74,  74,
+                          -55, 126,  27,  26,   4, -35, -54, -20]
+            k: 3
+            visit_percentage: 1.0
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }
+---
+"default oversample value for byte vectors":
+  - do:
+      indices.get_mapping:
+        index: bbq_disk_byte
+
+  - match: { bbq_disk_byte.mappings.properties.vector.index_options.rescore_vector.oversample: 3.0 }
+---
+"Test index configured rescore vector with byte vectors":
+  - skip:
+      features: "headers"
+  - do:
+      indices.create:
+        index: bbq_rescore_byte
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                element_type: byte
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+                  rescore_vector:
+                    oversample: 1.5
+
+  - do:
+      bulk:
+        index: bbq_rescore_byte
+        refresh: true
+        body: |
+          { "index": {"_id": "1"}}
+          { "vector": [10,  41, -26,  81,   4,  26,  21, -40, 23,  68, -48,  43,  -6,  10, -45,  35, 39, -11,  64,  33, -52,  37, -29, -17, -28,  63,   5,  65, -39,  14,  12, -34, -36,  43, -35,  47, -36,  11, -17,  61, -29,  26,  56,   8,  31, -51,  38,  31, -4,  41,  -3,  -1,   0,   4, -68,  58, -87, 127,  25, -20, -13, -36, -13, -23] }
+          { "index": {"_id": "2"}}
+          { "vector": [25,  66,   5,  71,  -5,  31,  59, -45, -10,  57,  -9,  -6,   0,  38, -48,   6, 39,  20,  36,  15,  -7,  43, -37, -56, -2,  46, -22,  37, -29,  16,   4, -18, -18,  40, -28,  41, -57,  -8,   9,  55, -77, -18,  14,  25,  33, -31,  23, -21, 10,  14,  -6,  20,   1,  21, -62,  73, -63, 115,  27,   1, -27, -20, -35,  -2] }
+          { "index": {"_id": "3"}}
+          { "vector": [18,  23, -15,  51,   2, -18,  44, -42, 18,  44,  -7,  -7, -32,  42, -37,   6, 59,  43,  66,  32, -13,  33, -27, -31, -14,  41,  12,  57, -33,  25, -14,  -7, -36,  51, -14,  39, -35,   2,  10,  51, -84,  -4,  35,   5,  24, -42,  21,   2, 22, -26, -25,  15,  -1,  43, -57,  79, -87, 127,  25, -20, -13, -36, -13, -23] }
+
+  - do:
+      indices.forcemerge:
+        index: bbq_rescore_byte
+        max_num_segments: 1
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: bbq_rescore_byte
+        body:
+          knn:
+            field: vector
+            query_vector: [16,   9, -10,  51, -14, -33,  60, -50,
+                           37,  73, -63,  57, -37,  25, -44,   2,
+                           30,  11,  29,  19, -17,  30, -35, -33,
+                          -28,  46, -26,  45, -18,  25,  -8, -22,
+                          -44,  24, -28,  41, -39, -13,   1,  30,
+                          -44,  17,  32,  20, -17, -31,  25,  -4,
+                          -15, -25, -13,  32, -24, -21, -74,  74,
+                          -55, 126,  27,  26,   4, -35, -54, -20]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: rescore_score0 }
+  - set: { hits.hits.1._score: rescore_score1 }
+  - set: { hits.hits.2._score: rescore_score2 }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: bbq_rescore_byte
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "double similarity = dotProduct(params.query_vector, 'vector'); return similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1"
+                params:
+                  query_vector: [16,   9, -10,  51, -14, -33,  60, -50,
+                                 37,  73, -63,  57, -37,  25, -44,   2,
+                                 30,  11,  29,  19, -17,  30, -35, -33,
+                                -28,  46, -26,  45, -18,  25,  -8, -22,
+                                -44,  24, -28,  41, -39, -13,   1,  30,
+                                -44,  17,  32,  20, -17, -31,  25,  -4,
+                                -15, -25, -13,  32, -24, -21, -74,  74,
+                                -55, 126,  27,  26,   4, -35, -54, -20]
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $rescore_score0 }
+  - match: { hits.hits.1._score: $rescore_score1 }
+  - match: { hits.hits.2._score: $rescore_score2 }

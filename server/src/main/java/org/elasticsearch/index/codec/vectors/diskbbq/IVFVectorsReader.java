@@ -29,6 +29,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -305,7 +306,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (fieldInfo == null || fieldInfo.getVectorDimension() == 0) {
             return;
         }
-        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) == false) {
+        if (fields.get(fieldInfo.number) == null || fields.get(fieldInfo.number).numCentroids == 0) {
+            // no IVF structure for this field; fall back to the raw delegate
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
             return;
         }
@@ -326,7 +328,16 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             esAcceptDocs = null;
         }
 
-        final FloatVectorValues values = getFloatVectorValues(field);
+        final FloatVectorValues values;
+        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE)) {
+            ByteVectorValues byteValues = getByteVectorValues(field);
+            values = byteValues != null ? new ByteToFloatVectorValues(byteValues) : null;
+        } else {
+            values = getFloatVectorValues(field);
+        }
+        if (values == null) {
+            return;
+        }
         final IndexInput centroids = entry.centroidSlice(ivfCentroids);
         final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
         if (numVectors == 0) {
@@ -450,13 +461,22 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     @Override
     public final void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
-        final ByteVectorValues values = getReaderForField(field).getByteVectorValues(field);
-        for (int i = 0; i < values.size(); i++) {
-            final float score = fieldInfo.getVectorSimilarityFunction().compare(target, values.vectorValue(i));
-            knnCollector.collect(values.ordToDoc(i), score);
-            if (knnCollector.earlyTerminated()) {
-                return;
+        FieldEntry entry = fields.get(fieldInfo.number);
+        if (entry != null && entry.numCentroids > 0) {
+            // Convert byte query to float and use the IVF search path
+            float[] floatTarget = new float[target.length];
+            for (int i = 0; i < target.length; i++) {
+                floatTarget[i] = target[i];
             }
+            // For cosine similarity, the IVF pipeline indexes L2-normalized byte-to-float vectors.
+            // The query vector must also be normalized to match.
+            if (fieldInfo.getVectorSimilarityFunction() == VectorSimilarityFunction.COSINE) {
+                VectorUtil.l2normalize(floatTarget);
+            }
+            search(field, floatTarget, knnCollector, acceptDocs);
+        } else {
+            getReaderForField(field).search(field, target, knnCollector, acceptDocs);
+
         }
     }
 
@@ -465,7 +485,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         var raw = getReaderForField(fieldInfo.name).getOffHeapByteSize(fieldInfo);
         FieldEntry fe = fields.get(fieldInfo.number);
         if (fe == null) {
-            assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;
             return raw;
         }
 

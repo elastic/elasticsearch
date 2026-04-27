@@ -285,12 +285,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput, true, true);
+        VectorSimilarityFunction effectiveSimilarity = IVFVectorsWriter.effectiveSimilarity(fieldInfo);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
-            fieldInfo.getVectorSimilarityFunction(),
+            effectiveSimilarity,
             quantEncoding,
             fieldInfo.getVectorDimension(),
-            new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
+            new OptimizedScalarQuantizer(effectiveSimilarity)
         );
         final int[] docIds = new int[maxPostingListSize];
         final int[] docDeltas = new int[maxPostingListSize];
@@ -352,7 +353,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         int[] overspillAssignments
     ) throws IOException {
         // first, quantize all the vectors into a temporary file
-        var vectorSimilarityFunction = fieldInfo.getVectorSimilarityFunction();
+        var vectorSimilarityFunction = IVFVectorsWriter.effectiveSimilarity(fieldInfo);
         KMeansResult centroidClusters = centroidSupplier.secondLevelClusters();
         String quantizedVectorsTempName = null;
         try (
@@ -727,7 +728,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         CentroidGroups centroidGroups
     ) throws IOException {
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true, true);
-        final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
+        final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(IVFVectorsWriter.effectiveSimilarity(fieldInfo));
         centroidOutput.writeVInt(centroidGroups.centroids().length);
         writeSlicesOffsets(centroidOutput, centroidSupplier.slices());
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength());
@@ -784,7 +785,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         centroidOutput.writeVInt(0);
         writeSlicesOffsets(centroidOutput, centroidSupplier.slices());
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true, true);
-        final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
+        final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(IVFVectorsWriter.effectiveSimilarity(fieldInfo));
         QuantizedCentroids quantizedCentroids = new QuantizedCentroids(
             centroidSupplier,
             fieldInfo.getVectorDimension(),
@@ -862,12 +863,16 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             if (logger.isDebugEnabled()) {
                 logger.debug("final centroid count: {}", kMeansResult.centroids().length);
             }
-            return new CentroidAssignments(
-                fieldInfo.getVectorDimension(),
-                kMeansResult.centroids(),
-                kMeansResult.assignments(),
-                kMeansResult.soarAssignments()
-            );
+            float[][] centroids = kMeansResult.centroids();
+            int[] assignments = kMeansResult.assignments();
+            int[] soarAssignments = kMeansResult.soarAssignments();
+            VectorSimilarityFunction sim = fieldInfo.getVectorSimilarityFunction();
+            if (sim == VectorSimilarityFunction.COSINE
+                || sim == VectorSimilarityFunction.DOT_PRODUCT
+                || sim == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
+                scaleCentroidsToAverageMagnitude(centroids, assignments, floatVectorValues);
+            }
+            return new CentroidAssignments(fieldInfo.getVectorDimension(), centroids, assignments, soarAssignments);
         } else {
             final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
             assert slicedFieldInfo != null;
@@ -923,17 +928,20 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 sliceOffsets[i] = i == 0 ? kMeansResult.centroids().length : sliceOffsets[i - 1] + kMeansResult.centroids().length;
             }
             final KMeansResult merged = KMeansResult.merge(kmeansResults);
+            float[][] centroids = merged.centroids();
+            int[] assignments = merged.assignments();
+            int[] soarAssignments = merged.soarAssignments();
+            VectorSimilarityFunction sim = fieldInfo.getVectorSimilarityFunction();
+            if (sim == VectorSimilarityFunction.COSINE
+                || sim == VectorSimilarityFunction.DOT_PRODUCT
+                || sim == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
+                scaleCentroidsToAverageMagnitude(centroids, assignments, floatVectorValues);
+            }
             if (logger.isDebugEnabled()) {
                 logger.debug("final centroid count: {}", merged.centroids().length);
             }
             final CentroidSlices centroidSlices = new CentroidSlices(sliceOffsets, sliceLengths);
-            return new CentroidAssignments(
-                floatVectorValues.dimension(),
-                merged.centroids(),
-                merged.assignments(),
-                merged.soarAssignments(),
-                centroidSlices
-            );
+            return new CentroidAssignments(floatVectorValues.dimension(), centroids, assignments, soarAssignments, centroidSlices);
         }
     }
 
@@ -999,12 +1007,16 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         if (logger.isDebugEnabled()) {
             logger.debug("final centroid count: {}", kMeansResult.centroids().length);
         }
-        return new CentroidAssignments(
-            fieldInfo.getVectorDimension(),
-            kMeansResult.centroids(),
-            kMeansResult.assignments(),
-            kMeansResult.soarAssignments()
-        );
+        float[][] centroids = kMeansResult.centroids();
+        int[] assignments = kMeansResult.assignments();
+        int[] soarAssignments = kMeansResult.soarAssignments();
+        VectorSimilarityFunction sim = fieldInfo.getVectorSimilarityFunction();
+        if (sim == VectorSimilarityFunction.COSINE
+            || sim == VectorSimilarityFunction.DOT_PRODUCT
+            || sim == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
+            scaleCentroidsToAverageMagnitude(centroids, assignments, floatVectorValues);
+        }
+        return new CentroidAssignments(fieldInfo.getVectorDimension(), centroids, assignments, soarAssignments);
     }
 
     private KMeansResult calculateCentroids(HierarchicalKMeans hierarchicalKMeans, ClusteringFloatVectorValues floatVectorValues)

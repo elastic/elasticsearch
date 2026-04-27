@@ -396,7 +396,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.quantEncoding = quantEncoding;
         this.rawVectorFormat = switch (elementType) {
-            case FLOAT -> float32VectorFormat;
+            case FLOAT, BYTE -> float32VectorFormat;
             case BFLOAT16 -> bfloat16VectorFormat;
             default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
         };

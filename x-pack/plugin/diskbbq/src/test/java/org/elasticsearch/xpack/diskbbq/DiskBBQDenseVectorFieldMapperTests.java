@@ -84,4 +84,36 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
         assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_DISK, mapper.fieldType().getIndexOptions().getType());
     }
 
+    public void testKnnBBQIVFByteVectorsFormat() throws IOException {
+        final boolean enabled = randomBoolean();
+        final Settings settings = IndexSettingsModule.newIndexSettings(
+            "foo",
+            Settings.builder().put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), enabled).build()
+        ).getSettings();
+        final int dims = randomIntBetween(64, 4096);
+        MapperService mapperService = createMapperService(getVersion(), settings, () -> true, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", dims);
+            b.field("element_type", "byte");
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "bbq_disk");
+            b.endObject();
+        }));
+        try (var tp = new TestThreadPool(getTestName(), Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), 10).build())) {
+            CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, tp);
+            Codec codec = codecService.codec("default");
+            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+                codec = deduplicateFieldInfosCodec.delegate();
+            }
+            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+            String expectedString = Build.current().isSnapshot()
+                ? "ESNextDiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")"
+                : "ES940DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")";
+            assertEquals(expectedString, knnVectorsFormat.toString());
+        }
+    }
+
 }

@@ -1,0 +1,17 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+    name = 'stateless-master-failover'
+    description = 'Triggers graceful master failover on shutdown for stateless Elasticsearch'
+    classname = 'org.elasticsearch.xpack.stateless.shutdown.masterfailover.MasterFailoverPlugin'
+    extendedPlugins = ['x-pack-core']
+    deploymentTarget = "STATELESS_ONLY"
+}
+
+dependencies {
+    compileOnly project(':server')
+    testImplementation project(':test:framework')
+
+    compileOnly project(':x-pack:plugin:core')
+    compileOnly project(':x-pack:plugin:security')
+}

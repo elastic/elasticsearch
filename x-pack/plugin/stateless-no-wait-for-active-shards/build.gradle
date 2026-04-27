@@ -1,0 +1,24 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+esplugin {
+    name = 'stateless-no-wait-for-active-shards'
+    description = 'Action filter to ignore ?wait_for_active_shards= on indexing requests for stateless Elasticsearch'
+    classname = 'org.elasticsearch.xpack.stateless.waitforactiveshards.NoWaitForActiveShardsPlugin'
+    deploymentTarget = "STATELESS_ONLY"
+}
+
+dependencies {
+  clusterModules project(':x-pack:plugin:stateless')
+}
+
+dependencies {
+    compileOnly project(':server')
+    testImplementation project(':test:framework')
+
+    internalClusterTestImplementation testArtifact(project(':x-pack:plugin:stateless'))
+    internalClusterTestImplementation testArtifact(project(':x-pack:plugin:stateless'), 'internalClusterTest')
+    javaRestTestImplementation project(':x-pack:plugin:stateless-no-wait-for-active-shards')
+    javaRestTestImplementation project(':x-pack:test:stateless-test-framework')
+}

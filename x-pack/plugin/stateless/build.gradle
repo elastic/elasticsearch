@@ -1,0 +1,110 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+esplugin {
+    name = 'stateless'
+    description = 'Elasticsearch Expanded Pack Plugin - Stateless self managed'
+    classname = 'org.elasticsearch.xpack.stateless.StatelessPlugin'
+    extendedPlugins = ['x-pack-core', 'blob-cache']
+}
+
+configurations {
+    testImplementation {
+        exclude group: 'javax.xml.bind', module: 'jaxb-api'
+    }
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'index', 'search', 'get', 'nodes.info'
+  }
+}
+
+dependencies {
+    compileOnly project(':server')
+    testImplementation project(':test:framework')
+
+    compileOnly project(xpackModule('core'))
+    compileOnly project(xpackModule('blob-cache'))
+
+    internalClusterTestImplementation testArtifact(project(xpackModule('core')))
+    internalClusterTestImplementation project(xpackModule('shutdown'))
+
+    internalClusterTestImplementation project(':modules:data-streams')
+    internalClusterTestImplementation project(':modules:mapper-extras')
+    internalClusterTestImplementation project(xpackModule('esql'))
+    internalClusterTestImplementation project(xpackModule('esql-core'))
+
+    testImplementation testArtifact(project(xpackModule('searchable-snapshots')))
+    testImplementation 'com.amazonaws:aws-java-sdk-core:1.12.684'
+    testImplementation 'com.amazonaws:aws-java-sdk-s3:1.12.684'
+    testImplementation project(':test:fixtures:s3-fixture')
+    testImplementation project(':test:fixtures:gcs-fixture')
+    testImplementation project(':test:fixtures:azure-fixture')
+    testImplementation project(':test:fixtures:aws-fixture-utils')
+    testImplementation project(':modules:repository-s3')
+    testImplementation project(':modules:repository-gcs')
+    testImplementation project(':modules:repository-azure')
+    testImplementation testArtifact(project(':server'))
+    javaRestTestImplementation project(':x-pack:test:stateless-test-framework')
+    yamlRestTestImplementation project(':x-pack:test:stateless-test-framework')
+
+    clusterModules project(':x-pack:plugin:secure-settings')
+    clusterModules project(':x-pack:plugin:stateless-no-wait-for-active-shards')
+    clusterModules project(':x-pack:plugin:stateless-master-failover')
+    clusterModules project(':x-pack:plugin:stateless-sigterm')
+    clusterModules project(':x-pack:plugin:stateless-health-shards-availability')
+    clusterModules project(':x-pack:plugin:logsdb')
+    clusterModules project(':modules:data-streams')
+    clusterModules project(':modules:mapper-extras')
+}
+
+restResources {
+    restApi {
+        include '_common', 'cluster', 'indices', 'index', 'search'
+    }
+}
+
+dependencies {
+  clusterModules project(':x-pack:plugin:secure-settings')
+  clusterModules project(':x-pack:plugin:stateless-no-wait-for-active-shards')
+  clusterModules project(':x-pack:plugin:stateless-master-failover')
+  clusterModules project(':x-pack:plugin:stateless-sigterm')
+  clusterModules project(':x-pack:plugin:stateless-health-shards-availability')
+  clusterModules project(':modules:data-streams')
+  clusterModules project(':modules:mapper-extras')
+}
+
+tasks.named('test') {
+    exclude '**/S3RegisterCASLinearizabilityTests.class'
+    // A small writer buffer size so that write into cache region needs to be done in multiple batches
+    // This allows reading small files to finish earlier before the region is fully filled which is a behaviour
+    // we want to test
+    systemProperty 'es.searchable.snapshot.shared_cache.write_buffer.size', '8kb'
+}
+
+tasks.named('internalClusterTest') {
+    // Tests run in a single classloader as an unnamed module, so the blobcache module
+    // is not defined. Here we open java.io to the entire test to quiet spurious
+    // warnings about failing to change access for FileDescriptor.fd
+    // that org.elasticsearch.preallocate does
+    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+    // A small write buffer size to avoid OOM when many nodes run in the same JVM
+    systemProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "256kb")
+}
+
+tasks.register('statelessS3ThirdPartyTests', Test) {
+    def testSourceSet = sourceSets.test
+    testClassesDirs = testSourceSet.output.classesDirs
+    classpath = testSourceSet.runtimeClasspath
+    include '**/S3RegisterCASLinearizabilityTests.class'
+    systemProperty 'test.s3.access_key', System.getenv('stateless_aws_s3_access_key')
+    systemProperty 'test.s3.secret_key', System.getenv('stateless_aws_s3_secret_key')
+    systemProperty 'test.s3.session_token', System.getenv('stateless_aws_s3_session_token')
+    systemProperty 'test.s3.bucket', System.getenv('stateless_aws_s3_bucket')
+    systemProperty 'test.s3.region', System.getenv('stateless_aws_s3_region')
+    systemProperty 'test.s3.base_path', System.getenv('stateless_aws_s3_base_path')
+}

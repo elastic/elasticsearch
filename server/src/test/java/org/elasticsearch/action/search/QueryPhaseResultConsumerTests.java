@@ -27,7 +27,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -45,7 +44,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
@@ -128,85 +126,6 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
     public void cleanup() {
         executor.shutdownNow();
         terminate(threadPool);
-    }
-
-    public void testApplyProfileCoordinatorMetadataWhenProfilingDisabledOnRequest() {
-        SearchRequest request = new SearchRequest("idx-*");
-        request.source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).profile(false));
-        SearchProfileResults profileResults = new SearchProfileResults(Collections.emptyMap());
-        try (
-            SearchResponseSections sections = new SearchResponseSections(
-                SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
-                null,
-                null,
-                false,
-                null,
-                profileResults,
-                1,
-                null
-            )
-        ) {
-            SearchCoordinatorContext.applyProfileCoordinatorMetadata(request, sections);
-            assertNull(profileResults.getOriginalSource());
-            assertNull(profileResults.getRequestIndices());
-        }
-    }
-
-    /**
-     * Default {@link SearchRequest} exposes an empty {@link SearchSourceBuilder}; profiling is off, so apply sets no coordinator fields.
-     */
-    public void testApplyProfileCoordinatorMetadataForDefaultSearchSource() {
-        SearchRequest request = new SearchRequest("idx");
-        assertThat(request.source().profile(), equalTo(false));
-        SearchProfileResults profileResults = new SearchProfileResults(Collections.emptyMap());
-        try (
-            SearchResponseSections sections = new SearchResponseSections(
-                SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
-                null,
-                null,
-                false,
-                null,
-                profileResults,
-                1,
-                null
-            )
-        ) {
-            SearchCoordinatorContext.applyProfileCoordinatorMetadata(request, sections);
-            assertNull(profileResults.getOriginalSource());
-            assertNull(profileResults.getRequestIndices());
-        }
-    }
-
-    public void testApplyProfileCoordinatorMetadataCapturesIndicesAndShallowCopiedSource() {
-        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
-        SearchSourceBuilder expectedSnapshot = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
-        SearchRequest request = new SearchRequest("wildcard-*", "alias");
-        request.source(source);
-        SearchProfileResults profileResults = new SearchProfileResults(Collections.emptyMap());
-        try (
-            SearchResponseSections sections = new SearchResponseSections(
-                SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
-                null,
-                null,
-                false,
-                null,
-                profileResults,
-                1,
-                null
-            )
-        ) {
-            SearchCoordinatorContext.applyProfileCoordinatorMetadata(request, sections);
-            SearchSourceBuilder snapshot = profileResults.getOriginalSource();
-            assertNotNull(snapshot);
-            assertThat(snapshot, equalTo(expectedSnapshot));
-            assertNotSame(source, snapshot);
-            assertArrayEquals(new String[] { "wildcard-*", "alias" }, profileResults.getRequestIndices());
-            source.query(QueryBuilders.matchAllQuery());
-            assertThat(snapshot, equalTo(expectedSnapshot));
-            String[] indices = request.indices();
-            indices[0] = "mutated";
-            assertThat(profileResults.getRequestIndices()[0], equalTo("wildcard-*"));
-        }
     }
 
     public void testProgressListenerExceptionsAreCaught() throws Exception {

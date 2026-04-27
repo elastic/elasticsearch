@@ -2237,8 +2237,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return copy;
     }
 
-    private static final Predicate<NodeFeature> COPY_PARSE_ALL_FEATURES_SUPPORTED = f -> true;
-
     public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinality) {
         if (profile) return false;
 

@@ -75,4 +75,13 @@ public abstract class ShardOperationFailedException extends Exception implements
     public final Throwable getCause() {
         return cause;
     }
+
+    /**
+     * Returns a short message describing the failed shard.
+     * Subclasses that carry richer context (for example a node id) may override this further.
+     */
+    @Override
+    public String getMessage() {
+        return "shard [" + (index == null ? "_na" : index) + "][" + shardId + "]";
+    }
 }

@@ -114,11 +114,9 @@ public class ChangePointOperator implements Operator {
     public void finish() {
         if (finished == false) {
             finished = true;
-            // Non-grouped mode flushes even with no input so that the "not enough buckets"
-            // indeterminate-warning path is still exercised.
-            if (groupingChannels.length == 0 || currentGroupPages.isEmpty() == false) {
-                flushGroup();
-            }
+            // Always flush, even with an empty buffer, so the "not enough buckets"
+            // indeterminate-warning path runs regardless of grouped/non-grouped mode.
+            flushGroup();
             emitWarnings();
         }
     }

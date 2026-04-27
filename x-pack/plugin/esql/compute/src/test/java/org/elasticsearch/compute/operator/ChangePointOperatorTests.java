@@ -475,10 +475,14 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testGroupedNoInputPages() {
+    public void testGroupedNoInputPagesProducesWarning() {
         DriverContext ctx = driverContext();
         List<Page> outputPages = invokeChangePoint(ctx, List.of(), 1);
         assertThat(outputPages, hasSize(0));
+        assertWarnings(
+            "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]"
+        );
     }
 
     private static List<Page> buildPages(

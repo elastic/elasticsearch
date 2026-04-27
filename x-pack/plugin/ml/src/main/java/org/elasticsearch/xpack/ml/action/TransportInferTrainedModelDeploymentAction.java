@@ -87,7 +87,8 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
                 );
             }
             throw new ElasticsearchStatusException(
-                "Unable to find model deployment task [{}] please stop and start the deployment or try again momentarily",
+                "Unable to find model deployment task [{}] please stop and start the trained model deployment "
+                    + "or try again momentarily",
                 RestStatus.NOT_FOUND,
                 request.getId()
             );

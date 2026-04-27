@@ -1,0 +1,20 @@
+[project]
+name = "promcheck"
+version = "0.1.0"
+description = "Compare PromQL query results between Prometheus and Elasticsearch"
+requires-python = ">=3.14"
+dependencies = [
+    "click>=8.1",
+    "python-snappy",
+    "requests",
+]
+
+[project.scripts]
+promcheck = "promcheck:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["promcheck", "util", "corpus", "runner"]

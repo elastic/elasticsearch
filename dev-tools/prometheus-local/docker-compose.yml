@@ -29,6 +29,7 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
+      - --web.enable-remote-write-receiver
     restart: unless-stopped
     labels:
       - traefik.enable=true

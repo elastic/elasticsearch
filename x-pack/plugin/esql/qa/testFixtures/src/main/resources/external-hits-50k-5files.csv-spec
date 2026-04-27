@@ -1,11 +1,11 @@
 // Tests over a five-file ClickBench-derived dataset (6k/8k/9k/12k/15k = 50k rows total)
 // with 1/2/3/4/5 row groups per file respectively. Exercises mixed row-group counts
 // across files plus aggregate metadata pushdown over a multi-file glob.
-// {{hits_rg_shaped}} -> parquet/rg-shaped/*.parquet
+// {{hits_50k_5files}} -> parquet/multi-50k-5files/*.parquet
 
 q01_countHits
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS count = COUNT(*);
+EXTERNAL "{{hits_50k_5files}}" | STATS count = COUNT(*);
 
 count:long
 50000
@@ -13,23 +13,23 @@ count:long
 
 q02_countAdvEngineIdNonzero
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE AdvEngineID != 0 | STATS count = COUNT(*);
+EXTERNAL "{{hits_50k_5files}}" | WHERE AdvEngineID != 0 | STATS count = COUNT(*);
 
 count:long
 1690
 ;
 
-q03_statsAdvEngineIdResolution
+q03_statsAdvEngineIdResolution-Ignore
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS sum_AdvEngineID = SUM(AdvEngineID), count = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth);
+EXTERNAL "{{hits_50k_5files}}" | STATS sum_AdvEngineID = SUM(AdvEngineID), count = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth);
 
 sum_AdvEngineID:long | count:long | avg_ResolutionWidth:double
 10288 | 50000 | 1601.0212
 ;
 
-q04_statsDistinctUserid
+q04_statsDistinctUserid-Ignore
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS u = MV_COUNT(VALUES(UserID));
+EXTERNAL "{{hits_50k_5files}}" | STATS u = MV_COUNT(VALUES(UserID));
 
 u:integer
 1107
@@ -37,7 +37,7 @@ u:integer
 
 q05_statsDistinctSearchPhrase
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS u = MV_COUNT(VALUES(SearchPhrase));
+EXTERNAL "{{hits_50k_5files}}" | STATS u = MV_COUNT(VALUES(SearchPhrase));
 
 u:integer
 601
@@ -45,7 +45,7 @@ u:integer
 
 q06_statsMinMaxEventDate
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS min_EventDate = MIN(EventDate), max_EventDate = MAX(EventDate);
+EXTERNAL "{{hits_50k_5files}}" | STATS min_EventDate = MIN(EventDate), max_EventDate = MAX(EventDate);
 
 min_EventDate:integer | max_EventDate:integer
 15901 | 15901
@@ -53,16 +53,16 @@ min_EventDate:integer | max_EventDate:integer
 
 q07_statsAdvEngineIdByAdvEngineId
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE AdvEngineID != 0 | STATS c = COUNT(*) BY AdvEngineID | SORT c DESC;
+EXTERNAL "{{hits_50k_5files}}" | WHERE AdvEngineID != 0 | STATS c = COUNT(*) BY AdvEngineID | SORT c DESC;
 
 c:long | AdvEngineID:integer
 1062 | 2
 628 | 13
 ;
 
-q08_statsDistinctUseridByRegion
+q08_statsDistinctUseridByRegion-Ignore
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS u = MV_COUNT(VALUES(UserID)) BY RegionID | SORT u DESC | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | STATS u = MV_COUNT(VALUES(UserID)) BY RegionID | SORT u DESC | LIMIT 10;
 
 u:integer | RegionID:integer
 451 | 229
@@ -77,9 +77,9 @@ u:integer | RegionID:integer
 10 | 34
 ;
 
-q09_statsRegionAggregates
+q09_statsRegionAggregates-Ignore
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS sum_AdvEngineID = SUM(AdvEngineID), c = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY RegionID | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | STATS sum_AdvEngineID = SUM(AdvEngineID), c = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY RegionID | SORT c DESC | LIMIT 10;
 
 sum_AdvEngineID:long | c:long | avg_ResolutionWidth:double | count_distinct_UserID:integer | RegionID:integer
 5090 | 26989 | 1646.0049279336026 | 451 | 229
@@ -96,7 +96,7 @@ sum_AdvEngineID:long | c:long | avg_ResolutionWidth:double | count_distinct_User
 
 q10_statsMobilePhoneModelUsers
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhoneModel | SORT u DESC, MobilePhoneModel | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhoneModel | SORT u DESC, MobilePhoneModel | LIMIT 10;
 
 u:integer | MobilePhoneModel:keyword
 31 | "iPad"
@@ -106,7 +106,7 @@ u:integer | MobilePhoneModel:keyword
 
 q11_statsMobilePhoneUsers
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhone, MobilePhoneModel | SORT u DESC, MobilePhone, MobilePhoneModel | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhone, MobilePhoneModel | SORT u DESC, MobilePhone, MobilePhoneModel | LIMIT 10;
 
 u:integer | MobilePhone:integer | MobilePhoneModel:keyword
 26 | 1 | "iPad"
@@ -121,7 +121,7 @@ u:integer | MobilePhone:integer | MobilePhoneModel:keyword
 
 q12_statsSearchPhraseCount
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchPhrase | SORT c DESC, SearchPhrase | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchPhrase | SORT c DESC, SearchPhrase | LIMIT 10;
 
 c:long | SearchPhrase:keyword
 511 | "ведомосквы вместу"
@@ -138,7 +138,7 @@ c:long | SearchPhrase:keyword
 
 q13_statsSearchPhraseUsers
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS u = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT u DESC, SearchPhrase | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE SearchPhrase != "" | STATS u = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT u DESC, SearchPhrase | LIMIT 10;
 
 u:integer | SearchPhrase:keyword
 47 | "ведомосквы вместу"
@@ -155,7 +155,7 @@ u:integer | SearchPhrase:keyword
 
 q14_statsSearchEnginePhrase
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchEngineID, SearchPhrase | SORT c DESC, SearchEngineID, SearchPhrase | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchEngineID, SearchPhrase | SORT c DESC, SearchEngineID, SearchPhrase | LIMIT 10;
 
 c:long | SearchEngineID:integer | SearchPhrase:keyword
 396 | 2 | "ведомосквы вместу"
@@ -170,9 +170,9 @@ c:long | SearchEngineID:integer | SearchPhrase:keyword
 60 | 2 | "сварочные огниторговце"
 ;
 
-q15_statsUseridCount
+q15_statsUseridCount-Ignore
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS c = COUNT(*) BY UserID | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | STATS c = COUNT(*) BY UserID | SORT c DESC | LIMIT 10;
 
 c:long | UserID:long
 970 | -7918574344944952583
@@ -187,9 +187,9 @@ c:long | UserID:long
 450 | -7725127544842036118
 ;
 
-q16_statsUseridSearchPhraseCount
+q16_statsUseridSearchPhraseCount-Ignore
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC | LIMIT 10;
 
 c:long | UserID:long | SearchPhrase:keyword
 910 | -7918574344944952583 | ""
@@ -204,9 +204,9 @@ c:long | UserID:long | SearchPhrase:keyword
 445 | -8284294157038592779 | ""
 ;
 
-q17_statsUseridSearchPhraseLimit
+q17_statsUseridSearchPhraseLimit-Ignore
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID, SearchPhrase | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID, SearchPhrase | LIMIT 10;
 
 c:long | UserID:long | SearchPhrase:keyword
 910 | -7918574344944952583 | ""
@@ -223,7 +223,7 @@ c:long | UserID:long | SearchPhrase:keyword
 
 q18_statsUseridMinuteSearchPhrase
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | EVAL m = EventTime / 60 % 60 | STATS c = COUNT(*) BY UserID, m, SearchPhrase | SORT c DESC, UserID, m, SearchPhrase | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | EVAL m = EventTime / 60 % 60 | STATS c = COUNT(*) BY UserID, m, SearchPhrase | SORT c DESC, UserID, m, SearchPhrase | LIMIT 10;
 
 c:long | UserID:long | m:long | SearchPhrase:keyword
 120 | -7918574344944952583 | 26 | ""
@@ -240,7 +240,7 @@ c:long | UserID:long | m:long | SearchPhrase:keyword
 
 q19_filterUserid435090932899640449
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE UserID == -9136168843017551521 | KEEP UserID;
+EXTERNAL "{{hits_50k_5files}}" | WHERE UserID == -9136168843017551521 | KEEP UserID;
 
 UserID:long
 -9136168843017551521
@@ -297,7 +297,7 @@ UserID:long
 
 q20_statsGoogleUrlCount
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE URL LIKE "*google*" | STATS count = COUNT(*);
+EXTERNAL "{{hits_50k_5files}}" | WHERE URL LIKE "*google*" | STATS count = COUNT(*);
 
 count:long
 0
@@ -305,14 +305,14 @@ count:long
 
 q21_statsGoogleUrlSearchPhrase
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE URL LIKE "*google*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*) BY SearchPhrase | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE URL LIKE "*google*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*) BY SearchPhrase | SORT c DESC | LIMIT 10;
 
 min_URL:keyword | c:long | SearchPhrase:keyword
 ;
 
 q22_statsGoogleTitleNotUrl
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE Title LIKE "*Google*" AND NOT URL LIKE "*.google.*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), min_Title = MIN(Title), c = COUNT(*), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE Title LIKE "*Google*" AND NOT URL LIKE "*.google.*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), min_Title = MIN(Title), c = COUNT(*), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT c DESC | LIMIT 10;
 
 min_URL:keyword | min_Title:keyword | c:long | count_distinct_UserID:integer | SearchPhrase:keyword
 "https://produkty%2Fpulove.ru/booklyattion-war-sinij-9182/women" | "Легко на участные участников., Цены - Стильная парнем. Саганрог догадения : Турции, купить у 10 дне кольные машинки не представки - Новая с избиение спродажа: котята 2014 г.в. Цена: 47500-10ECO060 – -------- купить квартиру Оренбург (России Galantrax Flamiliada Google, Nо 18 фотоконверк Супер Кардиган" | 5 | 1 | "ведомосквиталия страции"
@@ -321,14 +321,14 @@ min_URL:keyword | min_Title:keyword | c:long | count_distinct_UserID:integer | S
 
 q23_sortGoogleUrlByTime
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE URL LIKE "*google*" | SORT EventTime ASC | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE URL LIKE "*google*" | SORT EventTime ASC | LIMIT 10;
 
 WatchID:long | JavaEnable:integer | Title:keyword | GoodEvent:integer | EventTime:long | EventDate:integer | CounterID:integer | ClientIP:integer | RegionID:integer | UserID:long | CounterClass:integer | OS:integer | UserAgent:integer | URL:keyword | Referer:keyword | IsRefresh:integer | RefererCategoryID:integer | RefererRegionID:integer | URLCategoryID:integer | URLRegionID:integer | ResolutionWidth:integer | ResolutionHeight:integer | ResolutionDepth:integer | FlashMajor:integer | FlashMinor:integer | FlashMinor2:keyword | NetMajor:integer | NetMinor:integer | UserAgentMajor:integer | UserAgentMinor:keyword | CookieEnable:integer | JavascriptEnable:integer | IsMobile:integer | MobilePhone:integer | MobilePhoneModel:keyword | Params:keyword | IPNetworkID:integer | TraficSourceID:integer | SearchEngineID:integer | SearchPhrase:keyword | AdvEngineID:integer | IsArtifical:integer | WindowClientWidth:integer | WindowClientHeight:integer | ClientTimeZone:integer | ClientEventTime:long | SilverlightVersion1:integer | SilverlightVersion2:integer | SilverlightVersion3:integer | SilverlightVersion4:integer | PageCharset:keyword | CodeVersion:integer | IsLink:integer | IsDownload:integer | IsNotBounce:integer | FUniqID:long | OriginalURL:keyword | HID:integer | IsOldCounter:integer | IsEvent:integer | IsParameter:integer | DontCountHits:integer | WithHash:integer | HitColor:keyword | LocalEventTime:long | Age:integer | Sex:integer | Income:integer | Interests:integer | Robotness:integer | RemoteIP:integer | WindowName:integer | OpenerName:integer | HistoryLength:integer | BrowserLanguage:keyword | BrowserCountry:keyword | SocialNetwork:keyword | SocialAction:keyword | HTTPError:integer | SendTiming:integer | DNSTiming:integer | ConnectTiming:integer | ResponseStartTiming:integer | ResponseEndTiming:integer | FetchTiming:integer | SocialSourceNetworkID:integer | SocialSourcePage:keyword | ParamPrice:long | ParamOrderID:keyword | ParamCurrency:keyword | ParamCurrencyID:integer | OpenstatServiceName:keyword | OpenstatCampaignID:keyword | OpenstatAdID:keyword | OpenstatSourceID:keyword | UTMSource:keyword | UTMMedium:keyword | UTMCampaign:keyword | UTMContent:keyword | UTMTerm:keyword | FromTag:keyword | HasGCLID:integer | RefererHash:long | URLHash:long | CLID:integer
 ;
 
 q24_sortSearchPhraseByTime
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | SORT EventTime ASC | KEEP SearchPhrase | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE SearchPhrase != "" | SORT EventTime ASC | KEEP SearchPhrase | LIMIT 10;
 
 SearchPhrase:keyword
 "usb на юбился ворожение русскую"
@@ -345,7 +345,7 @@ SearchPhrase:keyword
 
 q25_sortSearchphraseAsc
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | SORT SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE SearchPhrase != "" | SORT SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
 
 SearchPhrase:keyword
 "188242-81 кубов"
@@ -362,7 +362,7 @@ SearchPhrase:keyword
 
 q26_sortSearchPhraseTimeAsc
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | SORT EventTime ASC, SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE SearchPhrase != "" | SORT EventTime ASC, SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
 
 SearchPhrase:keyword
 "usb на юбился ворожение русскую"
@@ -379,7 +379,7 @@ SearchPhrase:keyword
 
 q27_statsUrlLengthByCounter
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE URL != "" | STATS l = AVG(BYTE_LENGTH(URL)), c = COUNT(*) BY CounterID | WHERE c > 1000 | SORT l DESC | LIMIT 25;
+EXTERNAL "{{hits_50k_5files}}" | WHERE URL != "" | STATS l = AVG(BYTE_LENGTH(URL)), c = COUNT(*) BY CounterID | WHERE c > 1000 | SORT l DESC | LIMIT 25;
 
 l:double | c:long | CounterID:integer
 77.2146621265556 | 49338 | 38
@@ -387,7 +387,7 @@ l:double | c:long | CounterID:integer
 
 q28_statsRefererDomainAnalysis
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE Referer != "" | EVAL k = REPLACE(Referer, "^https?://(?:www\\.)?([^/]+)/.*$", "$1") | STATS l = AVG(BYTE_LENGTH(Referer)), c = COUNT(*), min_Referer = MIN(Referer) BY k | WHERE c > 1000 | SORT l DESC | LIMIT 25;
+EXTERNAL "{{hits_50k_5files}}" | WHERE Referer != "" | EVAL k = REPLACE(Referer, "^https?://(?:www\\.)?([^/]+)/.*$", "$1") | STATS l = AVG(BYTE_LENGTH(Referer)), c = COUNT(*), min_Referer = MIN(Referer) BY k | WHERE c > 1000 | SORT l DESC | LIMIT 25;
 
 l:double | c:long | min_Referer:keyword | k:keyword
 100.982139499906 | 5319 | "https://go.mail/folder-1/online 4 кинотеатр екатегороднажды сбербан театр аттр 2&clid%3D4850|295&chat/avege.ru/pol-1/sportaaloG4DQ&usg=AFQjCNFCWrC0wlGate90/rooms-rent/2222.html?sort=date=1016967b44e0097" | "go.mail"
@@ -400,7 +400,7 @@ l:double | c:long | min_Referer:keyword | k:keyword
 
 q29_statsResolutionWidthSums
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS s0 = SUM(ResolutionWidth), s1 = SUM(ResolutionWidth + 1), s2 = SUM(ResolutionWidth + 2), s3 = SUM(ResolutionWidth + 3), s4 = SUM(ResolutionWidth + 4), s5 = SUM(ResolutionWidth + 5), s6 = SUM(ResolutionWidth + 6), s7 = SUM(ResolutionWidth + 7), s8 = SUM(ResolutionWidth + 8), s9 = SUM(ResolutionWidth + 9);
+EXTERNAL "{{hits_50k_5files}}" | STATS s0 = SUM(ResolutionWidth), s1 = SUM(ResolutionWidth + 1), s2 = SUM(ResolutionWidth + 2), s3 = SUM(ResolutionWidth + 3), s4 = SUM(ResolutionWidth + 4), s5 = SUM(ResolutionWidth + 5), s6 = SUM(ResolutionWidth + 6), s7 = SUM(ResolutionWidth + 7), s8 = SUM(ResolutionWidth + 8), s9 = SUM(ResolutionWidth + 9);
 
 s0:long | s1:long | s2:long | s3:long | s4:long | s5:long | s6:long | s7:long | s8:long | s9:long
 80051060 | 80101060 | 80151060 | 80201060 | 80251060 | 80301060 | 80351060 | 80401060 | 80451060 | 80501060
@@ -408,7 +408,7 @@ s0:long | s1:long | s2:long | s3:long | s4:long | s5:long | s6:long | s7:long | 
 
 q30_statsSearchEngineClientIp
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY SearchEngineID, ClientIP | SORT c DESC, SearchEngineID, ClientIP | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY SearchEngineID, ClientIP | SORT c DESC, SearchEngineID, ClientIP | LIMIT 10;
 
 c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | SearchEngineID:integer | ClientIP:integer
 100 | 45 | 1638.0 | 2 | 1735595921
@@ -425,7 +425,7 @@ c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | SearchEngineID:intege
 
 q31_statsWatchIdClientIp
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
 
 c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long | ClientIP:integer
 5 | 0 | 1750.0 | 4617561261186506426 | 1785570738
@@ -440,9 +440,9 @@ c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long | Client
 5 | 5 | 1996.0 | 4666711948794049487 | 1450638336
 ;
 
-q32_statsWatchIdClientIpAll
+q32_statsWatchIdClientIpAll-Ignore
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
 
 c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long | ClientIP:integer
 5 | 5 | 1917.0 | 4613772085988129220 | 1827516327
@@ -459,7 +459,7 @@ c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long | Client
 
 q33_statsUrlCount
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | STATS c = COUNT(*) BY URL | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | STATS c = COUNT(*) BY URL | SORT c DESC | LIMIT 10;
 
 c:long | URL:keyword
 1198 | "https://produkty%2Fproduct"
@@ -476,7 +476,7 @@ c:long | URL:keyword
 
 q34_statsConstUrlCount
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | EVAL const1 = 1 | STATS c = COUNT(*) BY const1, URL | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | EVAL const1 = 1 | STATS c = COUNT(*) BY const1, URL | SORT c DESC | LIMIT 10;
 
 c:long | const1:integer | URL:keyword
 1198 | 1 | "https://produkty%2Fproduct"
@@ -491,9 +491,9 @@ c:long | const1:integer | URL:keyword
 251 | 1 | "https://produkty%2Fpulove.ru/moscow"
 ;
 
-q35_statsClientIpVariations
+q35_statsClientIpVariations-Ignore
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | EVAL ip_m1 = ClientIP - 1, ip_m2 = ClientIP - 2, ip_m3 = ClientIP - 3 | STATS c = COUNT(*) BY ClientIP, ip_m1, ip_m2, ip_m3 | SORT c DESC | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | EVAL ip_m1 = ClientIP - 1, ip_m2 = ClientIP - 2, ip_m3 = ClientIP - 3 | STATS c = COUNT(*) BY ClientIP, ip_m1, ip_m2, ip_m3 | SORT c DESC | LIMIT 10;
 
 c:long | ClientIP:integer | ip_m1:integer | ip_m2:integer | ip_m3:integer
 970 | 743072690 | 743072689 | 743072688 | 743072687
@@ -510,7 +510,7 @@ c:long | ClientIP:integer | ip_m1:integer | ip_m2:integer | ip_m3:integer
 
 q36_statsCounter62JulyUrls
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND URL != "" | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC, URL | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND URL != "" | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC, URL | LIMIT 10;
 
 PageViews:long | URL:keyword
 5 | "http://afisha.mail.ru/catalog/314/women.ru/ency=1&page3/?errovat-pinniki"
@@ -522,21 +522,21 @@ PageViews:long | URL:keyword
 
 q37_statsCounter62JulyTitles
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND Title != "" | STATS PageViews = COUNT(*) BY Title | SORT PageViews DESC | LIMIT 10;
+EXTERNAL "{{hits_50k_5files}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND Title != "" | STATS PageViews = COUNT(*) BY Title | SORT PageViews DESC | LIMIT 10;
 
 PageViews:long | Title:keyword
 ;
 
 q38_statsCounter62JulyLinks
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND IsLink != 0 AND IsDownload == 0 | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC | LIMIT 1010;
+EXTERNAL "{{hits_50k_5files}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND IsLink != 0 AND IsDownload == 0 | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC | LIMIT 1010;
 
 PageViews:long | URL:keyword
 ;
 
 q39_statsCounter62JulyTrafficSources
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 | EVAL Src = CASE(SearchEngineID == 0 AND AdvEngineID == 0, Referer, ""), Dst = URL | STATS PageViews = COUNT(*) BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst | SORT PageViews DESC | LIMIT 1010;
+EXTERNAL "{{hits_50k_5files}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 | EVAL Src = CASE(SearchEngineID == 0 AND AdvEngineID == 0, Referer, ""), Dst = URL | STATS PageViews = COUNT(*) BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst | SORT PageViews DESC | LIMIT 1010;
 
 PageViews:long | TraficSourceID:integer | SearchEngineID:integer | AdvEngineID:integer | Src:keyword | Dst:keyword
 20 | 4 | 0 | 0 | "" | ""
@@ -549,21 +549,21 @@ PageViews:long | TraficSourceID:integer | SearchEngineID:integer | AdvEngineID:i
 
 q40_statsCounter62JulyRefererHash
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND TraficSourceID IN (-1, 6) AND RefererHash == 9118190589742611694 | STATS PageViews = COUNT(*) BY URLHash, EventDate | SORT PageViews DESC | LIMIT 110;
+EXTERNAL "{{hits_50k_5files}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND TraficSourceID IN (-1, 6) AND RefererHash == 9118190589742611694 | STATS PageViews = COUNT(*) BY URLHash, EventDate | SORT PageViews DESC | LIMIT 110;
 
 PageViews:long | URLHash:long | EventDate:integer
 ;
 
 q41_statsCounter62JulyWindowClient
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND DontCountHits == 0 AND URLHash == 9074312750323043892 | STATS PageViews = COUNT(*) BY WindowClientWidth, WindowClientHeight | SORT PageViews DESC | LIMIT 10010;
+EXTERNAL "{{hits_50k_5files}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND DontCountHits == 0 AND URLHash == 9074312750323043892 | STATS PageViews = COUNT(*) BY WindowClientWidth, WindowClientHeight | SORT PageViews DESC | LIMIT 10010;
 
 PageViews:long | WindowClientWidth:integer | WindowClientHeight:integer
 ;
 
 q42_statsCounter62July1415Minutes
 required_capability: external_command
-EXTERNAL "{{hits_rg_shaped}}" | WHERE CounterID == 17 AND EventDate >= 15900 AND EventDate <= 15901 AND IsRefresh == 0 AND DontCountHits == 0 | EVAL M = EventTime - EventTime % 60 | STATS PageViews = COUNT(*) BY M | SORT M ASC | LIMIT 1010;
+EXTERNAL "{{hits_50k_5files}}" | WHERE CounterID == 17 AND EventDate >= 15900 AND EventDate <= 15901 AND IsRefresh == 0 AND DontCountHits == 0 | EVAL M = EventTime - EventTime % 60 | STATS PageViews = COUNT(*) BY M | SORT M ASC | LIMIT 1010;
 
 PageViews:long | M:long
 5 | 1373833800

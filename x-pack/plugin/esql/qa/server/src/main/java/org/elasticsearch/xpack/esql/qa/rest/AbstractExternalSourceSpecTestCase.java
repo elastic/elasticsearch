@@ -364,11 +364,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     private static final Map<String, String> EXPLICIT_TEMPLATES = java.util.Map.of(
         // Single-file 10k-row, 2-RG ClickBench-derived fixture used by row-group splitting tests.
-        "hits_10k_2rg",
-        "parquet/standalone/hits-10k-2rg.<FORMAT>",
+        "hits_10k_1file",
+        "parquet/single-10k-1file/hits.<FORMAT>",
         // Five-file dataset shaped {1,2,3,4,5} row groups — exercises mixed-RG-count splits.
-        "hits_rg_shaped",
-        "parquet/rg-shaped/*.<FORMAT>"
+        "hits_50k_5files",
+        "parquet/multi-50k-5files/*.<FORMAT>"
     );
 
     /**

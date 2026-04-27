@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.inference.services.llama.embeddings;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -489,26 +487,6 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
         );
 
         assertThat(xContentResult, is(expected));
-    }
-
-    public void testStreamInputAndOutput_WritesValuesCorrectly() throws IOException {
-        var outputBuffer = new BytesStreamOutput();
-        var settings = new LlamaEmbeddingsServiceSettings(
-            TEST_MODEL_ID,
-            TEST_URI,
-            TEST_DIMENSIONS,
-            TEST_SIMILARITY_MEASURE,
-            TEST_MAX_INPUT_TOKENS,
-            new RateLimitSettings(3)
-        );
-        settings.writeTo(outputBuffer);
-
-        var outputBufferRef = outputBuffer.bytes();
-        var inputBuffer = new ByteArrayStreamInput(outputBufferRef.array());
-
-        var settingsFromBuffer = new LlamaEmbeddingsServiceSettings(inputBuffer);
-
-        assertEquals(settings, settingsFromBuffer);
     }
 
     @Override

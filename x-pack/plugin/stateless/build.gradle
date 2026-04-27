@@ -51,22 +51,21 @@ dependencies {
     testImplementation testArtifact(project(':server'))
     javaRestTestImplementation project(':x-pack:test:stateless-test-framework')
     yamlRestTestImplementation project(':x-pack:test:stateless-test-framework')
+      
+    clusterModules project(':x-pack:plugin:secure-settings')
+    clusterModules project(':x-pack:plugin:stateless-no-wait-for-active-shards')
+    clusterModules project(':x-pack:plugin:stateless-master-failover')
+    clusterModules project(':x-pack:plugin:stateless-sigterm')
+    clusterModules project(':x-pack:plugin:stateless-health-shards-availability')
+    clusterModules project(':x-pack:plugin:logsdb')
+    clusterModules project(':modules:data-streams')
+    clusterModules project(':modules:mapper-extras')
 }
 
 restResources {
     restApi {
         include '_common', 'cluster', 'indices', 'index', 'search'
     }
-}
-
-dependencies {
-  clusterModules project(':x-pack:plugin:secure-settings')
-  clusterModules project(':x-pack:plugin:stateless-no-wait-for-active-shards')
-  clusterModules project(':x-pack:plugin:stateless-master-failover')
-  clusterModules project(':x-pack:plugin:stateless-sigterm')
-  clusterModules project(':x-pack:plugin:stateless-health-shards-availability')
-  clusterModules project(':modules:data-streams')
-  clusterModules project(':modules:mapper-extras')
 }
 
 tasks.named('test') {

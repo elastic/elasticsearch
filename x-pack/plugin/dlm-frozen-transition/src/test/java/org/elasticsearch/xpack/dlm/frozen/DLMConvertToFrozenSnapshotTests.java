@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -91,6 +93,10 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
     private AtomicReference<CreateSnapshotResponse> mockCreateSnapshotResponse;
     private AtomicReference<Exception> mockCreateSnapshotFailure;
 
+    private AtomicReference<ClusterHealthRequest> capturedHealthRequest;
+    private AtomicReference<ClusterHealthResponse> mockHealthResponse;
+    private AtomicReference<Exception> mockHealthFailure;
+
     private Clock clock;
 
     @Before
@@ -116,6 +122,10 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         capturedCreateSnapshotRequest = new AtomicReference<>();
         mockCreateSnapshotResponse = new AtomicReference<>();
         mockCreateSnapshotFailure = new AtomicReference<>();
+
+        capturedHealthRequest = new AtomicReference<>();
+        mockHealthResponse = new AtomicReference<>(new ClusterHealthResponse()); // default: non-timed-out
+        mockHealthFailure = new AtomicReference<>();
     }
 
     @After
@@ -153,6 +163,13 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
                         listener.onFailure(mockCreateSnapshotFailure.get());
                     } else if (mockCreateSnapshotResponse.get() != null) {
                         listener.onResponse((Response) mockCreateSnapshotResponse.get());
+                    }
+                } else if (request instanceof ClusterHealthRequest healthRequest) {
+                    capturedHealthRequest.set(healthRequest);
+                    if (mockHealthFailure.get() != null) {
+                        listener.onFailure(mockHealthFailure.get());
+                    } else if (mockHealthResponse.get() != null) {
+                        listener.onResponse((Response) mockHealthResponse.get());
                     }
                 } else {
                     fail("Unexpected request type: " + request.getClass());

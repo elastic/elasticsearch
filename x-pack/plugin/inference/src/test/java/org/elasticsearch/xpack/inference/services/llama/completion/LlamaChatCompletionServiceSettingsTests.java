@@ -54,7 +54,7 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCWireSeri
         );
     }
 
-    public void testFromMap_OnlyMandatoryFields_UsesDefaultRateLimit_Success() {
+    public void testFromMap_OnlyMandatoryFields_UsesDefaultValues_Success() {
         var serviceSettings = LlamaChatCompletionServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), null),
             randomFrom(ConfigurationParseContext.values())

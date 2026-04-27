@@ -81,7 +81,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
-    public void testFromMap_OnlyMandatoryFields_UsesDefaultRateLimit_Success() {
+    public void testFromMap_OnlyMandatoryFields_UsesDefaultValues_Success() {
         var serviceSettings = LlamaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), null, null, null, null),
             randomFrom(ConfigurationParseContext.values())

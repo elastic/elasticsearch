@@ -21,17 +21,11 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-
-import javax.security.auth.Subject;
 
 /**
  * Base Test class for Kerberos.
@@ -144,7 +138,7 @@ public abstract class KerberosTestCase extends ESTestCase {
     }
 
     @After
-    public void tearDownMiniKdc() throws IOException, PrivilegedActionException {
+    public void tearDownMiniKdc() throws Exception {
         if (simpleKdcLdapServer != null) {
             simpleKdcLdapServer.stop();
         }
@@ -188,19 +182,6 @@ public abstract class KerberosTestCase extends ESTestCase {
      */
     protected String principalName(final String user) {
         return user + "@" + simpleKdcLdapServer.getRealm();
-    }
-
-    /**
-     * Invokes Subject.doAs inside a doPrivileged block
-     *
-     * @param subject {@link Subject}
-     * @param action  {@link PrivilegedExceptionAction} action for performing inside
-     *                Subject.doAs
-     * @return T Type of value as returned by PrivilegedAction
-     * @throws PrivilegedActionException when privileged action threw exception
-     */
-    static <T> T doAsWrapper(final Subject subject, final PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
-        return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAs(subject, action));
     }
 
 }

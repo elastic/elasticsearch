@@ -14,16 +14,20 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.InputStreamReader;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2)
 public class RestBulkActionIT extends ESIntegTestCase {
     @Override
     protected boolean addMockHttpTransport() {
@@ -72,5 +76,119 @@ public class RestBulkActionIT extends ESIntegTestCase {
                 containsString("REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled)")
             )
         );
+    }
+
+    public void testBulkSliceRequiredWhenIndexSettingEnabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final String index = "bulk-slice-required";
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request bulk = new Request("POST", "/" + index + "/_bulk");
+        bulk.setJsonEntity("""
+            {"index":{"_id":"1"}}
+            {"field":"value1"}
+            """);
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
+
+        Request bulkWithSlice = new Request("POST", "/" + index + "/_bulk");
+        bulkWithSlice.addParameter("_slice", "s1");
+        bulkWithSlice.setJsonEntity("""
+            {"index":{"_id":"2"}}
+            {"field":"value2"}
+            """);
+        ObjectPath objectPath = ObjectPath.createFromResponse(getRestClient().performRequest(bulkWithSlice));
+        assertThat(objectPath.evaluate("errors"), equalTo(false));
+    }
+
+    public void testBulkSliceRequiredWhenWritingViaAlias() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final String backingIndex = "bulk-slice-alias-000001";
+        final String alias = "bulk-slice-alias";
+        Request create = new Request("PUT", "/" + backingIndex);
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request addAlias = new Request("POST", "/_aliases");
+        addAlias.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "bulk-slice-alias-000001",
+                    "alias": "bulk-slice-alias",
+                    "is_write_index": true
+                  }
+                }
+              ]
+            }""");
+        getRestClient().performRequest(addAlias);
+
+        Request bulkMissingSlice = new Request("POST", "/" + alias + "/_bulk");
+        bulkMissingSlice.setJsonEntity("""
+            {"index":{"_id":"1"}}
+            {"field":"value1"}
+            """);
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulkMissingSlice));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
+
+        Request bulkWithSlice = new Request("POST", "/" + alias + "/_bulk");
+        bulkWithSlice.addParameter("_slice", "s1");
+        bulkWithSlice.setJsonEntity("""
+            {"index":{"_id":"2"}}
+            {"field":"value2"}
+            """);
+        ObjectPath objectPath = ObjectPath.createFromResponse(getRestClient().performRequest(bulkWithSlice));
+        assertThat(objectPath.evaluate("errors"), equalTo(false));
+    }
+
+    public void testBulkSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request bulk = new Request("POST", "/test_index/_bulk");
+        bulk.addParameter("_slice", "s1");
+        bulk.setJsonEntity("""
+            {"index":{"_id":"1"}}
+            {"field":"value1"}
+            """);
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("request does not support [_slice]"));
+    }
+
+    public void testBulkSliceRejectedWhenSettingDisabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final String index = "bulk-slice-disabled";
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": false
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request bulk = new Request("POST", "/" + index + "/_bulk");
+        bulk.addParameter("_slice", "s1");
+        bulk.setJsonEntity("""
+            {"index":{"_id":"1"}}
+            {"field":"value1"}
+            """);
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 }

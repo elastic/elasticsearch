@@ -24,9 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Generative test that creates random Elasticsearch indices with varied mappings
@@ -59,18 +57,6 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
     }).build();
 
     private static volatile List<GeneratedIndex> generatedIndices;
-
-    private static final Set<String> ADDITIONAL_ALLOWED_ERRORS = Set.of(
-        // DateRangeDocValuesReader produces blocks with incorrect position counts when reading date_range
-        // fields with multi-value documents. The mismatch causes an IllegalStateException at the compute layer,
-        // surfaced as partial results. https://github.com/elastic/elasticsearch/issues/146380
-        "RangeArrayBlock.*has \\[\\d+\\] positions instead of"
-    );
-
-    private static final Set<Pattern> ADDITIONAL_ALLOWED_PATTERNS = ADDITIONAL_ALLOWED_ERRORS.stream()
-        .map(x -> ".*" + x + ".*")
-        .map(x -> Pattern.compile(x, Pattern.DOTALL))
-        .collect(Collectors.toSet());
 
     private static final Pattern CANNOT_LOAD_BLOCKS_WITHOUT_DOC_VALUES = Pattern.compile(
         ".*Cannot load blocks without doc values.*",
@@ -235,11 +221,6 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
 
     private static boolean isAdditionalAllowedError(String errorMessage, String query) {
         if (errorMessage == null) return false;
-        for (Pattern p : ADDITIONAL_ALLOWED_PATTERNS) {
-            if (isAllowedError(errorMessage, p)) {
-                return true;
-            }
-        }
         // RangeFieldMapper throws "Cannot load blocks without doc values" for *_range fields
         // with doc_values:false. https://github.com/elastic/elasticsearch/issues/146527
         if (isAllowedError(errorMessage, CANNOT_LOAD_BLOCKS_WITHOUT_DOC_VALUES) && hasRangeFieldType()) {

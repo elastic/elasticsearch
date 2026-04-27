@@ -51,7 +51,7 @@ public class LlamaEmbeddingsModel extends LlamaModel {
             service,
             LlamaEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             chunkingSettings,
-            retrieveSecretSettings(secrets)
+            retrieveSecretSettings(secrets, context)
         );
     }
 

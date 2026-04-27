@@ -1,6 +1,23 @@
 ####################
 # No loading tests #
 ####################
+partiallyUnmappedSmallNumericFieldIsWidened
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM apps_short, partial_mapping_sample_data
+| KEEP id, name
+| SORT name DESC NULLS LAST
+| LIMIT 3
+;
+
+id:integer | name:keyword
+14         | mmmmm
+13         | lllll
+11         | kkkkk
+;
+
+
 // These ones verify we don't do anything extra when unmapped_fields is not set to "load"
 doesNotLoadUnmappedFieldsSort
 required_capability: optional_fields_v5

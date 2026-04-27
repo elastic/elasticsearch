@@ -31,7 +31,7 @@ public class CohereCompletionModel extends CohereModel {
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
-        this(modelId, CohereCompletionServiceSettings.fromMap(serviceSettings, context), DefaultSecretSettings.fromMap(secrets));
+        this(modelId, CohereCompletionServiceSettings.fromMap(serviceSettings, context), DefaultSecretSettings.fromMap(secrets, context));
     }
 
     // should be used directly only for testing

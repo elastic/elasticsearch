@@ -70,7 +70,7 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
         );
     }
 
-    public void testFromMap_OnlyMandatoryFields_UsesDefaultRateLimit_Success() {
+    public void testFromMap_OnlyMandatoryFields_UsesDefaultValues_Success() {
         var serviceSettings = MistralEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null),
             randomFrom(ConfigurationParseContext.values())

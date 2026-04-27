@@ -47,7 +47,7 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
         assertThat(serviceSettings, is(new MistralChatCompletionServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
-    public void testFromMap_OnlyMandatoryFields_UsesDefaultRateLimit_Success() {
+    public void testFromMap_OnlyMandatoryFields_UsesDefaultValues_Success() {
         var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, null),
             randomFrom(ConfigurationParseContext.values())

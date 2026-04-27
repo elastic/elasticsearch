@@ -70,9 +70,10 @@ class SpnegoClient implements AutoCloseable {
      * the default mechanism.
      * @throws PrivilegedActionException when privileged action threw exception
      * @throws GSSException thrown when GSS API error occurs
+     * @throws LoginException thrown when login fails
      */
     SpnegoClient(final String userPrincipalName, final SecureString password, final String servicePrincipalName, final Oid mechanism)
-        throws PrivilegedActionException, GSSException {
+        throws PrivilegedActionException, GSSException, LoginException {
         String oldUseSubjectCredsOnlyFlag = null;
         try {
             oldUseSubjectCredsOnlyFlag = getAndSetUseSubjectCredsOnlySystemProperty("true");

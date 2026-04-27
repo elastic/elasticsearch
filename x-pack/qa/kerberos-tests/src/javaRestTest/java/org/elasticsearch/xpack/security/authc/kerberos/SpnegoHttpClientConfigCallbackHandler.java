@@ -147,6 +147,8 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
             throw new RuntimeException(e);
         } catch (PrivilegedActionException e) {
             throw new RuntimeException(e.getCause());
+        } catch (LoginException e) {
+            throw new RuntimeException(e);
         }
         httpClientBuilder.setDefaultAuthSchemeRegistry(authSchemeRegistry);
     }

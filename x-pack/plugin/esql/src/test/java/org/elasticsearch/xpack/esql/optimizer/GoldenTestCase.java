@@ -614,9 +614,10 @@ public abstract class GoldenTestCase extends ESTestCase {
          * data nodes.
          */
         NODE_REDUCE(new DualFileOutput("local_reduce_planned_reduce_driver", "local_reduce_planned_data_driver")),
+
         /**
-         * A {@link Stage#LOCAL_PHYSICAL_OPTIMIZATION} performed after splitting the node reduce and data node plans. Sicne the node-reduce
-         * driver isn't performing local physical optimization, there is only one output to test here.
+         * A {@link Stage#LOCAL_PHYSICAL_OPTIMIZATION} performed on the data node plan after splitting off the node reduce plan. Since
+         * the node-reduce plan isn't optimized after being created, there is only one output to test here.
          */
         NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION(new SingleFileOutput("local_reduce_physical_optimization_data_driver"));
 

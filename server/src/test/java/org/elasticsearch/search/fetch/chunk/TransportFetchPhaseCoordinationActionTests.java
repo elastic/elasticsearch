@@ -379,9 +379,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         action.doExecute(createTask(taskId), request, future);
         expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
 
-        assertBusy(() -> {
-            expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID));
-        });
+        assertBusy(() -> assertResponseStreamDeregistered(taskId));
     }
 
     public void testDoExecutePreservesContextIdInFinalResult() throws Exception {
@@ -468,9 +466,26 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         Exception failure = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
         assertThat(failure.getMessage(), equalTo("simulated data node failure during chunk streaming"));
 
-        assertBusy(() -> {
-            expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID));
-        });
+        assertBusy(() -> assertResponseStreamDeregistered(taskId));
+    }
+
+    /**
+     * Asserts that the response stream for {@code taskId} has been deregistered. Acquires and immediately
+     * releases any live handle to avoid leaking the stream's reference count on retries inside
+     * {@link org.elasticsearch.test.ESTestCase#assertBusy}.
+     */
+    private void assertResponseStreamDeregistered(long taskId) {
+        FetchPhaseResponseStream stream = null;
+        try {
+            stream = activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID);
+        } catch (ResourceNotFoundException e) {
+            return; // expected: task was deregistered
+        } finally {
+            if (stream != null) {
+                stream.decRef();
+            }
+        }
+        fail("expected fetch task [" + taskId + "] to be deregistered");
     }
 
     private ShardFetchSearchRequest createShardFetchSearchRequest() {

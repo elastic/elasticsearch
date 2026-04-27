@@ -1662,7 +1662,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 if (resolved.resolved() && enrich.policy() != null) {
                     if (resolved instanceof FieldAttribute fa) {
-                        resolved = fa.checkUnresolved();
+                        resolved = fa.flagTypeConflicts();
                     }
                     if (resolved.resolved()) {
                         final DataType dataType = resolved.dataType();

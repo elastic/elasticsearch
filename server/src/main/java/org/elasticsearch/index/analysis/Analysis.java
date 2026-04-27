@@ -48,6 +48,7 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CSVUtil;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -363,21 +364,33 @@ public class Analysis {
     }
 
     public static Reader getReaderFromIndex(
-        String synonymsSet,
-        SynonymsManagementAPIService synonymsManagementAPIService,
-        boolean ignoreMissing
-    ) {
-        return getReaderFromIndex(List.of(synonymsSet), synonymsManagementAPIService, ignoreMissing);
-    }
-
-    public static Reader getReaderFromIndex(
         List<String> synonymsSets,
         SynonymsManagementAPIService synonymsManagementAPIService,
         boolean ignoreMissing
     ) {
         PlainActionFuture<PagedResult<SynonymRule>> future = new PlainActionFuture<>();
         synonymsManagementAPIService.getSynonymSetRules(synonymsSets, ignoreMissing, future);
-        PagedResult<SynonymRule> result = future.actionGet();
+
+        PagedResult<SynonymRule> result;
+        try {
+            result = future.actionGet();
+        } catch (Exception e) {
+            if (ignoreMissing == false) {
+                throw e;
+            }
+            boolean notFound = e instanceof ResourceNotFoundException;
+            String message = Strings.format(
+                "Synonyms set %s %s. Synonyms will not be applied to search results on indices that use this synonym set",
+                synonymsSets,
+                notFound ? "not found" : "could not be loaded"
+            );
+            if (notFound) {
+                logger.warn(message);
+            } else {
+                logger.error(message, e);
+            }
+            result = new PagedResult<>(0, new SynonymRule[0]);
+        }
 
         StringBuilder sb = new StringBuilder();
         for (SynonymRule rule : result.pageResults()) {

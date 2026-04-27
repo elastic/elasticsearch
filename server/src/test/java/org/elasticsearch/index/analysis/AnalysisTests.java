@@ -235,6 +235,39 @@ public class AnalysisTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("set-missing"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testGetReaderFromIndexTransientErrorIgnoredWhenLenient() throws IOException {
+        SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
+        RuntimeException cause = new RuntimeException("transient error loading synonyms");
+
+        doAnswer(invocation -> {
+            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
+            listener.onFailure(cause);
+            return null;
+        }).when(service).getSynonymSetRules(eq(List.of("set-a")), eq(true), any());
+
+        // Must not throw — transient errors with ignoreMissing=true return an empty reader
+        Reader reader = Analysis.getReaderFromIndex(List.of("set-a"), service, true);
+        try (BufferedReader br = new BufferedReader(reader)) {
+            assertNull("reader should be empty when ignoreMissing=true and loading fails", br.readLine());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetReaderFromIndexTransientErrorPropagatesWhenNotLenient() {
+        SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
+        RuntimeException cause = new RuntimeException("transient error loading synonyms");
+
+        doAnswer(invocation -> {
+            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
+            listener.onFailure(cause);
+            return null;
+        }).when(service).getSynonymSetRules(eq(List.of("set-a")), eq(false), any());
+
+        Exception e = expectThrows(RuntimeException.class, () -> Analysis.getReaderFromIndex(List.of("set-a"), service, false));
+        assertSame(cause, e);
+    }
+
     public void testParseDuplicatesWComments() throws IOException {
         Path tempDir = createTempDir();
         Path dict = tempDir.resolve("foo.dict");

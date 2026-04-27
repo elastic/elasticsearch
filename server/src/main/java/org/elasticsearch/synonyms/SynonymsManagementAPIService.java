@@ -297,14 +297,7 @@ public class SynonymsManagementAPIService {
      * @param listener     receives the complete set of rules
      */
     public void getSynonymSetRules(String synonymSetId, ActionListener<PagedResult<SynonymRule>> listener) {
-        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(SYNONYMS_ALIAS_NAME).keepAlive(PIT_KEEP_ALIVE);
-        client.execute(
-            TransportOpenPointInTimeAction.TYPE,
-            pitRequest,
-            new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (l, pitResponse) -> {
-                fetchPageWithPit(synonymSetId, pitResponse.getPointInTimeId(), null, new ArrayList<>(), l);
-            })
-        );
+        getSynonymSetRules(List.of(synonymSetId), false, listener);
     }
 
     /**
@@ -386,12 +379,21 @@ public class SynonymsManagementAPIService {
             currentPitId.set(response.pointInTimeId());
 
             if (searchAfter == null && totalHits > maxSynonymRules) {
-                logger.warn(
-                    "The total number of synonym rules across synonym sets [{}] exceeds the maximum allowed [{}]."
-                        + " Inconsistent synonym results may occur",
-                    String.join(", ", synonymSetIds),
-                    maxSynonymRules
-                );
+                if (synonymSetIds.size() == 1) {
+                    logger.warn(
+                        "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed [{}]."
+                            + " Inconsistent synonym results may occur",
+                        synonymSetIds.get(0),
+                        maxSynonymRules
+                    );
+                } else {
+                    logger.warn(
+                        "The total number of synonym rules across synonym sets [{}] exceeds the maximum allowed [{}]."
+                            + " Inconsistent synonym results may occur",
+                        String.join(", ", synonymSetIds),
+                        maxSynonymRules
+                    );
+                }
             }
 
             if (hits.length == 0) {
@@ -451,72 +453,6 @@ public class SynonymsManagementAPIService {
                 }
             }
         });
-    }
-
-    private void fetchPageWithPit(
-        String synonymSetId,
-        BytesReference pitId,
-        Object[] searchAfter,
-        List<SynonymRule> accumulated,
-        ActionListener<PagedResult<SynonymRule>> listener
-    ) {
-        SearchSourceBuilder source = new SearchSourceBuilder().query(
-            QueryBuilders.boolQuery()
-                .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
-                .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
-        )
-            .size(pitBatchSize)
-            .sort(SortBuilders.fieldSort(SYNONYM_RULE_ID_FIELD).order(SortOrder.ASC))
-            .sort(SortBuilders.fieldSort("_shard_doc").order(SortOrder.ASC))
-            .trackTotalHits(true)
-            .fetchSource(false)
-            .fetchField(SYNONYM_RULE_ID_FIELD)
-            .fetchField(SYNONYMS_FIELD)
-            .pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(PIT_KEEP_ALIVE));
-
-        if (searchAfter != null) {
-            source.searchAfter(searchAfter);
-        }
-
-        AtomicReference<BytesReference> currentPitId = new AtomicReference<>(pitId);
-        client.execute(TransportSearchAction.TYPE, new SearchRequest().source(source), ActionListener.wrap(response -> {
-            SearchHit[] hits = response.getHits().getHits();
-            long totalHits = response.getHits().getTotalHits().value();
-            assert response.pointInTimeId() != null;
-            currentPitId.set(response.pointInTimeId());
-
-            if (hits.length == 0) {
-                if (accumulated.isEmpty()) {
-                    closePitAndThen(currentPitId.get(), () -> checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
-                        l.onResponse(new PagedResult<>(0, new SynonymRule[0]));
-                    })));
-                } else {
-                    PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
-                    closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
-                }
-                return;
-            }
-
-            if (searchAfter == null && totalHits > maxSynonymRules) {
-                logger.warn(
-                    "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed."
-                        + " Inconsistent synonyms results may occur",
-                    synonymSetId
-                );
-            }
-
-            for (SearchHit hit : hits) {
-                accumulated.add(hitToSynonymRule(hit));
-                if (accumulated.size() >= maxSynonymRules) {
-                    PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
-                    closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
-                    return;
-                }
-            }
-
-            Object[] lastSortValues = hits[hits.length - 1].getSortValues();
-            fetchPageWithPit(synonymSetId, currentPitId.get(), lastSortValues, accumulated, listener);
-        }, e -> { closePitAndThen(currentPitId.get(), () -> listener.onFailure(e)); }));
     }
 
     private void closePitAndThen(BytesReference pitId, Runnable andThen) {

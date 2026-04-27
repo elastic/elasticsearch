@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.UncheckedIOException;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -77,7 +78,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                     );
                 }
                 List<String> rawSynonymsSets = factory.settings.getAsList(SynonymsSource.INDEX.getSettingName());
-                List<String> synonymsSets = rawSynonymsSets.stream().distinct().toList();
+                Set<String> synonymsSets = new LinkedHashSet<>(rawSynonymsSets);
                 if (synonymsSets.size() < rawSynonymsSets.size()) {
                     LOGGER.warn(
                         "Duplicate synonym set names in [{}] for filter [{}]; duplicates will be ignored: {}",
@@ -107,7 +108,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                         synonymsSets
                     );
                 }
-
                 if (synonymsSets.size() > 1
                     && factory.clusterService.state().getMinTransportVersion().supports(MULTIPLE_SYNONYM_SETS_PER_FILTER_TV) == false) {
                     throw new IllegalArgumentException(
@@ -117,7 +117,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                     );
                 }
                 return new ReaderWithOrigin(
-                    Analysis.getReaderFromIndex(synonymsSets, factory.synonymsManagementAPIService, factory.lenient),
+                    Analysis.getReaderFromIndex(List.copyOf(synonymsSets), factory.synonymsManagementAPIService, factory.lenient),
                     synonymsSets + " synonyms_sets in .synonyms index",
                     synonymsSets
                 );
@@ -257,7 +257,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public Set<String> getResourceNames() {
-                return Set.copyOf(rulesReader.resources());
+                return rulesReader.resources();
             }
         };
     }
@@ -296,9 +296,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    record ReaderWithOrigin(Reader reader, String origin, List<String> resources) {
+    record ReaderWithOrigin(Reader reader, String origin, Set<String> resources) {
         ReaderWithOrigin(Reader reader, String origin) {
-            this(reader, origin, List.of());
+            this(reader, origin, Set.of());
         }
     }
 

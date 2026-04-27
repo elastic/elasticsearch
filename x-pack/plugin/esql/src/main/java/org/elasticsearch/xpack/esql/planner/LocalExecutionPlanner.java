@@ -684,7 +684,7 @@ public class LocalExecutionPlanner {
         if (expression instanceof Attribute a) {
             return layout.get(a.id()).channel();
         } else {
-            throw new EsqlIllegalArgumentException(errMessage + " " + expression.toString());
+            throw new EsqlIllegalArgumentException(errMessage);
         }
     }
 

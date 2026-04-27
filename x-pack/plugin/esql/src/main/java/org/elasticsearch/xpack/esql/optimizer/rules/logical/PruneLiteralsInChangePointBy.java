@@ -29,7 +29,7 @@ public final class PruneLiteralsInChangePointBy extends OptimizerRules.Optimizer
     protected LogicalPlan rule(ChangePoint changePoint) {
         List<Expression> newGroupings = new ArrayList<>();
         for (Expression g : changePoint.groupings()) {
-            Expression toCheck = g instanceof Alias as ? as.child() : g;
+            Expression toCheck = Alias.unwrap(g);
             if (toCheck.foldable() == false) {
                 newGroupings.add(g);
             }

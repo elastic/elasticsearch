@@ -54,6 +54,36 @@ public class DatasetRewriterTests extends ESTestCase {
         assertSame(relation, DatasetRewriter.rewrite(relation, project));
     }
 
+    public void testWildcardPatternDoesNotMatchDataset() {
+        // Phase 1 looks up dataset names by exact string match — wildcard patterns are not expanded.
+        // Even when a dataset literally named like the glob would suggest is registered, the wildcard
+        // string falls through to standard index-pattern resolution. Wildcard expansion across
+        // datasets is tracked separately in elastic/esql-planning#578.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://logs/a/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", dataset));
+
+        UnresolvedRelation relation = relationOf("logs_*");
+        assertSame(relation, DatasetRewriter.rewrite(relation, project));
+    }
+
+    public void testWildcardMixedWithDatasetIsRejectedAsMixedFrom() {
+        // `FROM <wildcard>, <literal_dataset>` falls into mixed-FROM territory because the wildcard
+        // string lands in the index bucket (literal-lookup miss) while the dataset name lands in the
+        // dataset bucket — Phase 1 rejection fires, identical to a literal index + dataset mix.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("employees", new DataSourceReference("s3_parent"), "s3://emp/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("employees", dataset));
+
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> DatasetRewriter.rewrite(relationOf("logs_*,employees"), project)
+        );
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing indices and datasets"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs_*"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("employees"));
+    }
+
     public void testSingleDatasetRewritesToUnresolvedExternalRelation() {
         DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
         Dataset dataset = new Dataset(

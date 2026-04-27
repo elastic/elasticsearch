@@ -876,12 +876,10 @@ public class EsqlSession {
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
         // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
-        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Gated on
-        // DatasetRewriter.isApplicable so index-only queries on clusters without datasets pay only a
-        // feature-flag check + an empty-map lookup.
-        if (DatasetRewriter.isApplicable(projectMetadata)) {
-            parsed = DatasetRewriter.rewrite(parsed, projectMetadata);
-        }
+        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. The rewriter
+        // bails internally when the feature flag is off or no datasets are registered, so index-only
+        // queries on dataset-free clusters pay only a feature-flag check + an empty-map lookup.
+        parsed = DatasetRewriter.rewrite(parsed, projectMetadata);
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         preAnalysisProfile.stop();
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in

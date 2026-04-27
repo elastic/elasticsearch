@@ -580,24 +580,30 @@ public class SynonymsManagementAPIService {
                 UpdateSynonymsResultStatus status = existingCount == 0
                     ? UpdateSynonymsResultStatus.CREATED
                     : UpdateSynonymsResultStatus.UPDATED;
-                if (checkSynonymRuleCount(existingCount + synonymsSet.length, listener) == false) {
-                    return;
-                }
-                bulkUpdateSynonymsSet(synonymSetId, synonymsSet, 0, listener.delegateFailure((l, ignored) -> {
-                    checkIndexSearchableAndReloadAnalyzers(synonymSetId, refresh, false, status, l);
-                }));
+                bulkAppendSynonymsSet(synonymSetId, synonymsSet, existingCount, refresh, status, listener);
             }, e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                    if (checkSynonymRuleCount(synonymsSet.length, listener) == false) {
-                        return;
-                    }
-                    bulkUpdateSynonymsSet(synonymSetId, synonymsSet, 0, listener.delegateFailure((l, ignored) -> {
-                        checkIndexSearchableAndReloadAnalyzers(synonymSetId, refresh, false, UpdateSynonymsResultStatus.CREATED, l);
-                    }));
+                    bulkAppendSynonymsSet(synonymSetId, synonymsSet, 0, refresh, UpdateSynonymsResultStatus.CREATED, listener);
                 } else {
                     listener.onFailure(e);
                 }
             }));
+    }
+
+    private void bulkAppendSynonymsSet(
+        String synonymSetId,
+        SynonymRule[] synonymsSet,
+        long existingCount,
+        boolean refresh,
+        UpdateSynonymsResultStatus status,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
+        if (checkSynonymRuleCount(existingCount + synonymsSet.length, listener) == false) {
+            return;
+        }
+        bulkUpdateSynonymsSet(synonymSetId, synonymsSet, 0, listener.delegateFailure((l, ignored) -> {
+            checkIndexSearchableAndReloadAnalyzers(synonymSetId, refresh, false, status, l);
+        }));
     }
 
     // Open for testing

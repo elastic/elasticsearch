@@ -523,7 +523,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     @Override
     public String toString() {
-        return hasReferences() == false ? "SearchResponse[released]" : Strings.toTruncatedString(this, 10 * 1024 * 1024 /* 10 MiB */);
+        return hasReferences() == false ? "SearchResponse[released]" : Strings.toTruncatedString(this);
     }
 
     /**

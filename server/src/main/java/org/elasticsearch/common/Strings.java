@@ -754,9 +754,27 @@ public class Strings {
 
     /**
      * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
+     * up to 1 mebibyte; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out
+     * instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values printed in a
+     * human-readable way (see {@link XContentBuilder#humanReadable()}).
+     * <p>
+     * This method is intended to be used for logging/debuging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     */
+    public String toTruncatedString(ChunkedToXContent chunkedToXContent) {
+        return toTruncatedString(chunkedToXContent, 1024 * 1024 /* 1 MiB */);
+    }
+
+    /**
+     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
      * up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out
      * instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values printed in a
      * human-readable way (see {@link XContentBuilder#humanReadable()}).
+     * <p>
+     * This method is intended to be used for logging/debuging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
      *
      * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
      * @param maxBytes The maximum number of bytes after which the serialization will stop.
@@ -769,6 +787,9 @@ public class Strings {
      * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
      * up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out
      * instead.
+     * <p>
+     * This method is intended to be used for logging/debuging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
      *
      * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
      * @param maxBytes The maximum number of bytes after which the serialization will stop.

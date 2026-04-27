@@ -181,6 +181,51 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         assertThat("error chain should contain Phase-1 mix-rejection", cause, org.hamcrest.Matchers.notNullValue());
     }
 
+    public void testTSCommandRejectedOnDataset() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("TS employees | LIMIT 1"), TIMEOUT));
+        Throwable cause = ex;
+        while (cause != null
+            && cause.getMessage() != null
+            && cause.getMessage().contains("TS command is not supported on dataset names yet") == false) {
+            cause = cause.getCause();
+        }
+        assertThat("error chain should contain TS-on-dataset rejection", cause, org.hamcrest.Matchers.notNullValue());
+    }
+
+    public void testLookupJoinRejectedAgainstDataset() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM some_real_index | LOOKUP JOIN employees ON emp_no | LIMIT 1"), TIMEOUT)
+        );
+        Throwable cause = ex;
+        while (cause != null
+            && cause.getMessage() != null
+            && cause.getMessage().contains("LOOKUP JOIN against a dataset is not supported yet") == false) {
+            cause = cause.getCause();
+        }
+        assertThat("error chain should contain LOOKUP-JOIN-against-dataset rejection", cause, org.hamcrest.Matchers.notNullValue());
+    }
+
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
     }

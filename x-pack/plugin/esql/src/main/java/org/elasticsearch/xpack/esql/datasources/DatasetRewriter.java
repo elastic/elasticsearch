@@ -75,12 +75,13 @@ public final class DatasetRewriter {
             return relation;
         }
         if (relation.indexMode() != null && relation.indexMode() != IndexMode.STANDARD) {
-            throw new VerificationException(
-                "FROM <dataset> with index mode ["
-                    + relation.indexMode().getName()
-                    + "] is not supported yet; datasets requested: "
-                    + datasetNames
-            );
+            String message = switch (relation.indexMode()) {
+                case TIME_SERIES -> "TS command is not supported on dataset names yet; dataset(s) requested: " + datasetNames;
+                case LOOKUP -> "LOOKUP JOIN against a dataset is not supported yet; dataset(s) requested: " + datasetNames;
+                case LOGSDB -> "LOGSDB index mode on FROM <dataset> is not supported yet; dataset(s) requested: " + datasetNames;
+                default -> "FROM <dataset> with index mode [" + relation.indexMode().getName() + "] is not supported yet; dataset(s) requested: " + datasetNames;
+            };
+            throw new VerificationException(message);
         }
         if (indexNames.isEmpty() == false) {
             throw new VerificationException(

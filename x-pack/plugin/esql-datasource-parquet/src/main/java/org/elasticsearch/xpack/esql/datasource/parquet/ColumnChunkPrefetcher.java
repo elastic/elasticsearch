@@ -190,11 +190,6 @@ final class ColumnChunkPrefetcher {
      * Pages whose row span does not overlap with {@code rowRanges} are excluded, reducing
      * the number of bytes fetched from remote storage.
      *
-     * <p><b>Note:</b> The filtered variants ({@code computeFilteredPageRanges}, filtered
-     * {@code prefetch/prefetchAsync}) are not yet wired into the iterator — the current
-     * optimized path always prefetches full column chunks. These exist for a planned
-     * follow-up that integrates row-range-aware prefetch with page-index filtering.
-     *
      * <p>Dictionary pages (which sit before data pages) are always included since they are
      * needed to decode any surviving page. Adjacent page ranges are merged by the caller
      * via {@link CoalescedRangeReader#mergeRanges}.

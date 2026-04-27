@@ -394,8 +394,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/147298
-- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
-  issue: https://github.com/elastic/elasticsearch/issues/147361
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/145728

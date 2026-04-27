@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -287,12 +288,22 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected void doTest() throws Throwable {
         String query = testCase.query;
 
-        if (query.contains(MULTIFILE_SUFFIX)) {
+        boolean usesGlob = query.contains(MULTIFILE_SUFFIX);
+        for (var entry : EXPLICIT_TEMPLATES.entrySet()) {
+            if (entry.getValue().contains("*") && query.contains("{{" + entry.getKey() + "}}")) {
+                usesGlob = true;
+                break;
+            }
+        }
+        if (usesGlob) {
             // HTTP does not support directory listing, so skip multi-file glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
             // CSV format does not yet support multi-file glob patterns
             assumeTrue("CSV format does not support multi-file glob patterns", "csv".equals(format) == false);
-
+            // Azure container listing requires woodstox/stax2-api at runtime, which esql-datasource-azure
+            // does not yet ship (repository-azure does). Until that dependency is added, skip glob tests
+            // on the Azure backend; non-glob single-file Azure reads are unaffected.
+            assumeTrue("Azure backend is missing woodstox/stax2-api for container listing", storageBackend != StorageBackend.AZURE);
         }
 
         // Transform templates like {{employees}} to actual paths
@@ -344,6 +355,23 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final String MULTIFILE_SUFFIX = "_multifile";
 
     /**
+     * Explicit mappings for fixtures that don't follow the default {@code standalone/<name>.<format>}
+     * or {@code multifile/*.<format>} conventions. The map value is a relative path template where
+     * {@code <FORMAT>} is substituted with the test format (parquet/csv/etc).
+     * <p>
+     * Add an entry here when you check a fixture into a non-default subdirectory of
+     * {@code iceberg-fixtures/} so csv-spec tests can reference it via {@code {{name}}}.
+     */
+    private static final Map<String, String> EXPLICIT_TEMPLATES = java.util.Map.of(
+        // Single-file 10k-row, 2-RG ClickBench-derived fixture used by row-group splitting tests.
+        "hits_10k_2rg",
+        "parquet/standalone/hits-10k-2rg.<FORMAT>",
+        // Five-file dataset shaped {1,2,3,4,5} row groups — exercises mixed-RG-count splits.
+        "hits_rg_shaped",
+        "parquet/rg-shaped/*.<FORMAT>"
+    );
+
+    /**
      * Resolve a template name to an actual path based on storage backend and format.
      *
      * @param templateName the template name (e.g., "employees" or "employees_multifile")
@@ -351,7 +379,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     private String resolveTemplatePath(String templateName) {
         String relativePath;
-        if (templateName.endsWith(MULTIFILE_SUFFIX)) {
+        String explicit = EXPLICIT_TEMPLATES.get(templateName);
+        if (explicit != null) {
+            relativePath = explicit.replace("<FORMAT>", format);
+        } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;
         } else {

@@ -1,0 +1,12 @@
+// Tests over a single 10,000-row ClickBench-derived Parquet file with exactly 2 row
+// groups (5k each). Exercises row-group splitting within one file.
+// {{hits_10k_2rg}} -> parquet/standalone/hits-10k-2rg.parquet
+
+countHits10k2Rg
+required_capability: external_command
+EXTERNAL "{{hits_10k_2rg}}"
+| STATS count = COUNT(*);
+
+count:long
+10000
+;

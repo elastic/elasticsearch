@@ -1,0 +1,13 @@
+// Tests over a five-file ClickBench-derived dataset (6k/8k/9k/12k/15k = 50k rows total)
+// with 1/2/3/4/5 row groups per file respectively. Exercises mixed row-group counts
+// across files plus aggregate metadata pushdown over a multi-file glob.
+// {{hits_rg_shaped}} -> parquet/rg-shaped/*.parquet
+
+countHitsRgShaped
+required_capability: external_command
+EXTERNAL "{{hits_rg_shaped}}"
+| STATS count = COUNT(*);
+
+count:long
+50000
+;

@@ -429,7 +429,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 projectState.metadata(),
                 indexNameExpressionResolver,
                 remoteClusterService,
-                timeProvider.absoluteStartMillis()
+                timeProvider.absoluteStartMillis(),
+                original.allowsRemoteIndices()
             );
             frozenIndexCheck(resolvedIndices);
         }

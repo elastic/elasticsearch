@@ -166,7 +166,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
 
     @Override
     public boolean allowsRemoteIndices() {
-        return true;
+        return Strings.isNullOrEmpty(localClusterAlias);
     }
 
     @Override

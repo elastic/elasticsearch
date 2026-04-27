@@ -69,7 +69,8 @@ public final class QueryBuilderResolver {
             services.projectResolver().getProjectMetadata(clusterState),
             services.indexNameExpressionResolver(),
             services.transportService().getRemoteClusterService(),
-            System.currentTimeMillis()
+            System.currentTimeMillis(),
+            true
         );
 
         // Set the cluster alias to the local cluster and CCS minimize round-trips to false since ES|QL does not perform a remote cluster

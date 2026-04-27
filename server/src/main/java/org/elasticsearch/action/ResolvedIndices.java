@@ -156,7 +156,8 @@ public class ResolvedIndices {
             projectMetadata,
             indexNameExpressionResolver,
             remoteClusterService,
-            startTimeInMillis
+            startTimeInMillis,
+            !(request instanceof IndicesRequest.Replaceable r) || r.allowsRemoteIndices()
         );
     }
 
@@ -166,11 +167,20 @@ public class ResolvedIndices {
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver indexNameExpressionResolver,
         RemoteClusterService remoteClusterService,
-        long startTimeInMillis
+        long startTimeInMillis,
+        boolean allowRemoteIndices
     ) {
-        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(indicesOptions, indexNames);
+        final Map<String, OriginalIndices> remoteClusterIndices;
 
-        final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        final OriginalIndices localIndices;
+
+        if (allowRemoteIndices) {
+            remoteClusterIndices = remoteClusterService.groupIndices(indicesOptions, indexNames);
+            localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        } else {
+            remoteClusterIndices = Map.of();
+            localIndices = new OriginalIndices(indexNames, indicesOptions);
+        }
 
         Index[] concreteLocalIndices = localIndices == null
             ? Index.EMPTY_ARRAY

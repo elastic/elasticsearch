@@ -15,6 +15,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class QueryConcurrencyBudgetTests extends ESTestCase {
 
     public void testAcquireAndRelease() throws Exception {
@@ -164,7 +166,8 @@ public class QueryConcurrencyBudgetTests extends ESTestCase {
 
     public void testReleaseWithoutAcquire() {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(5, 60_000L, null);
-        budget.release();
+        AssertionError e = expectThrows(AssertionError.class, budget::release);
+        assertThat(e.getMessage(), containsString("release() called without a matching acquire()"));
         assertEquals(0, budget.inFlight());
     }
 

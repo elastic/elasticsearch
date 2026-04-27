@@ -160,7 +160,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
             throw new EsRejectedExecutionException("Failed to acquire concurrency permit for cloud API call: " + e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new EsRejectedExecutionException("Interrupted while waiting for concurrency permit");
+            throw new EsRejectedExecutionException("Interrupted while waiting for concurrency permit: " + e);
         }
     }
 

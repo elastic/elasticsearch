@@ -14,10 +14,15 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Manages per-query concurrency budgets across active queries. Each registered query receives a
- * fair share of the total concurrency budget ({@code max(MIN_PERMITS_PER_QUERY, totalBudget / activeQueries)}),
- * dynamically rebalanced as queries register and deregister. When the total budget is 0
- * (concurrency limiting disabled), all registrations return unlimited budgets.
+ * Manages per-source-node concurrency budgets across active external-source operators. Each
+ * registered source plan node receives a fair share of the total concurrency budget
+ * ({@code max(MIN_PERMITS_PER_QUERY, totalBudget / activeCount)}), dynamically rebalanced as
+ * operators register and deregister. When the total budget is 0 (concurrency limiting disabled),
+ * all registrations return unlimited budgets.
+ *
+ * <p>Note: a single ESQL query with multiple external-file sources (joins, unions, LOOKUP, etc.)
+ * will register separate budgets for each source plan node. This is intentional — each source
+ * operates independently and may target different files/prefixes.
  */
 class ConcurrencyBudgetAllocator {
 
@@ -39,18 +44,18 @@ class ConcurrencyBudgetAllocator {
     }
 
     /**
-     * Registers a new query and returns its concurrency budget. Existing budgets are rebalanced
-     * to accommodate the new query.
+     * Registers a new source-node and returns its concurrency budget. Existing budgets are
+     * rebalanced to accommodate the new entrant.
      */
     QueryConcurrencyBudget register() {
         if (totalBudget <= 0) {
             return QueryConcurrencyBudget.UNLIMITED;
         }
-        int perQuery = computePerQuery(activeBudgets.size() + 1);
-        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(perQuery, acquireTimeoutMs, this);
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(MIN_PERMITS_PER_QUERY, acquireTimeoutMs, this);
         activeBudgets.add(budget);
         rebalance();
-        logger.debug("Registered query budget, active queries [{}], per-query permits [{}]", activeBudgets.size(), perQuery);
+        int count = activeBudgets.size();
+        logger.debug("Registered query budget, active sources [{}], per-source permits [{}]", count, computePerQuery(count));
         return budget;
     }
 
@@ -61,10 +66,16 @@ class ConcurrencyBudgetAllocator {
         if (activeBudgets.remove(budget)) {
             rebalance();
             int count = activeBudgets.size();
-            logger.debug("Deregistered query budget, active queries [{}], per-query permits [{}]", count, computePerQuery(count));
+            logger.debug("Deregistered query budget, active sources [{}], per-source permits [{}]", count, computePerQuery(count));
         }
     }
 
+    /**
+     * Rebalances permits across all active budgets. Iteration over the {@code ConcurrentHashMap}-backed
+     * set is weakly consistent — a concurrent register/deregister may or may not be visible. This is
+     * intentional: every register/deregister call invokes rebalance at the end, so convergence is
+     * guaranteed within one additional registration cycle.
+     */
     private void rebalance() {
         int count = activeBudgets.size();
         if (count == 0) {

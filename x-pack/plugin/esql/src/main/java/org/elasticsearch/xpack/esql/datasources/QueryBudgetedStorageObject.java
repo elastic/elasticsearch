@@ -164,7 +164,7 @@ class QueryBudgetedStorageObject implements StorageObject {
             throw new EsRejectedExecutionException("Failed to acquire query concurrency budget permit: " + e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new EsRejectedExecutionException("Interrupted while waiting for query concurrency budget permit");
+            throw new EsRejectedExecutionException("Interrupted while waiting for query concurrency budget permit: " + e);
         }
     }
 

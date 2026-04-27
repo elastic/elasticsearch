@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
@@ -21,11 +20,11 @@ import java.util.List;
  * {@link StorageObject} created by this provider is wrapped with a {@link QueryBudgetedStorageObject}
  * that acquires from the query's {@link QueryConcurrencyBudget} before each I/O operation.
  * <p>
- * Implements {@link Closeable} to release the query's budget when the query completes.
+ * Implements {@link java.io.Closeable} to release the query's budget when the query completes.
  * Closing this provider closes the underlying budget, which deregisters from the
  * {@link ConcurrencyBudgetAllocator} and triggers rebalancing of remaining active queries.
  */
-class QueryBudgetedStorageProvider implements StorageProvider, Closeable {
+class QueryBudgetedStorageProvider implements StorageProvider {
 
     private final StorageProvider delegate;
     private final QueryConcurrencyBudget budget;
@@ -65,6 +64,10 @@ class QueryBudgetedStorageProvider implements StorageProvider, Closeable {
         return delegate.supportedSchemes();
     }
 
+    /**
+     * Closes the per-query budget only; the delegate provider is shared (registry-owned) and
+     * intentionally not closed here.
+     */
     @Override
     public void close() throws IOException {
         budget.close();

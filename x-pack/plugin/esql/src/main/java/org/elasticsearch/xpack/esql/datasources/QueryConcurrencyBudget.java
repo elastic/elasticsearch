@@ -38,6 +38,9 @@ class QueryConcurrencyBudget implements Closeable {
     private static final long WARN_LOG_INTERVAL_MS = 30_000;
     private static final long WARN_WAIT_THRESHOLD_MS = 5_000;
 
+    // Shared singleton for the disabled/unlimited case. Because acquire() short-circuits on
+    // maxPermits <= 0, none of the mutable state (lock, condition, closed) is ever exercised.
+    // Closing this instance is harmless (and must remain so).
     static final QueryConcurrencyBudget UNLIMITED = new QueryConcurrencyBudget(0, 60_000L, null);
 
     QueryConcurrencyBudget(int maxPermits, long acquireTimeoutMs, ConcurrencyBudgetAllocator allocator) {
@@ -58,15 +61,15 @@ class QueryConcurrencyBudget implements Closeable {
             throw new TimeoutException("Budget is closed");
         }
         long startNanos = System.nanoTime();
+        long deadlineNanos = startNanos + TimeUnit.MILLISECONDS.toNanos(acquireTimeoutMs);
         lock.lock();
         try {
-            long deadline = System.currentTimeMillis() + acquireTimeoutMs;
             while (inFlight >= maxPermits) {
                 if (closed) {
                     throw new TimeoutException("Budget was closed while waiting for permit");
                 }
-                long waitMs = deadline - System.currentTimeMillis();
-                if (waitMs <= 0) {
+                long waitNanos = deadlineNanos - System.nanoTime();
+                if (waitNanos <= 0) {
                     throw new TimeoutException(
                         "Timed out waiting for query concurrency budget permit after ["
                             + acquireTimeoutMs
@@ -75,7 +78,7 @@ class QueryConcurrencyBudget implements Closeable {
                             + "])"
                     );
                 }
-                permitAvailable.await(waitMs, TimeUnit.MILLISECONDS);
+                permitAvailable.awaitNanos(waitNanos);
             }
             if (closed) {
                 throw new TimeoutException("Budget was closed while waiting for permit");
@@ -99,7 +102,8 @@ class QueryConcurrencyBudget implements Closeable {
     }
 
     /**
-     * Releases a permit, waking one blocked acquirer.
+     * Releases a permit, waking one blocked acquirer. Must be paired with a preceding
+     * successful {@link #acquire()}.
      */
     void release() {
         if (maxPermits <= 0) {
@@ -107,6 +111,7 @@ class QueryConcurrencyBudget implements Closeable {
         }
         lock.lock();
         try {
+            assert inFlight > 0 : "release() called without a matching acquire(), inFlight=" + inFlight;
             if (inFlight > 0) {
                 inFlight--;
             }

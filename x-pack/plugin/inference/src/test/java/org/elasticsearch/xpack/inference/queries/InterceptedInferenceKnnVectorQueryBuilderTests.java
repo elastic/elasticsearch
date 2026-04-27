@@ -261,6 +261,91 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         assertThat(dataRewrittenSemanticField, equalTo(expectedDataRewritten));
     }
 
+    public void testInterceptAndRewriteSemanticFieldWithInferredInferenceId() throws Exception {
+        assumeTrue("Test requires semantic field support", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
+
+        final String field = "test_field";
+        final TestIndex testIndex = new TestIndex("test-index-1", Map.of(field, EMBEDDING_INFERENCE_ID), Map.of());
+        final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            field,
+            new EmbeddingQueryVectorBuilder(null, new InferenceStringGroup("foo"), null),
+            50,
+            500,
+            50f,
+            null
+        ).boost(3.0f).queryName("bar").addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, "test-index-*"));
+
+        // Perform coordinator node rewrite
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+            Map.of(testIndex.name(), testIndex.semanticTextFields()),
+            Map.of(),
+            TransportVersion.current(),
+            null
+        );
+        queryRewriteContext = instrumentQueryRewriteContext(queryRewriteContext, assertSingleUniqueAsyncAction(queryRewriteContext));
+
+        QueryBuilder coordinatorRewritten = rewriteAndFetch(knnQuery, queryRewriteContext);
+
+        // Use a serialization cycle to strip InterceptedQueryBuilderWrapper
+        coordinatorRewritten = copyNamedWriteable(coordinatorRewritten, writableRegistry(), QueryBuilder.class);
+
+        assertThat(coordinatorRewritten, instanceOf(InterceptedInferenceKnnVectorQueryBuilder.class));
+        InterceptedInferenceKnnVectorQueryBuilder interceptedKnn = (InterceptedInferenceKnnVectorQueryBuilder) coordinatorRewritten;
+        assertThat(interceptedKnn.inferenceResultsMap, notNullValue());
+        // Inference results are populated by InferenceQueryUtils (inference ID was inferred from the field)
+        assertThat(interceptedKnn.inferenceResultsMap.isEmpty(), is(false));
+        // Query vector should be null since the QVB was not executed
+        assertThat(interceptedKnn.originalQuery.queryVector(), is((VectorData) null));
+
+        // Perform data node rewrite using a semantic field
+        final QueryRewriteContext indexMetadataContextSemanticField = createIndexMetadataContext(
+            testIndex.name(),
+            testIndex.semanticTextFields(),
+            testIndex.nonInferenceFields(),
+            SemanticFieldMapper.CONTENT_TYPE
+        );
+        QueryBuilder dataRewrittenSemanticField = rewriteAndFetch(coordinatorRewritten, indexMetadataContextSemanticField);
+        assertThat(dataRewrittenSemanticField, instanceOf(NestedQueryBuilder.class));
+    }
+
+    public void testEmbeddingWithoutInferenceIdOnNonInferenceFieldThrows() {
+        final String field = "test_field";
+        final TestIndex testIndex = new TestIndex(
+            "test-index",
+            Map.of(),
+            Map.of(
+                field,
+                Map.of(
+                    "type",
+                    "dense_vector",
+                    "element_type",
+                    EMBEDDING_INFERENCE_ID_SETTINGS.elementType().toString(),
+                    "dims",
+                    EMBEDDING_INFERENCE_ID_SETTINGS.dimensions()
+                )
+            )
+        );
+
+        final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            field,
+            new EmbeddingQueryVectorBuilder(null, new InferenceStringGroup("foo"), null),
+            50,
+            500,
+            50f,
+            null
+        );
+
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+            Map.of(testIndex.name(), testIndex.semanticTextFields()),
+            Map.of(),
+            TransportVersion.current(),
+            null
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> rewriteAndFetch(knnQuery, queryRewriteContext));
+        assertThat(e.getMessage(), equalTo("[inference_id] must not be null."));
+    }
+
     public void testRewriteSearchRequestOnNonInferenceField() throws Exception {
         final String field = "test_field";
         final TestIndex testIndex = new TestIndex(

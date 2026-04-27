@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
+import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -121,6 +122,15 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
         if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder) {
             query = textEmbeddingQueryVectorBuilder.getModelText();
+        } else if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
+            if (eqvb.getInferenceId() == null) {
+                if (eqvb.getInput().containsMultipleInferenceStrings() || eqvb.getInput().containsNonTextEntry()) {
+                    throw new IllegalArgumentException(
+                        "[inference_id] must be specified when using multi-input or non-text input in an embedding query vector builder"
+                    );
+                }
+                query = eqvb.getInput().textValue();
+            }
         } else if (queryVectorBuilder != null) {
             throw new IllegalStateException("Query vector builder should have been rewritten to a query vector");
         }
@@ -215,6 +225,13 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                 // the query vector. If not, the model text will be returned via getQuery() so that InferenceQueryUtils can
                 // generate the appropriate inference results for the inferred inference ID(s).
                 if (tevb.getModelId() != null) {
+                    registerAction = true;
+                }
+            } else if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
+                // If an inference ID is set, we register an action to generate the query vector.
+                // If not, the input text will be returned via getQuery() so that InferenceQueryUtils
+                // can generate the appropriate inference results for the inferred inference ID(s).
+                if (eqvb.getInferenceId() != null) {
                     registerAction = true;
                 }
             } else {
@@ -403,11 +420,17 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
 
     private void validateQueryVectorBuilder(boolean requireExplicitInferenceId) {
         QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
-        if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder tevb && requireExplicitInferenceId) {
-            // TextEmbeddingQueryVectorBuilder needs validation when an explicit inference ID is required. A non-null model text value
-            // is guaranteed by its constructor.
-            if (tevb.getModelId() == null) {
-                throw new IllegalArgumentException("[model_id] must not be null.");
+        if (requireExplicitInferenceId) {
+            if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder tevb) {
+                // TextEmbeddingQueryVectorBuilder needs validation when an explicit inference ID is required. A non-null model text value
+                // is guaranteed by its constructor.
+                if (tevb.getModelId() == null) {
+                    throw new IllegalArgumentException("[model_id] must not be null.");
+                }
+            } else if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
+                if (eqvb.getInferenceId() == null) {
+                    throw new IllegalArgumentException("[inference_id] must not be null.");
+                }
             }
         }
         // For other query vector builders, we don't validate upfront. buildVector() will throw an error if it cannot generate a vector.
@@ -418,6 +441,9 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder tevb) {
             // TextEmbeddingQueryVectorBuilder is considered to be a standalone query vector builder if the model ID is set
             return tevb.getModelId() != null;
+        } else if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
+            // EmbeddingQueryVectorBuilder is considered to be a standalone query vector builder if the inference ID is set
+            return eqvb.getInferenceId() != null;
         }
 
         // All other query vector builders are assumed to be standalone

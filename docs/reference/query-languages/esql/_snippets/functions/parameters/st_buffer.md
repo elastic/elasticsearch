@@ -8,3 +8,6 @@
 `distance`
 :   Buffer distance in the units of the input spatial reference system
 
+`options`
+:   (Optional) ST_BUFFER additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).
+

@@ -198,7 +198,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         var future = new PlainActionFuture<Void>();
         service.bulkUpdateSynonymsSet("my-set", rules, 0, future);
 
-        Exception ex = expectThrows(Exception.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        Exception ex = expectThrows(ElasticsearchException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(ex.getMessage(), containsString("Error updating synonyms"));
         assertThat("chunk 2 must not be attempted after chunk 1 fails", failingClient.bulkRequestCount.get(), equalTo(2));
     }

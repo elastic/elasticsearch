@@ -468,6 +468,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:vector-hamming.similarityWithNull}
   issue: https://github.com/elastic/elasticsearch/issues/147539
+- class: org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfigTests
+  method: testFromXContent
+  issue: https://github.com/elastic/elasticsearch/issues/147543
 
 # Examples:
 #

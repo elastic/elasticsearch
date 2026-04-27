@@ -30,6 +30,8 @@ public enum FeatureFlag {
     EXTENDED_DOC_VALUES_PARAMS("es.extended_doc_values_options_feature_flag_enabled=true", Version.fromString("9.3.0"), null),
     TSDB_NO_SEQNO("es.tsdb_no_tsbd_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
     IGNORED_SOURCE_AS_DOC_VALUES_FF("es.ignored_source_as_doc_values_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
+    PROMETHEUS_FEATURE_FLAG("es.prometheus_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
+    OTLP_TRACES("es.otlp_traces_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
     OTLP_LOGS("es.otlp_logs_feature_flag_enabled=true", Version.fromString("9.4.0"), null);
 
     public final String systemProperty;

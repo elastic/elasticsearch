@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
-import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.core.inference.action.EmbeddingAction.Request.parseRequest;
@@ -72,7 +72,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
                   "field": "value"
                 }
             }
-            """, TEST_IMAGE_DATA_URI);
+            """, TEST_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var inferenceId = randomAlphanumericOfLength(8);
             var taskType = randomFrom(TaskType.values());
@@ -83,7 +83,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
                 inferenceId,
                 taskType,
                 new EmbeddingRequest(
-                    List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_IMAGE_DATA_URI))),
+                    List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI))),
                     InputType.SEARCH,
                     Map.of("field", "value")
                 ),

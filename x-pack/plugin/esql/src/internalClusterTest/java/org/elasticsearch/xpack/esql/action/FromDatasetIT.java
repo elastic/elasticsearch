@@ -120,14 +120,19 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     public void writeFixture() throws IOException {
         csvFixture = createTempFile("dataset-fixture-", ".csv");
         Files.writeString(csvFixture, String.join("\n", "emp_no:integer,first_name:keyword", "1,Alice", "2,Bob", "3,Carol") + "\n");
+        csvFixtureAlt = createTempFile("dataset-fixture-alt-", ".csv");
+        Files.writeString(csvFixtureAlt, String.join("\n", "emp_no:integer,first_name:keyword", "10,Diana", "11,Eve") + "\n");
     }
+
+    private Path csvFixtureAlt;
 
     @After
     public void cleanupRegistry() throws Exception {
-        try {
-            client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("employees"))
-                .get(30, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (Exception ignored) {}
+        for (String ds : new String[] { "employees", "employees_alt" }) {
+            try {
+                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).get(30, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception ignored) {}
+        }
         try {
             client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds"))
                 .get(30, java.util.concurrent.TimeUnit.SECONDS);
@@ -224,6 +229,139 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             cause = cause.getCause();
         }
         assertThat("error chain should contain LOOKUP-JOIN-against-dataset rejection", cause, org.hamcrest.Matchers.notNullValue());
+    }
+
+    public void testFromDatasetWithWhere() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees | WHERE emp_no > 1 | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+            assertThat(rows.get(1).get(0), equalTo(3));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    public void testFromDatasetWithKeep() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees | KEEP first_name | SORT first_name"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(1));
+            assertThat(columns.get(0).name(), equalTo("first_name"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(0).toString(), equalTo("Bob"));
+            assertThat(rows.get(2).get(0).toString(), equalTo("Carol"));
+        }
+    }
+
+    public void testFromDatasetWithStatsCount() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    public void testFromDatasetWithEval() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees | EVAL doubled = emp_no * 2 | SORT emp_no | LIMIT 1"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            // emp_no=1, doubled=2
+            int empNoIdx = response.columns().stream().map(ColumnInfo::name).toList().indexOf("emp_no");
+            int doubledIdx = response.columns().stream().map(ColumnInfo::name).toList().indexOf("doubled");
+            assertThat(rows.get(0).get(empNoIdx), equalTo(1));
+            assertThat(((Number) rows.get(0).get(doubledIdx)).intValue(), equalTo(2));
+        }
+    }
+
+    public void testFromMultipleDatasets() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees, employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            // 3 rows from employees + 2 from employees_alt
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(5L));
+        }
+    }
+
+    public void testFromUnknownNameFallsThroughToIndexResolution() throws Exception {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        // Register a dataset so the rewriter is active, but the FROM target is neither index nor dataset.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM no_such_thing | LIMIT 1"), TIMEOUT));
+        // The rewriter leaves the relation unchanged when the name isn't a known dataset; the analyzer
+        // then attempts to resolve it as an index, which fails. Confirms fall-through to index resolution
+        // (regression guard against future "treat unknowns as datasets").
+        Throwable cause = ex;
+        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("no_such_thing") == false) {
+            cause = cause.getCause();
+        }
+        assertThat("error chain should mention the unknown name", cause, org.hamcrest.Matchers.notNullValue());
     }
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {

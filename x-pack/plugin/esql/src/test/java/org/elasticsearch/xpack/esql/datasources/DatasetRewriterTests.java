@@ -43,6 +43,17 @@ public class DatasetRewriterTests extends ESTestCase {
         assertSame(relation, DatasetRewriter.rewrite(relation, project));
     }
 
+    public void testUnknownNameLeavesPlanUnchanged() {
+        // Even when the cluster has datasets registered, a FROM target whose name matches neither a
+        // dataset nor an index is left unchanged for the analyzer to resolve (or fail) as an index.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        UnresolvedRelation relation = relationOf("not_a_dataset_or_index");
+        assertSame(relation, DatasetRewriter.rewrite(relation, project));
+    }
+
     public void testSingleDatasetRewritesToUnresolvedExternalRelation() {
         DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
         Dataset dataset = new Dataset(

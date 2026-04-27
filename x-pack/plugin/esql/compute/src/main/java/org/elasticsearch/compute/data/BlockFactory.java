@@ -597,7 +597,7 @@ public class BlockFactory {
         DoubleBlock zeroThresholds,
         BytesRefBlock encodedHistograms
     ) {
-        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms, encodedHistograms.getPositionCount(), null);
     }
 
     public BlockLoader.Block newTDigestBlockFromDocValues(

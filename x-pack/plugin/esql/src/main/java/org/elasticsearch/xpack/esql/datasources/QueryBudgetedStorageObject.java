@@ -21,18 +21,22 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Decorates a {@link StorageObject} with concurrency limiting. Each I/O operation
- * acquires a permit before executing and releases it when the operation completes.
- * For stream-returning methods, the permit is released when the stream is closed.
+ * Decorates a {@link StorageObject} with per-query concurrency budget enforcement. Each I/O
+ * operation acquires a permit from the query's {@link QueryConcurrencyBudget} before delegating
+ * and releases it when the operation completes. For stream-returning methods, the permit is
+ * held until the stream is closed.
+ * <p>
+ * This wrapper is applied on top of the global {@link ConcurrencyLimitedStorageObject} to provide
+ * two-level concurrency control: per-query fairness (this layer) + global hard cap (inner layer).
  */
-class ConcurrencyLimitedStorageObject implements StorageObject {
+class QueryBudgetedStorageObject implements StorageObject {
 
     private final StorageObject delegate;
-    private final ConcurrencyLimiter limiter;
+    private final QueryConcurrencyBudget budget;
 
-    ConcurrencyLimitedStorageObject(StorageObject delegate, ConcurrencyLimiter limiter) {
+    QueryBudgetedStorageObject(StorageObject delegate, QueryConcurrencyBudget budget) {
         this.delegate = delegate;
-        this.limiter = limiter;
+        this.budget = budget;
     }
 
     @Override
@@ -40,9 +44,9 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         acquirePermit();
         try {
             InputStream stream = delegate.newStream();
-            return new PermitReleasingInputStream(stream, limiter);
+            return new PermitReleasingInputStream(stream, budget);
         } catch (Exception e) {
-            limiter.release();
+            budget.release();
             throw e;
         }
     }
@@ -52,9 +56,9 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         acquirePermit();
         try {
             InputStream stream = delegate.newStream(position, length);
-            return new PermitReleasingInputStream(stream, limiter);
+            return new PermitReleasingInputStream(stream, budget);
         } catch (Exception e) {
-            limiter.release();
+            budget.release();
             throw e;
         }
     }
@@ -65,7 +69,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         try {
             return delegate.length();
         } finally {
-            limiter.release();
+            budget.release();
         }
     }
 
@@ -75,7 +79,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         try {
             return delegate.lastModified();
         } finally {
-            limiter.release();
+            budget.release();
         }
     }
 
@@ -85,7 +89,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         try {
             return delegate.exists();
         } finally {
-            limiter.release();
+            budget.release();
         }
     }
 
@@ -100,7 +104,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         try {
             return delegate.readBytes(position, target);
         } finally {
-            limiter.release();
+            budget.release();
         }
     }
 
@@ -114,14 +118,14 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         }
         try {
             delegate.readBytesAsync(position, length, executor, ActionListener.wrap(result -> {
-                limiter.release();
+                budget.release();
                 listener.onResponse(result);
             }, e -> {
-                limiter.release();
+                budget.release();
                 listener.onFailure(e);
             }));
         } catch (Exception e) {
-            limiter.release();
+            budget.release();
             listener.onFailure(e);
         }
     }
@@ -136,14 +140,14 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         }
         try {
             delegate.readBytesAsync(position, target, executor, ActionListener.wrap(result -> {
-                limiter.release();
+                budget.release();
                 listener.onResponse(result);
             }, e -> {
-                limiter.release();
+                budget.release();
                 listener.onFailure(e);
             }));
         } catch (Exception e) {
-            limiter.release();
+            budget.release();
             listener.onFailure(e);
         }
     }
@@ -155,25 +159,22 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
 
     private void acquirePermit() {
         try {
-            limiter.acquire();
+            budget.acquire();
         } catch (TimeoutException e) {
-            throw new EsRejectedExecutionException("Failed to acquire concurrency permit for cloud API call: " + e.getMessage());
+            throw new EsRejectedExecutionException("Failed to acquire query concurrency budget permit: " + e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new EsRejectedExecutionException("Interrupted while waiting for concurrency permit: " + e);
+            throw new EsRejectedExecutionException("Interrupted while waiting for query concurrency budget permit: " + e);
         }
     }
 
-    /**
-     * InputStream wrapper that releases the concurrency permit when closed.
-     */
     private static class PermitReleasingInputStream extends FilterInputStream {
-        private final ConcurrencyLimiter limiter;
+        private final QueryConcurrencyBudget budget;
         private boolean released;
 
-        PermitReleasingInputStream(InputStream in, ConcurrencyLimiter limiter) {
+        PermitReleasingInputStream(InputStream in, QueryConcurrencyBudget budget) {
             super(in);
-            this.limiter = limiter;
+            this.budget = budget;
         }
 
         @Override
@@ -183,7 +184,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
             } finally {
                 if (released == false) {
                     released = true;
-                    limiter.release();
+                    budget.release();
                 }
             }
         }

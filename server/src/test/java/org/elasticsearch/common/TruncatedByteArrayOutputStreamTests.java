@@ -14,10 +14,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public class LimitedByteArrayOutputStreamTests extends ESTestCase {
+public class TruncatedByteArrayOutputStreamTests extends ESTestCase {
 
     public void testUnderLimit() throws IOException {
-        var out = new LimitedByteArrayOutputStream(1024);
+        var out = new TruncatedByteArrayOutputStream(1024);
 
         out.write('a');
         out.write(new byte[] { 'b', 'c', 'd' });
@@ -28,7 +28,7 @@ public class LimitedByteArrayOutputStreamTests extends ESTestCase {
     }
 
     public void testOverLimit() throws IOException {
-        var out = new LimitedByteArrayOutputStream(10);
+        var out = new TruncatedByteArrayOutputStream(10);
         out.write("1234567890".getBytes(StandardCharsets.UTF_8));
 
         out.write('a');
@@ -40,7 +40,7 @@ public class LimitedByteArrayOutputStreamTests extends ESTestCase {
     }
 
     public void testBreaksInTheMiddleOf4ByteUtf8Character() throws IOException {
-        var out = new LimitedByteArrayOutputStream(3);
+        var out = new TruncatedByteArrayOutputStream(3);
 
         out.write("\uD83C\uDF4E".getBytes(StandardCharsets.UTF_8)); // red apple emoji🍎
 

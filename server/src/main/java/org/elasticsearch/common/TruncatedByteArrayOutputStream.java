@@ -12,11 +12,11 @@ package org.elasticsearch.common;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;
 
-final class LimitedByteArrayOutputStream extends ByteArrayOutputStream {
+final class TruncatedByteArrayOutputStream extends ByteArrayOutputStream {
 
     private final int maxBytes;
 
-    LimitedByteArrayOutputStream(int maxBytes) {
+    TruncatedByteArrayOutputStream(int maxBytes) {
         this.maxBytes = maxBytes;
     }
 
@@ -33,7 +33,8 @@ final class LimitedByteArrayOutputStream extends ByteArrayOutputStream {
         if (isOverLimit()) {
             return;
         }
-        super.write(b, off, len);
+        int remainingSpace = maxBytes - count;
+        super.write(b, off, Math.min(len, remainingSpace));
     }
 
     boolean isOverLimit() {

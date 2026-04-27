@@ -271,40 +271,40 @@ public class StringsTests extends ESTestCase {
         assertThat(Strings.format1Decimals(100.0 / 3, "%"), equalTo("33.3%"));
     }
 
-    public void testToLimitedStringWithChunkedXContentUnderLimit() {
+    public void testToTruncatedStringWithChunkedXContentUnderLimit() {
         ChunkedToXContent chunkedToXContent = __ -> List.of(new TestToXContent(1, false), new TestToXContent(2, false)).iterator();
 
-        var result = Strings.toLimitedString(chunkedToXContent, 1024);
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024);
 
         assertEquals("""
             {"field1":"value1","field2":"value2"}""", result);
     }
 
-    public void testToLimitedStringWithChunkedXContentOverLimit() {
+    public void testToTruncatedStringWithChunkedXContentOverLimit() {
         ChunkedToXContent chunkedToXContent = __ -> IntStream.range(1, 1_000_000).mapToObj(i -> new TestToXContent(i, false)).iterator();
 
-        var result = Strings.toLimitedString(chunkedToXContent, 100);
+        var result = Strings.toTruncatedString(chunkedToXContent, 100);
 
         assertEquals("""
             {"field1":"value1","field2":"value2","field3":"value3","field4":"value4","field5":"value5","field6":""", result);
     }
 
-    public void testToLimitedStringWithChunkedXContentObjectUnderLimit() {
+    public void testToTruncatedStringWithChunkedXContentObjectUnderLimit() {
         ChunkedToXContentObject chunkedToXContentObject = __ -> List.of(new TestToXContent(1, true), new TestToXContent(2, true))
             .iterator();
 
-        var result = Strings.toLimitedString(chunkedToXContentObject, 1024);
+        var result = Strings.toTruncatedString(chunkedToXContentObject, 1024);
 
         assertEquals("""
             {"field1":"value1"} {"field2":"value2"}""", result);
     }
 
-    public void testToLimitedStringWithChunkedXContentObjectOverLimit() {
+    public void testToTruncatedStringWithChunkedXContentObjectOverLimit() {
         ChunkedToXContentObject chunkedToXContentObject = __ -> IntStream.range(1, 1_000_000)
             .mapToObj(i -> new TestToXContent(i, true))
             .iterator();
 
-        var result = Strings.toLimitedString(chunkedToXContentObject, 100);
+        var result = Strings.toTruncatedString(chunkedToXContentObject, 100);
 
         assertEquals(
             "{\"field1\":\"value1\"} {\"field2\":\"value2\"} {\"field3\":\"value3\"} {\"field4\":\"value4\"} {\"field5\":\"value5\"} ",
@@ -312,10 +312,10 @@ public class StringsTests extends ESTestCase {
         );
     }
 
-    public void testToLimitedStringPrettyHumanReadableOutput() {
+    public void testToTruncatedStringPrettyHumanReadableOutput() {
         ChunkedToXContent chunkedToXContent = __ -> List.of(new TestToXContent(1, false), new TestToXContent(2, false)).iterator();
 
-        var result = Strings.toLimitedString(chunkedToXContent, 1024, true, true);
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024, true, true);
 
         assertEquals("""
             {
@@ -324,11 +324,11 @@ public class StringsTests extends ESTestCase {
             }""", result);
     }
 
-    public void testToLimitedStringException() {
+    public void testToTruncatedStringException() {
         ToXContent chunk = (b, p) -> { throw new IOException("boom!"); };
         ChunkedToXContent chunkedToXContent = __ -> List.of(chunk).iterator();
 
-        var result = Strings.toLimitedString(chunkedToXContent, 1024, true, true);
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024, true, true);
 
         assertThat(result, containsString("error building toString out of XContent:"));
     }

@@ -753,31 +753,32 @@ public class Strings {
     }
 
     /**
-     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be limited up
-     * to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out instead.
-     * The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values printed in a
+     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
+     * up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out
+     * instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values printed in a
      * human-readable way (see {@link XContentBuilder#humanReadable()}).
      *
      * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
      * @param maxBytes The maximum number of bytes after which the serialization will stop.
      */
-    public static String toLimitedString(ChunkedToXContent chunkedToXContent, int maxBytes) {
-        return toLimitedString(chunkedToXContent, maxBytes, false, false);
+    public static String toTruncatedString(ChunkedToXContent chunkedToXContent, int maxBytes) {
+        return toTruncatedString(chunkedToXContent, maxBytes, false, false);
     }
 
     /**
-     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be limited up
-     * to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out instead.
+     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
+     * up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out
+     * instead.
      *
      * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
      * @param maxBytes The maximum number of bytes after which the serialization will stop.
      * @param pretty True if the content should be pretty-printed. Also see {@link XContentBuilder#prettyPrint()}.
      * @param human True if the values should be printed in a human-readable way. Also see {@link XContentBuilder#humanReadable()}}.
      */
-    public static String toLimitedString(ChunkedToXContent chunkedToXContent, int maxBytes, boolean pretty, boolean human) {
+    public static String toTruncatedString(ChunkedToXContent chunkedToXContent, int maxBytes, boolean pretty, boolean human) {
         try {
-            final var limitedStream = new LimitedByteArrayOutputStream(maxBytes);
-            final var builder = createBuilder(pretty, human, limitedStream);
+            final var truncatedStream = new TruncatedByteArrayOutputStream(maxBytes);
+            final var builder = createBuilder(pretty, human, truncatedStream);
 
             if (chunkedToXContent.isFragment()) {
                 builder.startObject();
@@ -786,7 +787,7 @@ public class Strings {
             while (chunks.hasNext()) {
                 chunks.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.flush();
-                if (limitedStream.isOverLimit()) {
+                if (truncatedStream.isOverLimit()) {
                     break;
                 }
             }
@@ -811,7 +812,7 @@ public class Strings {
 
     /**
      * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
-     * @deprecated don't add usages of this method, it will be removed eventually. Use {@link #toLimitedString(ChunkedToXContent, int)}
+     * @deprecated don't add usages of this method, it will be removed eventually. Use {@link #toTruncatedString(ChunkedToXContent, int)}
      *             instead.
      * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
      */
@@ -858,7 +859,7 @@ public class Strings {
      * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
      * @deprecated don't add usages of this method, it will be removed eventually. Use
-     *             {@link #toLimitedString(ChunkedToXContent, int, boolean, boolean)} instead.
+     *             {@link #toTruncatedString(ChunkedToXContent, int, boolean, boolean)} instead.
      * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
      */
     @Deprecated

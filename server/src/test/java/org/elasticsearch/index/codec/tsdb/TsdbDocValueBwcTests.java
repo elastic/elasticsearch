@@ -128,7 +128,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
             }
             // Check documents before force merge:
             try (var reader = DirectoryReader.open(dir)) {
-                assert87DocValuesFormatVersion(reader);
+                assertOldDocValuesFormatVersion(reader);
                 // Assert per field format field info attributes:
                 // (XPerFieldDocValuesFormat must produce the same attributes as PerFieldDocValuesFormat for BWC.
                 // Otherwise, doc values fields may disappear)
@@ -278,7 +278,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
     // A hacky way to figure out whether doc values format is written in what version. Need to use reflection, because
     // PerFieldDocValuesFormat hides the doc values formats it wraps.
-    private void assert87DocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException, IOException {
+    private void assertOldDocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException, IOException {
         for (var leafReaderContext : reader.leaves()) {
             var leaf = (SegmentReader) leafReaderContext.reader();
             var dvReader = leaf.getDocValuesReader();

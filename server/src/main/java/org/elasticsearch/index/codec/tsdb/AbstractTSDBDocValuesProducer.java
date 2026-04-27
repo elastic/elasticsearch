@@ -32,7 +32,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.CheckedIntConsumer;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteArrayDataInput;
@@ -42,7 +44,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.MathUtil;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
@@ -2448,24 +2452,29 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     }
                 }
 
+                final long[] matches = new long[(numericBlockMask + 1) >>> 6];
                 @Override
                 public void tryCollectMatches(LeafCollector collector, Bits acceptedDocs, int firstDoc, int lastDoc, long lowerValue, long upperValue) throws IOException {
                     int firstBlock = firstDoc >>> numericBlockShift;
                     int lastBlock = lastDoc >>> numericBlockShift;
                     int docId = firstDoc;
+
+//                    BitSetDocIdStream matches = new BitSetDocIdStream(new FixedBitSet(numericBlockMask), firstDoc);
                     for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
+                        Arrays.fill(matches, 0);
                         loadBlock(blockId);
                         int firstInBlock = blockId == firstBlock ? firstDoc & numericBlockMask : 0;
                         int lastInBlock = blockId == lastBlock ? lastDoc & numericBlockMask : numericBlockMask;
                         for (int idx = firstInBlock; idx <= lastInBlock; idx++) {
                             long val = currentBlock[idx];
-                            if (acceptedDocs == null || acceptedDocs.get(docId++)) {
-                                if (lowerValue <= val && val <= upperValue) {
-                                    collector.collect(docId);
-                                }
-                            }
+                            boolean match = (lowerValue <= val && val <= upperValue);
+//                            boolean match = (acceptedDocs == null || acceptedDocs.get(docId)) && (lowerValue <= val && val <= upperValue);
+                            matches[idx >>> 6] |= (match ? 1L << (idx & 0x3f) : 0);
                             docId++;
                         }
+
+                        var docIdMatches = new BitSetDocIdStream(new FixedBitSet(matches, numericBlockMask + 1), blockId << numericBlockShift);
+                        collector.collect(docIdMatches);
                     }
                 }
 
@@ -2581,6 +2590,60 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     }
                 }
             };
+        }
+    }
+
+    final class BitSetDocIdStream extends DocIdStream {
+
+        private final FixedBitSet bitSet;
+        private final int offset, max;
+        private int upTo;
+
+        BitSetDocIdStream(FixedBitSet bitSet, int offset) {
+            this.bitSet = bitSet;
+            this.offset = offset;
+            upTo = offset;
+            max = MathUtil.unsignedMin(Integer.MAX_VALUE, offset + bitSet.length());
+        }
+
+        @Override
+        public boolean mayHaveRemaining() {
+            return upTo < max;
+        }
+
+        @Override
+        public void forEach(int upTo, CheckedIntConsumer<IOException> consumer) throws IOException {
+            if (upTo > this.upTo) {
+                upTo = Math.min(upTo, max);
+                bitSet.forEach(this.upTo - offset, upTo - offset, offset, consumer);
+                this.upTo = upTo;
+            }
+        }
+
+        @Override
+        public int count(int upTo) throws IOException {
+            if (upTo > this.upTo) {
+                upTo = Math.min(upTo, max);
+                int count = bitSet.cardinality(this.upTo - offset, upTo - offset);
+                this.upTo = upTo;
+                return count;
+            } else {
+                return 0;
+            }
+        }
+
+        @Override
+        public int intoArray(int upTo, int[] array) {
+            if (upTo > this.upTo) {
+                upTo = Math.min(upTo, max);
+                int count = bitSet.intoArray(this.upTo - offset, upTo - offset, offset, array);
+                if (count == array.length) { // The whole range of doc IDs may not have been copied
+                    upTo = array[array.length - 1] + 1;
+                }
+                this.upTo = upTo;
+                return count;
+            }
+            return 0;
         }
     }
 

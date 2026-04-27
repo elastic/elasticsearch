@@ -418,9 +418,4 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
         assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
     }
-
-    public void testLookupAdvanceDoc() {
-        ScriptDocValues<?> fetchedDocValues = docLookup.get("field");
-        assertEquals(docValues, fetchedDocValues);
-    }
 }

@@ -17,9 +17,11 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -62,36 +64,70 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         List<TaskOperationFailure> taskOperationFailures,
         List<FailedNodeException> failedNodeExceptions
     ) {
+        if (request.getTargetTaskId().isSet() && tasks.isEmpty() && taskOperationFailures.isEmpty() && failedNodeExceptions.isEmpty()) {
+            // For BwC: Now that we fan out to every node (to find potentially relocated targets by their original task id), the node
+            // identified by the target task id no longer throws ResourceNotFoundException from its per-node processTasks.
+            // Re-surface the same ResourceNotFoundException wrapped in a FailedNodeException if no task is found by the taget task Id.
+            final TaskId target = request.getTargetTaskId();
+            final FailedNodeException notFound = new FailedNodeException(
+                target.getNodeId(),
+                "Failed node [" + target.getNodeId() + "]",
+                new ResourceNotFoundException("task [{}] is not found", target)
+            );
+            return new ListTasksResponse(tasks, taskOperationFailures, List.of(notFound));
+        }
         return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
+    }
+
+    /**
+     * Default fan out to every node in the cluster to find tasks potentially relocated to other nodes
+     */
+    @Override
+    protected String[] resolveNodes(CancelTasksRequest request, DiscoveryNodes discoveryNodes) {
+        return discoveryNodes.resolveNodes(request.getNodes());
     }
 
     protected List<CancellableTask> processTasks(CancelTasksRequest request) {
         if (request.getTargetTaskId().isSet()) {
-            // we are only checking one task, we can optimize it
-            CancellableTask task = taskManager.getCancellableTask(request.getTargetTaskId().getId());
-            if (task != null) {
-                if (request.match(task)) {
-                    return List.of(task);
-                } else {
-                    throw new IllegalArgumentException("task [" + request.getTargetTaskId() + "] doesn't support this operation");
-                }
-            } else {
-                if (taskManager.getTask(request.getTargetTaskId().getId()) != null) {
-                    // The task exists, but doesn't support cancellation
-                    throw new IllegalArgumentException("task [" + request.getTargetTaskId() + "] doesn't support cancellation");
-                } else {
-                    throw new ResourceNotFoundException("task [{}] is not found", request.getTargetTaskId());
-                }
-            }
+            return findTargetTask(request);
         } else {
             final var tasks = new ArrayList<CancellableTask>();
             for (CancellableTask task : taskManager.getCancellableTasks().values()) {
-                if (request.match(task)) {
+                if (request.match(task) && match(task)) {
                     tasks.add(task);
                 }
             }
             return tasks;
         }
+    }
+
+    /**
+     * Locates the target task for a specific target task by task id, or by original task id for relocated tasks.
+     */
+    private List<CancellableTask> findTargetTask(CancelTasksRequest request) {
+        final TaskId target = request.getTargetTaskId();
+        // match by task id
+        if (clusterService.localNode().getId().equals(target.getNodeId())) {
+            final CancellableTask task = taskManager.getCancellableTask(target.getId());
+            if (task != null) {
+                if (request.match(task)) {
+                    return List.of(task);
+                } else {
+                    throw new IllegalArgumentException("task [" + target + "] doesn't support this operation");
+                }
+            }
+            // The task exists, but doesn't support cancellation
+            if (taskManager.getTask(target.getId()) != null) {
+                throw new IllegalArgumentException("task [" + target + "] doesn't support cancellation");
+            }
+        }
+        // match by original task id for relocated tasks
+        for (CancellableTask task : taskManager.getCancellableTasks().values()) {
+            if (task.getOriginalTaskId().filter(target::equals).isPresent() && request.match(task)) {
+                return List.of(task);
+            }
+        }
+        return List.of();
     }
 
     @Override

@@ -34,6 +34,14 @@ import java.io.IOException;
  * <p>Supports zero-copy transport by separating header metadata from serialized hits.
  * The header is created after hits are serialized (since we don't know hit count until
  * the buffer is full), then combined using {@link CompositeBytesReference} to avoid copying.
+ *
+ * <p>Lifecycle: on the coordinator path the stream constructor reads {@code serializedHits} as a
+ * {@link ReleasableBytesReference} retained slice of the transport buffer, enabling zero-copy
+ * deserialization of hit {@code _source} bytes in {@link #getHits()}. On the data-node path the
+ * direct constructor accepts any {@link BytesReference}. {@link #close()} releases
+ * {@code serializedHits} when it is {@link Releasable}, then {@link SearchHit#decRef()}s any
+ * cached deserialized hits so pooled sources are released in a refcount-safe way (hits retain
+ * their own refs until {@code decRef}).
  */
 public class FetchPhaseResponseChunk implements Writeable, Releasable {
 
@@ -58,7 +66,9 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
 
     /**
      * Creates a chunk with pre-serialized hits.
-     * Takes ownership of serializedHits - caller must not release it.
+     * Takes ownership of {@code serializedHits}; the caller must not release it.
+     * {@link #close()} releases that buffer when it is {@link Releasable}, and also
+     * {@link SearchHit#decRef() release}s any hits produced by {@link #getHits()}.
      *
      * @param shardId          source shard
      * @param serializedHits   pre-serialized hit bytes
@@ -83,14 +93,17 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     }
 
     /**
-     * Deserializes from stream (receiving side).
+     * Deserializes from stream (receiving side). When {@code in} is backed by a pooled buffer
+     * (e.g. a Netty transport frame), {@code serializedHits} is stored as a retained
+     * {@link ReleasableBytesReference} slice — no copy — so that subsequent {@link #getHits()}
+     * calls can in turn slice hit {@code _source} bytes directly from the same buffer.
      */
     public FetchPhaseResponseChunk(StreamInput in) throws IOException {
         this.shardId = new ShardId(in);
         this.hitCount = in.readVInt();
         this.expectedTotalDocs = in.readVInt();
         this.sequenceStart = in.readVLong();
-        this.serializedHits = in.readBytesReference();
+        this.serializedHits = in.readReleasableBytesReference();
         this.namedWriteableRegistry = in.namedWriteableRegistry();
     }
 
@@ -135,7 +148,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
             try (StreamInput in = createStreamInput()) {
                 for (int i = 0; i < hitCount; i++) {
                     hitPositions[i] = in.readVInt();
-                    deserializedHits[i] = SearchHit.readFrom(in, false);
+                    deserializedHits[i] = SearchHit.readFrom(in);
                 }
             }
         }
@@ -170,6 +183,16 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         return sequenceStart;
     }
 
+    /**
+     * Releases {@code serializedHits} when releasable (always true on the coordinator path after
+     * the stream constructor), then releases deserialized hits.
+     * <p>
+     * Order is safe: {@link SearchHit#readFrom(StreamInput)} uses
+     * {@link StreamInput#readReleasableBytesReference()}, which on a pooled stream retains the
+     * underlying buffer (via {@link ReleasableBytesReference#retainedSlice(int, int)}), so
+     * releasing {@code serializedHits} first cannot free bytes that hits still own. On plain
+     * heap-backed streams {@code _source} is an independent copy and no ordering constraint applies.
+     */
     @Override
     public void close() {
         if (serializedHits instanceof Releasable) {

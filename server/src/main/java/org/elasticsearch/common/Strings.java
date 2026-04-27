@@ -763,7 +763,7 @@ public class Strings {
      *
      * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
      */
-    public String toTruncatedString(ChunkedToXContent chunkedToXContent) {
+    public static String toTruncatedString(ChunkedToXContent chunkedToXContent) {
         return toTruncatedString(chunkedToXContent, 1024 * 1024 /* 1 MiB */);
     }
 

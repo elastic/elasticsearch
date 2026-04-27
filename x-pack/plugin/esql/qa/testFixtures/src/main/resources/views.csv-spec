@@ -1,15 +1,37 @@
-countryAddresses
-required_capability: views_with_no_branching
-required_capability: views_crud_as_index_actions
-
-FROM country_addresses
+addresses
+// tag::views_plain_addresses[]
+FROM addresses
+| RENAME city.country.name AS country
+| EVAL country = CASE(country == "United States of America", "United States", country)
+| STATS count=COUNT() BY country
+// end::views_plain_addresses[]
+| SORT count DESC, country ASC
 ;
-ignoreOrder:true
 
+// tag::views_plain_addresses-result[]
 count:long | country:keyword
 1          | Japan
 1          | Netherlands
 1          | United States
+// end::views_plain_addresses-result[]
+;
+
+countryAddresses
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+// tag::views_country_addresses[]
+FROM country_addresses
+// end::views_country_addresses[]
+;
+ignoreOrder:true
+
+// tag::views_country_addresses-result[]
+count:long | country:keyword
+1          | Japan
+1          | Netherlands
+1          | United States
+// end::views_country_addresses-result[]
 ;
 
 airports
@@ -221,16 +243,40 @@ count:long | country:keyword
 12         | Indonesia
 ;
 
+countryAirportsAddressesLanguagesUnited
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+// tag::views_country_filtered[]
+FROM country_addresses, country_airports, country_languages
+| WHERE country LIKE "United*"
+| SORT country ASC, count DESC
+// end::views_country_filtered[]
+;
+
+// tag::views_country_filtered-result[]
+count:long | country:keyword
+17         | United Kingdom
+1          | United Kingdom
+129        | United States
+1          | United States
+1          | United States
+// end::views_country_filtered-result[]
+;
+
 countryAirportsAddressesLanguagesWildcard
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
+// tag::views_country_wildcard_sum[]
 FROM country_*
 | STATS count=SUM(count) BY country
 | WHERE count > 11
 | SORT count DESC, country ASC
+// end::views_country_wildcard_sum[]
 ;
 
+// tag::views_country_wildcard_sum-result[]
 count:long | country:keyword
 131        | United States
 50         | India
@@ -245,6 +291,7 @@ count:long | country:keyword
 13         | Germany
 12         | France
 12         | Indonesia
+// end::views_country_wildcard_sum-result[]
 ;
 
 airportsLookupJoin
@@ -311,16 +358,20 @@ required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
+// tag::airports_mp_filtered_combined[]
 FROM airports_mp_filtered, airports
 | STATS duplications=COUNT() BY abbrev
 | STATS count=COUNT() BY duplications
 | SORT count DESC
+// end::airports_mp_filtered_combined[]
 ;
 
+// tag::airports_mp_filtered_combined-result[]
 count:long | duplications:long
 880        | 1
 7          | 2
 1          | 3
+// end::airports_mp_filtered_combined-result[]
 ;
 
 airportsLookupJoinViewAirportsStatsValues
@@ -610,4 +661,42 @@ FROM employees_extra, employees_extra
 
 count:long
 200
+;
+
+wildcardExcludeEmployeeViewsNoFalseCircularReference
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_false_circular_reference_fix
+
+// Reproduces https://github.com/elastic/elasticsearch/issues/146208
+// FROM *,-employees* should not trigger a false circular view reference error.
+FROM *,-employees*
+| STATS total = COUNT(*)
+| EVAL at_least_one = total > 0
+| KEEP at_least_one
+;
+
+at_least_one:boolean
+true
+;
+
+wildcardExcludeNestedEmployeeViewsNoFalseCircularReference
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_false_circular_reference_fix
+
+// Reproduces https://github.com/elastic/elasticsearch/issues/146208
+// FROM *,-employees_extra,-employees_all should not trigger a false circular view reference error.
+FROM *,-employees_extra,-employees_all
+| STATS total = COUNT(*)
+| EVAL at_least_one = total > 0
+| KEEP at_least_one
+;
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+at_least_one:boolean
+true
 ;

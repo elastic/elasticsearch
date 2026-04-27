@@ -15,11 +15,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
@@ -32,7 +34,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class DeepSeekChatCompletionRequest implements Request {
+public class DeepSeekChatCompletionRequest implements ChatCompletionRequest {
     private static final Logger logger = LogManager.getLogger(DeepSeekChatCompletionRequest.class);
     private static final String MODEL_FIELD = "model";
     private static final String MAX_TOKENS = "max_tokens";
@@ -94,6 +96,11 @@ public class DeepSeekChatCompletionRequest implements Request {
     @Override
     public String getInferenceEntityId() {
         return model.getInferenceEntityId();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 
     @Override

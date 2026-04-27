@@ -132,7 +132,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 return;
             }
             switch (model.getConfigurations().getTaskType()) {
-                case TEXT_EMBEDDING, EMBEDDING -> {
+                case TEXT_EMBEDDING -> {
                     ServiceSettings modelServiceSettings = model.getServiceSettings();
                     listener.onResponse(makeTextEmbeddingResults(input, modelServiceSettings));
                 }
@@ -185,11 +185,12 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             TimeValue timeout,
             ActionListener<List<ChunkedInference>> listener
         ) {
-            if (model.getConfigurations().getTaskType() == TaskType.TEXT_EMBEDDING) {
-                ServiceSettings modelServiceSettings = model.getServiceSettings();
-                listener.onResponse(makeChunkedResults(input, modelServiceSettings));
-            } else {
-                listener.onFailure(
+            switch (model.getConfigurations().getTaskType()) {
+                case TEXT_EMBEDDING, EMBEDDING -> {
+                    ServiceSettings modelServiceSettings = model.getServiceSettings();
+                    listener.onResponse(makeChunkedResults(input, modelServiceSettings));
+                }
+                default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
                         RestStatus.BAD_REQUEST

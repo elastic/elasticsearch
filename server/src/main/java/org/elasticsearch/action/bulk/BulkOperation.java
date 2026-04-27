@@ -321,6 +321,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             try {
                 ia = concreteIndices.resolveIfAbsent(docWriteRequest);
                 indexOperationValidator.accept(ia, docWriteRequest);
+                TransportBulkAction.requireSliceRoutingWhenEnabled(docWriteRequest, ia, project::index);
 
                 TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, ia);
                 TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia, project::index);

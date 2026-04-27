@@ -118,7 +118,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         return true;
     }
 
-    public static SearchHits readFrom(StreamInput in, boolean pooled) throws IOException {
+    public static SearchHits readFrom(StreamInput in) throws IOException {
         final TotalHits totalHits;
         if (in.readBoolean()) {
             totalHits = Lucene.readTotalHits(in);
@@ -135,7 +135,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         } else {
             hits = new SearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                var hit = SearchHit.readFrom(in, pooled);
+                var hit = SearchHit.readFrom(in);
                 hits[i] = hit;
                 isPooled = isPooled || hit.isPooled();
             }
@@ -152,6 +152,20 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
 
     public boolean isPooled() {
         return refCounted != ALWAYS_REFERENCED;
+    }
+
+    /**
+     * Replaces the hit at {@code index} with {@code newHit}, taking ownership of {@code newHit} without incrementing its
+     * reference count. The replaced hit is released via {@link SearchHit#decRef()}.
+     * Used by {@link org.elasticsearch.action.search.ExpandSearchPhase} to swap an unpooled hit for a pooled replacement
+     * that owns the collapse inner hits.
+     */
+    public void replaceHit(int index, SearchHit newHit) {
+        assert hasReferences();
+        assert isPooled() : "unpooled container would never release the new hit via deallocate()";
+        assert newHit.isPooled();
+        hits[index].decRef();
+        hits[index] = newHit;
     }
 
     @Override

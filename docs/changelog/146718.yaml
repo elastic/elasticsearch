@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 146717
+pr: 146718
+summary: Grant file read entitlement for Snappy musl detection
+type: bug

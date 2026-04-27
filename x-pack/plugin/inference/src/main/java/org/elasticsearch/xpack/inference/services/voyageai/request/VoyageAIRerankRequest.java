@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.RerankRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
 
 import java.net.URI;
@@ -21,7 +22,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class VoyageAIRerankRequest extends VoyageAIRequest {
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIRequestUtils.decorateWithHeaders;
+
+public class VoyageAIRerankRequest implements RerankRequest {
 
     private final String query;
     private final List<String> input;

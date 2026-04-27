@@ -14,10 +14,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.client.Request;
@@ -26,8 +28,10 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
@@ -59,16 +63,20 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -106,6 +114,11 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     // make sure any one slice doesn't sleep longer than shutdown timeout (10s); with this, each slice will at most sleep for 4s
     private final int requestsPerSecond = randomIntBetween(bulkSize, 20);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
+
+    @Before
+    public void resetPlugin() {
+        BlockTasksWritePlugin.reset();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -234,12 +247,13 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             final TaskResult relocatedReindex = getRunningReindex(relocatedTaskId);
             assertThat("relocated reindex should be on nodeA", relocatedReindex.getTask().taskId().getNodeId(), equalTo(nodeAId));
             assertRunningReindexTaskExpectedState(relocatedReindex.getTask(), expectedDescription, slices, shards);
+            assertThat("relocated task should reference original", relocatedReindex.getTask().originalTaskId(), equalTo(originalTaskId));
         });
 
         // Speed up reindex post-relocation to keep the test fast
         unthrottleReindex(relocatedTaskId);
 
-        assertRelocatedTaskExpectedEndState(relocatedTaskId, expectedDescription, slices, shards);
+        assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, slices, shards);
 
         // Assert nodeA recorded success metrics for the relocated reindex
         assertReindexSuccessMetricsOnNode(nodeAName, isRemote, slices);
@@ -249,68 +263,210 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     }
 
     /**
-     * Verifies that the destination node writes the source task result to {@code .tasks} during relocation, so the chain link is preserved
-     * even when the source node cannot write. The test uses {@link BlockTasksWritePlugin} to block all {@code .tasks} writes on the source
-     * node, so only the destination's write (in {@code Reindexer.storeRelocationSourceTaskResult}) succeeds.
+     * Forces the destination to write to .tasks first (by deferring the source's write), then releases the source.
+     * The source's CREATE actually executes but is a no-op since the document already exists.
      */
-    public void testDestinationWritesSourceTaskResultToTasksIndex() throws Exception {
+    public void testTasksIndexDestinationWritesFirstThenSourceIsNoOp() throws Exception {
         assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final int shards = randomIntBetween(1, 5);
+        final var expectedDescription = localReindexDescription();
 
-        final String nodeAName = internalCluster().startNode(
+        final String destNodeName = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
         );
-        final String nodeAId = nodeIdByName(nodeAName);
-        final String nodeBName = internalCluster().startNode(
+        final String destNodeId = nodeIdByName(destNodeName);
+        final String sourceNodeName = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
         );
         ensureStableCluster(2);
 
-        createIndexPinnedToNodeName(SOURCE_INDEX, nodeAName, shards);
-        createIndexPinnedToNodeName(DEST_INDEX, nodeAName, shards);
+        createIndexPinnedToNodeName(SOURCE_INDEX, destNodeName, shards);
+        createIndexPinnedToNodeName(DEST_INDEX, destNodeName, shards);
         indexRandom(true, SOURCE_INDEX, numberOfDocumentsThatTakes60SecondsToIngest);
         ensureGreen(SOURCE_INDEX, DEST_INDEX);
 
-        final TaskId originalTaskId = startAsyncThrottledLocalReindexOnNode(nodeBName, 1);
-        assertBusy(() -> {
-            final TaskResult running = getRunningReindex(originalTaskId);
-            assertThat(running.getTask().taskId().getNodeId(), equalTo(nodeIdByName(nodeBName)));
+        final TaskId originalTaskId = startAsyncThrottledLocalReindexOnNode(sourceNodeName, 1);
+
+        // Defer source writes so the destination writes first.
+        // prepareForShutdown blocks until the task completes, but the source's deferred write keeps it waiting
+        // use a background thread so the test can continue
+        final CountDownLatch sourceWriteLatch = BlockTasksWritePlugin.deferWritesOnNode(sourceNodeName);
+        final Thread shutdownThread = new Thread(() -> {
+            try {
+                internalCluster().getInstance(ShutdownPrepareService.class, sourceNodeName).prepareForShutdown();
+            } catch (Exception e) {
+                // expected — node may be stopped while waiting
+            }
         });
+        shutdownThread.setDaemon(true);
+        shutdownThread.start();
 
-        assertFalse(".tasks index should not exist before shutdown", indexExists(TaskResultsService.TASK_INDEX));
+        // Wait for the destination's write (not deferred) to create .tasks.
+        ensureGreen(TaskResultsService.TASK_INDEX);
+        assertThat("version is 1 after destination write", getTasksDocument(originalTaskId).getVersion(), is(1L));
 
-        // Block .tasks writes on the source node so only the destination's write can succeed.
-        BlockTasksWritePlugin.blockedNodeName = nodeBName;
-        try {
-            shutdownNodeNameAndRelocate(nodeBName);
+        // Release the source's deferred CREATE
+        sourceWriteLatch.countDown();
 
-            final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
-                originalTaskId,
-                nodeAId,
-                localReindexDescription(),
-                1,
-                shards
-            );
+        final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
+            originalTaskId,
+            destNodeId,
+            expectedDescription,
+            1,
+            shards
+        );
+        unthrottleReindex(relocatedTaskId);
+        assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, 1, shards);
+        assertExpectedNumberOfDocumentsInDestinationIndex();
 
-            unthrottleReindex(relocatedTaskId);
-            assertRelocatedTaskExpectedEndState(relocatedTaskId, localReindexDescription(), 1, shards);
-            assertExpectedNumberOfDocumentsInDestinationIndex();
-        } finally {
-            BlockTasksWritePlugin.blockedNodeName = null;
-        }
+        assertThat("version stays 1 — source CREATE is a no-op", getTasksDocument(originalTaskId).getVersion(), is(1L));
     }
 
     /**
-     * Test plugin that blocks {@code .tasks} index writes on a specific node.
-     * Used to verify the destination writes the source task result during relocation.
+     * Forces the source to write first by deferring the destination's write. The destination's deferred INDEX then overwrites
+     * the source's document, bumping the version to 2.
+     */
+    public void testTasksIndexSourceWritesFirstThenDestinationOverwrites() throws Exception {
+        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final int shards = randomIntBetween(1, 5);
+        final var expectedDescription = localReindexDescription();
+
+        final String destNodeName = internalCluster().startNode(
+            NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+        );
+        final String destNodeId = nodeIdByName(destNodeName);
+        final String sourceNodeName = internalCluster().startNode(
+            NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+        );
+        ensureStableCluster(2);
+
+        createIndexPinnedToNodeName(SOURCE_INDEX, destNodeName, shards);
+        createIndexPinnedToNodeName(DEST_INDEX, destNodeName, shards);
+        indexRandom(true, SOURCE_INDEX, numberOfDocumentsThatTakes60SecondsToIngest);
+        ensureGreen(SOURCE_INDEX, DEST_INDEX);
+
+        final TaskId originalTaskId = startAsyncThrottledLocalReindexOnNode(sourceNodeName, 1);
+
+        // Defer the destination's write so the source writes first.
+        final CountDownLatch destWriteLatch = BlockTasksWritePlugin.deferWritesOnNode(destNodeName);
+        shutdownNodeNameAndRelocate(sourceNodeName);
+
+        final GetResponse afterSourceWrite = getTasksDocument(originalTaskId);
+        assertThat("version is 1 after source write", afterSourceWrite.getVersion(), is(1L));
+        assertSourceAndDestinationStoreEquivalentResults(afterSourceWrite, BlockTasksWritePlugin.capturedDocumentSource(sourceNodeName));
+
+        // Release the destination's deferred INDEX — it overwrites the source's document.
+        destWriteLatch.countDown();
+        assertBusy(() -> assertThat("version is 2 — destination overwrote source", getTasksDocument(originalTaskId).getVersion(), is(2L)));
+
+        final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
+            originalTaskId,
+            destNodeId,
+            expectedDescription,
+            1,
+            shards
+        );
+        unthrottleReindex(relocatedTaskId);
+        assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, 1, shards);
+        assertExpectedNumberOfDocumentsInDestinationIndex();
+    }
+
+    /**
+     * Verifies that the destination node writes the source task result to {@code .tasks} during relocation, so the chain link is preserved
+     * even when the source node cannot write. The test uses {@link BlockTasksWritePlugin} to block all {@code .tasks} writes on the source
+     * node, so only the destination's write (in {@code Reindexer.storeRelocationSourceTaskResult}) succeeds.
+     */
+    public void testTasksIndexDestinationWrites() throws Exception {
+        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final int shards = randomIntBetween(1, 5);
+        final var expectedDescription = localReindexDescription();
+
+        final String destNodeName = internalCluster().startNode(
+            NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+        );
+        final String destNodeId = nodeIdByName(destNodeName);
+        final String sourceNodeName = internalCluster().startNode(
+            NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+        );
+        ensureStableCluster(2);
+
+        createIndexPinnedToNodeName(SOURCE_INDEX, destNodeName, shards);
+        createIndexPinnedToNodeName(DEST_INDEX, destNodeName, shards);
+        indexRandom(true, SOURCE_INDEX, numberOfDocumentsThatTakes60SecondsToIngest);
+        ensureGreen(SOURCE_INDEX, DEST_INDEX);
+
+        final TaskId originalTaskId = startAsyncThrottledLocalReindexOnNode(sourceNodeName, 1);
+        final TaskResult running = getRunningReindex(originalTaskId);
+        assertThat(running.getTask().taskId().getNodeId(), equalTo(nodeIdByName(sourceNodeName)));
+
+        // Block .tasks writes on the source node so only the destination's write can succeed.
+        BlockTasksWritePlugin.blockWritesOnNode(sourceNodeName);
+
+        shutdownNodeNameAndRelocate(sourceNodeName);
+
+        final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
+            originalTaskId,
+            destNodeId,
+            expectedDescription,
+            1,
+            shards
+        );
+
+        unthrottleReindex(relocatedTaskId);
+        assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, 1, shards);
+        assertExpectedNumberOfDocumentsInDestinationIndex();
+
+        // Verify the document was written exactly once (by the destination) with correct content.
+        final GetResponse doc = getTasksDocument(originalTaskId);
+        assertThat("document should be written exactly once", doc.getVersion(), is(1L));
+        assertTasksDocumentIsRelocatedException(doc, destNodeId);
+
+        // Verify source and destination would store equivalent results.
+        assertSourceAndDestinationStoreEquivalentResults(doc, BlockTasksWritePlugin.capturedDocumentSource(sourceNodeName));
+    }
+
+    /**
+     * Test plugin that can block or defer {@code .tasks} index writes on specific nodes and captures the document body.
+     * <p>
+     * {@code blockedNodeName}: writes are rejected (failed) on this node.
+     * {@code deferredNodeName} + {@code deferLatch}: writes are deferred on this node — the filter returns immediately (unblocking the
+     * calling thread) and a background thread waits for the latch before proceeding. These two mechanisms are independent.
      */
     public static class BlockTasksWritePlugin extends Plugin implements ActionPlugin {
-        static volatile String blockedNodeName = null;
-        private volatile String myNodeName;
+        private static volatile String blockedNodeName = null;
+        private static volatile String deferredNodeName = null;
+        private static volatile CountDownLatch deferLatch = null;
+        private static final ConcurrentHashMap<String, BytesReference> capturedDocumentsByNode = new ConcurrentHashMap<>();
+        private String myNodeName;
+
+        /** Reject all {@code .tasks} writes on the given node. */
+        public static void blockWritesOnNode(String nodeName) {
+            blockedNodeName = nodeName;
+        }
+
+        /** Defer {@code .tasks} writes on the given node until the returned latch is released. */
+        public static CountDownLatch deferWritesOnNode(String nodeName) {
+            deferredNodeName = nodeName;
+            deferLatch = new CountDownLatch(1);
+            return deferLatch;
+        }
+
+        /** Returns the document source captured from the given node's intercepted write, or null. */
+        public static BytesReference capturedDocumentSource(String nodeName) {
+            return capturedDocumentsByNode.get(nodeName);
+        }
+
+        public static void reset() {
+            blockedNodeName = null;
+            deferredNodeName = null;
+            deferLatch = null;
+            capturedDocumentsByNode.clear();
+        }
 
         @Override
         public Collection<Object> createComponents(PluginServices services) {
             myNodeName = Node.NODE_NAME_SETTING.get(services.environment().settings());
+            assertNotNull(myNodeName);
             return List.of();
         }
 
@@ -330,9 +486,23 @@ public class ReindexRelocationIT extends ESIntegTestCase {
                     ActionListener<Response> listener,
                     ActionFilterChain<Request, Response> chain
                 ) {
-                    if (myNodeName != null && myNodeName.equals(blockedNodeName) && isTasksIndexWrite(action, request)) {
-                        listener.onFailure(new ElasticsearchException("blocked .tasks write on [" + myNodeName + "] for testing"));
-                        return;
+                    if (isTasksIndexWrite(action, request)) {
+                        captureDocumentSource((BulkRequest) request);
+                        if (myNodeName.equals(blockedNodeName)) {
+                            listener.onFailure(new ElasticsearchException("blocked .tasks write on [" + myNodeName + "] for testing"));
+                            return;
+                        }
+                        final CountDownLatch latch = deferLatch;
+                        if (latch != null && myNodeName.equals(deferredNodeName)) {
+                            // fork to unblock the calling thread, also simulates async index write
+                            final Thread deferThread = new Thread(() -> {
+                                safeAwait(latch);
+                                chain.proceed(task, action, request, listener);
+                            }, "deferred-.tasks-write");
+                            deferThread.setDaemon(true);
+                            deferThread.start();
+                            return;
+                        }
                     }
                     chain.proceed(task, action, request, listener);
                 }
@@ -343,8 +513,47 @@ public class ReindexRelocationIT extends ESIntegTestCase {
                     }
                     return false;
                 }
+
+                private void captureDocumentSource(BulkRequest bulkRequest) {
+                    for (DocWriteRequest<?> item : bulkRequest.requests()) {
+                        if (TaskResultsService.TASK_INDEX.equals(item.index()) && item instanceof IndexRequest indexRequest) {
+                            capturedDocumentsByNode.put(myNodeName, indexRequest.source());
+                        }
+                    }
+                }
             });
         }
+    }
+
+    private GetResponse getTasksDocument(TaskId taskId) {
+        ensureYellowAndNoInitializingShards(TaskResultsService.TASK_INDEX);
+        assertNoFailures(indicesAdmin().prepareRefresh(TaskResultsService.TASK_INDEX).get());
+        final GetResponse response = client().prepareGet(TaskResultsService.TASK_INDEX, taskId.toString()).get();
+        assertThat("task exists in .tasks index", response.isExists(), is(true));
+        return response;
+    }
+
+    private static void assertTasksDocumentIsRelocatedException(GetResponse doc, String expectedDestNodeId) {
+        final Map<String, Object> source = doc.getSourceAsMap();
+        assertThat(source.get("completed"), is(true));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> error = (Map<String, Object>) source.get("error");
+        assertThat(error.get("type"), equalTo("task_relocated_exception"));
+        assertThat((String) error.get("relocated_task_id"), startsWith(expectedDestNodeId));
+    }
+
+    private static void assertSourceAndDestinationStoreEquivalentResults(GetResponse storedDoc, BytesReference capturedSource) {
+        assertNotNull("source's write should have been captured", capturedSource);
+        final Map<String, Object> storedByDestination = new HashMap<>(storedDoc.getSourceAsMap());
+        final Map<String, Object> attemptedBySource = new HashMap<>(XContentHelper.convertToMap(capturedSource, false).v2());
+        removeRunningTimeInNanos(storedByDestination);
+        removeRunningTimeInNanos(attemptedBySource);
+        assertThat("destination stores same result as source would have", storedByDestination, equalTo(attemptedBySource));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void removeRunningTimeInNanos(Map<String, Object> taskResultMap) {
+        ((Map<String, Object>) taskResultMap.get("task")).remove("running_time_in_nanos");
     }
 
     private void shutdownNodeNameAndRelocate(final String nodeName) throws Exception {
@@ -429,6 +638,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
     private void assertRelocatedTaskExpectedEndState(
         final TaskId taskId,
+        final TaskId originalTaskId,
         final Matcher<String> expectedTaskDescription,
         final int slices,
         final int shards
@@ -460,6 +670,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertThat(taskInfo.description(), is(expectedTaskDescription));
         assertThat(taskInfo.cancelled(), equalTo(false));
         assertThat(taskInfo.cancellable(), equalTo(true));
+        assertThat("completed relocated task should reference original", taskInfo.originalTaskId(), equalTo(originalTaskId));
 
         final Map<String, Object> taskStatus = ((RawTaskStatus) taskInfo.status()).toMap();
         assertThat(taskStatus.get("slice_id"), is(nullValue()));

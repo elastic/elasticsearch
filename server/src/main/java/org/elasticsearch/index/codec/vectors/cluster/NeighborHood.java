@@ -12,8 +12,6 @@ package org.elasticsearch.index.codec.vectors.cluster;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TaskExecutor;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.HnswConcurrentMergeBuilder;
@@ -66,7 +64,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
             float[] center = centers[i];
             int j = i + 1;
             for (; j < limit; j += 4) {
-                ESVectorUtil.squareDistanceBulk(center, centers[j], centers[j + 1], centers[j + 2], centers[j + 3], scores);
+                ESVectorUtil.squareDistanceBulk(center, centers[j], centers[j + 1], centers[j + 2], centers[j + 3], 0, scores);
                 for (int h = 0; h < 4; h++) {
                     neighborQueues[j + h].insertWithOverflow(i, scores[h]);
                     neighborQueues[i].insertWithOverflow(j + h, scores[h]);
@@ -213,6 +211,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
                             centers[nodes[i + 1]],
                             centers[nodes[i + 2]],
                             centers[nodes[i + 3]],
+                            0,
                             distances
                         );
                         for (int j = 0; j < 4; j++) {
@@ -247,73 +246,6 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
         @Override
         public RandomVectorScorerSupplier copy() {
             return new CentersScorerSupplier(centers);
-        }
-    }
-
-    private static class ReusableKnnCollector implements KnnCollector {
-
-        private final NeighborQueue queue;
-        private final int k;
-        int visitedCount;
-        int currenOrd;
-
-        ReusableKnnCollector(int k) {
-            this.k = k;
-            this.queue = new NeighborQueue(k, false);
-        }
-
-        void reset(int ord) {
-            queue.clear();
-            visitedCount = 0;
-            currenOrd = ord;
-        }
-
-        @Override
-        public boolean earlyTerminated() {
-            return false;
-        }
-
-        @Override
-        public void incVisitedCount(int count) {
-            visitedCount += count;
-        }
-
-        @Override
-        public long visitedCount() {
-            return visitedCount;
-        }
-
-        @Override
-        public long visitLimit() {
-            return Integer.MAX_VALUE;
-        }
-
-        @Override
-        public int k() {
-            return k;
-        }
-
-        @Override
-        public boolean collect(int docId, float similarity) {
-            if (currenOrd != docId) {
-                return queue.insertWithOverflow(docId, similarity);
-            }
-            return false;
-        }
-
-        @Override
-        public float minCompetitiveSimilarity() {
-            return queue.size() >= k() ? queue.topScore() : Float.NEGATIVE_INFINITY;
-        }
-
-        @Override
-        public TopDocs topDocs() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public KnnSearchStrategy getSearchStrategy() {
-            return null;
         }
     }
 }

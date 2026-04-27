@@ -81,10 +81,14 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.dense_vector.dynamic_template_dotted_field_fix"
     );
     public static final NodeFeature DOC_VALUES_MULTI_VALUE = new NodeFeature("mapper.doc_values.multi_value");
+    public static final NodeFeature DOC_VALUES_MULTI_VALUE_ENFORCEMENT = new NodeFeature("mapper.doc_values.multi_value_enforcement");
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
     public static final NodeFeature ES940_DISK_BBQ = new NodeFeature("mapper.es940_disk_bbq");
+    public static final NodeFeature IP_MAPPER_CARDINALITY_OPTION = new NodeFeature("mapper.ip.doc_values_cardinality_option");
+    public static final NodeFeature IGNORED_VALUES_STORED_IN_BINARY_DV = new NodeFeature("mapper.doc_values.ignored_values_in_binary_dv");
+    static final NodeFeature KEYWORD_NORMALIZER_SKIP_STORE_SETTING = new NodeFeature("mapper.keyword.normalizer_skip_store_setting");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -142,10 +146,14 @@ public class MapperFeatures implements FeatureSpecification {
             TEXT_FIELD_DOC_VALUES,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
             DOC_VALUES_MULTI_VALUE,
+            DOC_VALUES_MULTI_VALUE_ENFORCEMENT,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
             FLATTENED_MAPPED_SUBFIELDS_FEATURE,
             ES940_DISK_BBQ,
-            FLATTENED_PASSTHROUGH_FEATURE
+            FLATTENED_PASSTHROUGH_FEATURE,
+            IGNORED_VALUES_STORED_IN_BINARY_DV,
+            IP_MAPPER_CARDINALITY_OPTION,
+            KEYWORD_NORMALIZER_SKIP_STORE_SETTING
         );
     }
 }

@@ -18,7 +18,7 @@ public class TextEmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTe
 
     @Override
     protected Operator.OperatorFactory createOperatorFactory(InferenceService inferenceService) {
-        return new TextEmbeddingOperator.Factory(inferenceService, SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel));
+        return new TextEmbeddingOperator.Factory(inferenceService, SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel), null);
     }
 
     @Override

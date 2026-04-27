@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
+import org.elasticsearch.xpack.esql.analysis.rules.ResolvePromqlFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveUnmapped;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolvedProjects;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
@@ -65,9 +67,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
-import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -238,6 +238,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveEnrich(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
+            new ResolvePromqlFunctions(),
             new ResolveTimestampBoundsAware(),
             new ResolveInference(),
             new DateMillisToNanosInEsRelation()
@@ -260,7 +261,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolvedProjects(),
             new AddImplicitLimit(),
             new AddImplicitTimestampSort(),
-            new AddImplicitForkLimit(),
             new UnionTypesCleanup()
         )
     );
@@ -1815,39 +1815,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-            // Allow resolving snapshot-only functions, but do not include them in the documentation
-            final EsqlFunctionRegistry snapshotRegistry = context.functionRegistry().snapshotRegistry();
-            return plan.transformExpressionsOnly(
-                UnresolvedFunction.class,
-                uf -> resolveFunction(uf, context.configuration(), snapshotRegistry)
-            );
-        }
-
-        public static org.elasticsearch.xpack.esql.core.expression.function.Function resolveFunction(
-            UnresolvedFunction uf,
-            Configuration configuration,
-            EsqlFunctionRegistry functionRegistry
-        ) {
-            org.elasticsearch.xpack.esql.core.expression.function.Function f = null;
-            if (uf.analyzed()) {
-                f = uf;
-            } else {
-                String functionName = functionRegistry.resolveAlias(uf.name());
-                if (functionRegistry.functionExists(functionName) == false) {
-                    f = uf.missing(functionName, functionRegistry.listFunctions());
-                } else {
-                    FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                    f = uf.buildResolved(configuration, def);
-                }
-            }
-            return f;
-        }
-    }
-
     private static class ResolveInference extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         @Override
@@ -1901,7 +1868,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     source,
                     completion.prompt(),
                     inferenceIdLiteral,
-                    completion.taskSettings()
+                    completion.taskSettings(),
+                    completion.timeout()
                 );
                 Alias alias = new Alias(source, completion.targetField().name(), completionFunction, completion.targetField().id());
                 return new Eval(source, child, List.of(alias));
@@ -1964,30 +1932,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             var source = logicalPlan.source();
             return new Limit(source, new Literal(source, limit, DataType.INTEGER), logicalPlan);
-        }
-    }
-
-    private static class AddImplicitForkLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
-        private final AddImplicitLimit addImplicitLimit = new AddImplicitLimit();
-
-        @Override
-        public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
-            if (context.configuration().pragmas().forkImplicitLimit()) {
-                return logicalPlan.transformUp(Fork.class, fork -> addImplicitLimitToForkSubQueries(fork, context));
-            }
-            return logicalPlan;
-        }
-
-        private LogicalPlan addImplicitLimitToForkSubQueries(Fork fork, AnalyzerContext ctx) {
-            // do not append an implicit limit to subqueries below a UnionAll
-            if (fork instanceof UnionAll) {
-                return fork;
-            }
-            List<LogicalPlan> newSubPlans = new ArrayList<>();
-            for (var subPlan : fork.children()) {
-                newSubPlans.add(addImplicitLimit.apply(subPlan, ctx));
-            }
-            return fork.replaceSubPlans(newSubPlans);
         }
     }
 

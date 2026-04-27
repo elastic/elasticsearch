@@ -125,6 +125,8 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
 
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new org.apache.parquet.conf.PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(SCHEMA)
                 .withRowGroupSize(10 * 1024 * 1024) // 10 MB — keep everything in one row group
                 .withPageSize(64) // Very small pages to force many pages per row group

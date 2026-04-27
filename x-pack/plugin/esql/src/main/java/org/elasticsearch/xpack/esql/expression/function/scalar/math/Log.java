@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -35,6 +37,16 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
 public class Log extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Log", Log::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Log.class).binary(Log::new).name("log");
+    public static final PromqlFunctionDefinition PROMQL_LOG2_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation((source, value) -> new Log(source, Literal.fromDouble(source, 2d), value))
+        .description("Calculates the binary logarithm for all elements in the input vector.")
+        .example("log2(memory_usage_bytes)")
+        .name("log2");
+    public static final PromqlFunctionDefinition PROMQL_LN_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation((source, value) -> new Log(source, value, null))
+        .description("Calculates the natural logarithm for all elements in the input vector.")
+        .example("ln(memory_usage_bytes)")
+        .name("ln");
 
     private final Expression base;
     private final Expression value;

@@ -82,6 +82,11 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
         return new LimitBy(source(), limitPerGroup, newChild, groupings, duplicated);
     }
 
+    @Override
+    public String telemetryLabel() {
+        return "LIMIT BY";
+    }
+
     public Expression limitPerGroup() {
         return limitPerGroup;
     }

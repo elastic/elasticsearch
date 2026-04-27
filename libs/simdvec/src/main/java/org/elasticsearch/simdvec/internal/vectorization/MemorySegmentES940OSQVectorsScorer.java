@@ -64,7 +64,8 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         int dimensions,
         int dataLength,
         int bulkSize,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
+        boolean nativeEnabled
     ) {
         super(
             in,
@@ -78,7 +79,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         ES940OSQVectorsScorer.SymmetricInt4Encoding resolvedInt4 = int4Encoding == null
             ? ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED
             : int4Encoding;
-        this.scorer = USE_NATIVE
+        this.scorer = USE_NATIVE && nativeEnabled
             ? createNativeScorer(QuantEncoding.of(queryBits, indexBits, resolvedInt4), in, dimensions, dataLength, bulkSize)
             : createPanamaScorer(QuantEncoding.of(queryBits, indexBits, resolvedInt4), in, dimensions, dataLength, bulkSize);
     }

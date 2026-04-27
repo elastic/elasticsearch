@@ -12,7 +12,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -26,15 +29,19 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -47,7 +54,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 /**
  * Round down to one of a list of values.
  */
-public class RoundTo extends EsqlScalarFunction {
+public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RoundTo", RoundTo::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(RoundTo.class).unaryVariadic(RoundTo::new).name("round_to");
 
@@ -222,5 +229,41 @@ public class RoundTo extends EsqlScalarFunction {
                 .collect(java.util.stream.Collectors.toList());
             default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
         };
+    }
+
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (ROUND_TO_BLOCK_LOADER.isEnabled() == false) {
+            return null;
+        }
+        if (field instanceof FieldAttribute f) {
+            DataType dt = dataType();
+            if (dt != LONG && dt != DATETIME && dt != DATE_NANOS) {
+                return null;
+            }
+            long[] sortedPoints = sortedLongPoints();
+            if (sortedPoints == null) {
+                return null;
+            }
+            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.RoundToLongs(sortedPoints));
+        }
+        return null;
+    }
+
+    private long[] sortedLongPoints() {
+        List<Object> values = new ArrayList<>(points.size());
+        for (Expression p : points) {
+            if (p instanceof Literal lit) {
+                values.add(lit.value());
+            } else {
+                return null;
+            }
+        }
+        List<Number> sorted = sortedRoundingPoints(values, dataType());
+        long[] result = new long[sorted.size()];
+        for (int i = 0; i < sorted.size(); i++) {
+            result[i] = sorted.get(i).longValue();
+        }
+        return result;
     }
 }

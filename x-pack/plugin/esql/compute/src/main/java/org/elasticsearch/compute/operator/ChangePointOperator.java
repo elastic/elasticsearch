@@ -9,6 +9,8 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -69,7 +71,8 @@ public class ChangePointOperator implements Operator {
     // Group tracking: each buffered page belongs wholly to the currently-open group.
     // Pages spanning a group boundary are split via Page#slice.
     private GroupKeyEncoder encoder;
-    private BytesRef currentGroupKey;
+    private PagedBytesBuilder currentGroupKeyStorage;
+    private final PagedBytesCursor currentGroupKeyCursor = new PagedBytesCursor();
     private final Deque<Page> currentGroupPages;
 
     private final Deque<Page> outputPages;
@@ -141,7 +144,12 @@ public class ChangePointOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(() -> Releasables.close(currentGroupPages), () -> Releasables.close(outputPages), encoder);
+        Releasables.close(
+            () -> Releasables.close(currentGroupPages),
+            () -> Releasables.close(outputPages),
+            encoder,
+            currentGroupKeyStorage
+        );
     }
 
     @Override
@@ -160,8 +168,8 @@ public class ChangePointOperator implements Operator {
      */
     private void processPage(Page page) {
         if (groupingChannels.length > 0 && encoder == null) {
-            initEncoder(page);
-            currentGroupKey = BytesRef.deepCopyOf(encoder.encode(page, 0));
+            initEncoderAndCurrentKeyStorage(page);
+            storeCurrentGroupKey(encoder.encode(page, 0));
         }
 
         if (groupingChannels.length == 0) {
@@ -172,8 +180,8 @@ public class ChangePointOperator implements Operator {
         int positionCount = page.getPositionCount();
         int scanStart = 0;
         for (int i = 0; i < positionCount; i++) {
-            BytesRef key = encoder.encode(page, i);
-            if (key.equals(currentGroupKey)) {
+            PagedBytesCursor key = encoder.encode(page, i);
+            if (key.equals(currentGroupKeyCursor)) {
                 continue;
             }
             // Group boundary at position i — slice off the completed segment and flush.
@@ -182,7 +190,7 @@ public class ChangePointOperator implements Operator {
             }
             flushGroup();
             scanStart = i;
-            currentGroupKey = BytesRef.deepCopyOf(key);
+            storeCurrentGroupKey(key);
         }
 
         if (scanStart == 0) {
@@ -195,13 +203,44 @@ public class ChangePointOperator implements Operator {
         }
     }
 
-    private void initEncoder(Page page) {
+    private void initEncoderAndCurrentKeyStorage(Page page) {
         List<ElementType> elementTypes = new ArrayList<>(page.getBlockCount());
         for (int i = 0; i < page.getBlockCount(); i++) {
             elementTypes.add(page.getBlock(i).elementType());
         }
-        var scratch = new BreakingBytesRefBuilder(driverContext.blockFactory().breaker(), "change-point-group-key");
-        encoder = new GroupKeyEncoder(groupingChannels, elementTypes, scratch);
+        BlockFactory blockFactory = driverContext.blockFactory();
+        PagedBytesBuilder encoderRow = new PagedBytesBuilder(
+            blockFactory.bigArrays().recycler(),
+            blockFactory.breaker(),
+            "change-point-group-key-encoder",
+            64
+        );
+        boolean success = false;
+        try {
+            encoder = new GroupKeyEncoder(groupingChannels, elementTypes, encoderRow);
+            currentGroupKeyStorage = new PagedBytesBuilder(
+                blockFactory.bigArrays().recycler(),
+                blockFactory.breaker(),
+                "change-point-current-group-key",
+                64
+            );
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(encoderRow, encoder);
+            }
+        }
+    }
+
+    /**
+     * Copies the encoder's freshly-encoded key into {@link #currentGroupKeyStorage} and
+     * re-initializes {@link #currentGroupKeyCursor} to view those bytes. Required because the
+     * cursor returned by {@link GroupKeyEncoder#encode} is invalidated by the next encode call.
+     */
+    private void storeCurrentGroupKey(PagedBytesCursor freshKey) {
+        currentGroupKeyStorage.clear();
+        currentGroupKeyStorage.append(freshKey);
+        currentGroupKeyStorage.view(currentGroupKeyCursor);
     }
 
     /**

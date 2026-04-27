@@ -222,7 +222,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
                     for (int i = 0; i < hitCount; i++) {
                         int position = in.readVInt();
-                        SearchHit hit = SearchHit.readFrom(in, false);
+                        SearchHit hit = SearchHit.readFrom(in);
                         responseStream.addHitWithSequence(hit, position);
                     }
                 }

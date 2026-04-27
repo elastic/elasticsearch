@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 145873
+pr: 147582
+summary: Report correct location for SET errors
+type: bug

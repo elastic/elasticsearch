@@ -91,7 +91,8 @@ public class InferenceStatsTests extends ESTestCase {
         var histogramCounter = mock(LongHistogram.class);
         var stats = new InferenceStats(mock(), histogramCounter, mock(), Map.of());
 
-        stats.inferenceDuration().record(expectedLong, stats.serviceAndResponseAttributes(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID), null));
+        stats.inferenceDuration()
+            .record(expectedLong, stats.serviceAndResponseAttributes(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID), null));
 
         verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
             assertThat(attributes.get(SERVICE_ATTRIBUTE), is(TEST_SERVICE));

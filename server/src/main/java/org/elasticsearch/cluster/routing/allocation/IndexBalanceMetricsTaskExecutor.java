@@ -139,8 +139,6 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
      */
     public IndexBalanceMetricsTaskExecutor(ClusterService clusterService, MeterRegistry meterRegistry) {
         super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
-        assert INDEX_BALANCE_METRICS_ENABLED_SETTING.get(clusterService.getSettings())
-            : "index balance metrics task requires [" + INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey() + "] to be enabled";
         this.clusterService = clusterService;
         for (int i = 0; i < IndexBalanceMetricsComputer.BUCKET_COUNT; i++) {
             final int bucket = i;

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DistinctGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropAllGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
@@ -108,6 +109,7 @@ public class EsqlQueryGenerator {
     public static List<CommandGenerator> PIPE_COMMANDS = List.of(
         ChangePointGenerator.INSTANCE,
         DissectGenerator.INSTANCE,
+        DistinctGenerator.INSTANCE,
         DropGenerator.INSTANCE,
         DropAllGenerator.INSTANCE,
         EnrichGenerator.INSTANCE,

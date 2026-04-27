@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
+import org.elasticsearch.xpack.esql.plan.logical.Distinct;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -177,6 +178,10 @@ public class ApproximationSupportTests extends ESTestCase {
         Rename.class,
         ResolvingProject.class,
         SparklineGenerateEmptyBuckets.class,
+
+        // SurrogateLogicalPlans: present in the analyzed plan but rewritten during the optimizer's
+        // substitutions phase, before any approximation logic runs.
+        Distinct.class, // rewritten to LimitBy
 
         // PromQL plans are not supported yet.
         PromqlCommand.class,

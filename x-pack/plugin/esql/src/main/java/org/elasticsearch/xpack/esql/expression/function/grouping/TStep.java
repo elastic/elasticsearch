@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -264,6 +265,19 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
                     )
                 );
             }
+            if (step.foldable()) {
+                long count = ((Number) step.fold(FoldContext.small())).longValue();
+                if (count <= 0 || count > Integer.MAX_VALUE) {
+                    return new TypeResolution(
+                        org.elasticsearch.common.Strings.format(
+                            "[%s] requires a bucket count between 1 and %d, got [%d]",
+                            sourceText(),
+                            Integer.MAX_VALUE,
+                            count
+                        )
+                    );
+                }
+            }
             resolution = resolution.and(isStringOrDateBound(start, SECOND));
             if (resolution.unresolved()) {
                 return resolution;
@@ -376,7 +390,14 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         int count = ((Number) step.fold(foldContext)).intValue();
         long fromMs = foldBoundToMillis(start, foldContext);
         long toMs = foldBoundToMillis(end, foldContext);
-        var rounding = new Bucket.DateRoundingPicker(count, fromMs, toMs, ZoneOffset.UTC, 0L).pickRounding().prepareForUnknown();
+        // Use primary-only picking to preserve TSTEP's fixed-width (1ms–1day) contract.
+        // When no primary unit fits the requested count the range exceeds 1-day * count,
+        // so 1 day is the finest granularity that makes sense.
+        Rounding picked = new Bucket.DateRoundingPicker(count, fromMs, toMs, ZoneOffset.UTC, 0L).pickPrimaryRounding();
+        if (picked == null) {
+            return Duration.ofDays(1);
+        }
+        var rounding = picked.prepareForUnknown();
         long fromRounded = rounding.round(fromMs);
         return Duration.ofMillis(rounding.nextRoundingValue(fromRounded) - fromRounded);
     }

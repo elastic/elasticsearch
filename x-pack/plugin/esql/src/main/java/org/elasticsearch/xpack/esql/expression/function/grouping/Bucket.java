@@ -141,6 +141,16 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             return SECONDARY_UNITS[SECONDARY_UNITS.length - 1].rounding(zoneId, offset);
         }
 
+        /**
+         * Like {@link #pickRounding()} but restricted to {@link #PRIMARY_UNITS} (fixed-width,
+         * 1 ms through 1 day). Returns {@code null} when no primary unit fits the requested
+         * bucket count, which the caller can interpret as "use the coarsest primary unit".
+         */
+        public Rounding pickPrimaryRounding() {
+            Unit best = findLastOk(PRIMARY_UNITS);
+            return best != null ? best.rounding(zoneId, offset) : null;
+        }
+
         private Unit findLastOk(Unit[] candidates) {
             int low = 0;
             int high = candidates.length - 1;

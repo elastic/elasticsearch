@@ -256,7 +256,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_Persistent_WithDimensions_SetByUserFalse_Persistent_Success() {
+    public void testFromMap_Persistent_WithDimensions_SetByUserFalse_Success() {
         var serviceSettings = OpenShiftAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 TEST_MODEL_ID,

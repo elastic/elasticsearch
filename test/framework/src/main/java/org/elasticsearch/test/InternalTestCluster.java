@@ -1398,7 +1398,7 @@ public final class InternalTestCluster extends TestCluster {
                 final long replicaWriteBytes = indexingPressure.stats().getCurrentReplicaBytes();
                 if (replicaWriteBytes > 0) {
                     throw new AssertionError(
-                        "pending replica write bytes [" + combinedBytes + "] bytes on node [" + nodeAndClient.name + "]."
+                        "pending replica write bytes [" + replicaWriteBytes + "] bytes on node [" + nodeAndClient.name + "]."
                     );
                 }
             }

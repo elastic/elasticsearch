@@ -332,6 +332,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     && offset > 0) {
                     // Value at lower boundary is present, check if there's one in the previous window to use.
                     addLastTupleFromLowerWindow(timeseries, allTimeseries.get(offset - 1), secondsInWindow);
+                    // For INCREASE, return 0 if there is a previous bucket because
+                    // the increase was already accounted for in the previous bucket.
+                    // For RATE, we still need to calculate the rate using interpolation from the previous bucket.
+                    if (timeseries.size() == 2 && deltaAgg.equals(DeltaAgg.INCREASE)) {
+                        return new RateRange(0.0, 0.0);
+                    }
                 }
                 if (timeseries.size() < 2) {
                     return null;

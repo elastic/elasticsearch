@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
 
@@ -39,7 +40,7 @@ abstract class BaseInferenceAction extends BaseRestHandler {
     record Params(String inferenceEntityId, TaskType taskType) {}
 
     static TimeValue parseTimeout(RestRequest restRequest) {
-        return restRequest.paramAsTime(InferenceAction.Request.TIMEOUT.getPreferredName(), InferenceAction.Request.DEFAULT_TIMEOUT);
+        return restRequest.paramAsTime(InferenceAction.Request.TIMEOUT.getPreferredName(), TIMEOUT_NOT_DETERMINED);
     }
 
     @Override

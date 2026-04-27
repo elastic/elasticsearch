@@ -1,0 +1,40 @@
+setup:
+  - requires:
+      cluster_features: "semantic_field.semantic_field_mapper"
+      reason: "semantic field needs to be available"
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-semantic-field-index
+        body:
+          mappings:
+            properties:
+              my_field:
+                type: semantic
+                inference_id: embedding-inference-id
+
+---
+"Semantic field type can be added to a mapping":
+  - do:
+      indices.get_mapping:
+        index: test-semantic-field-index
+
+  - match: { test-semantic-field-index.mappings.properties.my_field.type: semantic }
+  - match: { test-semantic-field-index.mappings.properties.my_field.inference_id: embedding-inference-id }

@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.NanoTime;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.filter2.compat.FilterCompat;
+import org.apache.parquet.filter2.predicate.FilterApi;
+import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
@@ -56,13 +60,16 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ParquetFormatReaderTests extends ESTestCase {
 
@@ -71,6 +78,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -190,6 +198,66 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testReadCompressedSnappy() throws Exception {
+        assertCompressedReadRoundTrip(CompressionCodecName.SNAPPY);
+    }
+
+    public void testReadCompressedGzip() throws Exception {
+        assertCompressedReadRoundTrip(CompressionCodecName.GZIP);
+    }
+
+    public void testReadCompressedZstd() throws Exception {
+        assertCompressedReadRoundTrip(CompressionCodecName.ZSTD);
+    }
+
+    public void testReadCompressedLz4Raw() throws Exception {
+        assertCompressedReadRoundTrip(CompressionCodecName.LZ4_RAW);
+    }
+
+    private void assertCompressedReadRoundTrip(CompressionCodecName codec) throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group group1 = factory.newGroup();
+            group1.add("id", 1L);
+            group1.add("name", "Alice");
+            group1.add("score", 95.5);
+
+            Group group2 = factory.newGroup();
+            group2.add("id", 2L);
+            group2.add("name", "Bob");
+            group2.add("score", 87.3);
+
+            return List.of(group1, group2);
+        }, codec);
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(95.5, ((DoubleBlock) page.getBlock(2)).getDouble(0), 0.001);
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            assertEquals(87.3, ((DoubleBlock) page.getBlock(2)).getDouble(1), 0.001);
+
+            assertFalse(iterator.hasNext());
+        }
+    }
+
     public void testReadWithColumnProjection() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)
@@ -303,6 +371,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // of increasing byte size when it flushes at the 1 KB row-group threshold.
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
                 .withRowGroupSize(1024L)
@@ -1221,6 +1291,97 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals("parquet", metadata.sourceType());
     }
 
+    public void testStatisticsSurviveEmbedding() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("age")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("score")
+            .named("stats_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                Group g = factory.newGroup();
+                g.add("age", 20 + (i % 60));
+                g.add("score", (long) (i * 10));
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertTrue("statistics() should be present", metadata.statistics().isPresent());
+
+        var stats = metadata.statistics().get();
+        assertTrue("Row count should be present", stats.rowCount().isPresent());
+        assertEquals(100L, stats.rowCount().getAsLong());
+
+        var enriched = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.embedStatistics(
+            metadata.sourceMetadata(),
+            stats
+        );
+
+        assertEquals(100L, enriched.get("_stats.row_count"));
+        assertEquals(0L, enriched.get("_stats.columns.age.null_count"));
+        assertEquals(20, enriched.get("_stats.columns.age.min"));
+        assertEquals(79, enriched.get("_stats.columns.age.max"));
+        assertEquals(0L, enriched.get("_stats.columns.score.null_count"));
+        assertNotNull("Score min should be present", enriched.get("_stats.columns.score.min"));
+        assertNotNull("Score max should be present", enriched.get("_stats.columns.score.max"));
+    }
+
+    public void testStatisticsForStringColumnsAreJdkTypes() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("city")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("pop")
+            .named("string_stats_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (String name : List.of("alpha", "bravo", "charlie", "delta")) {
+                Group g = factory.newGroup();
+                g.add("city", name);
+                g.add("pop", 1000);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(storageObject);
+
+        var stats = metadata.statistics().orElseThrow();
+        var enriched = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.embedStatistics(
+            metadata.sourceMetadata(),
+            stats
+        );
+
+        Object minCity = enriched.get("_stats.columns.city.min");
+        Object maxCity = enriched.get("_stats.columns.city.max");
+        assertNotNull("city min should be present", minCity);
+        assertNotNull("city max should be present", maxCity);
+        assertThat("min must be a JDK String, not Parquet Binary", minCity, instanceOf(String.class));
+        assertThat("max must be a JDK String, not Parquet Binary", maxCity, instanceOf(String.class));
+        assertEquals("alpha", minCity);
+        assertEquals("delta", maxCity);
+
+        // Also verify per-split stats if we can force multi-row-group
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            for (Map.Entry<String, Object> entry : range.statistics().entrySet()) {
+                assertFalse("Split stat value must not be a Parquet Binary: " + entry.getKey(), entry.getValue() instanceof Binary);
+            }
+        }
+    }
+
     public void testDiscoverSplitRangesMultipleRowGroups() throws Exception {
         byte[] parquetData = createWideMultiRowGroupFile(500);
 
@@ -1251,7 +1412,61 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
         List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
-        assertTrue("Single row group file should return empty ranges", ranges.isEmpty());
+        assertEquals("Single row group file should return one range with stats", 1, ranges.size());
+        RangeAwareFormatReader.SplitRange range = ranges.getFirst();
+        assertTrue("Range offset must be non-negative", range.offset() >= 0);
+        assertTrue("Range length must be positive", range.length() > 0);
+        assertNotNull("Statistics should be present", range.statistics());
+        assertEquals("Row count should be 1", 1L, range.statistics().get("_stats.row_count"));
+    }
+
+    public void testDiscoverSplitRangesEmptyFile() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> List.of());
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Empty file (no row groups) should return empty ranges", ranges.isEmpty());
+    }
+
+    public void testDiscoverSplitRangesSingleRowGroupStatsContainColumnInfo() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("age")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("age", 20 + (i % 50));
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertEquals(1, ranges.size());
+        Map<String, Object> stats = ranges.getFirst().statistics();
+        assertEquals(100L, stats.get("_stats.row_count"));
+        assertNotNull("Column null count should be present", stats.get("_stats.columns.id.null_count"));
+        assertEquals(0L, stats.get("_stats.columns.id.null_count"));
+        assertNotNull("Column min should be present", stats.get("_stats.columns.id.min"));
+        assertEquals(0L, stats.get("_stats.columns.id.min"));
+        assertNotNull("Column max should be present", stats.get("_stats.columns.id.max"));
+        assertEquals(99L, stats.get("_stats.columns.id.max"));
+        assertEquals(0L, stats.get("_stats.columns.age.null_count"));
+        assertEquals(20, stats.get("_stats.columns.age.min"));
+        assertEquals(69, stats.get("_stats.columns.age.max"));
     }
 
     public void testInvalidParquetOpenGarbageIncludesUriInMessage() throws Exception {
@@ -1496,7 +1711,167 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals("Reading all ranges should produce the same total as a full read", totalRowsDirect, totalRowsFromRanges);
     }
 
+    /**
+     * Regression test for a row over-read bug: row groups must map to exactly one split.
+     * Previously {@code SplitRange.length} was built from
+     * {@code BlockMetaData.getTotalByteSize()} (uncompressed size), causing ranges to overlap
+     * in byte space. Parquet's {@code withRange(rangeStart, rangeEnd)} filter then selected
+     * each row group from multiple adjacent splits, producing duplicate rows on read.
+     * <p>
+     * Constructs a multi-row-group Snappy-compressed Parquet file (where uncompressed is
+     * meaningfully larger than compressed), verifies the split set is non-overlapping in
+     * byte space, and verifies that reading every split exactly once sums to the true row
+     * count with no duplication and no drops.
+     */
+    public void testReadRangeCoverageIsExactlyOneRowCountTotal() throws Exception {
+        int numRows = 5_000;
+        byte[] parquetData = createCompressibleMultiRowGroupFile(numRows, CompressionCodecName.SNAPPY);
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Need at least 3 ranges for this regression test, got " + ranges.size(), ranges.size() >= 3);
+
+        // Byte ranges must be sorted and non-overlapping (end_i <= start_{i+1}).
+        long lastEnd = Long.MIN_VALUE;
+        for (RangeAwareFormatReader.SplitRange r : ranges) {
+            assertTrue("Range length must be positive", r.length() > 0);
+            assertTrue(
+                "Ranges must be sorted and non-overlapping: offset=" + r.offset() + ", previous end=" + lastEnd,
+                r.offset() >= lastEnd
+            );
+            lastEnd = r.offset() + r.length();
+        }
+
+        // Sum rows emitted across all splits and compare to the true row count.
+        int totalRowsFromRanges = 0;
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            long rangeStart = range.offset();
+            long rangeEnd = rangeStart + range.length();
+            try (
+                CloseableIterator<Page> iterator = reader.readRange(
+                    storageObject,
+                    null,
+                    1000,
+                    rangeStart,
+                    rangeEnd,
+                    List.of(),
+                    ErrorPolicy.STRICT
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    totalRowsFromRanges += iterator.next().getPositionCount();
+                }
+            }
+        }
+
+        assertEquals("Sum of rows across splits must equal the row count written", numRows, totalRowsFromRanges);
+    }
+
+    /**
+     * End-to-end test: reads a multi-row-group Parquet file with a filter via {@code read()},
+     * then reads via per-range {@code readRange()} with the same filter. Asserts the union of
+     * range reads produces identical rows to the full read.
+     */
+    public void testReadRangeWithFilterProducesCorrectResults() throws Exception {
+        byte[] parquetData = createWideMultiRowGroupFile(500);
+        StorageObject storageObject = createStorageObject(parquetData);
+        FilterPredicate filter = FilterApi.gt(FilterApi.longColumn("id"), -1L);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(FilterCompat.get(filter));
+
+        List<String> fullRows = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 500)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock ids = (LongBlock) page.getBlock(0);
+                BytesRefBlock payloads = (BytesRefBlock) page.getBlock(1);
+                BytesRef scratch = new BytesRef();
+                for (int row = 0; row < page.getPositionCount(); row++) {
+                    fullRows.add(ids.getLong(row) + "|" + payloads.getBytesRef(row, scratch).utf8ToString());
+                }
+            }
+        }
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Need at least 2 ranges for this test, got " + ranges.size(), ranges.size() >= 2);
+
+        List<String> rangeRows = new ArrayList<>();
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            long rangeStart = range.offset();
+            long rangeEnd = rangeStart + range.length();
+            try (
+                CloseableIterator<Page> iterator = reader.readRange(
+                    storageObject,
+                    null,
+                    500,
+                    rangeStart,
+                    rangeEnd,
+                    List.of(),
+                    ErrorPolicy.STRICT
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    Page page = iterator.next();
+                    LongBlock ids = (LongBlock) page.getBlock(0);
+                    BytesRefBlock payloads = (BytesRefBlock) page.getBlock(1);
+                    BytesRef scratch = new BytesRef();
+                    for (int row = 0; row < page.getPositionCount(); row++) {
+                        rangeRows.add(ids.getLong(row) + "|" + payloads.getBytesRef(row, scratch).utf8ToString());
+                    }
+                }
+            }
+        }
+
+        assertEquals(fullRows.size(), rangeRows.size());
+        Comparator<String> byId = Comparator.comparingLong(s -> Long.parseLong(s.split("\\|", 2)[0]));
+        fullRows.sort(byId);
+        rangeRows.sort(byId);
+        assertEquals(fullRows, rangeRows);
+    }
+
     // --- Test helpers ---
+
+    /**
+     * Creates a multi-row-group Parquet file whose uncompressed row-group sizes are meaningfully
+     * larger than the on-disk compressed sizes. The payload is a highly repetitive string, so
+     * codecs such as Snappy compress it dramatically. Used to exercise the split-range length
+     * contract (compressed bytes) vs uncompressed byte reporting in Parquet metadata.
+     */
+    private byte[] createCompressibleMultiRowGroupFile(int numRows, CompressionCodecName codec) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("payload")
+            .named("test_schema");
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+
+        // Highly compressible: 512 bytes of a single character.
+        String payload = "a".repeat(512);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(codec)
+                .withRowGroupSize(8 * 1024L)
+                .withPageSize(512)
+                .build()
+        ) {
+            for (int i = 0; i < numRows; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("id", (long) i);
+                g.add("payload", payload);
+                writer.write(g);
+            }
+        }
+        return outputStream.toByteArray();
+    }
 
     private static byte[] toFloat16Bytes(float value) {
         short float16 = Float.floatToFloat16(value);
@@ -1547,6 +1922,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
         String padding = "x".repeat(200);
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
                 .withRowGroupSize(4 * 1024L)
@@ -1564,6 +1941,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     private byte[] createParquetFile(MessageType schema, GroupCreator groupCreator) throws IOException {
+        return createParquetFile(schema, groupCreator, CompressionCodecName.UNCOMPRESSED);
+    }
+
+    private byte[] createParquetFile(MessageType schema, GroupCreator groupCreator, CompressionCodecName codec) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         OutputFile outputFile = createOutputFile(outputStream);
@@ -1573,11 +1954,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withCompressionCodec(codec)
                 .build()
         ) {
-
             for (Group group : groups) {
                 writer.write(group);
             }
@@ -1677,5 +2059,29 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 return StoragePath.of(locationUri);
             }
         };
+    }
+
+    public void testWithConfigOptimizedReaderTrue() {
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", true));
+        assertNotSame(reader, configured);
+    }
+
+    public void testWithConfigOptimizedReaderFalse() {
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", false));
+        assertSame(reader, configured);
+    }
+
+    public void testWithConfigOptimizedReaderStringTrue() {
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", "true"));
+        assertNotSame(reader, configured);
+    }
+
+    public void testWithConfigDefaults() {
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        assertSame(reader, reader.withConfig(null));
+        assertSame(reader, reader.withConfig(Map.of()));
     }
 }

@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 
 /**
  * Serializes and deserializes {@link SourceStatistics} to/from a flat {@code Map<String, Object>}
@@ -27,10 +30,25 @@ public final class SourceStatisticsSerializer {
 
     public static final String STATS_ROW_COUNT = "_stats.row_count";
     public static final String STATS_SIZE_BYTES = "_stats.size_bytes";
+    /**
+     * When set to {@code true} in sourceMetadata, indicates that the statistics are derived
+     * from a single anchor file in a multi-file glob query ({@code FIRST_FILE_WINS} schema
+     * resolution) and do not represent the full dataset. This flag is set by
+     * {@code ExternalSourceResolver.markStatsAsPartial} when a glob matches more than one file.
+     * <p>
+     * The aggregate pushdown rule ({@code PushAggregatesToExternalSource}) checks this flag
+     * via {@code SplitStats.resolveEffectiveStats} and bails out when set. Note that once
+     * per-split statistics are available (populated during split discovery), the merged
+     * per-split stats take precedence and this flag is not consulted.
+     */
+    public static final String STATS_PARTIAL = "_stats.partial";
+    /** Number of files matched by the glob pattern; useful for observability and debugging. */
+    public static final String STATS_FILE_COUNT = "_stats.file_count";
     private static final String STATS_COL_PREFIX = "_stats.columns.";
     private static final String NULL_COUNT_SUFFIX = ".null_count";
     private static final String MIN_SUFFIX = ".min";
     private static final String MAX_SUFFIX = ".max";
+    private static final String SIZE_BYTES_SUFFIX = ".size_bytes";
 
     private SourceStatisticsSerializer() {}
 
@@ -52,6 +70,7 @@ public final class SourceStatisticsSerializer {
                 cs.nullCount().ifPresent(nc -> result.put(prefix + NULL_COUNT_SUFFIX, nc));
                 cs.minValue().ifPresent(mv -> result.put(prefix + MIN_SUFFIX, mv));
                 cs.maxValue().ifPresent(mv -> result.put(prefix + MAX_SUFFIX, mv));
+                cs.sizeInBytes().ifPresent(sb -> result.put(prefix + SIZE_BYTES_SUFFIX, sb));
             }
         });
         return result;
@@ -68,12 +87,12 @@ public final class SourceStatisticsSerializer {
         return Optional.of(new SourceStatistics() {
             @Override
             public OptionalLong rowCount() {
-                return toLong(sourceMetadata.get(STATS_ROW_COUNT));
+                return toOptionalLong(asBoxedLong(sourceMetadata.get(STATS_ROW_COUNT)));
             }
 
             @Override
             public OptionalLong sizeInBytes() {
-                return toLong(sourceMetadata.get(STATS_SIZE_BYTES));
+                return toOptionalLong(asBoxedLong(sourceMetadata.get(STATS_SIZE_BYTES)));
             }
 
             @Override
@@ -97,44 +116,39 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
-     * Extracts the row count directly from the sourceMetadata map without constructing a full
-     * SourceStatistics object.
+     * Extracts the row count directly from the sourceMetadata map.
+     * Returns {@code null} if the metadata is null or the row count is absent/non-numeric.
      */
-    public static OptionalLong extractRowCount(Map<String, Object> sourceMetadata) {
-        if (sourceMetadata == null) {
-            return OptionalLong.empty();
-        }
-        return toLong(sourceMetadata.get(STATS_ROW_COUNT));
+    @Nullable
+    public static Long extractRowCount(Map<String, Object> sourceMetadata) {
+        return sourceMetadata != null ? asBoxedLong(sourceMetadata.get(STATS_ROW_COUNT)) : null;
     }
 
     /**
      * Extracts the null count for a specific column directly from the sourceMetadata map.
+     * Returns {@code null} if the metadata is null or the null count is absent/non-numeric.
      */
-    public static OptionalLong extractColumnNullCount(Map<String, Object> sourceMetadata, String columnName) {
-        if (sourceMetadata == null) {
-            return OptionalLong.empty();
-        }
-        return toLong(sourceMetadata.get(columnNullCountKey(columnName)));
+    @Nullable
+    public static Long extractColumnNullCount(Map<String, Object> sourceMetadata, String columnName) {
+        return sourceMetadata != null ? asBoxedLong(sourceMetadata.get(columnNullCountKey(columnName))) : null;
     }
 
     /**
      * Extracts the min value for a specific column directly from the sourceMetadata map.
+     * Returns {@code null} if the metadata is null or the min is absent.
      */
-    public static Optional<Object> extractColumnMin(Map<String, Object> sourceMetadata, String columnName) {
-        if (sourceMetadata == null) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(sourceMetadata.get(columnMinKey(columnName)));
+    @Nullable
+    public static Object extractColumnMin(Map<String, Object> sourceMetadata, String columnName) {
+        return sourceMetadata != null ? sourceMetadata.get(columnMinKey(columnName)) : null;
     }
 
     /**
      * Extracts the max value for a specific column directly from the sourceMetadata map.
+     * Returns {@code null} if the metadata is null or the max is absent.
      */
-    public static Optional<Object> extractColumnMax(Map<String, Object> sourceMetadata, String columnName) {
-        if (sourceMetadata == null) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(sourceMetadata.get(columnMaxKey(columnName)));
+    @Nullable
+    public static Object extractColumnMax(Map<String, Object> sourceMetadata, String columnName) {
+        return sourceMetadata != null ? sourceMetadata.get(columnMaxKey(columnName)) : null;
     }
 
     /** Returns the flat key used for a column's null count statistic. */
@@ -150,6 +164,20 @@ public final class SourceStatisticsSerializer {
     /** Returns the flat key used for a column's max statistic. */
     public static String columnMaxKey(String columnName) {
         return STATS_COL_PREFIX + columnName + MAX_SUFFIX;
+    }
+
+    /** Returns the flat key used for a column's size in bytes statistic. */
+    public static String columnSizeBytesKey(String columnName) {
+        return STATS_COL_PREFIX + columnName + SIZE_BYTES_SUFFIX;
+    }
+
+    /**
+     * Extracts the size in bytes for a specific column directly from the sourceMetadata map.
+     * Returns {@code null} if the metadata is null or the size is absent/non-numeric.
+     */
+    @Nullable
+    public static Long extractColumnSizeBytes(Map<String, Object> sourceMetadata, String columnName) {
+        return sourceMetadata != null ? asBoxedLong(sourceMetadata.get(columnSizeBytesKey(columnName))) : null;
     }
 
     /**
@@ -189,6 +217,9 @@ public final class SourceStatisticsSerializer {
         Map<String, long[]> nullCounts = new HashMap<>();
         Map<String, Comparable[]> mins = new HashMap<>();
         Map<String, Comparable[]> maxs = new HashMap<>();
+        Map<String, long[]> colSizeBytes = new HashMap<>();
+        Set<String> poisonedMins = new HashSet<>();
+        Set<String> poisonedMaxs = new HashSet<>();
 
         for (Map<String, Object> stats : splitStats) {
             if (stats == null || stats.containsKey(STATS_ROW_COUNT) == false) {
@@ -212,15 +243,37 @@ public final class SourceStatisticsSerializer {
                         return a;
                     });
                 } else if (key.endsWith(MIN_SUFFIX) && entry.getValue() instanceof Comparable c) {
-                    mins.merge(key, new Comparable[] { c }, (a, b) -> {
-                        int cmp = a[0].compareTo(b[0]);
-                        if (cmp > 0) a[0] = b[0];
-                        return a;
-                    });
+                    if (poisonedMins.contains(key) == false) {
+                        // Map.merge removes the entry when the remapping function returns null
+                        mins.merge(key, new Comparable[] { c }, (a, b) -> {
+                            Object merged = SplitStats.mergedMin(a[0], b[0]);
+                            if (merged == null) {
+                                return null;
+                            }
+                            a[0] = (Comparable) merged;
+                            return a;
+                        });
+                        if (mins.containsKey(key) == false) {
+                            poisonedMins.add(key);
+                        }
+                    }
                 } else if (key.endsWith(MAX_SUFFIX) && entry.getValue() instanceof Comparable c) {
-                    maxs.merge(key, new Comparable[] { c }, (a, b) -> {
-                        int cmp = a[0].compareTo(b[0]);
-                        if (cmp < 0) a[0] = b[0];
+                    if (poisonedMaxs.contains(key) == false) {
+                        maxs.merge(key, new Comparable[] { c }, (a, b) -> {
+                            Object merged = SplitStats.mergedMax(a[0], b[0]);
+                            if (merged == null) {
+                                return null;
+                            }
+                            a[0] = (Comparable) merged;
+                            return a;
+                        });
+                        if (maxs.containsKey(key) == false) {
+                            poisonedMaxs.add(key);
+                        }
+                    }
+                } else if (key.endsWith(SIZE_BYTES_SUFFIX) && entry.getValue() instanceof Number sbNum) {
+                    colSizeBytes.merge(key, new long[] { sbNum.longValue() }, (a, b) -> {
+                        a[0] += b[0];
                         return a;
                     });
                 }
@@ -235,14 +288,17 @@ public final class SourceStatisticsSerializer {
         nullCounts.forEach((k, v) -> merged.put(k, v[0]));
         mins.forEach((k, v) -> merged.put(k, v[0]));
         maxs.forEach((k, v) -> merged.put(k, v[0]));
+        colSizeBytes.forEach((k, v) -> merged.put(k, v[0]));
         return merged;
     }
 
-    private static OptionalLong toLong(Object value) {
-        if (value instanceof Number n) {
-            return OptionalLong.of(n.longValue());
-        }
-        return OptionalLong.empty();
+    @Nullable
+    private static Long asBoxedLong(Object value) {
+        return value instanceof Number n ? n.longValue() : null;
+    }
+
+    private static OptionalLong toOptionalLong(Long value) {
+        return value != null ? OptionalLong.of(value) : OptionalLong.empty();
     }
 
     private static class DeserializedColumnStatistics implements SourceStatistics.ColumnStatistics {
@@ -256,7 +312,7 @@ public final class SourceStatisticsSerializer {
 
         @Override
         public OptionalLong nullCount() {
-            return extractColumnNullCount(map, colName);
+            return toOptionalLong(extractColumnNullCount(map, colName));
         }
 
         @Override
@@ -266,12 +322,17 @@ public final class SourceStatisticsSerializer {
 
         @Override
         public Optional<Object> minValue() {
-            return extractColumnMin(map, colName);
+            return Optional.ofNullable(extractColumnMin(map, colName));
         }
 
         @Override
         public Optional<Object> maxValue() {
-            return extractColumnMax(map, colName);
+            return Optional.ofNullable(extractColumnMax(map, colName));
+        }
+
+        @Override
+        public OptionalLong sizeInBytes() {
+            return toOptionalLong(extractColumnSizeBytes(map, colName));
         }
     }
 }

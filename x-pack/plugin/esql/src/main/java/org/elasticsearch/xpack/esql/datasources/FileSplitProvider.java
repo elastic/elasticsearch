@@ -225,16 +225,35 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
+     * Builds a {@link StorageObject} that exposes only the bytes for the given {@link FileSplit}.
+     * Always wraps the provider's base object in {@link RangeStorageObject} so format readers and
+     * splittable decompressors only see the split's compressed byte span (including offset {@code 0}).
+     */
+    public static StorageObject storageObjectForSplit(StorageProvider storageProvider, FileSplit fileSplit) {
+        return new RangeStorageObject(storageProvider.newObject(fileSplit.path()), fileSplit.offset(), fileSplit.length());
+    }
+
+    /**
      * Attempts to create block-aligned splits for files with splittable compression.
      * Returns true if block-aligned splits were created, false if the file should
      * fall through to normal splitting logic.
      *
-     * <p>Records straddling a block boundary are handled by the line-alignment protocol:
-     * the first split reads to end-of-stream, subsequent splits skip the first partial
-     * line. A record whose bytes span two blocks will be dropped without failing the
-     * query (a malformed-line warning is logged). This matches Hadoop/Spark behavior
-     * and is acceptable for line-oriented formats with small records relative to block
-     * size (100k–900k).
+     * <p>Macro-splits are disjoint: split {@code m} ends exactly where split {@code m+1}
+     * begins. Records that straddle a macro-split boundary are handled by the codec's
+     * decompression wrapper, which switches to "finish-current-line" mode once the split
+     * boundary is reached at a block end and emits bytes from the next block up to (and
+     * including) the first {@code '\n'}. The subsequent split drops that same tail via
+     * {@code skipFirstLine}. This yields exact record counts without duplicates or loss.
+     *
+     * <p>Protocol cross-references (kept as prose since the datasource plugins are not compile-
+     * time dependencies of this module):
+     * <ul>
+     *   <li>Codec side — {@code Bzip2DecompressionCodec.BlockBoundedDecompressStream}
+     *       implements finish-current-line on the split boundary.</li>
+     *   <li>Reader side — {@code NdJsonPageIterator.skipToNextLine}, wired through
+     *       {@code NdJsonFormatReader.read}'s {@code skipFirstLine} flag, drops the leading
+     *       partial record on every non-first split.</li>
+     * </ul>
      */
     private boolean tryBlockAlignedSplits(
         StoragePath filePath,
@@ -288,6 +307,13 @@ public class FileSplitProvider implements SplitProvider {
             // compressed bytes. This reduces hundreds of tiny per-block splits into 10-40
             // macro-splits while preserving parallelism.
             int[][] macroSplitRanges = groupBoundaries(boundaries, fileLength, DEFAULT_MACRO_SPLIT_TARGET);
+            LOGGER.debug(
+                "block-aligned splits for [{}]: boundaries={}, macro-splits={}, fileLength={}",
+                filePath,
+                boundaries.length,
+                macroSplitRanges.length,
+                fileLength
+            );
 
             for (int m = 0; m < macroSplitRanges.length; m++) {
                 int firstBlockIdx = macroSplitRanges[m][0];
@@ -299,10 +325,12 @@ public class FileSplitProvider implements SplitProvider {
                 if (isLastMacroSplit) {
                     end = fileLength;
                 } else {
-                    // Overlap by one block beyond the nominal end for record correctness
+                    // Disjoint macro-splits: split m ends exactly where split m+1 begins.
+                    // Records straddling the boundary are completed by the codec's
+                    // decompression wrapper (finish-current-line mode), and the
+                    // subsequent split drops the same tail via skipFirstLine.
                     int nextMacroFirstBlock = macroSplitRanges[m + 1][0];
-                    int overlapBlockIdx = nextMacroFirstBlock;
-                    end = (overlapBlockIdx + 1 < boundaries.length) ? boundaries[overlapBlockIdx + 1] : fileLength;
+                    end = boundaries[nextMacroFirstBlock];
                 }
 
                 Map<String, Object> splitConfig = new HashMap<>(config);

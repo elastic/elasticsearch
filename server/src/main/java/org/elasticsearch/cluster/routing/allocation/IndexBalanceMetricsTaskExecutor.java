@@ -49,7 +49,7 @@ import java.util.function.Supplier;
 
 /**
  * Persistent task executor that spawns periodic index balance computation on one node.
- * Delegates the actual computation to {@link IndexBalanceMetrics}.
+ * Delegates the actual computation to {@link IndexBalanceMetricsComputer}.
  */
 public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecutor<IndexBalanceMetricsTaskExecutor.TaskParams> {
 
@@ -69,7 +69,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
     );
 
     /**
-     * Dynamic setting for the interval at which the task runs its refresh.
+     * Dynamic setting for the interval at which the task runs its computation.
      * Default is 1 minute, minimum 100 milliseconds.
      */
     public static final Setting<TimeValue> INDEX_BALANCE_METRICS_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
@@ -91,114 +91,6 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
     private static final List<NamedWriteableRegistry.Entry> NAMED_WRITEABLES = List.of(
         new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TASK_NAME, TaskParams::new)
     );
-
-    public static final String[] PRIMARY_METRIC_NAMES = buildMetricNames("primary");
-    public static final String[] REPLICA_METRIC_NAMES = buildMetricNames("replica");
-
-    private static String[] buildMetricNames(String tier) {
-        var names = new String[IndexBalanceMetrics.BUCKET_COUNT];
-        for (int i = 0; i < names.length; i++) {
-            names[i] = "es.index_imbalance." + tier + "." + IndexBalanceMetrics.BUCKET_DEFINITIONS[i].label() + ".indices.current";
-        }
-        return names;
-    }
-
-    private final ClusterService clusterService;
-    private final AtomicReference<Task> executorNodeTask = new AtomicReference<>();
-    private volatile TimeValue refreshInterval;
-
-    /**
-     * Creates the executor instance, registers pull-based gauges on the given {@link MeterRegistry}.
-     */
-    public IndexBalanceMetricsTaskExecutor(ClusterService clusterService, MeterRegistry meterRegistry) {
-        super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
-        this.clusterService = clusterService;
-        for (int i = 0; i < IndexBalanceMetrics.BUCKET_COUNT; i++) {
-            final int bucket = i;
-            meterRegistry.registerLongsGauge(
-                PRIMARY_METRIC_NAMES[i],
-                "Number of indices with " + IndexBalanceMetrics.BUCKET_DEFINITIONS[i].label() + " primary shard imbalance",
-                "{index}",
-                () -> publishIfNotEmpty(executorNodeTask, true, bucket)
-            );
-            meterRegistry.registerLongsGauge(
-                REPLICA_METRIC_NAMES[i],
-                "Number of indices with " + IndexBalanceMetrics.BUCKET_DEFINITIONS[i].label() + " replica shard imbalance",
-                "{index}",
-                () -> publishIfNotEmpty(executorNodeTask, false, bucket)
-            );
-        }
-        final var clusterSettings = clusterService.getClusterSettings();
-        clusterSettings.initializeAndWatch(INDEX_BALANCE_METRICS_REFRESH_INTERVAL_SETTING, this::updateRefreshInterval);
-    }
-
-    private static List<LongWithAttributes> publishIfNotEmpty(AtomicReference<Task> executorNodeTask, boolean primary, int bucketIndex) {
-        final var task = executorNodeTask.get();
-        if (task == null) {
-            return List.of();
-        }
-        final var state = task.getLastState();
-        if (state == null) {
-            return List.of();
-        }
-        final var histogram = primary ? state.primaryBalanceHistogram() : state.replicaBalanceHistogram();
-        return List.of(new LongWithAttributes(histogram[bucketIndex]));
-    }
-
-    public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
-        return NAMED_XCONTENT_PARSERS;
-    }
-
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return NAMED_WRITEABLES;
-    }
-
-    @Override
-    public Scope scope() {
-        return Scope.CLUSTER;
-    }
-
-    @Override
-    protected void nodeOperation(AllocatedPersistentTask task, TaskParams params, PersistentTaskState state) {
-        final var indexBalanceMetricsTask = (Task) task;
-        final var existingTask = executorNodeTask.getAndSet(indexBalanceMetricsTask);
-        if (existingTask != null) {
-            assert existingTask.stopped : "We should never start a new task when there's still one running";
-            existingTask.markAsCompleted();
-        }
-        indexBalanceMetricsTask.startScheduledRefresh();
-    }
-
-    @Override
-    protected Task createTask(
-        long id,
-        String type,
-        String action,
-        TaskId parentTaskId,
-        PersistentTasksCustomMetadata.PersistentTask<TaskParams> taskInProgress,
-        Map<String, String> headers
-    ) {
-        return new Task(
-            id,
-            type,
-            action,
-            getDescription(taskInProgress),
-            parentTaskId,
-            headers,
-            clusterService.threadPool(),
-            clusterService,
-            () -> refreshInterval,
-            executorNodeTask
-        );
-    }
-
-    private void updateRefreshInterval(TimeValue newRefreshInterval) {
-        this.refreshInterval = newRefreshInterval;
-        final var task = executorNodeTask.get();
-        if (task != null) {
-            task.requestReschedule();
-        }
-    }
 
     /**
      * Parameters for the index balance metrics persistent task. No parameters are required.
@@ -238,24 +130,123 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         public void writeTo(StreamOutput out) {}
     }
 
+    private final ClusterService clusterService;
+    private final AtomicReference<Task> executorNodeTask = new AtomicReference<>();
+    private volatile TimeValue computationInterval;
+
     /**
-     * Persistent task that runs on a single node. Schedules periodic refresh at a configurable interval;
-     * when the routing table changes, {@link #needRefresh} is set and the next run delegates to
-     * {@link IndexBalanceMetrics#compute(ClusterState)}. Cancellation stops the runnable and listener.
+     * Creates the executor instance, registers pull-based gauges on the given {@link MeterRegistry}.
+     */
+    public IndexBalanceMetricsTaskExecutor(ClusterService clusterService, MeterRegistry meterRegistry) {
+        super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
+        assert INDEX_BALANCE_METRICS_ENABLED_SETTING.get(clusterService.getSettings())
+            : "index balance metrics task requires [" + INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey() + "] to be enabled";
+        this.clusterService = clusterService;
+        for (int i = 0; i < IndexBalanceMetricsComputer.BUCKET_COUNT; i++) {
+            final int bucket = i;
+            meterRegistry.registerLongsGauge(
+                IndexBalanceMetricsComputer.PRIMARY_METRIC_NAMES[i],
+                "Number of indices with " + IndexBalanceMetricsComputer.BUCKET_DEFINITIONS[i].label() + " primary shard imbalance",
+                "{index}",
+                () -> publishIfNotEmpty(executorNodeTask, true, bucket)
+            );
+            meterRegistry.registerLongsGauge(
+                IndexBalanceMetricsComputer.REPLICA_METRIC_NAMES[i],
+                "Number of indices with " + IndexBalanceMetricsComputer.BUCKET_DEFINITIONS[i].label() + " replica shard imbalance",
+                "{index}",
+                () -> publishIfNotEmpty(executorNodeTask, false, bucket)
+            );
+        }
+        final var clusterSettings = clusterService.getClusterSettings();
+        clusterSettings.initializeAndWatch(INDEX_BALANCE_METRICS_REFRESH_INTERVAL_SETTING, this::updateComputationInterval);
+    }
+
+    private static List<LongWithAttributes> publishIfNotEmpty(AtomicReference<Task> executorNodeTask, boolean primary, int bucketIndex) {
+        final var task = executorNodeTask.get();
+        if (task == null) {
+            return List.of();
+        }
+        final var state = task.getLastState();
+        if (state == null) {
+            return List.of();
+        }
+        final var histogram = primary ? state.primaryBalanceHistogram() : state.replicaBalanceHistogram();
+        return List.of(new LongWithAttributes(histogram[bucketIndex]));
+    }
+
+    public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
+        return NAMED_XCONTENT_PARSERS;
+    }
+
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return NAMED_WRITEABLES;
+    }
+
+    @Override
+    public Scope scope() {
+        return Scope.CLUSTER;
+    }
+
+    @Override
+    protected void nodeOperation(AllocatedPersistentTask task, TaskParams params, PersistentTaskState state) {
+        final var indexBalanceMetricsTask = (Task) task;
+        final var existingTask = executorNodeTask.getAndSet(indexBalanceMetricsTask);
+        if (existingTask != null) {
+            assert existingTask.stopped : "We should never start a new task when there's still one running";
+            existingTask.markAsCompleted();
+        }
+        indexBalanceMetricsTask.startScheduledComputation();
+    }
+
+    @Override
+    protected Task createTask(
+        long id,
+        String type,
+        String action,
+        TaskId parentTaskId,
+        PersistentTasksCustomMetadata.PersistentTask<TaskParams> taskInProgress,
+        Map<String, String> headers
+    ) {
+        return new Task(
+            id,
+            type,
+            action,
+            getDescription(taskInProgress),
+            parentTaskId,
+            headers,
+            clusterService.threadPool(),
+            clusterService,
+            () -> computationInterval,
+            executorNodeTask
+        );
+    }
+
+    private void updateComputationInterval(TimeValue newComputationInterval) {
+        this.computationInterval = newComputationInterval;
+        final var task = executorNodeTask.get();
+        if (task != null) {
+            task.requestRecomputation();
+        }
+    }
+
+    /**
+     * Persistent task that runs on a single node. Schedules periodic computation at a configurable interval;
+     * when the routing table changes, {@link #needsComputation} is set and the next run delegates to
+     * {@link IndexBalanceMetricsComputer#compute(ClusterState)}. Cancellation stops the runnable and listener.
      */
     public static class Task extends AllocatedPersistentTask {
 
         private final ThreadPool threadPool;
         private final Executor managementExecutor;
         private final ClusterService clusterService;
-        private final AtomicReference<IndexBalanceMetrics.IndexBalanceState> lastState = new AtomicReference<>();
+        private final AtomicReference<IndexBalanceMetricsComputer.IndexBalanceHistograms> lastState = new AtomicReference<>();
         private final ClusterStateListener routingTableChangedListener;
         private final Supplier<TimeValue> pollIntervalSupplier;
         private final Object lifecycleLock = new Object();
-        /** Set when routing table changes; consumed by the refresh runnable. */
-        private final AtomicBoolean needRefresh;
+        /** Set when routing table changes; consumed by the computation runnable. */
+        private final AtomicBoolean needsComputation;
         private final AtomicReference<Task> executorNodeTask;
-        private Scheduler.Cancellable scheduledRefresh;
+        private Scheduler.Cancellable scheduledComputation;
         private volatile boolean stopped;
 
         Task(
@@ -276,89 +267,91 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             this.clusterService = clusterService;
             this.routingTableChangedListener = this::onRoutingTableChanged;
             this.pollIntervalSupplier = pollIntervalSupplier;
-            this.needRefresh = new AtomicBoolean(false);
+            this.needsComputation = new AtomicBoolean(false);
             this.executorNodeTask = executorNodeTask;
         }
 
         private void onRoutingTableChanged(ClusterChangedEvent event) {
             if (event.routingTableChanged()) {
-                needRefresh.set(true);
+                needsComputation.set(true);
             }
         }
 
-        void startScheduledRefresh() {
+        // package private for testing
+        void startScheduledComputation() {
             synchronized (lifecycleLock) {
                 if (stopped) {
                     return;
                 }
                 logger.info("Starting index balance metrics task");
-                needRefresh.set(true);
+                needsComputation.set(true);
                 clusterService.addListener(routingTableChangedListener);
-                scheduleRefresh(pollIntervalSupplier.get());
+                scheduleComputation(pollIntervalSupplier.get());
             }
         }
 
-        void requestReschedule() {
+        // package private for testing
+        void requestRecomputation() {
             synchronized (lifecycleLock) {
                 if (stopped) {
                     return;
                 }
-                cancelScheduledRefresh();
-                scheduleRefresh(pollIntervalSupplier.get());
+                cancelScheduledComputation();
+                scheduleComputation(pollIntervalSupplier.get());
             }
         }
 
         @Override
         public void markAsCompleted() {
             super.markAsCompleted();
-            stopListeningAndCancelRefresh();
+            stopListeningAndCancelComputation();
         }
 
         @Override
         protected void onCancelled() {
-            stopListeningAndCancelRefresh();
+            stopListeningAndCancelComputation();
         }
 
-        private void scheduleRefresh(TimeValue interval) {
+        private void scheduleComputation(TimeValue interval) {
             assert Thread.holdsLock(lifecycleLock) : "Must hold lifecycle lock";
             if (threadPool.scheduler().isShutdown()) {
                 return;
             }
-            assert scheduledRefresh == null : "Must not already have a scheduled refresh";
-            scheduledRefresh = threadPool.scheduleWithFixedDelay(this::runRefresh, interval, managementExecutor);
+            assert scheduledComputation == null : "Must not already have a scheduled computation";
+            scheduledComputation = threadPool.scheduleWithFixedDelay(this::runComputation, interval, managementExecutor);
         }
 
-        private void runRefresh() {
+        private void runComputation() {
             if (stopped) {
                 return;
             }
-            if (needRefresh.getAndSet(false)) {
-                var result = IndexBalanceMetrics.compute(clusterService.state());
+            if (needsComputation.getAndSet(false)) {
+                var result = IndexBalanceMetricsComputer.compute(clusterService.state());
                 lastState.set(result);
             }
         }
 
-        private void cancelScheduledRefresh() {
+        private void cancelScheduledComputation() {
             assert Thread.holdsLock(lifecycleLock) : "Must hold lifecycle lock";
-            if (scheduledRefresh != null) {
-                scheduledRefresh.cancel();
-                scheduledRefresh = null;
+            if (scheduledComputation != null) {
+                scheduledComputation.cancel();
+                scheduledComputation = null;
             }
         }
 
-        private void stopListeningAndCancelRefresh() {
+        private void stopListeningAndCancelComputation() {
             synchronized (lifecycleLock) {
                 stopped = true;
                 clusterService.removeListener(routingTableChangedListener);
-                cancelScheduledRefresh();
+                cancelScheduledComputation();
                 executorNodeTask.compareAndSet(this, null);
             }
         }
 
-        /** Package-visible for testing: returns the current scheduled refresh cancellable, or null if none. */
+        /** Package-visible for testing: returns the current scheduled computation cancellable, or null if none. */
         @Nullable
-        Scheduler.Cancellable getScheduledRefresh() {
-            return scheduledRefresh;
+        Scheduler.Cancellable getScheduledComputation() {
+            return scheduledComputation;
         }
 
         /** Returns the index balance metrics persistent task from the cluster state, or {@code null} if not present. */
@@ -368,12 +361,12 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         }
 
         /**
-         * Get the last computed state if there is one, and the refresh task is not cancelled/completed
+         * Get the last computed state if there is one, and the computation task is not cancelled/completed
          *
          * @return The last computed state, or null if there is none to report
          */
         @Nullable
-        public IndexBalanceMetrics.IndexBalanceState getLastState() {
+        public IndexBalanceMetricsComputer.IndexBalanceHistograms getLastState() {
             if (stopped) {
                 return null;
             }

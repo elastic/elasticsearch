@@ -30,7 +30,7 @@ import java.util.stream.Stream;
  * replicas on {@link DiscoveryNodeRole#SEARCH_ROLE} nodes). Results are aggregated into a
  * histogram of balance ranges rather than retained per-index.
  */
-public enum IndexBalanceMetrics {
+public enum IndexBalanceMetricsComputer {
     ;
 
     static final BucketDefinition[] BUCKET_DEFINITIONS = {
@@ -39,6 +39,17 @@ public enum IndexBalanceMetrics {
         new BucketDefinition("moderate", 0.5),
         new BucketDefinition("severe", 1.0) };
     static final int BUCKET_COUNT = BUCKET_DEFINITIONS.length;
+
+    public static final String[] PRIMARY_METRIC_NAMES = buildMetricNames("primary");
+    public static final String[] REPLICA_METRIC_NAMES = buildMetricNames("replica");
+
+    private static String[] buildMetricNames(String tier) {
+        var names = new String[BUCKET_COUNT];
+        for (int i = 0; i < names.length; i++) {
+            names[i] = "es.index_imbalance." + tier + "." + BUCKET_DEFINITIONS[i].label() + ".indices.current";
+        }
+        return names;
+    }
 
     /**
      * Defines the label and upper bound for a balance-severity bucket.
@@ -49,7 +60,7 @@ public enum IndexBalanceMetrics {
      * Histogram of index balance values for primary and replica sub-groups.
      * Each histogram has {@link #BUCKET_COUNT} buckets; see {@link #compute(ClusterState)} for the bucket scheme.
      */
-    public record IndexBalanceState(int[] primaryBalanceHistogram, int[] replicaBalanceHistogram) {}
+    public record IndexBalanceHistograms(int[] primaryBalanceHistogram, int[] replicaBalanceHistogram) {}
 
     /**
      * Compute index balance from the current cluster state.
@@ -66,7 +77,7 @@ public enum IndexBalanceMetrics {
      * <tr><td>3</td><td>{@code [0.5,1.0]}</td><td>Severe imbalance</td><td>6 shards on 3 nodes: [0,0,6]</td></tr>
      * </table>
      */
-    public static IndexBalanceState compute(ClusterState state) {
+    public static IndexBalanceHistograms compute(ClusterState state) {
         final var nodes = state.nodes();
         final var shutdowns = state.metadata().nodeShutdowns();
         final var indexNodeMap = buildEligibleNodeMap(nodes, shutdowns, DiscoveryNodeRole.INDEX_ROLE);
@@ -85,7 +96,7 @@ public enum IndexBalanceMetrics {
             replicaHist[bucketIndex(shardsImbalanceRatio(searchNodeMap))]++;
         }
 
-        return new IndexBalanceState(primaryHist, replicaHist);
+        return new IndexBalanceHistograms(primaryHist, replicaHist);
     }
 
     /**

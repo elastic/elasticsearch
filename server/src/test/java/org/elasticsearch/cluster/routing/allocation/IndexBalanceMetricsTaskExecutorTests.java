@@ -63,6 +63,7 @@ public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
     public void testFindTaskReturnsNullWhenTaskNotPresent() {
         final var tasks = ClusterPersistentTasksCustomMetadata.builder()
             .addTask(
+                // This is not the correct name for the index balance metrics task, so the `findTask` call below will return nothing.
                 "other-task-id",
                 IndexBalanceMetricsTaskExecutor.TASK_NAME,
                 IndexBalanceMetricsTaskExecutor.TaskParams.INSTANCE,
@@ -91,8 +92,8 @@ public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
     }
 
     public void testDynamicIntervalUpdateReschedules() {
-        final TimeValue initialRefreshInterval = randomTimeValueGreaterThan(TimeValue.timeValueHours(1));
-        final AtomicReference<TimeValue> currentInterval = new AtomicReference<>(initialRefreshInterval);
+        final TimeValue initialComputationInterval = randomTimeValueGreaterThan(TimeValue.timeValueHours(1));
+        final AtomicReference<TimeValue> currentInterval = new AtomicReference<>(initialComputationInterval);
         final var task = new IndexBalanceMetricsTaskExecutor.Task(
             1L,
             IndexBalanceMetricsTaskExecutor.TASK_NAME,
@@ -105,13 +106,13 @@ public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
             currentInterval::get,
             new AtomicReference<>()
         );
-        task.startScheduledRefresh();
-        final var cancellableBefore = task.getScheduledRefresh();
+        task.startScheduledComputation();
+        final var cancellableBefore = task.getScheduledComputation();
         assertThat(cancellableBefore, notNullValue());
-        currentInterval.set(randomTimeValueGreaterThan(initialRefreshInterval));
-        task.requestReschedule();
+        currentInterval.set(randomTimeValueGreaterThan(initialComputationInterval));
+        task.requestRecomputation();
         assertThat("previous scheduled task should be cancelled", cancellableBefore.isCancelled(), equalTo(true));
-        final var cancellableAfter = task.getScheduledRefresh();
+        final var cancellableAfter = task.getScheduledComputation();
         assertThat(cancellableAfter, notNullValue());
         assertThat("scheduled task should be replaced after interval change", cancellableAfter, not(sameInstance(cancellableBefore)));
         task.onCancelled();

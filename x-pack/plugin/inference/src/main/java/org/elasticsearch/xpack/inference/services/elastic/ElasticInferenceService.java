@@ -11,35 +11,28 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -72,10 +65,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedTaskTypeStatusException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.USER_ROLE;
 
 public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel> {
@@ -113,7 +102,6 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         TEXT_EMBEDDING
     );
 
-    private final Map<TaskType, ElasticInferenceServiceModelCreator<? extends ElasticInferenceServiceModel>> modelCreators;
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
     private ElasticInferenceServiceActionCreator actionCreator;
 
@@ -134,14 +122,19 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         ClusterService clusterService,
         CCMAuthenticationApplierFactory ccmAuthApplierFactory
     ) {
-        super(factory, serviceComponents, clusterService, Map.of());
+        super(factory, serviceComponents, clusterService, initModelCreators(elasticInferenceServiceSettings));
         this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
+    }
+
+    private static Map<TaskType, ModelCreator<? extends ElasticInferenceServiceModel>> initModelCreators(
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings
+    ) {
         var elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
         );
         var denseEmbeddingsModelCreator = new ElasticInferenceServiceDenseEmbeddingsModelCreator(elasticInferenceServiceComponents);
         var completionModelCreator = new ElasticInferenceServiceCompletionModelCreator(elasticInferenceServiceComponents);
-        this.modelCreators = Map.of(
+        return Map.of(
             TaskType.TEXT_EMBEDDING,
             denseEmbeddingsModelCreator,
             TaskType.EMBEDDING,
@@ -327,43 +320,6 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         return NAME;
     }
 
-    @Override
-    public void parseRequestConfig(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        ActionListener<Model> parsedModelListener
-    ) {
-        try {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-            ChunkingSettings chunkingSettings = null;
-            if (CHUNKING_TASK_TYPES.contains(taskType)) {
-                chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-                );
-            }
-
-            ElasticInferenceServiceModel model = createModel(
-                inferenceEntityId,
-                taskType,
-                serviceSettingsMap,
-                chunkingSettings,
-                ConfigurationParseContext.REQUEST,
-                null
-            );
-
-            throwIfNotEmptyMap(config, NAME);
-            throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            throwIfNotEmptyMap(taskSettingsMap, NAME);
-
-            parsedModelListener.onResponse(model);
-        } catch (Exception e) {
-            parsedModelListener.onFailure(e);
-        }
-    }
-
     /**
      * This shouldn't be called because the configuration changes based on the authorization.
      * Instead, retrieve the authorization directly from the EIS gateway and use the static method
@@ -392,83 +348,9 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         );
     }
 
-    private ElasticInferenceServiceModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        ChunkingSettings chunkingSettings,
-        ConfigurationParseContext context,
-        @Nullable EndpointMetadata endpointMetadata
-    ) {
-
-        return retrieveModelCreatorFromMapOrThrow(modelCreators, inferenceEntityId, taskType, NAME, context).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            chunkingSettings,
-            context,
-            endpointMetadata
-        );
-    }
-
-    @Override
-    public ElasticInferenceServiceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return retrieveModelCreatorFromMapOrThrow(
-            modelCreators,
-            config.getInferenceEntityId(),
-            config.getTaskType(),
-            config.getService(),
-            ConfigurationParseContext.PERSISTENT
-        ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
-    public ElasticInferenceServiceModel parsePersistedConfig(UnparsedModel unparsedModel) {
-        var config = unparsedModel.settings();
-        var secrets = unparsedModel.secrets();
-        var taskType = unparsedModel.taskType();
-
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        // These aren't used by EIS endpoints so we'll remove them to avoid potential validation issues
-        removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
-        if (secrets != null) {
-            removeFromMap(secrets, ModelSecrets.SECRET_SETTINGS);
-        }
-
-        ChunkingSettings chunkingSettings = null;
-        if (CHUNKING_TASK_TYPES.contains(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(
-            unparsedModel.inferenceEntityId(),
-            taskType,
-            serviceSettingsMap,
-            chunkingSettings,
-            unparsedModel.endpointMetadata()
-        );
-    }
-
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.minimumCompatible();
-    }
-
-    private ElasticInferenceServiceModel createModelFromPersistent(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable EndpointMetadata endpointMetadata
-    ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            chunkingSettings,
-            ConfigurationParseContext.PERSISTENT,
-            endpointMetadata
-        );
     }
 
     @Override

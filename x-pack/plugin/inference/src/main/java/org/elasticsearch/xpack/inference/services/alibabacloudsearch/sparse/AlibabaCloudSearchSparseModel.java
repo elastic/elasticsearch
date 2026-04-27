@@ -46,7 +46,7 @@ public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
             AlibabaCloudSearchSparseServiceSettings.fromMap(serviceSettings, context),
             AlibabaCloudSearchSparseTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

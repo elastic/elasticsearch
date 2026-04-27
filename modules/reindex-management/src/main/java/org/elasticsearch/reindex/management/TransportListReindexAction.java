@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasks
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
@@ -27,6 +28,8 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 
 /// Transport action for listing all running reindex tasks.
 /// Delegates to {@link TransportListTasksAction} to fan out to all nodes (which handles deduplication if we list a non-relocated and
@@ -40,7 +43,7 @@ public class TransportListReindexAction extends HandledTransportAction<ListReind
     @Inject
     public TransportListReindexAction(final TransportService transportService, final ActionFilters actionFilters, final Client client) {
         super(TYPE.name(), transportService, actionFilters, ListReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.client = Objects.requireNonNull(client);
+        this.client = new OriginSettingClient(Objects.requireNonNull(client), TASKS_ORIGIN);
     }
 
     @Override

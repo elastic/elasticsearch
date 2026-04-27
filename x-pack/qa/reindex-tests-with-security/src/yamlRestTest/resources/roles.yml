@@ -69,6 +69,25 @@ minimal_with_reindex_get:
         - create_index
         - indices:admin/refresh
 
+# Same index privileges as minimal, plus the dedicated reindex list API (GET /_reindex)
+minimal_with_reindex_list:
+  cluster:
+    - cluster:monitor/main
+    - cluster:monitor/reindex/list
+  indices:
+    - names: source
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+    - names: dest
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
 # Read only operations on indices
 readonly:
   cluster:

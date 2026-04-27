@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.llama.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -15,10 +16,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -33,7 +34,7 @@ import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.is;
 
-public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<LlamaEmbeddingsServiceSettings> {
+public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<LlamaEmbeddingsServiceSettings> {
 
     private static final URI TEST_URI = URI.create("https://www.test.com");
     private static final URI INITIAL_TEST_URI = URI.create("https://www.initial.com");
@@ -585,5 +586,10 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
             map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
         }
         return map;
+    }
+
+    @Override
+    protected LlamaEmbeddingsServiceSettings mutateInstanceForVersion(LlamaEmbeddingsServiceSettings instance, TransportVersion version) {
+        return instance;
     }
 }

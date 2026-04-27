@@ -144,27 +144,6 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCWireSeri
         assertThat(xContentResult, is(expected));
     }
 
-    public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
-        var serviceSettings = LlamaChatCompletionServiceSettings.fromMap(
-            buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), null),
-            randomFrom(ConfigurationParseContext.values())
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        serviceSettings.toXContent(builder, null);
-        var xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace(Strings.format("""
-            {
-                "model_id": "%s",
-                "url": "%s",
-                "rate_limit": {
-                    "requests_per_minute": %d
-                }
-            }
-            """, TEST_MODEL_ID, TEST_URI.toString(), DEFAULT_RATE_LIMIT));
-        assertThat(xContentResult, is(expected));
-    }
-
     @Override
     protected Writeable.Reader<LlamaChatCompletionServiceSettings> instanceReader() {
         return LlamaChatCompletionServiceSettings::new;

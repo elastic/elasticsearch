@@ -321,6 +321,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             try {
                 ia = concreteIndices.resolveIfAbsent(docWriteRequest);
                 indexOperationValidator.accept(ia, docWriteRequest);
+                TransportBulkAction.requireSliceRoutingWhenEnabled(docWriteRequest, ia, project::index);
 
                 TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, ia);
                 TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia, project::index);
@@ -423,8 +424,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG
-                    && IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
+                boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
                 executeBulkShardRequest(bulkShardRequest, project.id(), bulkItemRequestCompleteRefCount.acquire(), redactSeqNo);
             }
         }

@@ -61,7 +61,7 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
         transportService = MockTransportService.createNewService(
             Settings.EMPTY,
             VersionInformation.CURRENT,
-            TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE,
+            TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER,
             threadPool
         );
         transportService.start();
@@ -278,8 +278,9 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
 
     private BytesReference serializeHits(SearchHit... hits) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
+            for (int i = 0; i < hits.length; i++) {
+                out.writeVInt(i);
+                hits[i].writeTo(out);
             }
             return out.bytes();
         }

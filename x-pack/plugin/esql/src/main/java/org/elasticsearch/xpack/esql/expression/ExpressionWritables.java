@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ScalarFunctionWritables;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBas
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
@@ -260,6 +261,7 @@ public class ExpressionWritables {
         entries.add(ToLongBase.ENTRY);
         entries.add(ToRadians.ENTRY);
         entries.add(ToString.ENTRY);
+        entries.add(ToText.ENTRY);
         entries.add(ToTDigest.ENTRY);
         entries.add(ToUnsignedLong.ENTRY);
         entries.add(ToVersion.ENTRY);

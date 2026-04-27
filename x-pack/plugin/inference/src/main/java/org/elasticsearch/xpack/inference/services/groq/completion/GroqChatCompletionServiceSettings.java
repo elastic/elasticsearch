@@ -32,8 +32,8 @@ import java.util.Objects;
 /**
  * Service settings for Groq chat completion models.
  * Groq reuses the OpenAI wire format, so this largely mirrors the OpenAI settings class
- * but applies Groq-specific defaults such as the base URL and rate limits documented at
- * https://console.groq.com/docs/rate-limits.
+ * but applies Groq-specific defaults such as the base URL and rate limits documented in
+ * <a href="https://console.groq.com/docs/rate-limits">Groq Documentation</a>.
  */
 public class GroqChatCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, GroqRateLimitServiceSettings {
 
@@ -45,29 +45,22 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
     public static GroqChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String modelId = ServiceUtils.extractRequiredString(
+        var modelId = ServiceUtils.extractRequiredString(
             map,
             ServiceFields.MODEL_ID,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        String organizationId = ServiceUtils.extractOptionalString(
+        var organizationId = ServiceUtils.extractOptionalString(
             map,
             OpenAiServiceFields.ORGANIZATION,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        String url = ServiceUtils.extractOptionalString(map, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        URI uri = ServiceUtils.convertToUri(url, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            GroqService.NAME,
-            context
-        );
+        var uri = ServiceUtils.extractOptionalUri(map, ServiceFields.URL, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, GroqService.NAME, context);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -93,20 +86,37 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    GroqChatCompletionServiceSettings(
-        String modelId,
-        @Nullable String uri,
-        @Nullable String organizationId,
-        @Nullable RateLimitSettings rateLimitSettings
-    ) {
-        this(modelId, ServiceUtils.createOptionalUri(uri), organizationId, rateLimitSettings);
-    }
-
     public GroqChatCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.uri = ServiceUtils.createOptionalUri(in.readOptionalString());
         this.organizationId = in.readOptionalString();
         this.rateLimitSettings = new RateLimitSettings(in);
+    }
+
+    @Override
+    public GroqChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            GroqService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+        var extractedOrganizationId = ServiceUtils.extractOptionalString(
+            serviceSettings,
+            OpenAiServiceFields.ORGANIZATION,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        validationException.throwIfValidationErrorsExist();
+        return new GroqChatCompletionServiceSettings(
+            this.modelId,
+            this.uri,
+            extractedOrganizationId != null ? extractedOrganizationId : this.organizationId,
+            extractedRateLimitSettings
+        );
     }
 
     @Override

@@ -68,7 +68,7 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
         return createMapperService(settingsBuilder.build(), mappings).documentMapper();
     }
 
-    private static ParsedDocument parseDocument(int hash, DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
+    private ParsedDocument parseDocument(int hash, DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
         throws IOException {
         // Add the @timestamp field required by DataStreamTimestampFieldMapper for all time series indices
         return docMapper.parse(source(null, b -> {
@@ -77,7 +77,7 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
         }, TimeSeriesRoutingHashFieldMapper.encode(hash)));
     }
 
-    private static ParsedDocument parseDocument(String id, DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
+    private ParsedDocument parseDocument(String id, DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
         throws IOException {
         // Add the @timestamp field required by DataStreamTimestampFieldMapper for all time series indices
         return docMapper.parse(source(id, b -> {
@@ -104,7 +104,7 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
     }
 
     public void testRetrievedFromIdInTimeSeriesMode() throws Exception {
-        boolean syntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
+        boolean syntheticId = randomBoolean();
         DocumentMapper docMapper = createMapper(mapping(b -> {
             b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
         }), syntheticId);

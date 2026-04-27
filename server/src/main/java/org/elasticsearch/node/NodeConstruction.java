@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.internal.Client;
@@ -62,10 +63,10 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
-import org.elasticsearch.cluster.routing.allocation.ShardWriteLoadDistributionMetrics;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -855,9 +856,7 @@ class NodeConstruction {
             )::onNewInfo
         );
 
-        clusterInfoService.addListener(
-            new ShardWriteLoadDistributionMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo
-        );
+        clusterInfoService.addListener(new WriteLoadMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo);
 
         IndicesModule indicesModule = new IndicesModule(
             pluginsService.filterPlugins(MapperPlugin.class).toList(),
@@ -1385,6 +1384,8 @@ class NodeConstruction {
             () -> Log4jWriter.PROVIDER
         );
 
+        ReshardingActionHelper reshardingActionHelper = new ReshardingActionHelper(clusterService, projectResolver, threadPool);
+
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);
             b.bind(BigArrays.class).toInstance(bigArrays);
@@ -1433,6 +1434,7 @@ class NodeConstruction {
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
             b.bind(DataStreamLifecycleErrorStore.class).toInstance(dlmErrorStore);
+            b.bind(ReshardingActionHelper.class).toInstance(reshardingActionHelper);
         });
 
         if (ReadinessService.enabled(environment)) {

@@ -138,7 +138,15 @@ public class TsInfoExec extends UnaryExec {
 
     @Override
     protected AttributeSet computeReferences() {
-        return child().outputSet();
+        if (mode.inputPartial) {
+            return super.computeReferences();
+        }
+        for (Attribute attribute : child().outputSet()) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
+                return AttributeSet.of(attribute);
+            }
+        }
+        return AttributeSet.EMPTY;
     }
 
     @Override

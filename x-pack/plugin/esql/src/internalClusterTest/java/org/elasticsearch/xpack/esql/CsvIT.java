@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.License;
@@ -158,16 +159,16 @@ public class CsvIT extends ESTestCase {
         return SpecReader.readScriptSpec(urls, specParser());
     }
 
-    private static java.nio.file.Path nodeConfigDir;
-
     @BeforeClass
     public static void setupCluster() throws Exception {
-        nodeConfigDir = createConfigDir();
         long start = System.currentTimeMillis();
         logger.info("Creating test cluster");
+        var nodeDirectory = createTempDir();
+        var configDirectory = nodeDirectory.resolve("config");
+        createCustomRegexConfig(configDirectory);
         cluster = new InternalTestCluster(
             randomLong(),
-            createTempDir(),
+            nodeDirectory,
             false,
             true,
             1,
@@ -184,7 +185,7 @@ public class CsvIT extends ESTestCase {
 
                 @Override
                 public java.nio.file.Path nodeConfigPath(int nodeOrdinal) {
-                    return nodeConfigDir;
+                    return configDirectory;
                 }
             },
             0,
@@ -240,6 +241,9 @@ public class CsvIT extends ESTestCase {
         views.ensureNoFailures();
 
         var request = syncEsqlQueryRequest(testCase.query);
+        if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
+            request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
+        }
         var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
         cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
         // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
@@ -254,6 +258,7 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
+            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), logger);
             CsvAssert.assertDataWithValueConverter(
                 expected,
                 actual.values(),
@@ -376,13 +381,35 @@ public class CsvIT extends ESTestCase {
         Stream.of(request.indices()).flatMap(pattern -> {
             assert pattern.contains("<") == false : "Date-math is not supported in test";
             if (pattern.contains("*")) {
-                assert pattern.endsWith("*") : "Only suffix patterns are supported in test";
-                var prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
+                if (pattern.equals("*")) {
+                    switch (currentGroupName) {
+                        // Temporarily allow a few so they have time to migrate away
+                        case "enrich", "inlinestats", "limit", "lookup-join" -> logger.warn("stop using FROM *");
+                        // Views tests need FROM * with exclusions to test wildcard view resolution (e.g. FROM *,-employees*)
+                        case "views" -> logger.info("FROM * used in views test");
+                        default -> throw new IllegalStateException(
+                            "FROM * is not allowed in csv-spec tests because it makes them brittle. We add new data sets frequently."
+                        );
+                    }
+                    return CSV_DATASET.values().stream();
+                }
+                if (pattern.endsWith("*") == false) {
+                    throw new IllegalStateException("CsvIT only supports suffix patterns but got: " + pattern);
+                }
+                String prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
+                if (prefix.length() < 3) {
+                    throw new IllegalStateException(
+                        "FROM pattern* may not be short in csv-spec tests because it makes them brittle. We add new data sets frequently."
+                    );
+                }
                 return CSV_DATASET.values().stream().filter(ds -> ds.indexName().startsWith(prefix));
             } else {
                 return Stream.of(CSV_DATASET.get(pattern));
             }
-        }).filter(Objects::nonNull).forEach(resource -> indices.maybeLoad(resource.indexName(), resource));
+        })
+            .filter(Objects::nonNull)
+            .filter(resource -> resource.requiredCapabilities().stream().allMatch(EsqlCapabilities.Cap::isEnabled))
+            .forEach(resource -> indices.maybeLoad(resource.indexName(), resource));
     }
 
     private static void loadInference(GetInferenceModelAction.Request request) {
@@ -506,7 +533,10 @@ public class CsvIT extends ESTestCase {
             logger.info("Unloading view [{}]", name);
             assertAcked(
                 cluster.client()
-                    .execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name))
+                    .execute(
+                        DeleteViewAction.INSTANCE,
+                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                    )
             );
         }
     };
@@ -547,9 +577,7 @@ public class CsvIT extends ESTestCase {
         }
     }
 
-    private static Path createConfigDir() throws IOException {
-        Path configDir = createTempDir();
-
+    private static void createCustomRegexConfig(Path configDir) throws IOException {
         // create a subdir for the user-agent with custom regex files so we can test the USER_AGENT with the regex_file option
         Path userAgentDir = configDir.resolve("user-agent");
         Files.createDirectories(userAgentDir);
@@ -557,8 +585,6 @@ public class CsvIT extends ESTestCase {
             assert is != null : "custom-regexes.yml not found on classpath";
             Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
         }
-
-        return configDir;
     }
 
     private static class ResponseListener extends PlainActionFuture<EsqlQueryResponse> {

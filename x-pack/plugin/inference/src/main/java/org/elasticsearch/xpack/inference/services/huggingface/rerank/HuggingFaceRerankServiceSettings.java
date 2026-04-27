@@ -43,9 +43,9 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     );
 
     public static HuggingFaceRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
         var uri = extractUri(map, ServiceFields.URL, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -55,6 +55,23 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
 
         validationException.throwIfValidationErrorsExist();
         return new HuggingFaceRerankServiceSettings(uri, rateLimitSettings);
+    }
+
+    @Override
+    public HuggingFaceRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            HuggingFaceService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new HuggingFaceRerankServiceSettings(this.uri, extractedRateLimitSettings);
     }
 
     private final URI uri;

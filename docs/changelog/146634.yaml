@@ -1,0 +1,7 @@
+area: EQL
+issues:
+ - 146263
+ - 146187
+pr: 146634
+summary: Fix management of PIT close failures after successful query
+type: bug

@@ -1,0 +1,143 @@
+---
+"multi_value=no is enforced per document not per segment":
+  - requires:
+      cluster_features: ["mapper.doc_values.multi_value"]
+      reason: "multi_value doc values parameter support"
+
+  - do:
+      indices.create:
+        index: test_per_document
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: "no"
+
+  - do:
+      index:
+        index: test_per_document
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "value_a"
+
+  - do:
+      index:
+        index: test_per_document
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "value_b"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_per_document
+        body:
+          query:
+            match_all: {}
+  - match: { hits.total.value: 2 }
+
+---
+"multi_value=no mapping serialization roundtrip":
+  - requires:
+      cluster_features: ["mapper.doc_values.multi_value"]
+      reason: "multi_value doc values parameter support"
+
+  - do:
+      indices.create:
+        index: test_roundtrip
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: "no"
+
+  - do:
+      indices.get_mapping:
+        index: test_roundtrip
+
+  - match: { test_roundtrip.mappings.properties.kw.doc_values.multi_value: "no" }
+
+---
+"multi_value=no on multi-field sub rejects parent array":
+  - requires:
+      cluster_features: ["mapper.doc_values.multi_value_enforcement"]
+      reason: "multi_value=no enforcement on indexing"
+
+  - do:
+      indices.create:
+        index: test_multifield_sub
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              parent:
+                type: keyword
+                fields:
+                  child:
+                    type: keyword
+                    doc_values:
+                      multi_value: "no"
+
+  # The first value is accepted by both the parent and child fields.
+  - do:
+      index:
+        index: test_multifield_sub
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          parent: "a"
+
+  # The second value is rejected by the child field.
+  - do:
+      catch: /configured with \[multi_value=no\] but encountered multiple values in the same document/
+      index:
+        index: test_multifield_sub
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          parent: ["a", "b"]
+
+---
+"multi_value=no on multi-field parent rejects parent array":
+  - requires:
+      cluster_features: ["mapper.doc_values.multi_value_enforcement"]
+      reason: "multi_value=no enforcement on indexing"
+
+  - do:
+      indices.create:
+        index: test_multifield_parent
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              parent:
+                type: keyword
+                doc_values:
+                  multi_value: "no"
+                fields:
+                  child:
+                    type: keyword
+
+  # The second value is rejected by the parent field.
+  - do:
+      catch: /configured with \[multi_value=no\] but encountered multiple values in the same document/
+      index:
+        index: test_multifield_parent
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          parent: ["a", "b"]

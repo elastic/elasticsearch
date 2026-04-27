@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -14,7 +16,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
@@ -198,13 +199,13 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
      * Tests that the SORTED input ordering optimization short-circuiting addInput() doesn't incorrectly skip rows
      * belonging to groups not yet populated when another group's row is rejected.
      *
-     * <pre>{@code
+     * {@snippet lang="text" :
      * Scenario (SORT ASC, LIMIT 1 BY group):
      * - Page 1: (group=0), (group=1) → both groups populated
      * - Page 2: (group=0), (group=2) → (group=0) rejected from full group 0 → break skips (group=2), which was empty
      * Expected groups: {0, 1, 2}
      * Bug result: {0, 1} (group 2 missing)
-     * }</pre>
+     * }
      */
     public void testSortedInputWithMultipleGroups() {
         List<ElementType> elementTypes = List.of(ElementType.INT, ElementType.INT);
@@ -383,7 +384,12 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                     new GroupKeyEncoder(
                         groupKeys.stream().mapToInt(Integer::intValue).toArray(),
                         randomBlocksResult.elementTypes,
-                        new BreakingBytesRefBuilder(nonBreakingBigArrays().breakerService().getBreaker("request"), "group-key-encoder")
+                        new PagedBytesBuilder(
+                            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                            nonBreakingBigArrays().breakerService().getBreaker("request"),
+                            "group-key-encoder",
+                            64
+                        )
                     ),
                     rows,
                     Long.MAX_VALUE
@@ -450,7 +456,12 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         new GroupKeyEncoder(
                             groupKeys,
                             elementTypes,
-                            new BreakingBytesRefBuilder(nonBreakingBigArrays().breakerService().getBreaker("request"), "group-key-encoder")
+                            new PagedBytesBuilder(
+                                PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                                nonBreakingBigArrays().breakerService().getBreaker("request"),
+                                "group-key-encoder",
+                                64
+                            )
                         ),
                         randomPageSize(),
                         Long.MAX_VALUE

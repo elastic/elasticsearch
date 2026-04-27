@@ -145,12 +145,16 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                                     int max = maxExclusive - 1;
 
                                     // want range [min, max)
-                                    System.out.println("min value: " + min + " max value: " + max);
+//                                    System.out.println("min value: " + min + " max value: " + max);
 
                                     int currBlockStart = min;
                                     while (currBlockStart <= max) {
+                                        // Also advances at beginning when value is -1
                                         if (skipper.maxDocID(0) < currBlockStart) {
                                             skipper.advance(currBlockStart);
+                                            if (skipper.maxDocID(0) == NO_MORE_DOCS) {
+                                                return NO_MORE_DOCS;
+                                            }
                                         }
 
                                         int minDoc = skipper.minDocID(0);
@@ -164,7 +168,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                                         if (lowerValue <= minVal && maxVal <= upperValue) {
                                             // Skipper range is entirely contained within query range
                                             // Collect all accepted Doc
-                                            for (int doc = minDocInBlock; doc <= minDocInBlock; doc++) {
+                                            for (int doc = minDocInBlock; doc <= maxDocInBlock; doc++) {
                                                 if (acceptDocs == null || acceptDocs.get(doc)) {
                                                     collector.collect(doc);
                                                 }
@@ -184,7 +188,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                                         // Else: Skipper block does not intersect range
 
                                         currBlockStart = maxDocInBlock + 1;
-                                        System.out.println("currBlockStart: " + currBlockStart);
+//                                        System.out.println("currBlockStart: " + currBlockStart);
                                     }
                                     return maxExclusive;
                                 }

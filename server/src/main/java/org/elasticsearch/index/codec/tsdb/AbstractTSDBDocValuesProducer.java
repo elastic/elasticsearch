@@ -2450,36 +2450,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public void tryCollectMatches(LeafCollector collector, Bits acceptedDocs, int firstDoc, int lastDoc, long lowerValue, long upperValue) throws IOException {
-
-                    int docsCount = lastDoc - firstDoc + 1;
-
                     int firstBlock = firstDoc >>> numericBlockShift;
                     int lastBlock = lastDoc >>> numericBlockShift;
-
-
                     int docId = firstDoc;
-
-                    // first block
-                    {
-                        loadBlock(firstBlock);
-                        int firstInBlock = firstDoc & numericBlockMask;
-                        int lastInBlock = firstBlock == lastBlock ? lastDoc & numericBlockMask : numericBlockMask;
-
-                        for (int idx = firstInBlock; idx <= lastInBlock; idx++) {
-                            long val = currentBlock[idx];
-                            if (val >= lowerValue && val <= upperValue) {
-                                if (acceptedDocs == null || acceptedDocs.get(docId)) {
-                                    collector.collect(docId);
-                                }
-                            }
-                            docId++;
-                        }
-                    }
-
-                    // middle blocks
-                    for (int blockId = firstBlock + 1; blockId < lastBlock; blockId++) {
+                    for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
                         loadBlock(blockId);
-                        for (int idx = 0; idx <= numericBlockMask; idx++) {
+                        int firstInBlock = blockId == firstBlock ? firstDoc & numericBlockMask : 0;
+                        int lastInBlock = blockId == lastBlock ? lastDoc & numericBlockMask : numericBlockMask;
+                        for (int idx = firstInBlock; idx <= lastInBlock; idx++) {
                             long val = currentBlock[idx];
                             if (val >= lowerValue && val <= upperValue) {
                                 if (acceptedDocs == null || acceptedDocs.get(docId++)) {
@@ -2489,25 +2467,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             docId++;
                         }
                     }
-
-                    // last block if different from first
-                    if (lastBlock > firstBlock) {
-                        loadBlock(lastBlock);
-                        int firstInBlock = 0;
-                        int lastInBlock = lastDoc & numericBlockMask;
-
-                        for (int idx = firstInBlock; idx <= lastInBlock; idx++) {
-                            long val = currentBlock[idx];
-                            if (val >= lowerValue && val <= upperValue) {
-                                if (acceptedDocs == null || acceptedDocs.get(docId)) {
-                                    collector.collect(docId);
-                                }
-                            }
-                            docId++;
-                        }
-                    }
                 }
-
 
                 @Override
                 SortedOrdinalReader sortedOrdinalReader() {

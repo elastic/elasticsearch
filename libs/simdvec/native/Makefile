@@ -22,7 +22,7 @@ CXXFLAGS   = -std=c++17 -O3 -fpic -DNDEBUG
 
 # Per-architecture march flags
 MARCH_AARCH64_TIER1 = armv8.2-a+dotprod
-MARCH_AARCH64_TIER2 = armv8.2-a+sve
+MARCH_AARCH64_TIER2 = armv8.4-a+sve+bf16
 MARCH_AMD64_TIER1   = core-avx2
 MARCH_AMD64_TIER2   = icelake-client
 MARCH_AMD64_TIER3   = cooperlake

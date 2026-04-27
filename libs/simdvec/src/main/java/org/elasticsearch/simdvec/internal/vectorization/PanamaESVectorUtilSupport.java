@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MathUtils;
 import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
@@ -135,7 +136,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
                     source.vectorCount(),
                     scoresSegment
                 );
-                sum += max(scoresScratch, source.vectorCount());
+                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
             }
             return sum;
         }
@@ -151,14 +152,14 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
             float sum = 0f;
             for (float[] floats : query) {
-                Similarities.dotProductDBF16QF32BulkDense(
+                Similarities.dotProductDBF16QF32Bulk(
                     vectorsSegment,
                     MemorySegment.ofArray(floats),
                     source.vectorDims(),
                     source.vectorCount(),
                     scoresSegment
                 );
-                sum += max(scoresScratch, source.vectorCount());
+                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
             }
             return sum;
         }
@@ -181,7 +182,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
                     source.vectorCount(),
                     scoresSegment
                 );
-                sum += max(scoresScratch, source.vectorCount());
+                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
             }
             return sum;
         }
@@ -1534,14 +1535,6 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static boolean canUseI8BulkPath(MultiByteVectorsSource source) {
         return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims();
-    }
-
-    private static float max(float[] values, int length) {
-        float max = Float.NEGATIVE_INFINITY;
-        for (int i = 0; i < length; i++) {
-            max = Math.max(max, values[i]);
-        }
-        return max;
     }
 
 }

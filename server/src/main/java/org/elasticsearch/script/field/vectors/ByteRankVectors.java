@@ -76,7 +76,7 @@ public class ByteRankVectors implements RankVectors, MultiByteVectorsSource {
                 maxes[i] = Math.max(maxes[i], ((bitCount - VectorUtil.xorBitCount(vv, query[i])) / (float) bitCount));
             }
         }
-        return sum(maxes, query.length);
+        return ESVectorUtil.sum(maxes, query.length);
     }
 
     @Override
@@ -148,14 +148,6 @@ public class ByteRankVectors implements RankVectors, MultiByteVectorsSource {
             maxesScratch = new float[queryCount];
         }
         return maxesScratch;
-    }
-
-    private static float sum(float[] values, int length) {
-        float sum = 0f;
-        for (int i = 0; i < length; i++) {
-            sum += values[i];
-        }
-        return sum;
     }
 
     static class ByteToFloatIteratorWrapper implements Iterator<float[]> {

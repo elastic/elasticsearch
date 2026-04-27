@@ -258,6 +258,24 @@ public class ESVectorUtil {
         return distance;
     }
 
+    public static float max(float[] values, int length) {
+        Objects.checkFromIndexSize(0, length, values.length);
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < length; i++) {
+            max = Math.max(max, values[i]);
+        }
+        return max;
+    }
+
+    public static float sum(float[] values, int length) {
+        Objects.checkFromIndexSize(0, length, values.length);
+        float sum = 0f;
+        for (int i = 0; i < length; i++) {
+            sum += values[i];
+        }
+        return sum;
+    }
+
     private static void ensureScoresScratchCapacity(MultiVectorsSource<?> source, float[] scoresScratch) {
         if (scoresScratch.length < source.vectorCount()) {
             throw new IllegalArgumentException("scores array too small: " + scoresScratch.length + " < " + source.vectorCount());

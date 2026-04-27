@@ -140,7 +140,7 @@ public class Similarities {
         BFloat16QueryType.FLOAT32,
         Operation.SINGLE
     );
-    static final MethodHandle DOT_PRODUCT_DBF16QF32_BULK_DENSE = DISTANCE_FUNCS.getBFloat16Handle(
+    static final MethodHandle DOT_PRODUCT_DBF16QF32_BULK = DISTANCE_FUNCS.getBFloat16Handle(
         Function.DOT_PRODUCT,
         BFloat16QueryType.FLOAT32,
         Operation.BULK
@@ -572,7 +572,7 @@ public class Similarities {
         }
     }
 
-    public static void dotProductDBF16QF32BulkDense(
+    public static void dotProductDBF16QF32Bulk(
         MemorySegment vectors,
         MemorySegment query,
         int dimensions,
@@ -580,7 +580,7 @@ public class Similarities {
         MemorySegment scores
     ) {
         try {
-            DOT_PRODUCT_DBF16QF32_BULK_DENSE.invokeExact(vectors, query, dimensions, count, scores);
+            DOT_PRODUCT_DBF16QF32_BULK.invokeExact(vectors, query, dimensions, count, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }

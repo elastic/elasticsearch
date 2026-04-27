@@ -76,19 +76,19 @@ public final class DatasetRewriter {
         }
         if (relation.indexMode() != null && relation.indexMode() != IndexMode.STANDARD) {
             String message = switch (relation.indexMode()) {
-                case TIME_SERIES -> "TS command is not supported on dataset names yet; dataset(s) requested: " + datasetNames;
-                case LOOKUP -> "LOOKUP JOIN against a dataset is not supported yet; dataset(s) requested: " + datasetNames;
-                case LOGSDB -> "LOGSDB index mode on FROM <dataset> is not supported yet; dataset(s) requested: " + datasetNames;
+                case TIME_SERIES -> "TS command is not supported for datasets; dataset(s) requested: " + datasetNames;
+                case LOOKUP -> "LOOKUP JOIN against a dataset is not supported; dataset(s) requested: " + datasetNames;
+                case LOGSDB -> "LOGSDB index mode on FROM <dataset> is not supported; dataset(s) requested: " + datasetNames;
                 default -> "FROM <dataset> with index mode ["
                     + relation.indexMode().getName()
-                    + "] is not supported yet; dataset(s) requested: "
+                    + "] is not supported; dataset(s) requested: "
                     + datasetNames;
             };
             throw new VerificationException(message);
         }
         if (indexNames.isEmpty() == false) {
             throw new VerificationException(
-                "FROM mixing indices and datasets is not supported yet; requested mix: indices=" + indexNames + ", datasets=" + datasetNames
+                "FROM mixing indices and datasets is not supported; requested mix: indices=" + indexNames + ", datasets=" + datasetNames
             );
         }
         List<LogicalPlan> children = new ArrayList<>(datasetNames.size());

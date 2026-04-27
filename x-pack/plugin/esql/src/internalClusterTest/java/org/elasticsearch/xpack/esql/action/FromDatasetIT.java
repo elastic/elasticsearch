@@ -196,7 +196,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         Throwable cause = ex;
         while (cause != null
             && cause.getMessage() != null
-            && cause.getMessage().contains("TS command is not supported on dataset names yet") == false) {
+            && cause.getMessage().contains("TS command is not supported for datasets") == false) {
             cause = cause.getCause();
         }
         assertThat("error chain should contain TS-on-dataset rejection", cause, org.hamcrest.Matchers.notNullValue());
@@ -220,7 +220,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         Throwable cause = ex;
         while (cause != null
             && cause.getMessage() != null
-            && cause.getMessage().contains("LOOKUP JOIN against a dataset is not supported yet") == false) {
+            && cause.getMessage().contains("LOOKUP JOIN against a dataset is not supported") == false) {
             cause = cause.getCause();
         }
         assertThat("error chain should contain LOOKUP-JOIN-against-dataset rejection", cause, org.hamcrest.Matchers.notNullValue());

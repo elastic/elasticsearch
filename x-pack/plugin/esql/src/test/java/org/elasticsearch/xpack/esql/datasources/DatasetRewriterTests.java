@@ -106,13 +106,21 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
-        for (IndexMode unsupported : new IndexMode[] { IndexMode.TIME_SERIES, IndexMode.LOOKUP, IndexMode.LOGSDB }) {
+        Map<IndexMode, String> expectedFragments = Map.of(
+            IndexMode.TIME_SERIES,
+            "TS command is not supported for datasets",
+            IndexMode.LOOKUP,
+            "LOOKUP JOIN against a dataset is not supported",
+            IndexMode.LOGSDB,
+            "LOGSDB index mode on FROM <dataset> is not supported"
+        );
+
+        for (Map.Entry<IndexMode, String> entry : expectedFragments.entrySet()) {
             VerificationException ex = expectThrows(
                 VerificationException.class,
-                () -> DatasetRewriter.rewrite(relationOfWithMode("logs", unsupported), project)
+                () -> DatasetRewriter.rewrite(relationOfWithMode("logs", entry.getKey()), project)
             );
-            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("index mode [" + unsupported.getName() + "]"));
-            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("not supported yet"));
+            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString(entry.getValue()));
             assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs"));
         }
     }

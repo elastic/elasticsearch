@@ -317,7 +317,7 @@ synthetic_source text with normalized keyword with skip store original value:
 ---
 synthetic_source text with normalized keyword with default skip store original value:
   - requires:
-      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      cluster_features: [ "mapper.source.mode_from_index_setting", "mapper.keyword.normalizer_skip_store_setting"]
       reason: "Source mode configured through index setting"
 
   - do:

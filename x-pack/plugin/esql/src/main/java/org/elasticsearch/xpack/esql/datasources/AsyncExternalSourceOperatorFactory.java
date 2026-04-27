@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -41,7 +42,6 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 
 import static org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.drainPagesAsync;
-import static org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.drainPagesWithBudgetAsync;
 
 /**
  * Dual-mode async factory for creating source operators that read from external storage.
@@ -94,7 +94,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
 
-    public AsyncExternalSourceOperatorFactory(
+    private AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
         FormatReader formatReader,
         StoragePath path,
@@ -152,207 +152,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.pushdownSupport = pushdownSupport;
     }
 
-    public AsyncExternalSourceOperatorFactory(
-        StorageProvider storageProvider,
-        FormatReader formatReader,
-        StoragePath path,
-        List<Attribute> attributes,
-        int batchSize,
-        int maxBufferSize,
-        int rowLimit,
-        Executor executor,
-        FileList fileList,
-        Set<String> partitionColumnNames,
-        Map<String, Object> partitionValues,
-        ExternalSliceQueue sliceQueue,
-        ErrorPolicy errorPolicy,
-        int parsingParallelism
-    ) {
-        this(
-            storageProvider,
-            formatReader,
-            path,
-            attributes,
-            batchSize,
-            maxBufferSize,
-            rowLimit,
-            executor,
-            fileList,
-            partitionColumnNames,
-            partitionValues,
-            sliceQueue,
-            errorPolicy,
-            parsingParallelism,
-            null,
-            null
-        );
-    }
-
-    public AsyncExternalSourceOperatorFactory(
-        StorageProvider storageProvider,
-        FormatReader formatReader,
-        StoragePath path,
-        List<Attribute> attributes,
-        int batchSize,
-        int maxBufferSize,
-        int rowLimit,
-        Executor executor,
-        FileList fileList,
-        Set<String> partitionColumnNames,
-        Map<String, Object> partitionValues,
-        ExternalSliceQueue sliceQueue,
-        ErrorPolicy errorPolicy
-    ) {
-        this(
-            storageProvider,
-            formatReader,
-            path,
-            attributes,
-            batchSize,
-            maxBufferSize,
-            rowLimit,
-            executor,
-            fileList,
-            partitionColumnNames,
-            partitionValues,
-            sliceQueue,
-            errorPolicy,
-            1,
-            null,
-            null
-        );
-    }
-
-    public AsyncExternalSourceOperatorFactory(
-        StorageProvider storageProvider,
-        FormatReader formatReader,
-        StoragePath path,
-        List<Attribute> attributes,
-        int batchSize,
-        int maxBufferSize,
-        int rowLimit,
-        Executor executor,
-        FileList fileList,
-        Set<String> partitionColumnNames,
-        Map<String, Object> partitionValues,
-        ExternalSliceQueue sliceQueue
-    ) {
-        this(
-            storageProvider,
-            formatReader,
-            path,
-            attributes,
-            batchSize,
-            maxBufferSize,
-            rowLimit,
-            executor,
-            fileList,
-            partitionColumnNames,
-            partitionValues,
-            sliceQueue,
-            null,
-            1,
-            null,
-            null
-        );
-    }
-
-    public AsyncExternalSourceOperatorFactory(
-        StorageProvider storageProvider,
-        FormatReader formatReader,
-        StoragePath path,
-        List<Attribute> attributes,
-        int batchSize,
-        int maxBufferSize,
-        Executor executor,
-        FileList fileList,
-        Set<String> partitionColumnNames,
-        Map<String, Object> partitionValues,
-        ExternalSliceQueue sliceQueue
-    ) {
-        this(
-            storageProvider,
-            formatReader,
-            path,
-            attributes,
-            batchSize,
-            maxBufferSize,
-            FormatReader.NO_LIMIT,
-            executor,
-            fileList,
-            partitionColumnNames,
-            partitionValues,
-            sliceQueue,
-            null,
-            1,
-            null,
-            null
-        );
-    }
-
-    public AsyncExternalSourceOperatorFactory(
-        StorageProvider storageProvider,
-        FormatReader formatReader,
-        StoragePath path,
-        List<Attribute> attributes,
-        int batchSize,
-        int maxBufferSize,
-        Executor executor,
-        FileList fileList,
-        Set<String> partitionColumnNames,
-        Map<String, Object> partitionValues
-    ) {
-        this(
-            storageProvider,
-            formatReader,
-            path,
-            attributes,
-            batchSize,
-            maxBufferSize,
-            FormatReader.NO_LIMIT,
-            executor,
-            fileList,
-            partitionColumnNames,
-            partitionValues,
-            null,
-            null,
-            1,
-            null,
-            null
-        );
-    }
-
-    public AsyncExternalSourceOperatorFactory(
-        StorageProvider storageProvider,
-        FormatReader formatReader,
-        StoragePath path,
-        List<Attribute> attributes,
-        int batchSize,
-        int maxBufferSize,
-        Executor executor,
-        FileList fileList
-    ) {
-        this(
-            storageProvider,
-            formatReader,
-            path,
-            attributes,
-            batchSize,
-            maxBufferSize,
-            FormatReader.NO_LIMIT,
-            executor,
-            fileList,
-            null,
-            null,
-            null,
-            null,
-            1,
-            null,
-            null
-        );
-    }
-
-    public AsyncExternalSourceOperatorFactory(
+    public static Builder builder(
         StorageProvider storageProvider,
         FormatReader formatReader,
         StoragePath path,
@@ -361,24 +161,118 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxBufferSize,
         Executor executor
     ) {
-        this(
-            storageProvider,
-            formatReader,
-            path,
-            attributes,
-            batchSize,
-            maxBufferSize,
-            FormatReader.NO_LIMIT,
-            executor,
-            null,
-            null,
-            null,
-            null,
-            null,
-            1,
-            null,
-            null
-        );
+        return new Builder(storageProvider, formatReader, path, attributes, batchSize, maxBufferSize, executor);
+    }
+
+    /**
+     * Fluent builder for {@link AsyncExternalSourceOperatorFactory}. Required parameters are captured
+     * via {@link #builder(StorageProvider, FormatReader, StoragePath, List, int, int, Executor)}.
+     * Optional parameters default to: {@link FormatReader#NO_LIMIT} for rowLimit, empty collections
+     * for partition/pushed-expression lists, {@code null} for opt-in hooks (sliceQueue,
+     * pushdownSupport, etc.), and {@code 1} for parsingParallelism.
+     */
+    public static final class Builder {
+        private final StorageProvider storageProvider;
+        private final FormatReader formatReader;
+        private final StoragePath path;
+        private final List<Attribute> attributes;
+        private final int batchSize;
+        private final int maxBufferSize;
+        private final Executor executor;
+
+        private int rowLimit = FormatReader.NO_LIMIT;
+        private FileList fileList;
+        private Set<String> partitionColumnNames;
+        private Map<String, Object> partitionValues;
+        private ExternalSliceQueue sliceQueue;
+        private ErrorPolicy errorPolicy;
+        private int parsingParallelism = 1;
+        private List<Expression> pushedExpressions;
+        private FilterPushdownSupport pushdownSupport;
+
+        private Builder(
+            StorageProvider storageProvider,
+            FormatReader formatReader,
+            StoragePath path,
+            List<Attribute> attributes,
+            int batchSize,
+            int maxBufferSize,
+            Executor executor
+        ) {
+            this.storageProvider = storageProvider;
+            this.formatReader = formatReader;
+            this.path = path;
+            this.attributes = attributes;
+            this.batchSize = batchSize;
+            this.maxBufferSize = maxBufferSize;
+            this.executor = executor;
+        }
+
+        public Builder rowLimit(int rowLimit) {
+            this.rowLimit = rowLimit;
+            return this;
+        }
+
+        public Builder fileList(@Nullable FileList fileList) {
+            this.fileList = fileList;
+            return this;
+        }
+
+        public Builder partitionColumnNames(@Nullable Set<String> partitionColumnNames) {
+            this.partitionColumnNames = partitionColumnNames;
+            return this;
+        }
+
+        public Builder partitionValues(@Nullable Map<String, Object> partitionValues) {
+            this.partitionValues = partitionValues;
+            return this;
+        }
+
+        public Builder sliceQueue(@Nullable ExternalSliceQueue sliceQueue) {
+            this.sliceQueue = sliceQueue;
+            return this;
+        }
+
+        public Builder errorPolicy(@Nullable ErrorPolicy errorPolicy) {
+            this.errorPolicy = errorPolicy;
+            return this;
+        }
+
+        public Builder parsingParallelism(int parsingParallelism) {
+            this.parsingParallelism = parsingParallelism;
+            return this;
+        }
+
+        public Builder pushedExpressions(@Nullable List<Expression> pushedExpressions) {
+            this.pushedExpressions = pushedExpressions;
+            return this;
+        }
+
+        public Builder pushdownSupport(@Nullable FilterPushdownSupport pushdownSupport) {
+            this.pushdownSupport = pushdownSupport;
+            return this;
+        }
+
+        public AsyncExternalSourceOperatorFactory build() {
+            return new AsyncExternalSourceOperatorFactory(
+                storageProvider,
+                formatReader,
+                path,
+                attributes,
+                batchSize,
+                maxBufferSize,
+                rowLimit,
+                executor,
+                fileList,
+                partitionColumnNames,
+                partitionValues,
+                sliceQueue,
+                errorPolicy,
+                parsingParallelism,
+                pushedExpressions,
+                pushdownSupport
+            );
+        }
     }
 
     @Override
@@ -499,54 +393,237 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
         }));
+        ProducerState state = new ProducerState(sliceQueue, null, null, null, buffer, driverContext, rowLimit);
         try {
-            executor.execute(
-                ActionRunnable.wrap(completionListener, l -> processNextSplit(sliceQueue, buffer, driverContext, rowLimit, l))
-            );
+            executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
             completionListener.onFailure(e);
         }
     }
 
-    private void processNextSplit(
-        ExternalSliceQueue queue,
+    /**
+     * Multi-file read path (legacy, non-slice-queue). Per-file filter adaptation is not applied
+     * here because this path does not carry {@link FileSplit} with {@link SchemaReconciliation.ColumnMapping};
+     * UNION_BY_NAME queries use the slice-queue path ({@link #startSliceQueueRead}) instead.
+     */
+    private void startMultiFileRead(
+        List<String> projectedColumns,
         AsyncExternalSourceBuffer buffer,
         DriverContext driverContext,
-        int rowsRemaining,
-        ActionListener<Void> completionListener
+        VirtualColumnInjector injector
     ) {
-        if (buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
-            completionListener.onResponse(null);
-            return;
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList != null ? fileList.fileSchemaInfo() : null;
+        ActionListener<Void> completionListener = ActionListener.assertOnce(ActionListener.wrap(v -> {
+            buffer.finish(false);
+            driverContext.removeAsyncAction();
+        }, e -> {
+            buffer.onFailure(e);
+            driverContext.removeAsyncAction();
+        }));
+        ProducerState state = new ProducerState(null, fileList, projectedColumns, injector, buffer, driverContext, rowLimit);
+        state.schemaInfo = schemaInfo;
+        try {
+            executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
+        } catch (Exception e) {
+            completionListener.onFailure(e);
         }
-        ExternalSplit split = queue.nextSplit();
-        if (split == null) {
-            completionListener.onResponse(null);
-            return;
-        }
-        List<ExternalSplit> leaves = flattenToLeaves(split);
-        processNextLeaf(leaves, 0, queue, buffer, driverContext, rowsRemaining, ActionListener.wrap(remaining -> {
-            executor.execute(ActionRunnable.wrap(completionListener, l -> processNextSplit(queue, buffer, driverContext, remaining, l)));
-        }, completionListener::onFailure));
     }
 
-    private void processNextLeaf(
-        List<ExternalSplit> leaves,
-        int leafIndex,
-        ExternalSliceQueue queue,
-        AsyncExternalSourceBuffer buffer,
-        DriverContext driverContext,
-        int rowsRemaining,
-        ActionListener<Integer> splitDoneListener
-    ) {
-        if (leafIndex >= leaves.size() || buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
-            splitDoneListener.onResponse(rowsRemaining);
-            return;
+    /**
+     * Producer-loop state. One instance per producer path (slice-queue OR multi-file).
+     * Tracks iteration position across splits/leaves/files, the currently active page iterator,
+     * and the shared outputs (buffer + DriverContext). Mutated only from the producer executor.
+     */
+    private static final class ProducerState {
+        @Nullable
+        final ExternalSliceQueue queue;
+        @Nullable
+        final FileList fileList;
+        @Nullable
+        final List<String> projectedColumns;
+        @Nullable
+        final VirtualColumnInjector multiFileInjector;
+        final AsyncExternalSourceBuffer buffer;
+        final DriverContext driverContext;
+
+        int fileIndex;
+        @Nullable
+        List<ExternalSplit> leaves;
+        int leafIndex;
+        int rowsRemaining;
+        @Nullable
+        CloseableIterator<Page> pages;
+        @Nullable
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo;
+
+        ProducerState(
+            @Nullable ExternalSliceQueue queue,
+            @Nullable FileList fileList,
+            @Nullable List<String> projectedColumns,
+            @Nullable VirtualColumnInjector multiFileInjector,
+            AsyncExternalSourceBuffer buffer,
+            DriverContext driverContext,
+            int rowsRemaining
+        ) {
+            if ((queue == null) == (fileList == null)) {
+                throw new IllegalArgumentException("ProducerState requires exactly one of queue or fileList");
+            }
+            this.queue = queue;
+            this.fileList = fileList;
+            this.projectedColumns = projectedColumns;
+            this.multiFileInjector = multiFileInjector;
+            this.buffer = buffer;
+            this.driverContext = driverContext;
+            this.rowsRemaining = rowsRemaining;
         }
-        ExternalSplit leaf = leaves.get(leafIndex);
+    }
+
+    private enum DrainResult {
+        /** Hit EOF on the current iterator; caller should advance to the next unit. */
+        EOF,
+        /** Buffer is full; a callback is registered to resume the loop. */
+        BLOCKED,
+        /** Row limit exhausted or buffer finished; the whole producer is done. */
+        DONE
+    }
+
+    /**
+     * Single-step producer loop. Each invocation either drains some pages from the current iterator,
+     * opens a new iterator for the next unit, or registers a space callback and returns. The loop
+     * self-resubmits on the executor to avoid running producer I/O on the Driver thread.
+     */
+    private void runProducerLoop(ProducerState state, ActionListener<Void> completionListener) {
+        try {
+            // Open an iterator for the next unit if we don't have one.
+            if (state.pages == null) {
+                if (advanceToNextUnit(state) == false) {
+                    completionListener.onResponse(null);
+                    return;
+                }
+            }
+            DrainResult result = drainHotPath(state, completionListener);
+            switch (result) {
+                case DONE -> {
+                    // Buffer finished (externally or by row-limit exhaustion) while an iterator is still open:
+                    // close it before reporting completion so no resources leak on cancellation paths.
+                    closeQuietly(state.pages);
+                    state.pages = null;
+                    completionListener.onResponse(null);
+                }
+                case EOF -> {
+                    closeQuietly(state.pages);
+                    state.pages = null;
+                    // Re-submit to avoid unbounded recursion between units and to stay off the Driver thread.
+                    executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
+                }
+                case BLOCKED -> {
+                    // A listener has been registered on waitForSpace that will re-submit runProducerLoop.
+                }
+            }
+        } catch (Exception e) {
+            closeQuietly(state.pages);
+            state.pages = null;
+            completionListener.onFailure(e);
+        }
+    }
+
+    /**
+     * Drain pages from the currently-open iterator into the buffer.
+     * Runs synchronously while the buffer has space; when full, registers a callback that
+     * re-submits {@link #runProducerLoop} via the executor and returns {@link DrainResult#BLOCKED}.
+     */
+    private DrainResult drainHotPath(ProducerState state, ActionListener<Void> completionListener) {
+        CloseableIterator<Page> pages = state.pages;
+        AsyncExternalSourceBuffer buffer = state.buffer;
+        while (true) {
+            if (buffer.noMoreInputs()) {
+                return DrainResult.DONE;
+            }
+            if (rowLimit != FormatReader.NO_LIMIT && state.rowsRemaining <= 0) {
+                return DrainResult.DONE;
+            }
+            if (pages.hasNext() == false) {
+                return DrainResult.EOF;
+            }
+            SubscribableListener<Void> space = buffer.waitForSpace();
+            if (space.isDone() == false) {
+                space.addListener(ActionListener.wrap(v -> {
+                    try {
+                        executor.execute(() -> runProducerLoop(state, completionListener));
+                    } catch (Exception e) {
+                        closeQuietly(state.pages);
+                        state.pages = null;
+                        completionListener.onFailure(e);
+                    }
+                }, e -> {
+                    closeQuietly(state.pages);
+                    state.pages = null;
+                    completionListener.onFailure(e);
+                }));
+                return DrainResult.BLOCKED;
+            }
+            if (buffer.noMoreInputs()) {
+                return DrainResult.DONE;
+            }
+            Page page = pages.next();
+            int rows = page.getPositionCount();
+            page.allowPassingToDifferentDriver();
+            buffer.addPage(page);
+            if (rowLimit != FormatReader.NO_LIMIT) {
+                state.rowsRemaining -= rows;
+            }
+        }
+    }
+
+    /**
+     * Advance the iteration position to the next unit (slice-queue leaf or multi-file file) and
+     * open a fresh page iterator for it. Returns {@code false} if iteration is exhausted or the
+     * buffer has been finished externally.
+     */
+    private boolean advanceToNextUnit(ProducerState state) throws IOException {
+        while (true) {
+            if (state.buffer.noMoreInputs()) {
+                return false;
+            }
+            if (rowLimit != FormatReader.NO_LIMIT && state.rowsRemaining <= 0) {
+                return false;
+            }
+            if (state.queue != null) {
+                if (openNextSliceQueueLeaf(state)) {
+                    return true;
+                }
+                // queue is exhausted
+                if (state.leaves == null) {
+                    return false;
+                }
+                // current split's leaves exhausted; fall through to pull the next split
+                state.leaves = null;
+                state.leafIndex = 0;
+            } else {
+                if (openNextMultiFile(state)) {
+                    return true;
+                }
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Open the next leaf iterator in the slice-queue path. Pulls a new split from the queue when
+     * the current split's leaves are exhausted. Returns {@code false} if the queue is exhausted.
+     */
+    private boolean openNextSliceQueueLeaf(ProducerState state) throws IOException {
+        if (state.leaves == null || state.leafIndex >= state.leaves.size()) {
+            ExternalSplit split = state.queue.nextSplit();
+            if (split == null) {
+                return false;
+            }
+            state.leaves = flattenToLeaves(split);
+            state.leafIndex = 0;
+        }
+        ExternalSplit leaf = state.leaves.get(state.leafIndex++);
         if (leaf instanceof FileSplit == false) {
-            splitDoneListener.onFailure(new IllegalArgumentException("Unsupported split type: " + leaf.getClass().getName()));
-            return;
+            throw new IllegalArgumentException("Unsupported split type: " + leaf.getClass().getName());
         }
         FileSplit fileSplit = (FileSplit) leaf;
         VirtualColumnInjector injector = null;
@@ -555,12 +632,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 attributes,
                 partitionColumnNames,
                 fileSplit.partitionValues(),
-                driverContext.blockFactory()
+                state.driverContext.blockFactory()
             );
         }
         List<String> cols = projectedColumns(injector);
 
-        CloseableIterator<Page> pages;
+        CloseableIterator<Page> pages = null;
         try {
             FormatReader fileReader = readerForFile(fileSplit);
             boolean isRangeSplit = "true".equals(fileSplit.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
@@ -585,147 +662,70 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
-        } catch (Exception e) {
-            splitDoneListener.onFailure(e);
-            return;
-        }
-
-        CloseableIterator<Page> adaptedPages;
-        CloseableIterator<Page> wrappedPages;
-        try {
-            adaptedPages = adaptSchema(pages, fileSplit.columnMapping(), driverContext);
-            wrappedPages = wrapWithInjector(adaptedPages, injector);
+            CloseableIterator<Page> adapted = adaptSchema(pages, fileSplit.columnMapping(), state.driverContext);
+            state.pages = wrapWithInjector(adapted, injector);
+            return true;
         } catch (Exception e) {
             closeQuietly(pages);
-            splitDoneListener.onFailure(e);
-            return;
+            if (e instanceof IOException io) throw io;
+            if (e instanceof RuntimeException re) throw re;
+            throw new IOException(e);
         }
-
-        drainPagesWithBudgetAsync(
-            wrappedPages,
-            buffer,
-            rowsRemaining,
-            executor,
-            ActionListener.runAfter(ActionListener.<Integer>wrap(consumed -> {
-                int remaining = rowLimit != FormatReader.NO_LIMIT ? rowsRemaining - consumed : rowsRemaining;
-                executor.execute(
-                    ActionRunnable.wrap(
-                        splitDoneListener,
-                        l -> processNextLeaf(leaves, leafIndex + 1, queue, buffer, driverContext, remaining, l)
-                    )
-                );
-            }, splitDoneListener::onFailure), () -> closeQuietly(wrappedPages))
-        );
     }
 
     /**
-     * Multi-file read path (legacy, non-slice-queue). Per-file filter adaptation is not applied
-     * here because this path does not carry {@link FileSplit} with {@link SchemaReconciliation.ColumnMapping};
-     * UNION_BY_NAME queries use the slice-queue path ({@link #startSliceQueueRead}) instead.
+     * Open the next file iterator in the multi-file path. Returns {@code false} if all files
+     * have been processed.
      */
-    private void startMultiFileRead(
-        List<String> projectedColumns,
-        AsyncExternalSourceBuffer buffer,
-        DriverContext driverContext,
-        VirtualColumnInjector injector
-    ) {
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList != null ? fileList.fileSchemaInfo() : null;
-        ActionListener<Void> completionListener = ActionListener.assertOnce(ActionListener.wrap(v -> {
-            buffer.finish(false);
-            driverContext.removeAsyncAction();
-        }, e -> {
-            buffer.onFailure(e);
-            driverContext.removeAsyncAction();
-        }));
-        try {
-            executor.execute(
-                ActionRunnable.wrap(
-                    completionListener,
-                    l -> processNextFile(0, projectedColumns, buffer, driverContext, injector, schemaInfo, rowLimit, l)
-                )
-            );
-        } catch (Exception e) {
-            completionListener.onFailure(e);
+    private boolean openNextMultiFile(ProducerState state) throws IOException {
+        FileList files = state.fileList;
+        assert files != null;
+        if (state.fileIndex >= files.fileCount()) {
+            return false;
         }
-    }
-
-    private void processNextFile(
-        int fileIndex,
-        List<String> projectedColumns,
-        AsyncExternalSourceBuffer buffer,
-        DriverContext driverContext,
-        VirtualColumnInjector injector,
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo,
-        int rowsRemaining,
-        ActionListener<Void> completionListener
-    ) {
-        if (fileIndex >= fileList.fileCount() || buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
-            completionListener.onResponse(null);
-            return;
-        }
-
+        int fileIndex = state.fileIndex++;
+        List<String> cols = state.projectedColumns;
         boolean useParallel = rowLimit == FormatReader.NO_LIMIT && formatReader instanceof SegmentableFormatReader;
-        CloseableIterator<Page> pages;
+
+        CloseableIterator<Page> pages = null;
         try {
-            StorageObject obj = storageProvider.newObject(fileList.path(fileIndex));
+            StorageObject obj = storageProvider.newObject(files.path(fileIndex));
             if (useParallel) {
                 pages = ParallelParsingCoordinator.parallelRead(
                     (SegmentableFormatReader) formatReader,
                     obj,
-                    projectedColumns,
+                    cols,
                     batchSize,
                     parsingParallelism,
                     executor,
                     errorPolicy
                 );
             } else {
-                int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : rowsRemaining;
+                int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(projectedColumns)
+                    .projectedColumns(cols)
                     .batchSize(batchSize)
                     .rowLimit(fileBudget)
                     .errorPolicy(errorPolicy)
                     .build();
                 pages = formatReader.read(obj, ctx);
             }
-        } catch (Exception e) {
-            completionListener.onFailure(e);
-            return;
-        }
-
-        SchemaReconciliation.ColumnMapping mapping = null;
-        if (schemaInfo != null) {
-            SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(fileList.path(fileIndex));
-            if (info != null) {
-                mapping = info.mapping();
+            SchemaReconciliation.ColumnMapping mapping = null;
+            if (state.schemaInfo != null) {
+                SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(files.path(fileIndex));
+                if (info != null) {
+                    mapping = info.mapping();
+                }
             }
-        }
-        CloseableIterator<Page> adaptedPages;
-        CloseableIterator<Page> wrappedPages;
-        try {
-            adaptedPages = adaptSchema(pages, mapping, driverContext);
-            wrappedPages = wrapWithInjector(adaptedPages, injector);
+            CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext);
+            state.pages = wrapWithInjector(adapted, state.multiFileInjector);
+            return true;
         } catch (Exception e) {
             closeQuietly(pages);
-            completionListener.onFailure(e);
-            return;
+            if (e instanceof IOException io) throw io;
+            if (e instanceof RuntimeException re) throw re;
+            throw new IOException(e);
         }
-
-        drainPagesWithBudgetAsync(
-            wrappedPages,
-            buffer,
-            rowsRemaining,
-            executor,
-            ActionListener.runAfter(ActionListener.<Integer>wrap(consumed -> {
-                int remaining = rowLimit != FormatReader.NO_LIMIT ? rowsRemaining - consumed : rowsRemaining;
-                executor.execute(
-                    ActionRunnable.wrap(
-                        completionListener,
-                        l -> processNextFile(fileIndex + 1, projectedColumns, buffer, driverContext, injector, schemaInfo, remaining, l)
-                    )
-                );
-            }, completionListener::onFailure), () -> closeQuietly(wrappedPages))
-        );
     }
 
     private void startNativeAsyncRead(

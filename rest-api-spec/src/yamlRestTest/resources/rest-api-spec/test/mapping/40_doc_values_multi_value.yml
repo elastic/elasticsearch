@@ -72,8 +72,8 @@
 ---
 "multi_value=no on multi-field sub rejects parent array":
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "multi_value doc values parameter support"
+      cluster_features: ["mapper.doc_values.multi_value_enforcement"]
+      reason: "multi_value=no enforcement on indexing"
 
   - do:
       indices.create:
@@ -113,8 +113,8 @@
 ---
 "multi_value=no on multi-field parent rejects parent array":
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "multi_value doc values parameter support"
+      cluster_features: ["mapper.doc_values.multi_value_enforcement"]
+      reason: "multi_value=no enforcement on indexing"
 
   - do:
       indices.create:

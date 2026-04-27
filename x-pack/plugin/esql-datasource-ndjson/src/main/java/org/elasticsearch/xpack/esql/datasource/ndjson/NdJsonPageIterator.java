@@ -121,13 +121,26 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         IOUtils.close(pageDecoder);
     }
 
+    /**
+     * Reader-side half of the split-alignment protocol: drop the leading partial record that the
+     * splitter's previous macro-split already emitted via finish-current-line.
+     *
+     * <p>Protocol cross-references (prose because these live in sibling plugin modules):
+     * <ul>
+     *   <li>Codec side — {@code Bzip2DecompressionCodec.BlockBoundedDecompressStream} in
+     *       the {@code esql-datasource-bzip2} module emits bytes past the split boundary up to
+     *       (and including) the next {@code '\n'}.</li>
+     *   <li>Splitter side — {@code FileSplitProvider.tryBlockAlignedSplits} in the
+     *       {@code esql} module sets the first-split vs. non-first-split markers that
+     *       {@link NdJsonFormatReader#read} uses to decide whether to call this method.</li>
+     * </ul>
+     *
+     * <p>Delegates to {@link NdJsonFormatReader#scanForTerminator} so LF/CRLF/CR are handled
+     * uniformly; in practice the codec's finish-current-line always ends on {@code '\n'}, so
+     * only the LF branch fires, but routing through one implementation removes the coupling.
+     */
     static void skipToNextLine(InputStream stream) throws IOException {
-        int b;
-        while ((b = stream.read()) != -1) {
-            if (b == '\n') {
-                return;
-            }
-        }
+        NdJsonFormatReader.scanForTerminator(stream);
     }
 
     /**

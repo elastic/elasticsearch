@@ -597,7 +597,16 @@ public class BlockFactory {
         DoubleBlock zeroThresholds,
         BytesRefBlock encodedHistograms
     ) {
-        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms, encodedHistograms.getPositionCount(), null);
+        return new ExponentialHistogramArrayBlock(
+            minima,
+            maxima,
+            sums,
+            valueCounts,
+            zeroThresholds,
+            encodedHistograms,
+            encodedHistograms.getPositionCount(),
+            null
+        );
     }
 
     public BlockLoader.Block newTDigestBlockFromDocValues(
@@ -607,7 +616,7 @@ public class BlockFactory {
         DoubleBlock sums,
         LongBlock counts
     ) {
-        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts);
+        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts, encodedDigests.getPositionCount(), null);
     }
 
     public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(

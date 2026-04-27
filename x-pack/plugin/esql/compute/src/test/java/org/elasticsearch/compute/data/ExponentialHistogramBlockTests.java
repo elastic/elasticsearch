@@ -41,7 +41,9 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
-            (BytesRefBlock) blockFactory().newConstantNullBlock(elementCount)
+            (BytesRefBlock) blockFactory().newConstantNullBlock(elementCount),
+            elementCount,
+            null
         );
 
         Block deserializedBlock = serializationRoundTrip(block);
@@ -189,6 +191,65 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
         assertThat(expHistoBlock.hashCode(), equalTo(copy.hashCode()));
 
         Releasables.close(expHistoBlock, copy);
+    }
+
+    public void testMultiValueBlock() {
+        ExponentialHistogram histo1 = ExponentialHistogram.create(4, ExponentialHistogramCircuitBreaker.noop(), 1, 2, 3);
+        ExponentialHistogram histo2 = ExponentialHistogram.create(4, ExponentialHistogramCircuitBreaker.noop(), 4, 5);
+        ExponentialHistogram histo3 = ExponentialHistogram.create(4, ExponentialHistogramCircuitBreaker.noop(), 6, 7, 8, 9);
+
+        ExponentialHistogramBlock.Builder builder = blockFactory().newExponentialHistogramBlockBuilder(3);
+        builder.beginPositionEntry();
+        builder.append(histo1);
+        builder.append(histo2);
+        builder.endPositionEntry();
+        builder.appendNull();
+        builder.beginPositionEntry();
+        builder.append(histo3);
+        builder.append(histo1);
+        builder.append(histo2);
+        builder.endPositionEntry();
+        ExponentialHistogramBlock block = builder.build();
+
+        assertThat(block.getPositionCount(), equalTo(3));
+        assertThat(block.getValueCount(0), equalTo(2));
+        assertThat(block.getValueCount(1), equalTo(0));
+        assertThat(block.getValueCount(2), equalTo(3));
+        assertThat(block.isNull(0), equalTo(false));
+        assertThat(block.isNull(1), equalTo(true));
+        assertThat(block.isNull(2), equalTo(false));
+        assertThat(block.mayHaveMultivaluedFields(), equalTo(true));
+        assertThat(block.doesHaveMultivaluedFields(), equalTo(true));
+
+        ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
+        int firstValueIndex0 = block.getFirstValueIndex(0);
+        assertThat(block.getExponentialHistogram(firstValueIndex0, scratch).valueCount(), equalTo(histo1.valueCount()));
+        assertThat(block.getExponentialHistogram(firstValueIndex0 + 1, scratch).valueCount(), equalTo(histo2.valueCount()));
+
+        int firstValueIndex2 = block.getFirstValueIndex(2);
+        assertThat(block.getExponentialHistogram(firstValueIndex2, scratch).valueCount(), equalTo(histo3.valueCount()));
+        assertThat(block.getExponentialHistogram(firstValueIndex2 + 1, scratch).valueCount(), equalTo(histo1.valueCount()));
+        assertThat(block.getExponentialHistogram(firstValueIndex2 + 2, scratch).valueCount(), equalTo(histo2.valueCount()));
+
+        Releasables.close(block);
+    }
+
+    public void testMultiValueBlockSerialization() throws IOException {
+        ExponentialHistogram histo1 = ExponentialHistogram.create(4, ExponentialHistogramCircuitBreaker.noop(), 1, 2, 3);
+        ExponentialHistogram histo2 = ExponentialHistogram.create(4, ExponentialHistogramCircuitBreaker.noop(), 4, 5);
+
+        ExponentialHistogramBlock.Builder builder = blockFactory().newExponentialHistogramBlockBuilder(2);
+        builder.beginPositionEntry();
+        builder.append(histo1);
+        builder.append(histo2);
+        builder.endPositionEntry();
+        builder.append(histo1);
+        ExponentialHistogramBlock block = builder.build();
+
+        Block deserializedBlock = serializationRoundTrip(block);
+        assertThat(deserializedBlock, equalTo(block));
+
+        Releasables.close(block, deserializedBlock);
     }
 
     private static Block filterAndRelease(Block toFilterAndRelease) {

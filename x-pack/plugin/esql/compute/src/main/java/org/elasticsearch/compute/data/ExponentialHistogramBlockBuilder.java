@@ -229,13 +229,18 @@ public final class ExponentialHistogramBlockBuilder extends AbstractDelegatingCo
             return this;
         }
         if (block.areAllValuesNull()) {
-            // Case for ConstantNullBlock
             for (int i = beginInclusive; i < endExclusive; i++) {
                 appendNull();
             }
         } else {
             ExponentialHistogramArrayBlock histoBlock = (ExponentialHistogramArrayBlock) block;
-            // copy the raw values based on the sub-block positions
+            int startSubBlockPos = block.getFirstValueIndex(beginInclusive);
+            int endSubBlockPos;
+            if (endExclusive == block.getPositionCount()) {
+                endSubBlockPos = histoBlock.subBlockPositionCount();
+            } else {
+                endSubBlockPos = block.getFirstValueIndex(endExclusive);
+            }
             histoBlock.copySubBlockPositionsInto(
                 minimaBuilder,
                 maximaBuilder,
@@ -243,20 +248,23 @@ public final class ExponentialHistogramBlockBuilder extends AbstractDelegatingCo
                 valueCountsBuilder,
                 zeroThresholdsBuilder,
                 encodedHistogramsBuilder,
-                block.getFirstValueIndex(beginInclusive),
-                block.getFirstValueIndex(beginInclusive) + Math.max(1, histoBlock.getFirstValueIndex(block.getValueCount(endExclusive - 1)))
+                startSubBlockPos,
+                endSubBlockPos
             );
-            // now update the firstValueIndices
             for (int pos = beginInclusive; pos < endExclusive; pos++) {
-                int valueCount = histoBlock.getValueCount(pos);
-                if (valueCount <= 1) {
+                if (histoBlock.isNull(pos)) {
                     valueAppended();
                 } else {
-                    beginPositionEntry();
-                    for (int i = 0; i < valueCount; i++) {
+                    int valueCount = histoBlock.getValueCount(pos);
+                    if (valueCount == 1) {
                         valueAppended();
+                    } else {
+                        beginPositionEntry();
+                        for (int i = 0; i < valueCount; i++) {
+                            valueAppended();
+                        }
+                        endPositionEntry();
                     }
-                    endPositionEntry();
                 }
             }
         }
@@ -278,8 +286,8 @@ public final class ExponentialHistogramBlockBuilder extends AbstractDelegatingCo
 
     @Override
     public long estimatedBytes() {
-        return super.estimatedBytes() + minimaBuilder.estimatedBytes() + maximaBuilder.estimatedBytes() + sumsBuilder.estimatedBytes() + valueCountsBuilder
-            .estimatedBytes() + zeroThresholdsBuilder.estimatedBytes() + encodedHistogramsBuilder.estimatedBytes();
+        return super.estimatedBytes() + minimaBuilder.estimatedBytes() + maximaBuilder.estimatedBytes() + sumsBuilder.estimatedBytes()
+            + valueCountsBuilder.estimatedBytes() + zeroThresholdsBuilder.estimatedBytes() + encodedHistogramsBuilder.estimatedBytes();
     }
 
     @Override

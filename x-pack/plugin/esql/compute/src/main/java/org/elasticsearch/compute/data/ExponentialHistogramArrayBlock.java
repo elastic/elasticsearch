@@ -253,7 +253,16 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
             zeroThresholdBlock = blockFactory.newConstantDoubleBlockWith(data.zeroThreshold, positionCount);
             encodedHistogramBlock = blockFactory.newConstantBytesRefBlockWith(data.encodedHistogram, positionCount);
             success = true;
-            return new ExponentialHistogramArrayBlock(minBlock, maxBlock, sumBlock, countBlock, zeroThresholdBlock, encodedHistogramBlock, encodedHistogramBlock.getPositionCount(), null);
+            return new ExponentialHistogramArrayBlock(
+                minBlock,
+                maxBlock,
+                sumBlock,
+                countBlock,
+                zeroThresholdBlock,
+                encodedHistogramBlock,
+                encodedHistogramBlock.getPositionCount(),
+                null
+            );
         } finally {
             if (success == false) {
                 Releasables.close(minBlock, maxBlock, sumBlock, countBlock, zeroThresholdBlock, encodedHistogramBlock);
@@ -263,44 +272,17 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
 
     @Override
     public DoubleBlock buildHistogramComponentBlock(Component component) {
+        if (mayHaveMultivaluedFields()) {
+            throw new UnsupportedOperationException("Not yet implemented for multi-valued blocks");
+        }
         DoubleBlock subBlock = switch (component) {
             case MIN -> minima;
             case MAX -> maxima;
             case SUM -> sums;
             case COUNT -> valueCounts;
         };
-        if (mayHaveMultivaluedFields() == false) {
-            // Single-valued: sub-block positions match this block's positions directly
-            subBlock.incRef();
-            return subBlock;
-        }
-        // Multi-valued: need to create a view with the same multi-value structure as this block
-        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(getPositionCount())) {
-            for (int p = 0; p < getPositionCount(); p++) {
-                int valueCount = getValueCount(p);
-                if (valueCount == 0) {
-                    builder.appendNull();
-                } else if (valueCount == 1) {
-                    int subPos = getFirstValueIndex(p);
-                    if (subBlock.isNull(subPos)) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendDouble(subBlock.getDouble(subBlock.getFirstValueIndex(subPos)));
-                    }
-                } else {
-                    builder.beginPositionEntry();
-                    int firstSubPos = getFirstValueIndex(p);
-                    for (int i = 0; i < valueCount; i++) {
-                        int subPos = firstSubPos + i;
-                        if (subBlock.isNull(subPos) == false) {
-                            builder.appendDouble(subBlock.getDouble(subBlock.getFirstValueIndex(subPos)));
-                        }
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.build();
-        }
+        subBlock.incRef();
+        return subBlock;
     }
 
     @Override
@@ -337,24 +319,11 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
 
     @Override
     public Block expand() {
-        if (mayHaveMultivaluedFields() == false) {
-            incRef();
-            return this;
+        if (mayHaveMultivaluedFields()) {
+            throw new UnsupportedOperationException("Not yet implemented for multi-valued blocks");
         }
-        // Return a block where each value is a separate position, reusing the sub-blocks
-        for (Block b : getSubBlocks()) {
-            b.incRef();
-        }
-        return new ExponentialHistogramArrayBlock(
-            minima,
-            maxima,
-            sums,
-            valueCounts,
-            zeroThresholds,
-            encodedHistograms,
-            subBlockPositionCount(),
-            null
-        );
+        incRef();
+        return this;
     }
 
     @Override
@@ -369,43 +338,40 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
     }
 
     public static ExponentialHistogramArrayBlock readFrom(BlockStreamInput input) throws IOException {
-        return AbstractDelegatingCompoundBlock.readFrom(
-            input,
-            (in, positionCount, firstValueIndexes) -> {
+        return AbstractDelegatingCompoundBlock.readFrom(input, (in, positionCount, firstValueIndexes) -> {
 
-                DoubleBlock minima = null;
-                DoubleBlock maxima = null;
-                DoubleBlock sums = null;
-                DoubleBlock valueCounts = null;
-                DoubleBlock zeroThresholds = null;
-                BytesRefBlock encodedHistograms = null;
+            DoubleBlock minima = null;
+            DoubleBlock maxima = null;
+            DoubleBlock sums = null;
+            DoubleBlock valueCounts = null;
+            DoubleBlock zeroThresholds = null;
+            BytesRefBlock encodedHistograms = null;
 
-                boolean success = false;
-                try {
-                    minima = (DoubleBlock) Block.readTypedBlock(in);
-                    maxima = (DoubleBlock) Block.readTypedBlock(in);
-                    sums = (DoubleBlock) Block.readTypedBlock(in);
-                    valueCounts = (DoubleBlock) Block.readTypedBlock(in);
-                    zeroThresholds = (DoubleBlock) Block.readTypedBlock(in);
-                    encodedHistograms = (BytesRefBlock) Block.readTypedBlock(in);
-                    success = true;
-                    return new ExponentialHistogramArrayBlock(
-                        minima,
-                        maxima,
-                        sums,
-                        valueCounts,
-                        zeroThresholds,
-                        encodedHistograms,
-                        positionCount,
-                        firstValueIndexes
-                    );
-                } finally {
-                    if (success == false) {
-                        Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
-                    }
+            boolean success = false;
+            try {
+                minima = (DoubleBlock) Block.readTypedBlock(in);
+                maxima = (DoubleBlock) Block.readTypedBlock(in);
+                sums = (DoubleBlock) Block.readTypedBlock(in);
+                valueCounts = (DoubleBlock) Block.readTypedBlock(in);
+                zeroThresholds = (DoubleBlock) Block.readTypedBlock(in);
+                encodedHistograms = (BytesRefBlock) Block.readTypedBlock(in);
+                success = true;
+                return new ExponentialHistogramArrayBlock(
+                    minima,
+                    maxima,
+                    sums,
+                    valueCounts,
+                    zeroThresholds,
+                    encodedHistograms,
+                    positionCount,
+                    firstValueIndexes
+                );
+            } finally {
+                if (success == false) {
+                    Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
                 }
             }
-        );
+        });
     }
 
     /**

@@ -143,7 +143,16 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
      * Compares positionCount and firstValueIndexes with another block for equality.
      */
     protected final boolean layoutEquals(AbstractDelegatingCompoundBlock<?> that) {
-        return positionCount == that.positionCount && java.util.Arrays.equals(firstValueIndexes, that.firstValueIndexes);
+        if (positionCount != that.positionCount) {
+            return false;
+        }
+        if (firstValueIndexes == null) {
+            return that.firstValueIndexes == null;
+        }
+        if (that.firstValueIndexes == null) {
+            return false;
+        }
+        return java.util.Arrays.equals(firstValueIndexes, 0, positionCount + 1, that.firstValueIndexes, 0, positionCount + 1);
     }
 
     protected boolean assertInvariants() {
@@ -352,13 +361,13 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
         }
 
         /**
-         * Must be called after a new, value (null or non-null) has been appended.
+         * Must be called after a new value (null or non-null) has been appended.
          */
         protected final void valueAppended() {
             assert closed == false;
             assert built == false;
             valueCount++;
-            if (isPositionEntryOpen()) {
+            if (isPositionEntryOpen() == false) {
                 if (firstValueIndexes != null) {
                     setFirstValue(positionCount, valueCount - 1);
                 }
@@ -384,8 +393,9 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
 
         @Override
         public final T build() {
-            assert closed == false;
-            assert built == false;
+            if (closed || built) {
+                throw new IllegalStateException("already closed");
+            }
             if (isPositionEntryOpen()) {
                 endPositionEntry();
             }

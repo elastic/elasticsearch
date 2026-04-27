@@ -106,7 +106,7 @@ $$$reindex-remote-whitelist$$$
 $$$cluster-reindex-pit-keep-alive$$$
 
 `cluster.reindex.pit.keep_alive` {applies_to}`stack: ga 9.5+`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How long {{es}} keeps [point-in-time (PIT)](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time) search contexts open when a reindex uses PIT-based pagination (including when opening a PIT on a compatible remote cluster). If reindex falls back to the scroll API, the scroll timeout is taken from the reindex request’s `scroll` parameter instead of this setting. Defaults to `5m`. Minimum `1ms`. Use a value long enough for your batching and network latency, but avoid unnecessarily large values because they retain resources on data nodes until the PIT expires or is closed.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How long {{es}} keeps [point-in-time (PIT)](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time) search contexts open when a reindex uses PIT-based pagination (including when opening a PIT on a compatible remote cluster). If reindex falls back to the scroll API, the scroll timeout is taken from the reindex request’s `scroll` parameter instead of this setting. Defaults to `15m`. Minimum `1ms`. Use a value long enough for your batching and network latency, but avoid unnecessarily large values because they retain resources on data nodes until the PIT expires or is closed.
 
 $$$reindex-ssl$$$
 

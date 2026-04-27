@@ -7,8 +7,11 @@ navigation_title: "Query log"
 
 # {{esql}} Query log [esql-query-log]
 
+:::{note}
+{{es}} [query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md) supersedes this feature. Query logging provides a unified way to log all query types, including {{esql}}, with richer field coverage and a managed data stream for indexing and analysis. We recommend migrating to query logging. The `esql.querylog` settings described on this page continue to work but are no longer the recommended approach.
+:::
 
-The {{esql}} query log allows to log {{esql}} queries based on their execution time.
+The {{esql}} query log allows you to log {{esql}} queries based on their execution time.
 
 You can use these logs to investigate, analyze or troubleshoot your cluster’s historical {{esql}} performance.
 

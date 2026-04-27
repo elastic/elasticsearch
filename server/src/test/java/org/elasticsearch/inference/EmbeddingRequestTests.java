@@ -18,10 +18,13 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
+import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
 
@@ -45,22 +48,21 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
         }
     }
 
-    public void testParser_withBase64ImageContentObject() throws IOException {
-        var imageFormat = DataFormat.BASE64;
+    public void testParser_withBase64ContentObject() throws IOException {
+        var nonTextType = randomFrom(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        var format = DataFormat.BASE64;
         var requestJson = Strings.format("""
             {
                 "input": {
-                    "content": {"type": "image", "format": "%s", "value": "%s"}
+                    "content": {"type": "%s", "format": "%s", "value": "%s"}
                 },
                 "input_type": "search"
             }
-            """, imageFormat, InferenceStringTests.TEST_IMAGE_DATA_URI);
+            """, nonTextType, format, InferenceStringTests.TEST_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
             var expectedInputs = List.of(
-                new InferenceStringGroup(
-                    List.of(new InferenceString(DataType.IMAGE, imageFormat, InferenceStringTests.TEST_IMAGE_DATA_URI))
-                )
+                new InferenceStringGroup(List.of(new InferenceString(nonTextType, format, InferenceStringTests.TEST_DATA_URI)))
             );
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));
@@ -99,14 +101,14 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
                 },
                 "input_type": "search"
             }
-            """, imageFormat, InferenceStringTests.TEST_IMAGE_DATA_URI);
+            """, imageFormat, InferenceStringTests.TEST_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
             var expectedInputs = List.of(
                 new InferenceStringGroup(
                     List.of(
                         new InferenceString(DataType.TEXT, DataFormat.TEXT, "some text input"),
-                        new InferenceString(DataType.IMAGE, imageFormat, InferenceStringTests.TEST_IMAGE_DATA_URI)
+                        new InferenceString(DataType.IMAGE, imageFormat, InferenceStringTests.TEST_DATA_URI)
                     )
                 )
             );
@@ -134,13 +136,11 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
                 ],
                 "input_type": "search"
             }
-            """, imageFormat, InferenceStringTests.TEST_IMAGE_DATA_URI);
+            """, imageFormat, InferenceStringTests.TEST_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
             var expectedInputs = List.of(
-                new InferenceStringGroup(
-                    List.of(new InferenceString(DataType.IMAGE, imageFormat, InferenceStringTests.TEST_IMAGE_DATA_URI))
-                ),
+                new InferenceStringGroup(List.of(new InferenceString(DataType.IMAGE, imageFormat, InferenceStringTests.TEST_DATA_URI))),
                 new InferenceStringGroup(
                     List.of(
                         new InferenceString(DataType.TEXT, DataFormat.TEXT, "first text input"),
@@ -171,12 +171,12 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
                 ],
                 "input_type": "search"
             }
-            """, InferenceStringTests.TEST_IMAGE_DATA_URI);
+            """, InferenceStringTests.TEST_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
             var expectedInputs = List.of(
                 new InferenceStringGroup(
-                    List.of(new InferenceString(DataType.IMAGE, DataFormat.BASE64, InferenceStringTests.TEST_IMAGE_DATA_URI))
+                    List.of(new InferenceString(DataType.IMAGE, DataFormat.BASE64, InferenceStringTests.TEST_DATA_URI))
                 ),
                 new InferenceStringGroup(
                     List.of(
@@ -245,6 +245,26 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             assertThat(request.inputType(), is(InputType.UNSPECIFIED));
             assertThat(request.taskSettings(), anEmptyMap());
         }
+    }
+
+    /**
+     * Versions before {@link InferenceString#EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED} throw an exception when serializing audio,
+     * video or pdf content, so we filter those out of the bwc versions to avoid test failures.
+     * The logic is tested directly by {@link #testAudioVideoPdfAreNotBackwardsCompatible}
+     */
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream().filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED)).toList();
+    }
+
+    public void testAudioVideoPdfAreNotBackwardsCompatible() throws IOException {
+        testSerializationIsNotBackwardsCompatible(
+            EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED,
+            i -> i.inputs().stream().anyMatch(input -> input.inferenceStrings().stream().anyMatch(InferenceStringTests::isAudioVideoOrPdf)),
+            """
+                Cannot send an inference request with audio, video or pdf inputs to an older node. \
+                Please wait until all nodes are upgraded before using audio, video or pdf inputs"""
+        );
     }
 
     @Override

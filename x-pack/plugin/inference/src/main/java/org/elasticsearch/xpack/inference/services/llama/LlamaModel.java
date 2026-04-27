@@ -13,6 +13,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.llama.action.LlamaActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -79,10 +80,11 @@ public abstract class LlamaModel extends RateLimitGroupingModel {
      * Caused by the fact that Llama model doesn't have out of the box security settings and can be used without authentication.
      *
      * @param secrets the map containing secret settings
+     * @param context the parse context, used to determine the exception message if the {@link DefaultSecretSettings} cannot be created
      * @return an instance of SecretSettings
      */
-    protected static SecretSettings retrieveSecretSettings(Map<String, Object> secrets) {
-        return (secrets != null && secrets.isEmpty()) ? EmptySecretSettings.INSTANCE : DefaultSecretSettings.fromMap(secrets);
+    protected static SecretSettings retrieveSecretSettings(Map<String, Object> secrets, ConfigurationParseContext context) {
+        return (secrets != null && secrets.isEmpty()) ? EmptySecretSettings.INSTANCE : DefaultSecretSettings.fromMap(secrets, context);
     }
 
     protected abstract ExecutableAction accept(LlamaActionVisitor creator);

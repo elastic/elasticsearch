@@ -202,21 +202,22 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 }
             }
 
+            if (snapshotShardContextFactory.supportsRelocationDuringSnapshot() && event.metadataChanged()) {
+                final var deletedIndices = event.indicesDeleted();
+                // Abort local shard snapshot tracking for deleted indices. This is needed only when shard snapshot
+                // and primary shard can run on different nodes. The abort itself does not differentiate between
+                // local or remote shards so that local shards are aborted again in beforeIndexShardClosed. It's OK
+                // since abortIfNotCompleted is guaranteed to be only once.
+                if (deletedIndices.isEmpty() == false) {
+                    synchronized (shardSnapshots) {
+                        abortSnapshotsForDeletedIndices(Set.copyOf(deletedIndices));
+                    }
+                }
+            }
+
             if (isLocalNodeAddingShutdown) {
                 // Any active snapshots would have been signalled to pause in the previous code block.
                 snapshotShutdownProgressTracker.onClusterStatePausingSetForAllShardSnapshots();
-            }
-
-            // Abort local shard snapshot tracking for any shard whose index was deleted. For same-node shards this
-            // duplicates the abort from beforeIndexShardClosed, which is safe (abortIfNotCompleted is idempotent);
-            // the real point is to cover the case where the snapshot runs on a different node from the primary and
-            // therefore has no local IndexShard lifecycle hook. Only relevant when snapshots can run on a different
-            // node from the primary, i.e. when supportsRelocationDuringSnapshot is true.
-            if (snapshotShardContextFactory.supportsRelocationDuringSnapshot() && event.metadataChanged()) {
-                final List<Index> deletedIndices = event.indicesDeleted();
-                if (deletedIndices.isEmpty() == false) {
-                    abortSnapshotsForDeletedIndices(deletedIndices);
-                }
             }
 
             String previousMasterNodeId = event.previousState().nodes().getMasterNodeId();
@@ -294,24 +295,18 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         }
     }
 
-    private void abortSnapshotsForDeletedIndices(List<Index> deletedIndices) {
-        final Set<Index> deleted = Set.copyOf(deletedIndices);
-        synchronized (shardSnapshots) {
-            for (var snapshotEntry : shardSnapshots.entrySet()) {
-                for (var shardEntry : snapshotEntry.getValue().entrySet()) {
-                    final ShardId shardId = shardEntry.getKey();
-                    if (deleted.contains(shardId.getIndex())) {
-                        logger.debug(
-                            "[{}] aborting snapshot [{}] because the index was deleted",
-                            shardId,
-                            snapshotEntry.getKey().getSnapshotId()
-                        );
-                        shardEntry.getValue()
-                            .abortIfNotCompleted(
-                                "index [" + shardId.getIndex().getName() + "] deleted",
-                                notifyOnAbortTaskRunner::enqueueTask
-                            );
-                    }
+    private void abortSnapshotsForDeletedIndices(Set<Index> deletedIndices) {
+        for (var snapshotEntry : shardSnapshots.entrySet()) {
+            for (var shardEntry : snapshotEntry.getValue().entrySet()) {
+                final ShardId shardId = shardEntry.getKey();
+                if (deletedIndices.contains(shardId.getIndex())) {
+                    logger.debug(
+                        "[{}] aborting snapshot [{}] because the index was deleted",
+                        shardId,
+                        snapshotEntry.getKey().getSnapshotId()
+                    );
+                    shardEntry.getValue()
+                        .abortIfNotCompleted("index [" + shardId.getIndex().getName() + "] deleted", notifyOnAbortTaskRunner::enqueueTask);
                 }
             }
         }

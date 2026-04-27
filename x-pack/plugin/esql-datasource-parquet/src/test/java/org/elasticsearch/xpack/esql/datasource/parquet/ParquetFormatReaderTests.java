@@ -78,6 +78,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 

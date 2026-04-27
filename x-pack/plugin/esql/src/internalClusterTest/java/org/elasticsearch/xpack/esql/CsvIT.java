@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.License;
@@ -240,6 +241,9 @@ public class CsvIT extends ESTestCase {
         views.ensureNoFailures();
 
         var request = syncEsqlQueryRequest(testCase.query);
+        if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
+            request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
+        }
         var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
         cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
         // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
@@ -381,6 +385,8 @@ public class CsvIT extends ESTestCase {
                     switch (currentGroupName) {
                         // Temporarily allow a few so they have time to migrate away
                         case "enrich", "inlinestats", "limit", "lookup-join" -> logger.warn("stop using FROM *");
+                        // Views tests need FROM * with exclusions to test wildcard view resolution (e.g. FROM *,-employees*)
+                        case "views" -> logger.info("FROM * used in views test");
                         default -> throw new IllegalStateException(
                             "FROM * is not allowed in csv-spec tests because it makes them brittle. We add new data sets frequently."
                         );

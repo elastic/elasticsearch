@@ -16,8 +16,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
@@ -28,7 +28,11 @@ import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -36,18 +40,19 @@ import java.util.function.Supplier;
  * via {@link #iterateAsync}. The synchronous {@link #iterate} method from the
  * parent class remains available for non-streaming use.
  * <p>
- * Uses {@link ThrottledTaskRunner} with {@link EsExecutors#DIRECT_EXECUTOR_SERVICE} to
- * manage chunk sends:
+ * Uses {@link ThrottledIterator} to process chunks of documents across threads:
  * <ul>
- *   <li>Fetches documents and creates chunks</li>
- *   <li>Send tasks are enqueued directly to ThrottledTaskRunner</li>
- *   <li>Tasks run inline when under maxInFlightChunks capacity</li>
- *   <li>When at capacity, tasks queue internally until ACKs arrive</li>
- *   <li>ACK callbacks signal task completion, triggering queued tasks</li>
+ *   <li>A {@link ChunkProducingIterator} yields serialized chunks by performing Lucene I/O</li>
+ *   <li>A send consumer initiates asynchronous network sends for each chunk</li>
+ *   <li>The {@link ThrottledIterator} releasable is closed on send ACK, triggering the next chunk</li>
  * </ul>
- * <b>Threading:</b> All Lucene operations execute on the calling thread to satisfy
- * Lucene's thread-affinity requirements. Send tasks run inline (DIRECT_EXECUTOR) when
- * under capacity; ACK handling occurs asynchronously on network threads.
+ * <b>Threading:</b> The search thread produces up to {@code maxInFlightChunks} chunks in the
+ * initial burst, then returns to the thread pool. Subsequent chunks are produced on whatever
+ * thread ACKs a previous send. Per-leaf Lucene readers are re-acquired via {@link #setNextReader}
+ * (clone-per-chunk) whenever production crosses a leaf boundary or moves to a different thread,
+ * satisfying Lucene's thread-affinity assertions. If consecutive chunks stay within the same leaf
+ * on the same producer thread, the previous leaf setup is reused to avoid rebuilding stored-field
+ * loaders, doc-values, and sub-phase processor state on every chunk.
  * <p>
  * <b>Memory Management:</b> The circuit breaker tracks recycler page allocations via the
  * {@link RecyclerBytesStreamOutput} passed from the chunk writer. If the breaker trips
@@ -55,12 +60,13 @@ import java.util.function.Supplier;
  * {@link org.elasticsearch.common.breaker.CircuitBreakingException}, preventing unbounded
  * memory growth. Pages are released (and the breaker decremented) when the
  * {@link ReleasableBytesReference} from {@link RecyclerBytesStreamOutput#moveToBytesReference()}
- * is closed — either on ACK for intermediate chunks or when the last chunk is consumed.
+ * is closed -- either on ACK for intermediate chunks or when the last chunk is consumed.
  * <p>
- * <b>Backpressure:</b> {@link ThrottledTaskRunner} limits concurrent in-flight sends to
- * {@code maxInFlightChunks}. The circuit breaker provides the memory limit.
+ * <b>Backpressure:</b> {@link ThrottledIterator}'s {@code maxConcurrency} limits concurrent
+ * in-flight sends to {@code maxInFlightChunks}. The circuit breaker provides the memory limit.
  * <p>
- * <b>Cancellation:</b> The producer checks the cancellation flag periodically.
+ * <b>Cancellation:</b> The producer checks the cancellation flag periodically and in
+ * {@link ChunkProducingIterator#hasNext()}.
  */
 abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
 
@@ -71,7 +77,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
     static final int DEFAULT_TARGET_CHUNK_BYTES = 256 * 1024;
 
     /**
-     * Asynchronous iteration using {@link ThrottledTaskRunner} for streaming mode.
+     * Asynchronous iteration using {@link ThrottledIterator} for streaming mode.
      *
      * @param shardTarget         the shard being fetched from
      * @param indexReader         the index reader
@@ -82,6 +88,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
      * @param maxInFlightChunks   maximum concurrent unacknowledged chunks
      * @param sendFailure         atomic reference to capture send failures
      * @param isCancelled         supplier for cancellation checking
+     * @param continuationExecutor executor for dispatching chunk production after ACKs
      * @param listener            receives the result with the last chunk bytes
      */
     void iterateAsync(
@@ -94,6 +101,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         int maxInFlightChunks,
         AtomicReference<Throwable> sendFailure,
         Supplier<Boolean> isCancelled,
+        Executor continuationExecutor,
         ActionListener<IterateResult> listener
     ) {
         if (docIds == null || docIds.length == 0) {
@@ -104,12 +112,99 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         final AtomicReference<PendingChunk> lastChunkHolder = new AtomicReference<>();
         final AtomicReference<Throwable> producerError = new AtomicReference<>();
 
-        // ThrottledTaskRunner manages send concurrency
-        final ThrottledTaskRunner sendRunner = new ThrottledTaskRunner("fetch", maxInFlightChunks, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DocIdToIndex[] docs = sortDocsByDocId(docIds);
+        Iterator<PendingChunk> chunkIterator = new ChunkProducingIterator(
+            docs,
+            indexReader,
+            chunkWriter,
+            targetChunkBytes,
+            isCancelled,
+            sendFailure,
+            producerError
+        );
 
-        // RefCountingListener fires completion callback when all refs are released.
-        final RefCountingListener completionRefs = new RefCountingListener(ActionListener.wrap(ignored -> {
+        BiConsumer<Releasable, PendingChunk> sendConsumer = createSendConsumer(
+            chunkWriter,
+            shardTarget.getShardId(),
+            docIds.length,
+            sendFailure,
+            chunkCompletionRefs,
+            isCancelled,
+            lastChunkHolder
+        );
 
+        // Dispatch rawCompletion off the ACK / producer thread; it fires the listener itself and never throws.
+        Runnable rawCompletion = createCompletionHandler(listener, producerError, sendFailure, isCancelled, lastChunkHolder);
+        Runnable onCompletion = () -> continuationExecutor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                rawCompletion.run();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                rawCompletion.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // rawCompletion never throws.
+                assert false : e;
+            }
+        });
+
+        ThrottledIterator.run(
+            chunkIterator,
+            sendConsumer,
+            maxInFlightChunks,
+            onCompletion,
+            continuationExecutor,
+            e -> producerError.compareAndSet(null, e)
+        );
+    }
+
+    private static DocIdToIndex[] sortDocsByDocId(int[] docIds) {
+        DocIdToIndex[] docs = new DocIdToIndex[docIds.length];
+        for (int i = 0; i < docIds.length; i++) {
+            docs[i] = new DocIdToIndex(docIds[i], i);
+        }
+        Arrays.sort(docs);
+        return docs;
+    }
+
+    private static BiConsumer<Releasable, PendingChunk> createSendConsumer(
+        FetchPhaseResponseChunk.Writer chunkWriter,
+        ShardId shardId,
+        int totalDocs,
+        AtomicReference<Throwable> sendFailure,
+        RefCountingListener chunkCompletionRefs,
+        Supplier<Boolean> isCancelled,
+        AtomicReference<PendingChunk> lastChunkHolder
+    ) {
+        return (releasable, chunk) -> {
+            try {
+                if (chunk.isLast) {
+                    lastChunkHolder.set(chunk);
+                    releasable.close();
+                    return;
+                }
+                sendChunk(chunk, releasable, chunkWriter, shardId, totalDocs, sendFailure, chunkCompletionRefs, isCancelled);
+            } catch (Exception e) {
+                sendFailure.compareAndSet(null, e);
+                chunk.close();
+                releasable.close();
+            }
+        };
+    }
+
+    private static Runnable createCompletionHandler(
+        ActionListener<IterateResult> listener,
+        AtomicReference<Throwable> producerError,
+        AtomicReference<Throwable> sendFailure,
+        Supplier<Boolean> isCancelled,
+        AtomicReference<PendingChunk> lastChunkHolder
+    ) {
+        return () -> {
             final Throwable pError = producerError.get();
             if (pError != null) {
                 cleanupLastChunk(lastChunkHolder);
@@ -140,154 +235,142 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                 listener.onResponse(new IterateResult(lastChunk.bytes, lastChunk.hitCount, lastChunk.sequenceStart));
             } catch (Exception e) {
                 lastChunk.close();
-                throw e;
             }
-        }, e -> {
-            cleanupLastChunk(lastChunkHolder);
-            listener.onFailure(e);
-        }));
-
-        try {
-            produceChunks(
-                shardTarget.getShardId(),
-                indexReader,
-                docIds,
-                chunkWriter,
-                targetChunkBytes,
-                sendRunner,
-                completionRefs,
-                lastChunkHolder,
-                sendFailure,
-                chunkCompletionRefs,
-                isCancelled
-            );
-        } catch (Exception e) {
-            producerError.set(e);
-        } finally {
-            completionRefs.close();
-        }
+        };
     }
 
     /**
-     * Produces chunks and enqueues send tasks to ThrottledTaskRunner.
+     * Yields serialized chunks by fetching documents from Lucene in doc-ID order.
      * <p>
-     * Documents are sorted by doc ID for efficient sequential Lucene access, matching the
-     * non-streaming {@link FetchPhaseDocsIterator#iterate} path. Each leaf reader is visited
-     * exactly once with the full set of leaf-relative doc IDs passed to
-     * {@link #setNextReader(org.apache.lucene.index.LeafReaderContext, int[])}. Each serialized
-     * hit is prefixed with its original score-order position (as a vInt) so the coordinator can
-     * reassemble results in the correct order.
+     * Documents are sorted by doc ID for efficient sequential Lucene access, matching
+     * the non-streaming {@link FetchPhaseDocsIterator#iterate} path. Each serialized
+     * hit is prefixed with its original score-order position (as a vInt) so the
+     * coordinator can reassemble results in the correct order.
      * <p>
-     * For each chunk:
-     * <ol>
-     *   <li>Fetch documents in doc-ID order and serialize to bytes with position prefixes</li>
-     *   <li>For intermediate chunks: acquire ref and enqueue send task to ThrottledTaskRunner</li>
-     *   <li>For last chunk: store in lastChunkHolder (returned via listener after all ACKs)</li>
-     * </ol>
+     * <b>Clone-per-chunk:</b> Per-leaf Lucene readers are re-acquired via
+     * {@link #setNextReaderAndGetLeafEndIndex} whenever production crosses a leaf boundary or
+     * moves to a different thread than the one that last set up the current leaf. This creates
+     * fresh clones of {@code StoredFields}, {@code DocValues}, etc. bound to the calling thread,
+     * satisfying Lucene's thread-affinity assertions when chunks are produced across different
+     * threads. When consecutive chunks stay within the same leaf on the same thread the previous
+     * setup is reused, avoiding redundant loader and sub-phase processor rebuilds.
+     * <p>
+     * <b>Error safety:</b> All exceptions from Lucene I/O are caught and stored in
+     * {@code producerError}. This is critical because {@link ThrottledIterator} does not
+     * catch exceptions from {@code iterator.next()} -- an uncaught exception in
+     * {@code onItemRelease -> run -> next} would propagate unhandled on an ACK thread.
+     * <p>
+     * <b>Iterator contract:</b> Uses a read-ahead pattern: {@link #hasNext} eagerly
+     * produces the next chunk (buffered in {@code pendingNext}) and returns {@code false}
+     * if production fails, is cancelled, or no docs remain. {@link #next} returns the
+     * buffered chunk or throws {@link NoSuchElementException}, honouring the
+     * {@link Iterator} contract (never returns {@code null}).
      */
-    private void produceChunks(
-        ShardId shardId,
-        IndexReader indexReader,
-        int[] docIds,
-        FetchPhaseResponseChunk.Writer chunkWriter,
-        int targetChunkBytes,
-        ThrottledTaskRunner sendRunner,
-        RefCountingListener completionRefs,
-        AtomicReference<PendingChunk> lastChunkHolder,
-        AtomicReference<Throwable> sendFailure,
-        RefCountingListener chunkCompletionRefs,
-        Supplier<Boolean> isCancelled
-    ) throws Exception {
-        int totalDocs = docIds.length;
+    private class ChunkProducingIterator implements Iterator<PendingChunk> {
+        private final DocIdToIndex[] docs;
+        private final IndexReader indexReader;
+        private final FetchPhaseResponseChunk.Writer chunkWriter;
+        private final int targetChunkBytes;
+        private final Supplier<Boolean> isCancelled;
+        private final AtomicReference<Throwable> sendFailure;
+        private final AtomicReference<Throwable> producerError;
 
-        DocIdToIndex[] docs = new DocIdToIndex[totalDocs];
-        for (int i = 0; i < totalDocs; i++) {
-            docs[i] = new DocIdToIndex(docIds[i], i);
+        private int currentIdx;
+        private int endReaderIdx;
+        // Thread that last ran setNextReaderAndGetLeafEndIndex; null until the first leaf setup.
+        // Used to skip redundant per-leaf rebuilds when consecutive chunks stay on the same
+        // thread within the same leaf (Lucene's thread-affinity invariant still holds).
+        private Thread leafSetupThread;
+        private PendingChunk pendingNext;
+
+        ChunkProducingIterator(
+            DocIdToIndex[] docs,
+            IndexReader indexReader,
+            FetchPhaseResponseChunk.Writer chunkWriter,
+            int targetChunkBytes,
+            Supplier<Boolean> isCancelled,
+            AtomicReference<Throwable> sendFailure,
+            AtomicReference<Throwable> producerError
+        ) {
+            this.docs = docs;
+            this.indexReader = indexReader;
+            this.chunkWriter = chunkWriter;
+            this.targetChunkBytes = targetChunkBytes;
+            this.isCancelled = isCancelled;
+            this.sendFailure = sendFailure;
+            this.producerError = producerError;
         }
-        Arrays.sort(docs);
 
-        int endReaderIdx = setNextReaderAndGetLeafEndIndex(indexReader, docs, 0);
-        RecyclerBytesStreamOutput chunkBuffer = null;
-        try {
-            chunkBuffer = chunkWriter.newNetworkBytesStream();
-            int chunkStartIndex = 0;
-            int hitsInChunk = 0;
-
-            for (int i = 0; i < docs.length; i++) {
-                if (i % 32 == 0) {
-                    if (isCancelled.get()) {
-                        throw new TaskCancelledException("cancelled");
-                    }
-                    Throwable failure = sendFailure.get();
-                    if (failure != null) {
-                        throw failure instanceof Exception ? (Exception) failure : new RuntimeException(failure);
-                    }
-                }
-
-                if (i >= endReaderIdx) {
-                    endReaderIdx = setNextReaderAndGetLeafEndIndex(indexReader, docs, i);
-                }
-
-                SearchHit hit = nextDoc(docs[i].docId);
-                try {
-                    chunkBuffer.writeVInt(docs[i].index);
-                    hit.writeTo(chunkBuffer);
-                } finally {
-                    hit.decRef();
-                }
-                hitsInChunk++;
-
-                boolean isLast = (i == docs.length - 1);
-                boolean bufferFull = chunkBuffer.size() >= targetChunkBytes;
-
-                if (bufferFull || isLast) {
-                    final ReleasableBytesReference chunkBytes = chunkBuffer.moveToBytesReference();
-                    chunkBuffer = null;
-
-                    try {
-                        PendingChunk chunk = new PendingChunk(chunkBytes, hitsInChunk, chunkStartIndex, isLast);
-
-                        if (isLast) {
-                            lastChunkHolder.set(chunk);
-                        } else {
-                            ActionListener<Void> completionRef = null;
-                            try {
-                                completionRef = completionRefs.acquire();
-                                sendRunner.enqueueTask(
-                                    new SendChunkTask(
-                                        chunk,
-                                        completionRef,
-                                        chunkWriter,
-                                        shardId,
-                                        totalDocs,
-                                        sendFailure,
-                                        chunkCompletionRefs,
-                                        isCancelled
-                                    )
-                                );
-                                completionRef = null;
-                            } finally {
-                                if (completionRef != null) {
-                                    completionRef.onResponse(null);
-                                    chunk.close();
-                                }
-                            }
-                        }
-
-                        if (isLast == false) {
-                            chunkBuffer = chunkWriter.newNetworkBytesStream();
-                            chunkStartIndex = i + 1;
-                            hitsInChunk = 0;
-                        }
-                    } catch (Exception e) {
-                        Releasables.closeWhileHandlingException(chunkBytes);
-                        throw e;
-                    }
-                }
+        @Override
+        public boolean hasNext() {
+            if (pendingNext != null) {
+                return true;
             }
-        } finally {
-            if (chunkBuffer != null) {
-                Releasables.closeWhileHandlingException(chunkBuffer);
+            if (currentIdx >= docs.length || producerError.get() != null || sendFailure.get() != null || isCancelled.get()) {
+                return false;
+            }
+            pendingNext = produceNext();
+            return pendingNext != null;
+        }
+
+        @Override
+        public PendingChunk next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            PendingChunk chunk = pendingNext;
+            pendingNext = null;
+            return chunk;
+        }
+
+        private PendingChunk produceNext() {
+            RecyclerBytesStreamOutput chunkBuffer = null;
+            try {
+                chunkBuffer = chunkWriter.newNetworkBytesStream();
+                int chunkStartIndex = currentIdx;
+                int hitsInChunk = 0;
+
+                while (currentIdx < docs.length) {
+                    if (hitsInChunk > 0) {
+                        if (isCancelled.get()) {
+                            throw new TaskCancelledException("cancelled");
+                        }
+                        Throwable failure = sendFailure.get();
+                        if (failure != null) {
+                            throw failure instanceof Exception ? (Exception) failure : new RuntimeException(failure);
+                        }
+                    }
+
+                    if (currentIdx >= endReaderIdx || (hitsInChunk == 0 && Thread.currentThread() != leafSetupThread)) {
+                        endReaderIdx = setNextReaderAndGetLeafEndIndex(indexReader, docs, currentIdx);
+                        leafSetupThread = Thread.currentThread();
+                    }
+
+                    SearchHit hit = nextDoc(docs[currentIdx].docId);
+                    try {
+                        chunkBuffer.writeVInt(docs[currentIdx].index);
+                        hit.writeTo(chunkBuffer);
+                    } finally {
+                        hit.decRef();
+                    }
+                    currentIdx++;
+                    hitsInChunk++;
+
+                    if (currentIdx == docs.length || chunkBuffer.size() >= targetChunkBytes) {
+                        break;
+                    }
+                }
+
+                ReleasableBytesReference chunkBytes = chunkBuffer.moveToBytesReference();
+                chunkBuffer = null;
+                boolean isLast = (currentIdx == docs.length);
+                return new PendingChunk(chunkBytes, hitsInChunk, chunkStartIndex, isLast);
+            } catch (Exception e) {
+                producerError.compareAndSet(null, e);
+                if (chunkBuffer != null) {
+                    Releasables.closeWhileHandlingException(chunkBuffer);
+                }
+                return null;
             }
         }
     }
@@ -302,63 +385,13 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
     }
 
     /**
-     * Task that sends a single chunk. Implements {@link ActionListener} to receive
-     * the throttle releasable from {@link ThrottledTaskRunner}.
-     */
-    private static final class SendChunkTask implements ActionListener<Releasable> {
-        private final PendingChunk chunk;
-        private final ActionListener<Void> completionRef;
-        private final FetchPhaseResponseChunk.Writer writer;
-        private final ShardId shardId;
-        private final int totalDocs;
-        private final AtomicReference<Throwable> sendFailure;
-        private final RefCountingListener chunkCompletionRefs;
-        private final Supplier<Boolean> isCancelled;
-
-        private SendChunkTask(
-            PendingChunk chunk,
-            ActionListener<Void> completionRef,
-            FetchPhaseResponseChunk.Writer writer,
-            ShardId shardId,
-            int totalDocs,
-            AtomicReference<Throwable> sendFailure,
-            RefCountingListener chunkCompletionRefs,
-            Supplier<Boolean> isCancelled
-        ) {
-            this.chunk = chunk;
-            this.completionRef = completionRef;
-            this.writer = writer;
-            this.shardId = shardId;
-            this.totalDocs = totalDocs;
-            this.sendFailure = sendFailure;
-            this.chunkCompletionRefs = chunkCompletionRefs;
-            this.isCancelled = isCancelled;
-        }
-
-        @Override
-        public void onResponse(Releasable throttleReleasable) {
-            sendChunk(chunk, throttleReleasable, completionRef, writer, shardId, totalDocs, sendFailure, chunkCompletionRefs, isCancelled);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            chunk.close();
-            sendFailure.compareAndSet(null, e);
-            completionRef.onFailure(e);
-        }
-    }
-
-    /**
-     * Sends a single chunk. Called by ThrottledTaskRunner.
-     * <p>
-     * The send is asynchronous - this method initiates the network write and returns immediately.
-     * The ACK callback handles cleanup and signals task completion to ThrottledTaskRunner.
-     * Page-level CB tracking is released when the {@link ReleasableBytesReference} is closed.
+     * Sends a single intermediate chunk. Initiates an asynchronous network write and
+     * closes the {@link ThrottledIterator} releasable on ACK (or failure), which triggers
+     * production of the next chunk.
      */
     private static void sendChunk(
         PendingChunk chunk,
-        Releasable throttleReleasable,
-        ActionListener<Void> completionRef,
+        Releasable iteratorReleasable,
         FetchPhaseResponseChunk.Writer writer,
         ShardId shardId,
         int totalDocs,
@@ -368,17 +401,14 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
     ) {
         if (isCancelled.get()) {
             chunk.close();
-            completionRef.onResponse(null);
-            throttleReleasable.close();
+            iteratorReleasable.close();
             return;
         }
 
-        // Check for prior failure before sending
         final Throwable failure = sendFailure.get();
         if (failure != null) {
             chunk.close();
-            completionRef.onResponse(null);
-            throttleReleasable.close();
+            iteratorReleasable.close();
             return;
         }
 
@@ -395,14 +425,12 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
             writer.writeResponseChunk(responseChunk, ActionListener.wrap(v -> {
                 chunkToClose.close();
                 finalAckRef.onResponse(null);
-                completionRef.onResponse(null);
-                throttleReleasable.close();
+                iteratorReleasable.close();
             }, e -> {
                 chunkToClose.close();
                 sendFailure.compareAndSet(null, e);
                 finalAckRef.onFailure(e);
-                completionRef.onFailure(e);
-                throttleReleasable.close();
+                iteratorReleasable.close();
             }));
 
             responseChunk = null;
@@ -416,8 +444,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
             if (ackRef != null) {
                 ackRef.onFailure(e);
             }
-            completionRef.onFailure(e);
-            throttleReleasable.close();
+            iteratorReleasable.close();
         }
     }
 
@@ -433,7 +460,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
      * the page-level circuit breaker release callback from {@link RecyclerBytesStreamOutput#moveToBytesReference()}.
      */
     static class PendingChunk implements AutoCloseable {
-        final ReleasableBytesReference bytes;
+        ReleasableBytesReference bytes;
         final int hitCount;
         final int sequenceStart;
         final boolean isLast;
@@ -447,8 +474,10 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
 
         @Override
         public void close() {
-            if (bytes != null) {
-                Releasables.closeWhileHandlingException(bytes);
+            ReleasableBytesReference toClose = bytes;
+            bytes = null;
+            if (toClose != null) {
+                Releasables.closeWhileHandlingException(toClose);
             }
         }
     }

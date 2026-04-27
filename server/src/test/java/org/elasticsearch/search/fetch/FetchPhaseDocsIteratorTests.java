@@ -12,8 +12,12 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +29,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,15 +42,21 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -57,6 +68,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -183,6 +195,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
 
@@ -204,7 +217,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     public void testIterateAsyncSingleDocument() throws Exception {
-        LuceneDocs docs = createDocs(1);
+        LuceneDocs docs = createDocs(1, false);
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
@@ -224,6 +237,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
 
@@ -250,7 +264,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     public void testIterateAsyncAllDocsInSingleChunk() throws Exception {
-        LuceneDocs docs = createDocs(5);
+        LuceneDocs docs = createDocs(5, false);
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
@@ -270,6 +284,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
 
@@ -290,7 +305,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     public void testIterateAsyncMultipleChunks() throws Exception {
-        LuceneDocs docs = createDocs(100);
+        LuceneDocs docs = createDocs(100, false);
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
@@ -310,6 +325,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
 
@@ -344,8 +360,62 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         docs.directory.close();
     }
 
+    public void testIterateAsyncRespectsMaxInFlightWithDelayedAcks() throws Exception {
+        for (int maxInFlightChunks : List.of(1, 2, 3)) {
+            LuceneDocs docs = createDocs(100, false);
+            CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+            InFlightTrackingChunkWriter chunkWriter = new InFlightTrackingChunkWriter(circuitBreaker);
+            AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+            AtomicBoolean cancelled = new AtomicBoolean(false);
+
+            PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+            CountDownLatch refsComplete = new CountDownLatch(1);
+            RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+
+            createStreamingIterator().iterateAsync(
+                createShardTarget(),
+                docs.reader,
+                docs.docIds,
+                chunkWriter,
+                1,
+                refs,
+                maxInFlightChunks,
+                sendFailure,
+                cancelled::get,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                future
+            );
+
+            assertThat(chunkWriter.getSentChunks().size(), equalTo(maxInFlightChunks));
+            assertThat(chunkWriter.getMaxInFlight(), equalTo(maxInFlightChunks));
+            assertFalse(future.isDone());
+
+            assertBusy(() -> {
+                chunkWriter.ackAll();
+                assertTrue(future.isDone());
+            }, 10, TimeUnit.SECONDS);
+
+            IterateResult result = future.get(10, TimeUnit.SECONDS);
+
+            refs.close();
+            assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
+
+            assertThat(chunkWriter.getMaxInFlight(), lessThanOrEqualTo(maxInFlightChunks));
+            assertThat(result.lastChunkBytes, notNullValue());
+
+            int totalHits = chunkWriter.getSentChunks().stream().mapToInt(c -> c.hitCount).sum() + result.lastChunkHitCount;
+            assertThat(totalHits, equalTo(100));
+
+            result.close();
+            assertThat(circuitBreaker.getUsed(), equalTo(0L));
+
+            docs.reader.close();
+            docs.directory.close();
+        }
+    }
+
     public void testIterateAsyncCircuitBreakerTrips() throws Exception {
-        LuceneDocs docs = createDocs(100);
+        LuceneDocs docs = createDocs(100, false);
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(100L));
         TestChunkWriter chunkWriter = new TestChunkWriter(true, circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
@@ -365,6 +435,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
         chunkWriter.ackAll();
@@ -383,7 +454,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     public void testIterateAsyncCancellationBeforeFetchStart() throws Exception {
-        LuceneDocs docs = createDocs(100);
+        LuceneDocs docs = createDocs(100, false);
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
@@ -403,6 +474,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
 
@@ -422,7 +494,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     public void testIterateAsyncCancellationDuringDocProduction() throws Exception {
-        LuceneDocs docs = createDocs(1000);
+        LuceneDocs docs = createDocs(1000, false);
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
@@ -447,7 +519,19 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         CountDownLatch refsComplete = new CountDownLatch(1);
         RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
 
-        it.iterateAsync(createShardTarget(), docs.reader, docs.docIds, chunkWriter, 50, refs, 4, sendFailure, cancelled::get, future);
+        it.iterateAsync(
+            createShardTarget(),
+            docs.reader,
+            docs.docIds,
+            chunkWriter,
+            50,
+            refs,
+            4,
+            sendFailure,
+            cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
 
         Exception e = expectThrows(Exception.class, () -> future.get(10, TimeUnit.SECONDS));
         assertTrue(
@@ -465,7 +549,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     public void testIterateAsyncDocProducerException() throws Exception {
-        LuceneDocs docs = createDocs(100);
+        LuceneDocs docs = createDocs(100, false);
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
@@ -491,7 +575,19 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         CountDownLatch refsComplete = new CountDownLatch(1);
         RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
 
-        it.iterateAsync(createShardTarget(), docs.reader, docs.docIds, chunkWriter, 50, refs, 4, sendFailure, cancelled::get, future);
+        it.iterateAsync(
+            createShardTarget(),
+            docs.reader,
+            docs.docIds,
+            chunkWriter,
+            50,
+            refs,
+            4,
+            sendFailure,
+            cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
 
         Exception e = expectThrows(Exception.class, () -> future.get(10, TimeUnit.SECONDS));
         assertThat(e.getCause().getMessage(), containsString("Simulated producer failure"));
@@ -506,7 +602,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     public void testIterateAsyncPreExistingSendFailure() throws Exception {
-        LuceneDocs docs = createDocs(100);
+        LuceneDocs docs = createDocs(100, false);
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>(new IOException("Pre-existing failure")); // Send Failure
@@ -526,6 +622,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
 
@@ -543,7 +640,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     public void testIterateAsyncSendFailure() throws Exception {
-        LuceneDocs docs = createDocs(100);
+        LuceneDocs docs = createDocs(100, false);
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         // Chunk writer that fails after first chunk
         AtomicInteger chunkCount = new AtomicInteger(0);
@@ -575,6 +672,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
 
@@ -594,7 +692,11 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     public void testIterateAsyncVisitsLeavesInDocIdOrder() throws Exception {
         int docCount = 200;
         Directory directory = newDirectory();
-        RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
+        // Use plain IndexWriter (not RandomIndexWriter) so that segments are produced exactly at our
+        // explicit commit() points. RandomIndexWriter performs random extra flushes that, combined
+        // with NoMergePolicy, can produce many tiny single-doc segments and cause the assertion
+        // "at least one leaf should have multiple docs" to flake.
+        IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE));
         for (int i = 0; i < docCount; i++) {
             Document doc = new Document();
             doc.add(new StringField("field", "value" + i, Field.Store.NO));
@@ -604,7 +706,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             }
         }
         writer.commit();
-        IndexReader reader = writer.getReader();
+        IndexReader reader = DirectoryReader.open(writer);
         writer.close();
 
         assertTrue("Need multiple leaves to test leaf ordering", reader.leaves().size() > 1);
@@ -638,7 +740,19 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         CountDownLatch refsComplete = new CountDownLatch(1);
         RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
 
-        it.iterateAsync(createShardTarget(), reader, docIds, chunkWriter, 1024 * 1024, refs, 4, sendFailure, cancelled::get, future);
+        it.iterateAsync(
+            createShardTarget(),
+            reader,
+            docIds,
+            chunkWriter,
+            1024 * 1024,
+            refs,
+            4,
+            sendFailure,
+            cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
 
         IterateResult result = future.get(10, TimeUnit.SECONDS);
         refs.close();
@@ -738,6 +852,237 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         directory.close();
     }
 
+    public void testSameLeafSameThreadReusesLeafSetup() throws Exception {
+        LuceneDocs docs = createDocs(100, true);
+        assertThat("need one leaf", docs.reader.leaves().size(), equalTo(1));
+
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
+        RecordingStreamingIterator it = new RecordingStreamingIterator();
+
+        PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+        CountDownLatch refsComplete = new CountDownLatch(1);
+        RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+
+        it.iterateAsync(
+            createShardTarget(),
+            docs.reader,
+            docs.docIds,
+            chunkWriter,
+            50, // tiny chunk size -> many chunks
+            refs,
+            4,
+            new AtomicReference<>(),
+            new AtomicBoolean(false)::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+
+        IterateResult result = future.get(10, TimeUnit.SECONDS);
+        refs.close();
+        assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
+
+        assertThat("producer should have emitted multiple chunks", chunkWriter.getSentChunks().size(), greaterThan(1));
+        assertThat(
+            "setNextReader must be called exactly once when all chunks stay on one thread within a single leaf",
+            it.setupCount(),
+            equalTo(1)
+        );
+        assertThat("leaf setup must be recorded from a single thread", it.distinctThreads().size(), equalTo(1));
+
+        int totalHits = chunkWriter.getSentChunks().stream().mapToInt(c -> c.hitCount).sum() + result.lastChunkHitCount;
+        assertThat(totalHits, equalTo(docs.docIds.length));
+
+        result.close();
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+
+        docs.reader.close();
+        docs.directory.close();
+    }
+
+    public void testCrossLeafOnSameThreadRebuilds() throws Exception {
+        LuceneDocs docs = createDocs(200, false);
+        assertThat("need multiple leaves to exercise cross-leaf rebuild", docs.reader.leaves().size(), greaterThan(1));
+
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
+        RecordingStreamingIterator it = new RecordingStreamingIterator();
+
+        PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+        CountDownLatch refsComplete = new CountDownLatch(1);
+        RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+
+        it.iterateAsync(
+            createShardTarget(),
+            docs.reader,
+            docs.docIds,
+            chunkWriter,
+            50,
+            refs,
+            4,
+            new AtomicReference<>(),
+            new AtomicBoolean(false)::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+
+        IterateResult result = future.get(10, TimeUnit.SECONDS);
+        refs.close();
+        assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
+
+        int expectedLeaves = docs.reader.leaves().size();
+        assertThat(
+            "setNextReader must be called exactly once per leaf when all chunks stay on one thread",
+            it.setupCount(),
+            equalTo(expectedLeaves)
+        );
+        List<Integer> ordinals = it.leafOrdinals();
+        for (int i = 1; i < ordinals.size(); i++) {
+            assertThat("leaf ordinals must strictly increase: " + ordinals, ordinals.get(i), greaterThan(ordinals.get(i - 1)));
+        }
+        assertThat("all cross-leaf rebuilds stay on a single thread here", it.distinctThreads().size(), equalTo(1));
+
+        int totalHits = chunkWriter.getSentChunks().stream().mapToInt(c -> c.hitCount).sum() + result.lastChunkHitCount;
+        assertThat(totalHits, equalTo(docs.docIds.length));
+
+        result.close();
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+
+        docs.reader.close();
+        docs.directory.close();
+    }
+
+    public void testCrossThreadWithinSameLeafRebuildsSetup() throws Exception {
+        LuceneDocs docs = createDocs(150, true);
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        InFlightTrackingChunkWriter chunkWriter = new InFlightTrackingChunkWriter(circuitBreaker);
+        AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+        RecordingStreamingIterator it = new RecordingStreamingIterator();
+
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+            CountDownLatch refsComplete = new CountDownLatch(1);
+            RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+
+            it.iterateAsync(
+                createShardTarget(),
+                docs.reader,
+                docs.docIds,
+                chunkWriter,
+                50,
+                refs,
+                1, // every ACK dispatches a continuation on the executor
+                sendFailure,
+                new AtomicBoolean(false)::get,
+                threadPool.generic(),
+                future
+            );
+
+            Thread testThread = Thread.currentThread();
+            // Drain all chunks
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (future.isDone() == false && System.nanoTime() < deadlineNanos) {
+                chunkWriter.ackAll();
+                Thread.yield();
+            }
+
+            IterateResult result = future.get(10, TimeUnit.SECONDS);
+            refs.close();
+            assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
+
+            assertThat("no send failure", sendFailure.get(), nullValue());
+
+            Set<String> threadsSeen = it.distinctThreads();
+            assertThat("leaf setup must have been recorded on at least two distinct threads", threadsSeen.size(), greaterThanOrEqualTo(2));
+            assertTrue("first leaf setup must come from the caller thread", threadsSeen.contains(testThread.getName()));
+            assertThat(
+                "every recorded setup must come from the thread running that produceNext",
+                it.setupCount(),
+                greaterThanOrEqualTo(threadsSeen.size())
+            );
+
+            int totalHits = chunkWriter.getSentChunks().stream().mapToInt(c -> c.hitCount).sum() + result.lastChunkHitCount;
+            assertThat(totalHits, equalTo(docs.docIds.length));
+            assertThat(result.lastChunkBytes, notNullValue());
+
+            result.close();
+            assertThat(circuitBreaker.getUsed(), equalTo(0L));
+        } finally {
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+
+        docs.reader.close();
+        docs.directory.close();
+    }
+
+    public void testIterateAsyncConcurrentLeafSetupStress() throws Exception {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        Executor continuationExecutor = threadPool.generic();
+        try {
+            int iterations = 20;
+            for (int i = 0; i < iterations; i++) {
+                final int iter = i;
+                int docCount = randomIntBetween(100, 500);
+                boolean singleLeaf = randomBoolean();
+                LuceneDocs docs = singleLeaf ? createDocs(docCount, true) : createDocs(docCount, false);
+                try {
+                    int maxInFlight = randomIntBetween(1, 4);
+                    int chunkBytes = randomFrom(1, 20, 50, 200);
+
+                    final CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+                    InFlightTrackingChunkWriter chunkWriter = new InFlightTrackingChunkWriter(circuitBreaker);
+                    AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+                    RecordingStreamingIterator it = new RecordingStreamingIterator();
+
+                    PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+                    CountDownLatch refsComplete = new CountDownLatch(1);
+                    RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+
+                    it.iterateAsync(
+                        createShardTarget(),
+                        docs.reader,
+                        docs.docIds,
+                        chunkWriter,
+                        chunkBytes,
+                        refs,
+                        maxInFlight,
+                        sendFailure,
+                        new AtomicBoolean(false)::get,
+                        continuationExecutor,
+                        future
+                    );
+
+                    long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+                    while (future.isDone() == false && System.nanoTime() < deadlineNanos) {
+                        if (randomBoolean()) {
+                            chunkWriter.ackAll();
+                        } else {
+                            threadPool.generic().execute(chunkWriter::ackAll);
+                        }
+                        Thread.yield();
+                    }
+
+                    IterateResult result = future.get(10, TimeUnit.SECONDS);
+                    refs.close();
+                    assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
+
+                    assertThat("no send failure on iter=" + iter, sendFailure.get(), nullValue());
+                    int totalHits = chunkWriter.getSentChunks().stream().mapToInt(c -> c.hitCount).sum() + result.lastChunkHitCount;
+                    assertThat("hit count matches on iter=" + iter, totalHits, equalTo(docs.docIds.length));
+
+                    result.close();
+                    assertBusy(() -> assertThat("circuit breaker released on iter=" + iter, circuitBreaker.getUsed(), equalTo(0L)));
+                } finally {
+                    docs.reader.close();
+                    docs.directory.close();
+                }
+            }
+        } finally {
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
     private static int[] randomDocIds(int maxDoc) {
         List<Integer> integers = new ArrayList<>();
         int v = 0;
@@ -768,30 +1113,79 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         };
     }
 
-    private LuceneDocs createDocs(int numDocs) throws IOException {
+    private LuceneDocs createDocs(int numDocs, boolean singleLeaf) throws IOException {
         Directory directory = newDirectory();
-        RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
-        for (int i = 0; i < numDocs; i++) {
-            Document doc = new Document();
-            doc.add(new StringField("field", "value" + i, Field.Store.NO));
-            writer.addDocument(doc);
-            if (i % 30 == 0) {
-                writer.commit();  // Create multiple segments
+        IndexReader reader;
+        if (singleLeaf) {
+            RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(new StringField("field", "value" + i, Field.Store.NO));
+                writer.addDocument(doc);
             }
+            writer.forceMerge(1);
+            writer.commit();
+            reader = writer.getReader();
+            writer.close();
+        } else {
+            IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE));
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(new StringField("field", "value" + i, Field.Store.NO));
+                writer.addDocument(doc);
+                if (i % 30 == 0) {
+                    writer.commit();
+                }
+            }
+            writer.commit();
+            reader = DirectoryReader.open(writer);
+            writer.close();
         }
-        writer.commit();
-        IndexReader reader = writer.getReader();
-        writer.close();
 
         int[] docIds = new int[numDocs];
         for (int i = 0; i < numDocs; i++) {
             docIds[i] = i;
         }
-
         return new LuceneDocs(directory, reader, docIds);
     }
 
     private record LuceneDocs(Directory directory, IndexReader reader, int[] docIds) {}
+
+    private static class RecordingStreamingIterator extends StreamingFetchPhaseDocsIterator {
+        private final List<SetupEvent> setups = new CopyOnWriteArrayList<>();
+
+        @Override
+        protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {
+            setups.add(new SetupEvent(Thread.currentThread().getName(), ctx.ord, docsInLeaf.clone()));
+        }
+
+        @Override
+        protected SearchHit nextDoc(int doc) {
+            return new SearchHit(doc);
+        }
+
+        int setupCount() {
+            return setups.size();
+        }
+
+        Set<String> distinctThreads() {
+            Set<String> names = new HashSet<>();
+            for (SetupEvent e : setups) {
+                names.add(e.threadName);
+            }
+            return names;
+        }
+
+        List<Integer> leafOrdinals() {
+            List<Integer> ords = new ArrayList<>(setups.size());
+            for (SetupEvent e : setups) {
+                ords.add(e.leafOrd);
+            }
+            return ords;
+        }
+
+        private record SetupEvent(String threadName, int leafOrd, int[] docsInLeaf) {}
+    }
 
     /**
      * Simple record to track sent chunk info
@@ -840,6 +1234,42 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         public List<SentChunkInfo> getSentChunks() {
             return sentChunks;
+        }
+    }
+
+    private static class InFlightTrackingChunkWriter extends TestChunkWriter {
+        private final ConcurrentLinkedQueue<ActionListener<Void>> pendingAcks = new ConcurrentLinkedQueue<>();
+        private final AtomicInteger inFlightChunks = new AtomicInteger();
+        private final AtomicInteger maxInFlightChunks = new AtomicInteger();
+
+        InFlightTrackingChunkWriter(CircuitBreaker circuitBreaker) {
+            super(true, circuitBreaker);
+        }
+
+        @Override
+        public void writeResponseChunk(FetchPhaseResponseChunk chunk, ActionListener<Void> listener) {
+            sentChunks.add(new SentChunkInfo(chunk.hitCount(), chunk.sequenceStart(), chunk.expectedTotalDocs()));
+            int currentInFlight = inFlightChunks.incrementAndGet();
+            maxInFlightChunks.accumulateAndGet(currentInFlight, Math::max);
+            pendingAcks.add(ActionListener.wrap(v -> {
+                inFlightChunks.decrementAndGet();
+                listener.onResponse(v);
+            }, e -> {
+                inFlightChunks.decrementAndGet();
+                listener.onFailure(e);
+            }));
+        }
+
+        @Override
+        public void ackAll() {
+            ActionListener<Void> ack;
+            while ((ack = pendingAcks.poll()) != null) {
+                ack.onResponse(null);
+            }
+        }
+
+        int getMaxInFlight() {
+            return maxInFlightChunks.get();
         }
     }
 }

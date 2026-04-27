@@ -115,6 +115,14 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
         return m + m * efConstruction / 256;
     }
 
+    /**
+     * Translates HNSW {@code efConstruction} to the CAGRA NN-Descent max iterations,
+     * TODO: use the cuvs API for converting HNSW CPU Params to Cagra params when available.
+     */
+    public static int cagraNNDescentNumIterations(int efConstruction) {
+        return 5 + efConstruction / 16;
+    }
+
     @Override
     public String toString() {
         return NAME

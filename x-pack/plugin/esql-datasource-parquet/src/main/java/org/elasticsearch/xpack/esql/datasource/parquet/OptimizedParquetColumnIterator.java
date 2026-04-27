@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
@@ -15,14 +14,10 @@ import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
-import org.apache.parquet.io.api.Converter;
-import org.apache.parquet.io.api.GroupConverter;
-import org.apache.parquet.io.api.PrimitiveConverter;
-import org.apache.parquet.schema.GroupType;
-import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.Type;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -30,9 +25,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -43,6 +36,7 @@ import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Optimized Parquet column iterator behind the {@code optimized_reader} feature flag.
@@ -56,18 +50,18 @@ import java.util.concurrent.CompletableFuture;
  * {@code ColumnReader} for list columns. The {@link PreloadedRowGroupMetadata} parameter is
  * reserved for future column-index and dictionary-based optimizations.
  *
- * <p>The existing baseline {@code ParquetColumnIterator} is never modified — it remains as the
- * stable fallback when {@code optimized_reader=false}.
+ * <p>Both this iterator and the baseline {@code ParquetColumnIterator} share list-column
+ * decoding and utility helpers via {@link ParquetColumnDecoding}. The baseline remains
+ * the stable fallback when {@code optimized_reader=false}.
  *
- * <p><b>Memory:</b> Prefetching an entire next row group's projected column bytes can be
- * significant on wide schemas. A future refinement may cap the prefetch budget or integrate
- * with the circuit breaker.
+ * <p><b>Memory:</b> Prefetch bytes are reserved on the REQUEST circuit breaker (via
+ * {@link BlockFactory#breaker()}) before async I/O starts. The reservation is released
+ * when prefetched data is consumed and cleared. If the breaker would trip, prefetch is
+ * skipped and the query falls back to synchronous I/O for that row group.
  */
 final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
 
     private static final Logger logger = LogManager.getLogger(OptimizedParquetColumnIterator.class);
-
-    private static final char[] HEX = "0123456789abcdef".toCharArray();
 
     private final ParquetFileReader reader;
     private final MessageType projectedSchema;
@@ -82,7 +76,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private final StorageObject storageObject;
     private final ParquetStorageObjectAdapter adapter;
     private final Set<String> projectedColumnPaths;
+    private final CircuitBreaker breaker;
     private int rowBudget;
+    private final AtomicLong prefetchReservedBytes = new AtomicLong();
 
     private PageReadStore rowGroup;
     private ColumnReader[] columnReaders;
@@ -119,6 +115,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         this.preloadedMetadata = preloadedMetadata;
         this.storageObject = storageObject;
         this.adapter = adapter;
+        this.breaker = blockFactory.breaker();
 
         this.projectedColumnPaths = buildProjectedColumnPaths(columnInfos);
 
@@ -172,6 +169,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         rowGroup = reader.readNextFilteredRowGroup();
 
         adapter.clearPrefetchedData();
+        releasePrefetchReservation();
 
         if (rowGroup == null) {
             exhausted = true;
@@ -207,7 +205,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         if (hasListColumns) {
             ColumnReadStoreImpl store = new ColumnReadStoreImpl(
                 rowGroup,
-                new NoOpGroupConverter(projectedSchema),
+                new ParquetColumnDecoding.NoOpGroupConverter(projectedSchema),
                 projectedSchema,
                 createdBy
             );
@@ -223,7 +221,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     /**
      * Installs any previously prefetched row group data into the adapter so that
      * the next {@code readNextFilteredRowGroup()} can read from memory instead of
-     * issuing network I/O. Falls back gracefully on failure.
+     * issuing network I/O. Falls back gracefully on failure, releasing the breaker
+     * reservation if the prefetch did not produce usable data.
      */
     private void installPendingPrefetch() {
         if (pendingPrefetch == null) {
@@ -239,6 +238,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                     rowGroupOrdinal + 1,
                     fileLocation
                 );
+            } else {
+                releasePrefetchReservation();
             }
         } catch (Exception e) {
             logger.debug(
@@ -247,6 +248,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 fileLocation,
                 e.getMessage()
             );
+            releasePrefetchReservation();
         } finally {
             pendingPrefetch = null;
         }
@@ -254,8 +256,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
 
     /**
      * Triggers an async prefetch of column chunk data for the next row group.
-     * The prefetch runs in the background; the data is consumed in the next
-     * {@link #advanceRowGroup()} call via {@link #installPendingPrefetch()}.
+     * Reserves the estimated bytes on the circuit breaker before starting I/O;
+     * if the breaker would trip, prefetch is skipped and the query falls back
+     * to synchronous I/O for that row group. The reservation is released when
+     * the prefetched data is cleared in {@link #advanceRowGroup()} or on
+     * failure/cancel.
      */
     private void triggerNextRowGroupPrefetch() {
         if (storageObject == null) {
@@ -267,18 +272,57 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             return;
         }
         BlockMetaData nextBlock = rowGroups.get(nextRgOrdinal);
+        long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(nextBlock, projectedColumnPaths);
+        if (prefetchBytes <= 0) {
+            // No data to prefetch (empty projection or zero-byte columns). This is safe because
+            // installPendingPrefetch tolerates pendingPrefetch == null — no invariant is broken.
+            return;
+        }
+        try {
+            breaker.addEstimateBytesAndMaybeBreak(prefetchBytes, "esql_parquet_prefetch");
+            prefetchReservedBytes.set(prefetchBytes);
+        } catch (CircuitBreakingException e) {
+            logger.debug(
+                "Skipping prefetch for row group [{}] in [{}]: circuit breaker limit reached ({} bytes requested)",
+                nextRgOrdinal,
+                fileLocation,
+                prefetchBytes
+            );
+            return;
+        }
         try {
             pendingPrefetch = ColumnChunkPrefetcher.prefetchAsync(storageObject, nextBlock, projectedColumnPaths);
         } catch (Exception e) {
             logger.debug("Failed to initiate prefetch for row group [{}] in [{}]: {}", nextRgOrdinal, fileLocation, e.getMessage());
             pendingPrefetch = null;
+            releasePrefetchReservation();
         }
     }
 
+    /**
+     * Cancels the pending prefetch future and releases the breaker reservation. Note that
+     * {@link org.elasticsearch.common.util.concurrent.FutureUtils#cancel} only flips the
+     * future's cancelled state — it does not interrupt in-flight storage SDK reads. If the
+     * async read is already in progress, the SDK may still allocate a buffer that becomes
+     * untracked by the breaker until GC. Draining the future before releasing would risk
+     * blocking {@link #close()}, so we accept this brief discrepancy.
+     */
     private void cancelPendingPrefetch() {
         if (pendingPrefetch != null) {
             org.elasticsearch.common.util.concurrent.FutureUtils.cancel(pendingPrefetch);
             pendingPrefetch = null;
+        }
+        releasePrefetchReservation();
+    }
+
+    /**
+     * Releases any circuit breaker reservation held for prefetched data. Idempotent —
+     * safe to call multiple times (subsequent calls are no-ops when reservation is zero).
+     */
+    private void releasePrefetchReservation() {
+        long reserved = prefetchReservedBytes.getAndSet(0);
+        if (reserved > 0) {
+            breaker.addWithoutBreaking(-reserved);
         }
     }
 
@@ -374,172 +418,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             return blockFactory.newConstantNullBlock(rowsToRead);
         }
         if (info.maxRepLevel() > 0) {
-            return readListColumn(cr, info, rowsToRead);
+            return ParquetColumnDecoding.readListColumn(cr, info, rowsToRead, blockFactory);
         }
-        skipValues(cr, rowsToRead);
+        ParquetColumnDecoding.skipValues(cr, rowsToRead);
         return blockFactory.newConstantNullBlock(rowsToRead);
-    }
-
-    // --- List column readers ---
-
-    private Block readListColumn(ColumnReader cr, ColumnInfo info, int rows) {
-        DataType elementType = info.esqlType();
-        int maxDef = info.maxDefLevel();
-        return switch (elementType) {
-            case INTEGER -> readListIntColumn(cr, maxDef, rows);
-            case LONG -> readListLongColumn(cr, maxDef, rows);
-            case DOUBLE -> readListDoubleColumn(cr, maxDef, rows);
-            case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows);
-            case KEYWORD, TEXT -> readListBytesRefColumn(cr, maxDef, rows);
-            case DATETIME -> readListDatetimeColumn(cr, info, rows);
-            default -> {
-                skipListValues(cr, maxDef, rows);
-                yield blockFactory.newConstantNullBlock(rows);
-            }
-        };
-    }
-
-    private static void skipListValues(ColumnReader cr, int maxDef, int rows) {
-        for (int row = 0; row < rows; row++) {
-            cr.consume();
-            while (cr.getCurrentRepetitionLevel() > 0) {
-                cr.consume();
-            }
-        }
-    }
-
-    private Block readListIntColumn(ColumnReader cr, int maxDef, int rows) {
-        try (var builder = blockFactory.newIntBlockBuilder(rows)) {
-            for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, () -> builder.appendInt(cr.getInteger()));
-            }
-            return builder.build();
-        }
-    }
-
-    private Block readListLongColumn(ColumnReader cr, int maxDef, int rows) {
-        try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, () -> builder.appendLong(cr.getLong()));
-            }
-            return builder.build();
-        }
-    }
-
-    private Block readListDoubleColumn(ColumnReader cr, int maxDef, int rows) {
-        try (var builder = blockFactory.newDoubleBlockBuilder(rows)) {
-            for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, () -> builder.appendDouble(cr.getDouble()));
-            }
-            return builder.build();
-        }
-    }
-
-    private Block readListBooleanColumn(ColumnReader cr, int maxDef, int rows) {
-        try (var builder = blockFactory.newBooleanBlockBuilder(rows)) {
-            for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, () -> builder.appendBoolean(cr.getBoolean()));
-            }
-            return builder.build();
-        }
-    }
-
-    private Block readListBytesRefColumn(ColumnReader cr, int maxDef, int rows) {
-        try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
-            for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, () -> builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes())));
-            }
-            return builder.build();
-        }
-    }
-
-    private Block readListDatetimeColumn(ColumnReader cr, ColumnInfo info, int rows) {
-        try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            int maxDef = info.maxDefLevel();
-            for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, () -> builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType())));
-            }
-            return builder.build();
-        }
-    }
-
-    @FunctionalInterface
-    private interface ValueAppender {
-        void append();
-    }
-
-    private static void readListRow(ColumnReader cr, int maxDef, Block.Builder builder, ValueAppender appender) {
-        int def = cr.getCurrentDefinitionLevel();
-        if (def >= maxDef) {
-            builder.beginPositionEntry();
-            appender.append();
-            cr.consume();
-            while (cr.getCurrentRepetitionLevel() > 0) {
-                if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                    appender.append();
-                }
-                cr.consume();
-            }
-            builder.endPositionEntry();
-        } else {
-            cr.consume();
-            boolean hasValues = false;
-            while (cr.getCurrentRepetitionLevel() > 0) {
-                if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                    if (hasValues == false) {
-                        builder.beginPositionEntry();
-                        hasValues = true;
-                    }
-                    appender.append();
-                }
-                cr.consume();
-            }
-            if (hasValues) {
-                builder.endPositionEntry();
-            } else {
-                builder.appendNull();
-            }
-        }
-    }
-
-    // --- Utilities ---
-
-    private static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
-        if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-            return switch (ts.getUnit()) {
-                case MILLIS -> raw;
-                case MICROS -> raw / 1_000;
-                case NANOS -> raw / 1_000_000;
-            };
-        }
-        return raw;
-    }
-
-    private static void skipValues(ColumnReader cr, int rows) {
-        for (int i = 0; i < rows; i++) {
-            cr.consume();
-        }
-    }
-
-    static String formatUuid(byte[] bytes) {
-        if (bytes == null || bytes.length < 16) {
-            throw new QlIllegalArgumentException("UUID requires 16 bytes, got " + (bytes == null ? "null" : bytes.length));
-        }
-        StringBuilder sb = new StringBuilder(36);
-        for (int i = 0; i < 16; i++) {
-            sb.append(HEX[(bytes[i] >> 4) & 0xF]);
-            sb.append(HEX[bytes[i] & 0xF]);
-            if (i == 3 || i == 5 || i == 7 || i == 9) {
-                sb.append('-');
-            }
-        }
-        return sb.toString();
     }
 
     @Override
     public void close() throws IOException {
         cancelPendingPrefetch();
         adapter.clearPrefetchedData();
+        releasePrefetchReservation();
         try {
             if (rowGroup != null) {
                 rowGroup.close();
@@ -549,28 +438,4 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         }
     }
 
-    /**
-     * Minimal GroupConverter that satisfies {@link ColumnReadStoreImpl}'s constructor.
-     */
-    private static class NoOpGroupConverter extends GroupConverter {
-        private final GroupType schema;
-
-        NoOpGroupConverter(GroupType schema) {
-            this.schema = schema;
-        }
-
-        @Override
-        public Converter getConverter(int fieldIndex) {
-            Type field = schema.getType(fieldIndex);
-            return field.isPrimitive() ? new NoOpPrimitiveConverter() : new NoOpGroupConverter(field.asGroupType());
-        }
-
-        @Override
-        public void start() {}
-
-        @Override
-        public void end() {}
-    }
-
-    private static class NoOpPrimitiveConverter extends PrimitiveConverter {}
 }

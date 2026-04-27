@@ -1271,7 +1271,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testFormatUuid() {
         UUID uuid = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
         byte[] bytes = toUuidBytes(uuid);
-        String formatted = ParquetFormatReader.formatUuid(bytes);
+        String formatted = ParquetColumnDecoding.formatUuid(bytes);
         assertEquals("550e8400-e29b-41d4-a716-446655440000", formatted);
     }
 

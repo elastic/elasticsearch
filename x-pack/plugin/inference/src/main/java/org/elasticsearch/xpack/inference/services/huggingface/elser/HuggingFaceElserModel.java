@@ -33,7 +33,7 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
             taskType,
             service,
             HuggingFaceElserServiceSettings.fromMap(serviceSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

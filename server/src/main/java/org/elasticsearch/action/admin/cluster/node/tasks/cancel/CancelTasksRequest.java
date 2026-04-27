@@ -26,8 +26,6 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
     public static final String DEFAULT_REASON = "by user request";
     public static final boolean DEFAULT_WAIT_FOR_COMPLETION = false;
 
-    private static final int MAX_DESCRIPTION_ITEMS = 10;
-
     private String reason = DEFAULT_REASON;
     private boolean waitForCompletion = DEFAULT_WAIT_FOR_COMPLETION;
 
@@ -48,7 +46,8 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
 
     @Override
     public boolean match(Task task) {
-        return super.match(task) && task instanceof CancellableTask;
+        // Matching by target task ID is deferred to TransportCancelTasksAction
+        return task instanceof CancellableTask && matchesActionAndParent(task);
     }
 
     /**

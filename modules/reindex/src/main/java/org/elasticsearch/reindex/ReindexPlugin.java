@@ -113,7 +113,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
             new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
             new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
             new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment())),
-            new PluginComponentBinding<>(ReindexSettings.class, new ReindexSettings(services.clusterService().getClusterSettings()))
+            new ReindexSettings(services.clusterService().getClusterSettings())
         );
     }
 

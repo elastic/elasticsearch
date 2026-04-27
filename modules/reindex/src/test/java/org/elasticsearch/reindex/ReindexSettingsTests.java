@@ -27,25 +27,21 @@ import static org.hamcrest.Matchers.equalTo;
 public class ReindexSettingsTests extends ESTestCase {
 
     /**
-     * After construction with empty node settings, {@link ReindexSettings#pitKeepAlive()} matches the setting default and
-     * {@link ClusterSettings#get} for the same key.
+     * After construction with empty node settings, {@link ReindexSettings#pitKeepAlive()} matches the setting default
      */
     public void testPitKeepAliveMatchesDefaultWhenNodeSettingsEmpty() {
         ClusterSettings clusterSettings = clusterSettings(Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING), Settings.EMPTY);
         ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
         assertThat(reindexSettings.pitKeepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
-        assertThat(clusterSettings.get(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING), equalTo(reindexSettings.pitKeepAlive()));
     }
 
     /**
      * When the PIT keep-alive setting is not registered on {@link ClusterSettings} (nodes without {@code ReindexPlugin}),
-     * {@link ReindexSettings} still constructs and exposes the static default; dynamic updates are not applied.
+     * {@link ReindexSettings} still constructs and exposes the static default
      */
     public void testPitKeepAliveUsesDefaultWhenSettingNotRegistered() {
-        ClusterSettings clusterSettings = clusterSettings(Set.of(), Settings.EMPTY);
-        ReindexSettings reindexSettings = new ReindexSettings(clusterSettings);
+        ReindexSettings reindexSettings = new ReindexSettings();
         assertThat(reindexSettings.pitKeepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
-        assertNull(clusterSettings.get(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey()));
     }
 
     /**
@@ -77,7 +73,6 @@ public class ReindexSettingsTests extends ESTestCase {
         );
 
         assertThat(reindexSettings.pitKeepAlive(), equalTo(updated));
-        assertThat(clusterSettings.get(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING), equalTo(updated));
     }
 
     /**

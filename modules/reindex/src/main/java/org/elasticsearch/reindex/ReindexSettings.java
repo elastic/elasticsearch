@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.injection.guice.Inject;
 
 /**
  * Holds reindex-related dynamic cluster settings
@@ -40,17 +39,19 @@ public final class ReindexSettings {
     /**
      * {@link ClusterSettings#initializeAndWatch} keeps the value of the settings updated
      */
-    @Inject
+    public ReindexSettings() {
+        // For nodes that do not load ReindexPlugin, the TransportEnrichReindexAction constructor, and some tests,
+        // still inject ReindexSettings for cross-module actions.
+        // This uses the static default and skips dynamic updates.
+        this.pitKeepAlive = REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.EMPTY);
+    }
+
+    /**
+     * {@link ClusterSettings#initializeAndWatch} keeps the value of the settings updated
+     */
     public ReindexSettings(ClusterSettings clusterSettings) {
-        Setting<?> registered = clusterSettings.get(REINDEX_PIT_KEEP_ALIVE_SETTING.getKey());
-        if (registered == null) {
-            // Nodes that do not load ReindexPlugin (e.g. some tests) still inject ReindexSettings for
-            // cross-module actions; use the static default and skip dynamic updates.
-            this.pitKeepAlive = REINDEX_PIT_KEEP_ALIVE_SETTING.get(Settings.EMPTY);
-            return;
-        }
         @SuppressWarnings("unchecked")
-        Setting<TimeValue> pitKeepAliveSetting = (Setting<TimeValue>) registered;
+        Setting<TimeValue> pitKeepAliveSetting = (Setting<TimeValue>) clusterSettings.get(REINDEX_PIT_KEEP_ALIVE_SETTING.getKey());
         clusterSettings.initializeAndWatch(pitKeepAliveSetting, this::setPitKeepAlive);
     }
 

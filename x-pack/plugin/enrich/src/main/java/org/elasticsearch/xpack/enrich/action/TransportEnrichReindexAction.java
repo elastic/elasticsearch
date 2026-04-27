@@ -55,7 +55,6 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
         TransportService transportService,
         Environment environment,
         ResourceWatcherService watcherService,
-        ReindexSettings reindexSettings,
         FeatureService featureService,
         TaskResultsService taskResultsService
     ) {
@@ -75,7 +74,7 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             null,
             // can't be injected due to different classloaders between enrich and reindex (enrich doesn't extend reindex).
             ReindexPlugin.getReindexRelocationNodePicker(environment),
-            reindexSettings,
+            new ReindexSettings(),
             featureService,
             taskResultsService
         );

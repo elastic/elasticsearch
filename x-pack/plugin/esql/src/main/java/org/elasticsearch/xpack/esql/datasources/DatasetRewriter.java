@@ -79,7 +79,10 @@ public final class DatasetRewriter {
                 case TIME_SERIES -> "TS command is not supported on dataset names yet; dataset(s) requested: " + datasetNames;
                 case LOOKUP -> "LOOKUP JOIN against a dataset is not supported yet; dataset(s) requested: " + datasetNames;
                 case LOGSDB -> "LOGSDB index mode on FROM <dataset> is not supported yet; dataset(s) requested: " + datasetNames;
-                default -> "FROM <dataset> with index mode [" + relation.indexMode().getName() + "] is not supported yet; dataset(s) requested: " + datasetNames;
+                default -> "FROM <dataset> with index mode ["
+                    + relation.indexMode().getName()
+                    + "] is not supported yet; dataset(s) requested: "
+                    + datasetNames;
             };
             throw new VerificationException(message);
         }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.crypto;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 import org.junit.Before;
@@ -41,8 +42,8 @@ public class EncryptionServiceIT extends SecurityIntegTestCase {
         EncryptionService service = internalCluster().getInstance(EncryptionService.class, internalCluster().getMasterName());
         byte[] plaintext = randomByteArrayOfLength(randomIntBetween(1, 4096));
 
-        byte[] ciphertext = service.encrypt(plaintext);
-        byte[] decrypted = service.decrypt(ciphertext);
+        EncryptedData encrypted = service.encrypt(plaintext);
+        byte[] decrypted = service.decrypt(encrypted);
         assertArrayEquals(plaintext, decrypted);
     }
 
@@ -57,8 +58,8 @@ public class EncryptionServiceIT extends SecurityIntegTestCase {
         EncryptionService serviceB = internalCluster().getInstance(EncryptionService.class, nodes[1]);
 
         byte[] plaintext = randomByteArrayOfLength(randomIntBetween(1, 4096));
-        byte[] ciphertext = serviceA.encrypt(plaintext);
-        byte[] decrypted = serviceB.decrypt(ciphertext);
+        EncryptedData encrypted = serviceA.encrypt(plaintext);
+        byte[] decrypted = serviceB.decrypt(encrypted);
         assertArrayEquals(plaintext, decrypted);
     }
 
@@ -70,13 +71,13 @@ public class EncryptionServiceIT extends SecurityIntegTestCase {
 
         EncryptionService serviceBefore = internalCluster().getInstance(EncryptionService.class, nonMasterNode);
         byte[] plaintext = randomByteArrayOfLength(randomIntBetween(1, 256));
-        byte[] ciphertext = serviceBefore.encrypt(plaintext);
+        EncryptedData encrypted = serviceBefore.encrypt(plaintext);
 
         internalCluster().stopCurrentMasterNode();
         ensureGreen();
 
         EncryptionService serviceAfter = internalCluster().getInstance(EncryptionService.class, nonMasterNode);
-        byte[] decrypted = serviceAfter.decrypt(ciphertext);
+        byte[] decrypted = serviceAfter.decrypt(encrypted);
         assertArrayEquals(plaintext, decrypted);
     }
 }

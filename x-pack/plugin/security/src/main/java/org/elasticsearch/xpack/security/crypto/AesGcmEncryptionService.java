@@ -10,10 +10,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 
@@ -22,12 +22,14 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
 /**
- * AES-256-GCM implementation of {@link EncryptionService}
+ * AES-256-GCM implementation of {@link EncryptionService}.
  *
- * <p>Serialization format:
+ * <p>The binary payload format stored in {@link EncryptedData#payload()}:
  * <pre>
- * [version: 1 byte] [keyIdLen: 1 byte] [keyId: keyIdLen bytes] [iv: 12 bytes] [ciphertext + GCM tag]
+ * [version: 1 byte] [iv: 12 bytes] [ciphertext + GCM tag]
  * </pre>
+ *
+ * <p>The key ID is carried externally in {@link EncryptedData#keyId()}.
  */
 public class AesGcmEncryptionService implements EncryptionService {
 
@@ -46,35 +48,30 @@ public class AesGcmEncryptionService implements EncryptionService {
     }
 
     private static final byte SERIALIZATION_FORMAT_VERSION = 1;
-    // NIST SP 800-38D recommends 96 bits, 12 bytes
+    // NIST recommends 96 bits, 12 bytes
     private static final int IV_LENGTH_BYTES = 12;
-    // NIST SP 800-38D recommends 128 bits
+    // NIST recommends 128 bits
     private static final int GCM_TAG_LENGTH_BITS = 128;
     private static final String CIPHER_ALGORITHM = "AES/GCM/NoPadding";
-    // version (1) + keyIdLen (1) + min keyId (1) + IV (12) + GCM tag (16)
-    private static final int MIN_ENCRYPTED_BYTES_LENGTH = 1 + 1 + 1 + IV_LENGTH_BYTES + GCM_TAG_LENGTH_BITS / 8;
+    // version (1) + IV (12) + GCM tag (16)
+    private static final int MIN_PAYLOAD_LENGTH = 1 + IV_LENGTH_BYTES + GCM_TAG_LENGTH_BITS / 8;
+
+    private static final Logger logger = LogManager.getLogger(AesGcmEncryptionService.class);
 
     private final KeyProvider keyProvider;
     private final SecureRandom secureRandom = new SecureRandom();
-
-    private static final Logger logger = LogManager.getLogger(AesGcmEncryptionService.class);
 
     public AesGcmEncryptionService(KeyProvider keyProvider) {
         this.keyProvider = keyProvider;
     }
 
     @Override
-    public byte[] encrypt(byte[] bytes) {
+    public EncryptedData encrypt(byte[] bytes) {
         String activeKeyId = keyProvider.getActiveKeyId();
         SecretKey activeKey = keyProvider.getActiveKey();
         if (activeKeyId == null || activeKey == null) {
             logger.warn("attempted to encrypt but primary encryption key is not available");
             throw new IllegalStateException("primary encryption key is not available");
-        }
-
-        byte[] keyIdBytes = activeKeyId.getBytes(StandardCharsets.UTF_8);
-        if (keyIdBytes.length > 255) {
-            throw new IllegalStateException("key ID exceeds maximum length");
         }
 
         byte[] iv = new byte[IV_LENGTH_BYTES];
@@ -86,32 +83,31 @@ public class AesGcmEncryptionService implements EncryptionService {
             byte[] encrypted = cipher.doFinal(bytes);
             assert encrypted.length >= GCM_TAG_LENGTH_BITS / 8 : "GCM output too short, expected at least tag length";
 
-            ByteBuffer output = ByteBuffer.allocate(1 + 1 + keyIdBytes.length + IV_LENGTH_BYTES + encrypted.length);
+            ByteBuffer output = ByteBuffer.allocate(1 + IV_LENGTH_BYTES + encrypted.length);
             output.put(SERIALIZATION_FORMAT_VERSION);
-            output.put((byte) keyIdBytes.length);
-            output.put(keyIdBytes);
             output.put(iv);
             output.put(encrypted);
             assert output.remaining() == 0 : "buffer not fully written";
-            return output.array();
+            return new EncryptedData(activeKeyId, output.array());
         } catch (GeneralSecurityException e) {
-            logger.error("encryption failed", e);
             throw new ElasticsearchException("encryption failed", e);
         }
     }
 
     @Override
-    public byte[] decrypt(byte[] bytes) {
-        if (bytes.length < MIN_ENCRYPTED_BYTES_LENGTH) {
+    public byte[] decrypt(EncryptedData encryptedData) {
+        byte[] payload = encryptedData.payload();
+
+        if (payload.length < MIN_PAYLOAD_LENGTH) {
             logger.warn(
-                "received bytes [{}] for decryption that's less than the [{}] minimum length",
-                bytes.length,
-                MIN_ENCRYPTED_BYTES_LENGTH
+                "received payload [{}] bytes for decryption, less than the [{}] minimum length",
+                payload.length,
+                MIN_PAYLOAD_LENGTH
             );
-            throw new IllegalArgumentException("invalid length of encrypted data");
+            throw new IllegalArgumentException("invalid length of encrypted payload");
         }
 
-        ByteBuffer buf = ByteBuffer.wrap(bytes);
+        ByteBuffer buf = ByteBuffer.wrap(payload);
 
         int version = Byte.toUnsignedInt(buf.get());
         if (version != SERIALIZATION_FORMAT_VERSION) {
@@ -123,25 +119,15 @@ public class AesGcmEncryptionService implements EncryptionService {
             throw new IllegalArgumentException("unsupported serialization version for encrypted data [" + version + "]");
         }
 
-        int keyIdLen = Byte.toUnsignedInt(buf.get());
-        if (buf.remaining() < keyIdLen + IV_LENGTH_BYTES + GCM_TAG_LENGTH_BITS / 8) {
-            logger.warn("received key id length [{}] for decryption, but only [{}] bytes remaining in buffer", keyIdLen, buf.remaining());
-            throw new IllegalArgumentException("invalid length of encrypted data");
-        }
-
-        byte[] keyIdBytes = new byte[keyIdLen];
-        buf.get(keyIdBytes);
-        String keyId = new String(keyIdBytes, StandardCharsets.UTF_8);
-
         byte[] iv = new byte[IV_LENGTH_BYTES];
         buf.get(iv);
 
         byte[] encrypted = new byte[buf.remaining()];
         buf.get(encrypted);
 
+        String keyId = encryptedData.keyId();
         SecretKey key = keyProvider.getKey(keyId);
         if (key == null) {
-            logger.error("decryption key with id [{}] is not available", keyId);
             throw new IllegalStateException("decryption key with id [" + keyId + "] is not available");
         }
 
@@ -150,8 +136,7 @@ public class AesGcmEncryptionService implements EncryptionService {
             cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv));
             return cipher.doFinal(encrypted);
         } catch (GeneralSecurityException e) {
-            logger.warn(() -> "decryption failed for key [" + keyId + "]", e);
-            throw new ElasticsearchException("decryption failed", e);
+            throw new ElasticsearchException("decryption failed for key [" + keyId + "]", e);
         }
     }
 }

@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.security.crypto;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.crypto.EncryptedData;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Arrays;
 
@@ -44,8 +44,8 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         byte[] plaintext = randomByteArrayOfLength(randomIntBetween(0, 4096));
-        byte[] ciphertext = service.encrypt(plaintext);
-        byte[] decrypted = service.decrypt(ciphertext);
+        EncryptedData encrypted = service.encrypt(plaintext);
+        byte[] decrypted = service.decrypt(encrypted);
 
         assertArrayEquals(plaintext, decrypted);
     }
@@ -56,17 +56,13 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider(keyId, key);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
-        byte[] ciphertext = service.encrypt(new byte[] { 1, 2, 3 });
-        ByteBuffer buf = ByteBuffer.wrap(ciphertext);
+        EncryptedData encrypted = service.encrypt(new byte[] { 1, 2, 3 });
 
+        assertThat(encrypted.keyId(), equalTo(keyId));
+
+        ByteBuffer buf = ByteBuffer.wrap(encrypted.payload());
         assertThat(buf.get(), equalTo((byte) 0x01));
-
-        int keyIdLen = Byte.toUnsignedInt(buf.get());
-        byte[] keyIdBytes = new byte[keyIdLen];
-        buf.get(keyIdBytes);
-        assertThat(new String(keyIdBytes, StandardCharsets.UTF_8), equalTo(keyId));
-
-        // IV: 12 bytes
+        // IV (12) + ciphertext (3) + GCM tag (16)
         assertThat(buf.remaining(), org.hamcrest.Matchers.greaterThanOrEqualTo(12 + 16 + 3));
     }
 
@@ -75,14 +71,13 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
-        byte[] ciphertext = service.encrypt(randomByteArrayOfLength(10));
+        EncryptedData encrypted = service.encrypt(randomByteArrayOfLength(10));
 
-        // Replace the key ID in the ciphertext
         AesGcmEncryptionService.KeyProvider keyProvider2 = mock(AesGcmEncryptionService.KeyProvider.class);
         when(keyProvider2.getKey("key-1")).thenReturn(null);
         AesGcmEncryptionService service2 = new AesGcmEncryptionService(keyProvider2);
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> service2.decrypt(ciphertext));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> service2.decrypt(encrypted));
         assertThat(e.getMessage(), containsString("not available"));
     }
 
@@ -92,49 +87,58 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         AesGcmEncryptionService.KeyProvider keyProvider1 = mockKeyProvider("key-1", key1);
         AesGcmEncryptionService service1 = new AesGcmEncryptionService(keyProvider1);
 
-        byte[] ciphertext = service1.encrypt(randomByteArrayOfLength(10));
+        EncryptedData encrypted = service1.encrypt(randomByteArrayOfLength(10));
 
         AesGcmEncryptionService.KeyProvider keyProvider2 = mock(AesGcmEncryptionService.KeyProvider.class);
         when(keyProvider2.getKey("key-1")).thenReturn(key2);
         AesGcmEncryptionService service2 = new AesGcmEncryptionService(keyProvider2);
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> service2.decrypt(ciphertext));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> service2.decrypt(encrypted));
         assertThat(e.getMessage(), containsString("decryption failed"));
     }
 
-    public void testDecryptWithTamperedCiphertextFails() {
+    public void testDecryptWithTamperedPayloadFails() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
-        byte[] ciphertext = service.encrypt(randomByteArrayOfLength(32));
-        // Flip a bit in the encrypted payload (after version + keyIdLen + keyId + IV)
-        ciphertext[ciphertext.length - 1] ^= 0xFF;
+        EncryptedData encrypted = service.encrypt(randomByteArrayOfLength(32));
+        byte[] tampered = encrypted.payload().clone();
+        tampered[tampered.length - 1] ^= 0xFF;
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> service.decrypt(ciphertext));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> service.decrypt(new EncryptedData(encrypted.keyId(), tampered))
+        );
         assertThat(e.getMessage(), containsString("decryption failed"));
     }
 
     public void testDecryptWithUnsupportedVersionFails() {
-        byte[] ciphertext = new byte[64];
-        random().nextBytes(ciphertext);
-        ciphertext[0] = 0x02;
+        byte[] payload = new byte[64];
+        random().nextBytes(payload);
+        payload[0] = 0x02;
 
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.decrypt(ciphertext));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.decrypt(new EncryptedData("key-1", payload))
+        );
         assertThat(e.getMessage(), containsString("unsupported serialization version"));
     }
 
-    public void testDecryptWithTruncatedInputFails() {
+    public void testDecryptWithTruncatedPayloadFails() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.decrypt(new byte[] { 0x01, 0x01 }));
-        assertThat(e.getMessage(), containsString("invalid length of encrypted data"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.decrypt(new EncryptedData("key-1", new byte[] { 0x01, 0x01 }))
+        );
+        assertThat(e.getMessage(), containsString("invalid length of encrypted payload"));
     }
 
     public void testEncryptFailsWhenKeyNotAvailable() {
@@ -152,24 +156,27 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
-        byte[] ciphertext = service.encrypt(new byte[0]);
-        byte[] decrypted = service.decrypt(ciphertext);
+        EncryptedData encrypted = service.encrypt(new byte[0]);
+        byte[] decrypted = service.decrypt(encrypted);
         assertThat(decrypted.length, equalTo(0));
     }
 
-    public void testDifferentEncryptionsProduceDifferentCiphertexts() {
+    public void testDifferentEncryptionsProduceDifferentPayloads() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         byte[] plaintext = randomByteArrayOfLength(32);
-        byte[] ciphertext1 = service.encrypt(plaintext);
-        byte[] ciphertext2 = service.encrypt(plaintext);
+        EncryptedData encrypted1 = service.encrypt(plaintext);
+        EncryptedData encrypted2 = service.encrypt(plaintext);
 
-        assertFalse("same plaintext should produce different ciphertexts due to random IV", Arrays.equals(ciphertext1, ciphertext2));
+        assertFalse(
+            "same plaintext should produce different payloads due to random IV",
+            Arrays.equals(encrypted1.payload(), encrypted2.payload())
+        );
 
-        assertArrayEquals(plaintext, service.decrypt(ciphertext1));
-        assertArrayEquals(plaintext, service.decrypt(ciphertext2));
+        assertArrayEquals(plaintext, service.decrypt(encrypted1));
+        assertArrayEquals(plaintext, service.decrypt(encrypted2));
     }
 
     public void testDecryptWithTamperedIV() {
@@ -177,15 +184,19 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
-        byte[] ciphertext = service.encrypt(randomByteArrayOfLength(32));
-        int ivOffset = 1 + 1 + "key-1".getBytes(StandardCharsets.UTF_8).length;
-        ciphertext[ivOffset] ^= 0xFF;
+        EncryptedData encrypted = service.encrypt(randomByteArrayOfLength(32));
+        byte[] tampered = encrypted.payload().clone();
+        // IV starts at offset 1 (after version byte)
+        tampered[1] ^= 0xFF;
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> service.decrypt(ciphertext));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> service.decrypt(new EncryptedData(encrypted.keyId(), tampered))
+        );
         assertThat(e.getMessage(), containsString("decryption failed"));
     }
 
-    public void testDecryptWithTamperedKeyId() {
+    public void testDecryptWithWrongKeyIdFails() {
         SecretKey key1 = randomAesKey();
         SecretKey key2 = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mock(AesGcmEncryptionService.KeyProvider.class);
@@ -195,22 +206,25 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         when(keyProvider.getKey("key-2")).thenReturn(key2);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
-        byte[] ciphertext = service.encrypt(randomByteArrayOfLength(32));
-        // Overwrite key ID from "key-1" to "key-2" (same length)
-        byte[] newKeyId = "key-2".getBytes(StandardCharsets.UTF_8);
-        System.arraycopy(newKeyId, 0, ciphertext, 2, newKeyId.length);
+        EncryptedData encrypted = service.encrypt(randomByteArrayOfLength(32));
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> service.decrypt(ciphertext));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> service.decrypt(new EncryptedData("key-2", encrypted.payload()))
+        );
         assertThat(e.getMessage(), containsString("decryption failed"));
     }
 
-    public void testDecryptEmptyByteArray() {
+    public void testDecryptEmptyPayload() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.decrypt(new byte[0]));
-        assertThat(e.getMessage(), containsString("invalid length of encrypted data"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.decrypt(new EncryptedData("key-1", new byte[0]))
+        );
+        assertThat(e.getMessage(), containsString("invalid length of encrypted payload"));
     }
 
     public void testLargePayloadRoundTrip() {
@@ -219,8 +233,8 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         byte[] plaintext = randomByteArrayOfLength(1024 * 1024);
-        byte[] ciphertext = service.encrypt(plaintext);
-        byte[] decrypted = service.decrypt(ciphertext);
+        EncryptedData encrypted = service.encrypt(plaintext);
+        byte[] decrypted = service.decrypt(encrypted);
         assertArrayEquals(plaintext, decrypted);
     }
 }

@@ -10,8 +10,18 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-15]]
+=== 8.19.15
+
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+[discrete]
 [[es-connectors-release-notes-8-19-14]]
 === 8.19.14
+
+[discrete]
+[[es-connectors-release-notes-8-19-14-bug-fixes]]
+===== Bug fixes
 
 * Fixed a bug in Network Drive connector where users from different domains with the same RID could inherit each other's document permissions.
 See: https://github.com/elastic/connectors/pull/3973[*PR 3973*]

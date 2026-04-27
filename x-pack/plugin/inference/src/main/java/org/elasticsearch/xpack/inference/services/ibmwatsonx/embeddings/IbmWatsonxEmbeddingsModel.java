@@ -52,7 +52,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
             IbmWatsonxEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

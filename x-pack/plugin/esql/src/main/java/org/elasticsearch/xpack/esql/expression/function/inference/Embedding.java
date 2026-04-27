@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -37,6 +36,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -150,8 +150,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
     }
 
     public TimeValue inputTimeout() {
-        String value = optionStringValue(OPTION_TIMEOUT);
-        return value == null ? InferenceAction.Request.DEFAULT_TIMEOUT : TimeValue.parseTimeValue(value, OPTION_TIMEOUT);
+        return TimeValue.parseTimeValue(optionStringValue(OPTION_TIMEOUT), TIMEOUT_NOT_DETERMINED, OPTION_TIMEOUT);
     }
 
     @Override

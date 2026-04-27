@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.MathUtils;
 import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
@@ -884,8 +885,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
-        squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, distances);
+    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, distancesOffset, distances);
     }
 
     @Override
@@ -897,6 +898,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         float[] v1,
         float[] v2,
         float[] v3,
+        int distancesOffset,
         float[] distances
     ) {
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
@@ -937,10 +939,10 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             distance2 = fma(diff2, diff2, distance2);
             distance3 = fma(diff3, diff3, distance3);
         }
-        distances[0] = distance0;
-        distances[1] = distance1;
-        distances[2] = distance2;
-        distances[3] = distance3;
+        distances[distancesOffset] = distance0;
+        distances[distancesOffset + 1] = distance1;
+        distances[distancesOffset + 2] = distance2;
+        distances[distancesOffset + 3] = distance3;
     }
 
     @Override
@@ -1294,5 +1296,171 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         }
 
         return bytesRef.length - continuations;
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
+        assert other.length == dest.length;
+
+        final FloatVector scaleDestVec = FloatVector.broadcast(FLOAT_SPECIES, scaleDest);
+        final int limit = FLOAT_SPECIES.loopBound(dest.length);
+        int i = 0;
+        for (; i < limit; i += FLOAT_SPECIES.length()) {
+            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
+            FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, i);
+            destVec = fma(destVec, scaleDestVec, otherVec.mul(scaleOther));
+            destVec.intoArray(dest, i);
+        }
+
+        // tail
+        for (; i < dest.length; i++) {
+            dest[i] = fma(scaleOther, other[i], scaleDest * dest[i]);
+        }
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, float[] other, float[] dest) {
+        assert other.length == dest.length;
+
+        final FloatVector scaleOtherVec = FloatVector.broadcast(FLOAT_SPECIES, scaleOther);
+        final int limit = FLOAT_SPECIES.loopBound(dest.length);
+        int i = 0;
+        for (; i < limit; i += FLOAT_SPECIES.length()) {
+            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
+            FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, i);
+            destVec = fma(otherVec, scaleOtherVec, destVec);
+            destVec.intoArray(dest, i);
+        }
+
+        // tail
+        for (; i < dest.length; i++) {
+            dest[i] = fma(other[i], scaleOther, dest[i]);
+        }
+    }
+
+    @Override
+    public float logSumExpNQT(float[] vector) {
+        assert vector.length > 0;
+
+        // Uses a vectorized implementation of a
+        // <a href="https://www.nowozin.net/sebastian/blog/streaming-log-sum-exp-computation.html">streaming algorithm</a>.
+        FloatVector maxVec = FloatVector.broadcast(FLOAT_SPECIES, Float.NEGATIVE_INFINITY);
+        FloatVector sum = FloatVector.broadcast(FLOAT_SPECIES, 0);
+
+        final int limit = FLOAT_SPECIES.loopBound(vector.length);
+        int i = 0;
+        for (; i < limit; i += FLOAT_SPECIES.length()) {
+            FloatVector vec = FloatVector.fromArray(FLOAT_SPECIES, vector, i);
+            FloatVector newMaxVec = maxVec.max(vec);
+            sum = sum.mul(pow2NQT(maxVec.sub(newMaxVec))).add(pow2NQT(vec.sub(newMaxVec)));
+            maxVec = newMaxVec;
+        }
+
+        // In the case vector.length >= FLOAT_SPECIES.length(), each lane has its own max, so we need to use the same one throughout
+        float maxVal = maxVec.reduceLanes(MAX);
+        float reducedSum = reduceLogSumExpLanes(sum, maxVec, maxVal);
+
+        // tail
+        for (; i < vector.length; i++) {
+            float v = vector[i];
+            float newMaxVal = Math.max(maxVal, v);
+            reducedSum *= MathUtils.pow2NQT(maxVal - newMaxVal);
+            reducedSum += MathUtils.pow2NQT(v - newMaxVal);
+            maxVal = newMaxVal;
+        }
+
+        return maxVal + MathUtils.log2NQT(reducedSum);
+    }
+
+    @Override
+    public float logSumExpNQTDiff(float[] v1, float[] v2, float eps) {
+        assert v1.length > 0;
+        assert v1.length == v2.length;
+
+        // Uses a vectorized implementation of a
+        // <a href="https://www.nowozin.net/sebastian/blog/streaming-log-sum-exp-computation.html">streaming algorithm</a>.
+        FloatVector maxVec = FloatVector.broadcast(FLOAT_SPECIES, Float.NEGATIVE_INFINITY);
+        FloatVector sum = FloatVector.broadcast(FLOAT_SPECIES, 0);
+
+        final int limit = FLOAT_SPECIES.loopBound(v1.length);
+        int i = 0;
+        for (; i < limit; i += FLOAT_SPECIES.length()) {
+            FloatVector vec1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
+            FloatVector vec2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i);
+            FloatVector vec = vec1.sub(vec2).div(eps);
+
+            FloatVector newMaxVec = maxVec.max(vec);
+            sum = sum.mul(pow2NQT(maxVec.sub(newMaxVec))).add(pow2NQT(vec.sub(newMaxVec)));
+            maxVec = newMaxVec;
+        }
+
+        // In the case vector.length >= FLOAT_SPECIES.length(), each lane has its own max, so we need to use the same one throughout
+        float maxVal = maxVec.reduceLanes(MAX);
+        float reducedSum = reduceLogSumExpLanes(sum, maxVec, maxVal);
+
+        // tail
+        for (; i < v1.length; i++) {
+            float v = (v1[i] - v2[i]) / eps;
+            float newMaxVal = Math.max(maxVal, v);
+            reducedSum *= MathUtils.pow2NQT(maxVal - newMaxVal);
+            reducedSum += MathUtils.pow2NQT(v - newMaxVal);
+            maxVal = newMaxVal;
+        }
+
+        return maxVal + MathUtils.log2NQT(reducedSum);
+    }
+
+    private static float reduceLogSumExpLanes(FloatVector sum, FloatVector maxVec, float maxVal) {
+        // In the case vector.length >= FLOAT_SPECIES.length(), each lane has its own max, so we need to use the same one throughout
+        float reducedSum = 0;
+        // If vector.length < FLOAT_SPECIES.length(), maxVal == Float.NEGATIVE_INFINITY
+        if (Float.isFinite(maxVal)) {
+            sum = sum.mul(pow2NQT(maxVec.sub(maxVal)));
+            reducedSum = sum.reduceLanes(ADD);
+        }
+        return reducedSum;
+    }
+
+    @Override
+    public void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
+        assert v1.length > 0;
+        assert v1.length == v2.length;
+        assert v1.length == result.length;
+
+        final int limit = FLOAT_SPECIES.loopBound(v1.length);
+        FloatVector base = FloatVector.broadcast(FLOAT_SPECIES, (float) 2);
+
+        int i = 0;
+        for (; i < limit; i += FLOAT_SPECIES.length()) {
+            FloatVector vec1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
+            FloatVector vec2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i);
+            pow2NQT(vec1.sub(vec2).add(a).div(eps)).intoArray(result, i);
+        }
+
+        for (; i < v1.length; i++) {
+            result[i] = MathUtils.pow2NQT((a + v1[i] - v2[i]) / eps);
+        }
+    }
+
+    // Computes pow(2, exponent) using the NQT approximation
+    static FloatVector pow2NQT(FloatVector exponent) {
+        IntVector ones = IntVector.broadcast(INTEGER_SPECIES, 1);
+        IntVector negOnes = IntVector.broadcast(INTEGER_SPECIES, -1);
+        IntVector signs = ones.blend(negOnes, exponent.compare(VectorOperators.LT, 0.0f).cast(INTEGER_SPECIES));
+
+        // The next line implements the floor(exponent + 1)
+        IntVector p = (IntVector) exponent.lanewise(VectorOperators.ABS)
+            .add(1, exponent.compare(VectorOperators.GT, 0.0f))
+            .convert(VectorOperators.F2I, 0)
+            .mul(signs);
+        p = p.max(-30).min(30);
+        FloatVector pFloat = (FloatVector) p.convert(VectorOperators.I2F, 0);
+        // Replace div(2) with mul(0.5f)
+        FloatVector m = exponent.sub(pFloat).mul(0.5f).add(1.0f);
+        // Build 2^p using direct IEEE-754 bit manipulation
+        // Add EXPONENT_BIAS and shift left by MANTISSA_BITS bits to hit the float exponent field
+        IntVector pBits = p.add(MathUtils.EXPONENT_BIAS).lanewise(VectorOperators.LSHL, MathUtils.MANTISSA_BITS);
+        FloatVector powerOf2 = pBits.reinterpretAsFloats();
+        return m.mul(powerOf2).max(0.0f);
     }
 }

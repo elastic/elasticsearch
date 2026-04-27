@@ -608,6 +608,49 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     /**
+     * Tests that {@code LENGTH} on a field from the original index is pushed to field loading
+     * even when a {@code LOOKUP JOIN} follows. The EVAL precedes the join, so the expression
+     * falls below the join boundary and the {@code Primaries} check still sees exactly one source.
+     */
+    public void testLengthPushedBeyondLookupJoin() throws IOException {
+        initLookupIndex();
+        String value = "v".repeat(between(0, 256));
+        test(b -> {
+            b.startObject("test").field("type", "keyword").endObject();
+            b.startObject("main_matching").field("type", "keyword").endObject();
+        },
+            b -> b.field("test", value).field("main_matching", "lookup"),
+            """
+                FROM test
+                | EVAL length = LENGTH(test)
+                | DROP test
+                | LOOKUP JOIN lookup ON matching == main_matching
+                | STATS test = VALUES(CONCAT(test, length::KEYWORD))
+                """,
+            matchesList().item("a" + value.length()),
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            Map.of(
+                "data",
+                List.of(
+                    matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+                    matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
+                )
+            ),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item(lookupOperatorName())
+                    .item("EvalOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
+    }
+
+    /**
      * Tests {@code LENGTH} on a field that comes from a {@code LOOKUP JOIN}.
      */
     public void testLengthPushedInsideInlineStats() throws IOException {

@@ -39,6 +39,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -127,6 +128,9 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     private static void requireSliceRoutingWhenEnabled(ProjectState state, GetRequest request, String concreteIndex) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
         final boolean sliceEnabled = Optional.ofNullable(state.metadata().index(concreteIndex))
             .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
             .orElse(false);

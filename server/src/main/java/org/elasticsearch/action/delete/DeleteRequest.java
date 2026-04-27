@@ -146,11 +146,13 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         return this.routing;
     }
 
+    @Override
     public DeleteRequest setRoutingFromSlice(boolean routingFromSlice) {
         this.routingFromSlice = routingFromSlice;
         return this;
     }
 
+    @Override
     public boolean isRoutingFromSlice() {
         return routingFromSlice;
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -25,31 +26,79 @@ import java.io.IOException;
  */
 $if(BytesRef)$
 public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
-    OrdinalBytesRefBlock {
+    OrdinalBytesRefBlock, org.elasticsearch.compute.data.arrow.BytesRefArrowBufBlock$extraArrowBufBlockPermits$ {
 $else$
-public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock, $Type$BigArrayBlock {
+public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock, $Type$BigArrayBlock,
+    org.elasticsearch.compute.data.arrow.$Type$ArrowBufBlock$extraArrowBufBlockPermits$ {
 $endif$
 
 $if(BytesRef)$
     BytesRef NULL_VALUE = new BytesRef();
 
-$endif$
     /**
-     * Retrieves the $type$ value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
+     * Build a contiguous array of bytes for the value stored at the given
+     * position. The underlying data is generally stored in pages that look
+     * like {@code byte[][]} with some data spanning more than one of the
+     * inner {@code byte[]} arrays. In that case, this builds a
+     * {@code byte[]} in the {@link BytesRef}, copies the bytes, and returns
+     * it. Otherwise, this returns a zero-copy snapshot of the
+     * underlying data. Except arrow. Arrow always copies.
+     * <p>
+     *    If possible, use {@link #get} because it only needs to copy
+     *    in the arrow implementation.
+     * </p>
+     * <p>
+     *    There are {@link #getValueCount} values in each position. You can
+     *    access them all with something like:
+     * </p>
+     * {@snippet lang="java":
+     *    int start = getFirstValueIndex(position);
+     *    int end = start + getValueCount(position);
+     *    for (int i = start; i < end; i++) {
+     *       BytesRef v = getBytesRef(i, scratch);
+     *       // do stuff
+     *    }
+     * }
      * @param valueIndex the value index
-$if(BytesRef)$
-     * @param dest the destination
-$endif$
-     * @return the data value (as a $type$)
+     * @return the data value (as a BytesRef)
      */
-$if(BytesRef)$
     BytesRef getBytesRef(int valueIndex, BytesRef dest);
 
+    /**
+     * Retrieves the bytes value stored at the given value index using a
+     * {@link PagedBytesCursor} for zero-copy access to the underlying paged
+     * byte storage. Except arrow. Arrow always copies.
+     * <p>
+     *    There are {@link #getValueCount} values in each position. You can
+     *    access them all with something like:
+     * </p>
+     * {@snippet lang="java":
+     *    int start = getFirstValueIndex(position);
+     *    int end = start + getValueCount(position);
+     *    for (int i = start; i < end; i++) {
+     *       PagedBytesCursor v = get(i, scratch);
+     *       // do stuff
+     *    }
+     * }
+     * @param valueIndex the value index
+     * @param scratch the cursor to initialize and return
+     * @return the initialized cursor pointing to the value's bytes
+     */
+    PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch);
+
 $else$
+    /**
+     * Retrieves the $type$ value stored at the given value index.
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
+     * @param valueIndex the value index
+     * @return the data value (as a $type$)
+     */
     $type$ get$Type$(int valueIndex);
 $endif$
 
@@ -137,6 +186,18 @@ $elseif(boolean)$
     ToMask toMask();
 
 $endif$
+    @Override
+    default $Type$Block slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
     @Override
     $Type$Block filter(boolean mayContainDuplicates, int... positions);
 
@@ -348,6 +409,13 @@ $endif$
         @Override
         Builder append$Type$($type$ value);
 
+$if(BytesRef)$
+        /**
+         * Appends a BytesRef to the current entry using a {@link PagedBytesCursor}.
+         */
+        Builder append(PagedBytesCursor value);
+
+$endif$
         /**
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.

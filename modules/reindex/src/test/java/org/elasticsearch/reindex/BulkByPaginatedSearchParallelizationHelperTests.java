@@ -15,13 +15,18 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -29,7 +34,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -39,6 +43,7 @@ import static org.elasticsearch.reindex.BulkByPaginatedSearchParallelizationHelp
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -58,7 +63,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         terminate(threadPool);
     }
 
-    public void testSliceIntoSubRequests() throws IOException {
+    public void testSliceIntoSubRequests() {
         SearchRequest searchRequest = randomSearchRequest(
             () -> randomSearchSourceBuilder(() -> null, () -> null, () -> null, Collections::emptyList, () -> null, () -> null)
         );
@@ -82,6 +87,30 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
             }
             assertEquals(searchRequest, slice);
             currentSliceId++;
+        }
+    }
+
+    /**
+     * Sliced sub-requests must keep the parent search's {@link PointInTimeBuilder} (id and keep-alive)
+     * so all slices search against the same PIT while applying distinct {@link SliceBuilder} settings.
+     */
+    public void testSliceIntoSubRequestsPreservesPointInTimeBuilderOnEachSlice() {
+        BytesReference pitId = new BytesArray(randomAlphaOfLengthBetween(8, 24));
+        TimeValue keepAlive = TimeValue.timeValueMinutes(randomIntBetween(1, 30));
+        int times = randomIntBetween(2, 8);
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(keepAlive)));
+        SearchRequest[] slices = sliceIntoSubRequests(request, IdFieldMapper.NAME, times);
+        assertThat(slices.length, equalTo(times));
+        for (int i = 0; i < times; i++) {
+            PointInTimeBuilder pit = slices[i].source().pointInTimeBuilder();
+            assertNotNull(pit);
+            assertThat(pit.getEncodedId(), equalTo(pitId));
+            assertThat(pit.getKeepAlive(), equalTo(keepAlive));
+            SliceBuilder slice = slices[i].source().slice();
+            assertThat(slice.getField(), equalTo(IdFieldMapper.NAME));
+            assertThat(slice.getId(), equalTo(i));
+            assertThat(slice.getMax(), equalTo(times));
         }
     }
 

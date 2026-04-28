@@ -38,11 +38,11 @@ import java.util.Locale;
  * </table>
  *
  * <h2>Usage</h2>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *   FROM s3://bucket/data.csv WITH {"max_errors": 100}
  *   FROM s3://bucket/data.csv WITH {"error_mode": "skip_row", "max_error_ratio": 0.1}
  *   FROM s3://bucket/data.csv WITH {"error_mode": "null_field"}
- * }</pre>
+ * }
  *
  * @param mode           how to handle rows with parse errors
  * @param maxErrors      maximum number of errors to tolerate before failing

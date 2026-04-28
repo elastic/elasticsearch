@@ -31,6 +31,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.inference.DataType.TEXT;
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.DEFAULT_SETTINGS;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -1081,10 +1082,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
     }
 
     public void testDoesNotChunkNonTextInputs_whenChunkingSettingsAreNullInInput() {
-        InferenceString nonTextString = new InferenceString(
-            randomValueOtherThan(TEXT, () -> randomFrom(DataType.values())),
-            "image chunks"
-        );
+        InferenceString nonTextString = new InferenceString(randomValueOtherThan(TEXT, () -> randomFrom(DataType.values())), TEST_DATA_URI);
         ChunkInferenceInput imageInput = new ChunkInferenceInput(new InferenceStringGroup(nonTextString), null);
         ChunkInferenceInput textInput = new ChunkInferenceInput("text chunks");
 
@@ -1102,10 +1100,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
     }
 
     public void testDoesNotChunkNonTextInputs_whenChunkingSettingsAreSpecifiedInInput() {
-        InferenceString nonTextString = new InferenceString(
-            randomValueOtherThan(TEXT, () -> randomFrom(DataType.values())),
-            "image chunks"
-        );
+        InferenceString nonTextString = new InferenceString(randomValueOtherThan(TEXT, () -> randomFrom(DataType.values())), TEST_DATA_URI);
         WordBoundaryChunkingSettings chunkingSettings = new WordBoundaryChunkingSettings(1, 0);
         ChunkInferenceInput imageInput = new ChunkInferenceInput(new InferenceStringGroup(nonTextString), chunkingSettings);
         ChunkInferenceInput textInput = new ChunkInferenceInput(

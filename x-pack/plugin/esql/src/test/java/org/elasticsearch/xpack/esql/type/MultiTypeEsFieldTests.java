@@ -64,8 +64,11 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
         DataType dataType = randomFrom(types());
         DataType toType = toString ? DataType.KEYWORD : dataType;
         Map<String, Expression> indexToConvertExpressions = randomConvertExpressions(name, toString, dataType);
+        Expression potentiallyUnmappedExpression = randomBoolean() ? null : createToString(name, dataType);
+
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
-        return new MultiTypeEsField(name, toType, false, indexToConvertExpressions, tsType);
+
+        return new MultiTypeEsField(name, toType, false, indexToConvertExpressions, tsType, potentiallyUnmappedExpression);
     }
 
     @Override
@@ -74,14 +77,16 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
         DataType dataType = instance.getDataType();
         Map<String, Expression> indexToConvertExpressions = instance.getIndexToConversionExpressions();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
-        switch (between(0, 3)) {
+        Expression potentiallyUnmappedExpression = instance.getPotentiallyUnmappedExpression();
+        switch (between(0, 4)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> dataType = randomValueOtherThan(dataType, () -> randomFrom(DataType.types()));
             case 2 -> indexToConvertExpressions = mutateConvertExpressions(name, dataType, indexToConvertExpressions);
             case 3 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
+            case 4 -> potentiallyUnmappedExpression = potentiallyUnmappedExpression != null ? null : createToString(name, dataType);
             default -> throw new IllegalArgumentException();
         }
-        return new MultiTypeEsField(name, dataType, false, indexToConvertExpressions, tsType);
+        return new MultiTypeEsField(name, dataType, false, indexToConvertExpressions, tsType, potentiallyUnmappedExpression);
     }
 
     @Override
@@ -94,11 +99,8 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
     private Map<String, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {
         Map<String, Expression> indexToConvertExpressions = new HashMap<>();
         if (toString) {
-            indexToConvertExpressions.put(randomAlphaOfLength(4), new ToString(Source.EMPTY, fieldAttribute(name, dataType), config()));
-            indexToConvertExpressions.put(
-                randomAlphaOfLength(4),
-                new ToString(Source.EMPTY, fieldAttribute(name, DataType.KEYWORD), config())
-            );
+            indexToConvertExpressions.put(randomAlphaOfLength(4), createToString(name, dataType));
+            indexToConvertExpressions.put(randomAlphaOfLength(4), createToString(name, DataType.KEYWORD));
         } else {
             indexToConvertExpressions.put(randomAlphaOfLength(4), testConvertExpression(name, DataType.KEYWORD, dataType));
             indexToConvertExpressions.put(randomAlphaOfLength(4), testConvertExpression(name, dataType, dataType));
@@ -156,5 +158,9 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
 
     private static FieldAttribute fieldAttribute(String name, DataType dataType) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private ToString createToString(String name, DataType dataType) {
+        return new ToString(Source.EMPTY, fieldAttribute(name, dataType), config());
     }
 }

@@ -37,16 +37,24 @@ public class LastOverTimeTests extends AbstractAggregationTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
-        FunctionAppliesTo expHistogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
-        FunctionAppliesTo tDigestAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.4.0", "", true);
+        FunctionAppliesTo expHistogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
 
         var valuesSuppliers = List.of(
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.tsidCases(1, 1000),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100).stream().map(s -> s.withAppliesTo(expHistogramAppliesTo)).toList(),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(tDigestAppliesTo)).toList()
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(expHistogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramGaAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.dateCases(1, 1000),
+            MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.ipCases(1, 1000),
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         );
         for (List<TestCaseSupplier.TypedDataSupplier> valuesSupplier : valuesSuppliers) {
             for (TestCaseSupplier.TypedDataSupplier fieldSupplier : valuesSupplier) {
@@ -101,7 +109,7 @@ public class LastOverTimeTests extends AbstractAggregationTestCase {
             }
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField),
-                standardAggregatorName("Last", type) + "ByTimestamp",
+                standardAggregatorNameAllBytesTheSame("Last", type) + "ByTimestamp",
                 fieldSupplier.type(),
                 equalTo(expected)
             );

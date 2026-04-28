@@ -53,4 +53,70 @@ FROM books
 This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning a fixed number of snippets with a limited
 size, we have more control over the number of tokens that are used for semantic reranking.
 
+```{applies_to}
+stack: preview 9.4.1
+```
+
+```esql
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 1, "num_words": 25, "highlight": true })
+```
+
+| book_no:keyword | title:text | snippets:keyword |
+| --- | --- | --- |
+| 2714 | Return of the King Being the Third Part of The Lord of the Rings | Concluding the story begun in The Hobbit, this is the final part of <em>Tolkien</em> s epic masterpiece, The Lord of the Rings, featuring an exclusive |
+| 7350 | Return of the Shadow | <em>Tolkien</em> for long believed would be a far shorter book, 'a sequel to The Hobbit'. |
+
+
+Enable highlighting by setting `highlight` to `true` in the options. This wraps matched query terms in the
+returned snippets with `<em>` tags by default. To use different tags, set the `pre_tag` and `post_tag` options
+to the desired opening and closing tags respectively.
+
+```{applies_to}
+stack: preview 9.4.1
+```
+
+```esql
+ROW chunks = ["Alice was beginning to get very tired of sitting by her sister on the bank. The white rabbit disappeared down a hole and Alice quickly jumped in after it. The rabbit hole went straight on like a tunnel for some way and then dipped suddenly.", "The Queen of Hearts ordered her soldiers to paint the white roses red."]
+| EVAL snippets = TOP_SNIPPETS(chunks, "alice rabbit hole", {"num_words": 0, "highlight": true})
+```
+
+| snippets:keyword |
+| --- |
+| <em>Alice</em> was beginning to get very tired of sitting by her sister on the bank. The white <em>rabbit</em> disappeared down a <em>hole</em> and <em>Alice</em> quickly jumped in after it. The <em>rabbit</em> <em>hole</em> went straight on like a tunnel for some way and then dipped suddenly. |
+
+
+Set `num_words` to 0 to disable chunking entirely. This keeps the input field values as-is,
+which is useful when the text has already been chunked. Combine this with `highlight` set to
+`true` to highlight matched terms within each full value.
+
+```{applies_to}
+stack: preview 9.4.1
+```
+
+```esql
+ROW content = CONCAT(
+    "# Climate Change Solutions\\n\\n",
+    "## Renewable Energy\\n",
+    "Solar and wind power are becoming cost-competitive with fossil fuels. Investment in clean energy infrastructure creates jobs.\\n\\n",
+    "## Carbon Capture\\n",
+    "Direct air capture technology removes CO2 from the atmosphere. These systems require significant energy input but show promise for large-scale deployment.\\n\\n",
+    "## Policy Changes\\n",
+    "Government regulations can accelerate the transition to clean energy through carbon pricing and renewable energy mandates.")
+| EVAL chunked_content = CHUNK(content, {"strategy": "recursive", "max_chunk_size": 30, "separators": ["##", "\\n\\n"]})
+| EVAL snippets = TOP_SNIPPETS(chunked_content, "clean energy", {"num_words": 0, "num_snippets": 1, "highlight":true})
+| KEEP snippets
+```
+
+| snippets:keyword |
+| --- |
+| \## Policy Changes\nGovernment regulations can accelerate the transition to <em>clean</em> <em>energy</em> through carbon pricing and renewable <em>energy</em> mandates. |
+
+
+This is another example of setting `num_words` to 0, this time applied to an input that has
+    already been chunked with the `CHUNK` command. The markdown text is chunked by sections first, and
+    because the text is pre-chunked, no further splitting is needed. Setting `num_words` to 0 disables
+    chunking so that each chunk is scored and highlighted individually.
+
 

@@ -24,6 +24,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.ReindexSslConfig;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -53,7 +54,8 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
         TransportService transportService,
         Environment environment,
         ResourceWatcherService watcherService,
-        FeatureService featureService
+        FeatureService featureService,
+        TaskResultsService taskResultsService
     ) {
         super(
             EnrichReindexAction.NAME,
@@ -71,7 +73,8 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             null,
             // can't be injected due to different classloaders between enrich and reindex (enrich doesn't extend reindex).
             ReindexPlugin.getReindexRelocationNodePicker(environment),
-            featureService
+            featureService,
+            taskResultsService
         );
         this.bulkClient = new OriginSettingClient(client, ENRICH_ORIGIN);
     }

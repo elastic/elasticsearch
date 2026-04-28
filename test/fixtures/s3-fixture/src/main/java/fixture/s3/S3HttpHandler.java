@@ -101,6 +101,12 @@ public class S3HttpHandler implements HttpHandler {
 
     private static final String SHA_256_ETAG_PREFIX = "es-test-sha-256-";
 
+    /**
+     * Default {@code LastModified} for ListBucket {@code Contents} entries. Real S3 returns ISO-8601
+     * timestamps; clients such as the AWS SDK map missing elements to {@code null} last-modified.
+     */
+    public static final String DEFAULT_LIST_OBJECT_LAST_MODIFIED = "1970-01-01T00:00:00.000Z";
+
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         // Remove custom query parameters before processing the request. This simulates how S3 ignores them.
@@ -336,6 +342,7 @@ public class S3HttpHandler implements HttpHandler {
                     }
                     list.append("<Contents>");
                     list.append("<Key>").append(blobPath).append("</Key>");
+                    list.append("<LastModified>").append(DEFAULT_LIST_OBJECT_LAST_MODIFIED).append("</LastModified>");
                     list.append("<Size>").append(blob.getValue().length()).append("</Size>");
                     list.append("</Contents>");
                 }

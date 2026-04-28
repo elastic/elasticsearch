@@ -19,11 +19,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -32,6 +35,7 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -178,6 +182,138 @@ final class RemoteRequestBuilders {
             request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("unexpected error building entity", e);
+        }
+        return request;
+    }
+
+    /**
+     * Builds a {@code POST /{index}/_pit} request. Optional JSON body may include {@code project_routing} and/or {@code index_filter}
+     */
+    static Request openPit(String[] indices, TimeValue keepAlive, SearchRequest searchRequest) {
+        StringBuilder path = new StringBuilder("/");
+        addIndices(path, indices);
+        path.append("_pit");
+        Request request = new Request("POST", path.toString());
+        request.addParameter("keep_alive", keepAlive.getStringRep());
+        request.addParameter("allow_partial_search_results", "false");
+
+        String projectRouting = searchRequest.getProjectRouting();
+        QueryBuilder indexFilter = searchRequest.source() != null ? searchRequest.source().query() : null;
+        if (projectRouting != null || indexFilter != null) {
+            try (XContentBuilder entity = JsonXContent.contentBuilder()) {
+                entity.startObject();
+                if (projectRouting != null) {
+                    entity.field("project_routing", projectRouting);
+                }
+                if (indexFilter != null) {
+                    entity.field("index_filter");
+                    indexFilter.toXContent(entity, ToXContent.EMPTY_PARAMS);
+                }
+                entity.endObject();
+                request.setJsonEntity(Strings.toString(entity));
+            } catch (IOException e) {
+                throw new ElasticsearchException("unexpected error building open pit entity", e);
+            }
+        }
+        return request;
+    }
+
+    static Request closePit(BytesReference pitId) {
+        Request request = new Request("DELETE", "/_pit");
+        try (XContentBuilder entity = JsonXContent.contentBuilder()) {
+            entity.startObject().field("id", java.util.Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(pitId))).endObject();
+            request.setJsonEntity(Strings.toString(entity));
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to build close pit entity", e);
+        }
+        return request;
+    }
+
+    /**
+     * Builds a PIT search request. Requires remote version 7.10.0 or later.
+     * Uses POST /_search with pit and optional search_after in the body.
+     */
+    static Request pitSearch(
+        SearchRequest searchRequest,
+        BytesReference query,
+        BytesReference pitId,
+        TimeValue keepAlive,
+        @Nullable Object[] searchAfter,
+        Version remoteVersion
+    ) {
+        if (remoteVersion.before(Version.V_7_10_0)) {
+            throw new IllegalArgumentException("PIT search requires remote version 7.10.0 or later, but got " + remoteVersion);
+        }
+        Request request = new Request("POST", "/_search");
+
+        if (remoteVersion.onOrAfter(Version.fromId(6030099))) {
+            request.addParameter("allow_partial_search_results", "false");
+        }
+
+        try (
+            XContentBuilder entity = JsonXContent.contentBuilder();
+            XContentParser queryParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, query)
+        ) {
+            entity.startObject();
+
+            entity.startObject("pit");
+            entity.field("id", java.util.Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(pitId)));
+            entity.field("keep_alive", keepAlive.getStringRep());
+            entity.endObject();
+
+            entity.field("size", searchRequest.source().size());
+
+            if (searchRequest.source().version() == null || searchRequest.source().version() == false) {
+                entity.field("version", false);
+            } else {
+                entity.field("version", true);
+            }
+
+            List<SortBuilder<?>> sorts = searchRequest.source().sorts();
+            if (sorts != null && sorts.isEmpty() == false) {
+                entity.startArray("sort");
+                for (SortBuilder<?> sort : sorts) {
+                    sort.toXContent(entity, ToXContent.EMPTY_PARAMS);
+                }
+                entity.endArray();
+            }
+
+            entity.field("query");
+            entity.copyCurrentStructure(queryParser);
+            if (queryParser.nextToken() != null) {
+                throw new ElasticsearchException("query was more than a single object");
+            }
+
+            var fetchSource = searchRequest.source().fetchSource();
+            if (fetchSource == null) {
+                entity.field("_source", true);
+            } else {
+                if (remoteVersion.onOrAfter(Version.V_9_1_0) || fetchSource.excludeVectors() == null) {
+                    entity.field("_source", fetchSource);
+                } else {
+                    if (fetchSource.includes().length == 0 && fetchSource.excludes().length == 0) {
+                        entity.field("_source", true);
+                    } else {
+                        entity.startObject("_source");
+                        if (fetchSource.includes().length > 0) {
+                            entity.field(FetchSourceContext.INCLUDES_FIELD.getPreferredName(), fetchSource.includes());
+                        }
+                        if (fetchSource.excludes().length > 0) {
+                            entity.field(FetchSourceContext.EXCLUDES_FIELD.getPreferredName(), fetchSource.excludes());
+                        }
+                        entity.endObject();
+                    }
+                }
+            }
+
+            if (searchAfter != null && searchAfter.length > 0) {
+                entity.array("search_after", searchAfter);
+            }
+
+            entity.endObject();
+            request.setJsonEntity(Strings.toString(entity));
+        } catch (IOException e) {
+            throw new ElasticsearchException("unexpected error building pit search entity", e);
         }
         return request;
     }

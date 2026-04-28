@@ -29,6 +29,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
@@ -38,7 +42,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -48,6 +51,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
+
+    protected static final TimeValue DEFAULT_REQUEST_TIMEOUT = TimeValue.timeValueSeconds(30L);
+
     @After
     public void ensureExchangesAreReleased() throws Exception {
         for (String node : internalCluster().getNodeNames()) {
@@ -166,7 +172,11 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     protected final EsqlQueryResponse run(String esqlCommands) {
-        return run(syncEsqlQueryRequest(esqlCommands).pragmas(getPragmas()));
+        return run(esqlCommands, DEFAULT_REQUEST_TIMEOUT);
+    }
+
+    protected final EsqlQueryResponse run(String esqlCommands, TimeValue timeout) {
+        return run(syncEsqlQueryRequest(esqlCommands).pragmas(getPragmas()), timeout);
     }
 
     /** A hook for overriding. */
@@ -175,11 +185,29 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     public EsqlQueryResponse run(EsqlQueryRequest request) {
+        return run(request, DEFAULT_REQUEST_TIMEOUT);
+    }
+
+    public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
         try {
-            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+            return client().execute(EsqlQueryAction.INSTANCE, maybeWrapAsPrepared(request)).actionGet(timeout);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
         }
+    }
+
+    /**
+     * Randomly wraps the given request in a {@link PreparedEsqlQueryRequest} to exercise the
+     * pre-built-plan code path.
+     */
+    private EsqlQueryRequest maybeWrapAsPrepared(EsqlQueryRequest request) {
+        if (request instanceof PreparedEsqlQueryRequest || randomBoolean()) {
+            return request;
+        }
+        var parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        var inferenceSettings = new InferenceSettings(clusterService().state().metadata().settings());
+        var statement = parser.parse(request.query(), request.params(), inferenceSettings);
+        return PreparedEsqlQueryRequest.from(request, statement, "pre-built statement for testing");
     }
 
     protected static QueryPragmas randomPragmas() {

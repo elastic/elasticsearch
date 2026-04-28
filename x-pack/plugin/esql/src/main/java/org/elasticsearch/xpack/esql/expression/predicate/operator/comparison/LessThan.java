@@ -54,12 +54,36 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
         Source source,
         @Param(
             name = "lhs",
-            type = { "boolean", "date_nanos", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            type = {
+                "aggregate_metric_double",
+                "boolean",
+                "date_nanos",
+                "date",
+                "double",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
             description = "An expression."
         ) Expression left,
         @Param(
             name = "rhs",
-            type = { "boolean", "date_nanos", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            type = {
+                "aggregate_metric_double",
+                "boolean",
+                "date_nanos",
+                "date",
+                "double",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
             description = "An expression."
         ) Expression right
     ) {

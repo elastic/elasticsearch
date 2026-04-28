@@ -310,6 +310,9 @@ public class IndexAbstractionResolver {
         if (indexAbstraction.getType() == IndexAbstraction.Type.VIEW) {
             return indicesOptions.indexAbstractionOptions().resolveViews();
         }
+        if (indexAbstraction.getType() == IndexAbstraction.Type.DATASET) {
+            return indicesOptions.indexAbstractionOptions().resolveDatasets();
+        }
         final boolean isHidden = indexAbstraction.isHidden();
         boolean isVisible = isWildcardExpression == false
             || isHidden == false
@@ -350,6 +353,7 @@ public class IndexAbstractionResolver {
             }
 
             if (isVisible && selectorString != null) {
+
                 // Check if a selector was present, and if it is, check if this alias is applicable to it
                 IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
                 if (IndexComponentSelector.FAILURES.equals(selector)) {

@@ -7,15 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-
 import java.util.EnumSet;
 
 /**
  * Golden tests for filter and sort pushdown to Lucene.
  * New pushdown tests should be added here rather than in {@link LocalPhysicalPlanOptimizerTests}.
  */
-public class PushdownGoldenTests extends GoldenTestCase {
+public class PushdownGoldenTests extends UnmappedGoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION);
 
     public void testFilterPushdownNoUnmapped() {
@@ -93,9 +91,97 @@ public class PushdownGoldenTests extends GoldenTestCase {
         runUnmappedTests(query);
     }
 
+    public void testStartsWithOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE starts_with(_index, "sample")
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testEndsWithOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE ends_with(_index, "data")
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testLikeOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index LIKE "sample*"
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testLikeSingleCharOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index LIKE "sample_dat?"
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testLikeListOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index LIKE ("sample*", "no_match*")
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testRlikeOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index RLIKE "sample_.*"
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testRlikeListOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index RLIKE ("sample_.*", "no_match.*")
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testStartsWithOnDashedIndex() {
+        String query = """
+            FROM k8s-downsampled METADATA _index
+            | WHERE starts_with(_index, "k8s-")
+            | KEEP cluster
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testEndsWithOnDashedIndex() {
+        String query = """
+            FROM k8s-downsampled METADATA _index
+            | WHERE ends_with(_index, "-downsampled")
+            | KEEP cluster
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testLikeOnDashedIndex() {
+        String query = """
+            FROM k8s-downsampled METADATA _index
+            | WHERE _index LIKE "k8s-*"
+            | KEEP cluster
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
     private void runUnmappedTests(String query) {
-        runGoldenTest("SET unmapped_fields=\"nullify\"; " + query, STAGES, "nullify");
-        assumeTrue("Requires OPTIONAL_FIELDS_V2 for load", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
-        runGoldenTest("SET unmapped_fields=\"load\"; " + query, STAGES, "load");
+        runTestsNullifyAndLoad(query, STAGES);
     }
 }

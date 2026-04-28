@@ -12,23 +12,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -37,7 +33,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -50,6 +45,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOp
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -62,9 +58,6 @@ import java.util.Set;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
@@ -84,15 +77,6 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
         CHAT_COMPLETION_REQUEST_TYPE,
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-    private static final AzureOpenAiCompletionModelCreator COMPLETION_MODEL_CREATOR = new AzureOpenAiCompletionModelCreator();
-    private static final Map<TaskType, ModelCreator<? extends AzureOpenAiModel>> MODEL_CREATORS = Map.of(
-        TaskType.TEXT_EMBEDDING,
-        new AzureOpenAiEmbeddingsModelCreator(),
-        TaskType.COMPLETION,
-        COMPLETION_MODEL_CREATOR,
-        TaskType.CHAT_COMPLETION,
-        COMPLETION_MODEL_CREATOR
-    );
 
     public AzureOpenAiService(
         HttpRequestSender.Factory factory,
@@ -103,7 +87,20 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
     }
 
     public AzureOpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
+        super(factory, serviceComponents, clusterService, initModelCreators(serviceComponents.threadPool()));
+    }
+
+    private static Map<TaskType, ModelCreator<? extends AzureOpenAiModel>> initModelCreators(ThreadPool threadPool) {
+        var completionModelCreator = new AzureOpenAiCompletionModelCreator(threadPool);
+
+        return Map.of(
+            TaskType.TEXT_EMBEDDING,
+            new AzureOpenAiEmbeddingsModelCreator(threadPool),
+            TaskType.COMPLETION,
+            completionModelCreator,
+            TaskType.CHAT_COMPLETION,
+            completionModelCreator
+        );
     }
 
     @Override
@@ -112,75 +109,8 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
     }
 
     @Override
-    public void parseRequestConfig(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        ActionListener<Model> parsedModelListener
-    ) {
-        try {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-            ChunkingSettings chunkingSettings = null;
-            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-                );
-            }
-
-            AzureOpenAiModel model = createModel(
-                inferenceEntityId,
-                taskType,
-                serviceSettingsMap,
-                taskSettingsMap,
-                chunkingSettings,
-                serviceSettingsMap,
-                ConfigurationParseContext.REQUEST
-            );
-
-            throwIfNotEmptyMap(config, NAME);
-            throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            // The new approach is to leverage a ConstructingObjectParser to parse the task settings, this does not mutate the original map
-            // so we don't need to check if it's empty after parsing. The ConstructingObjectParser will throw an exception if there are any
-            // unrecognized fields in the task settings
-
-            parsedModelListener.onResponse(model);
-        } catch (Exception e) {
-            parsedModelListener.onFailure(e);
-        }
-    }
-
-    private static AzureOpenAiModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        ConfigurationParseContext context
-    ) {
-        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            context
-        );
-    }
-
-    @Override
-    public AzureOpenAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return retrieveModelCreatorFromMapOrThrow(
-            MODEL_CREATORS,
-            config.getInferenceEntityId(),
-            config.getTaskType(),
-            config.getService(),
-            ConfigurationParseContext.PERSISTENT
-        ).createFromModelConfigurationsAndSecrets(config, secrets);
+    public boolean usesParserForTaskSettings() {
+        return true;
     }
 
     @Override
@@ -289,7 +219,8 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
                 serviceSettings.dimensionsSetByUser(),
                 serviceSettings.maxInputTokens(),
                 similarityToUse,
-                serviceSettings.rateLimitSettings()
+                serviceSettings.rateLimitSettings(),
+                serviceSettings.oAuth2Settings()
             );
 
             return new AzureOpenAiEmbeddingsModel(embeddingsModel, updatedServiceSettings);
@@ -364,7 +295,8 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
                         .build()
                 );
 
-                configurationMap.putAll(AzureOpenAiSecretSettings.Configuration.get());
+                configurationMap.putAll(AzureOpenAiSecretSettings.configurations(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(AzureOpenAiOAuth2Settings.configurations(SUPPORTED_TASK_TYPES));
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
                         "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",

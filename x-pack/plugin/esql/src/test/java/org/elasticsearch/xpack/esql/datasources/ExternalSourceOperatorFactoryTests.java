@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -295,17 +297,22 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
         assertEquals(3, capturedObjects.size());
 
-        assertFalse("First split (offset=0) should not be wrapped", capturedObjects.get(0) instanceof RangeStorageObject);
+        assertTrue("First split (offset=0) must use RangeStorageObject", capturedObjects.get(0) instanceof RangeStorageObject);
+        RangeStorageObject range0 = (RangeStorageObject) capturedObjects.get(0);
+        assertEquals(0, range0.offset());
+        assertEquals(1000, range0.length());
         assertFalse("First split should not skip first line", capturedSkipFirstLine.get(0));
 
         assertTrue("Second split (offset=1000) should be wrapped", capturedObjects.get(1) instanceof RangeStorageObject);
         RangeStorageObject range1 = (RangeStorageObject) capturedObjects.get(1);
         assertEquals(1000, range1.offset());
+        assertEquals(1000, range1.length());
         assertTrue("Non-first split with offset > 0 should skip first line", capturedSkipFirstLine.get(1));
 
         assertTrue("Third split (offset=2000) should be wrapped", capturedObjects.get(2) instanceof RangeStorageObject);
         RangeStorageObject range2 = (RangeStorageObject) capturedObjects.get(2);
         assertEquals(2000, range2.offset());
+        assertEquals(500, range2.length());
         assertTrue("Non-first split with offset > 0 should skip first line", capturedSkipFirstLine.get(2));
 
         for (Page p : pages) {
@@ -358,23 +365,9 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             capturedObjects.add(object);
-            capturedSkipFirstLine.add(false);
-            return singlePageIterator();
-        }
-
-        @Override
-        public CloseableIterator<Page> readSplit(
-            StorageObject object,
-            List<String> projectedColumns,
-            int batchSize,
-            boolean skipFirstLine,
-            boolean lastSplit,
-            List<Attribute> resolvedAttributes
-        ) {
-            capturedObjects.add(object);
-            capturedSkipFirstLine.add(skipFirstLine);
+            capturedSkipFirstLine.add(context.firstSplit() == false);
             return singlePageIterator();
         }
 

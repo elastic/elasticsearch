@@ -9,17 +9,12 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.logical.Explain;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
-import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
@@ -35,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramsAsConstant;
@@ -46,8 +42,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PromqlParserTests extends ESTestCase {
-
-    private static final EsqlParser parser = EsqlParser.INSTANCE;
 
     public void testNoParenthesis() {
         Stream.of(
@@ -82,7 +76,7 @@ public class PromqlParserTests extends ESTestCase {
 
     public void testValidRangeQueryParams() {
         PromqlCommand promql = EsqlTestUtils.as(
-            parser.parseQuery(
+            TEST_PARSER.parseQuery(
                 "PROMQL index=test start=?_tstart end=?_tend step=?_step (avg(foo))",
                 new QueryParams(
                     List.of(
@@ -297,34 +291,12 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo("*:foo,foo"));
     }
 
-    public void testExplain() {
-        assumeTrue("requires explain command", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
-        assertExplain("""
-            PROMQL index=k8s step=5m ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
-            | LIMIT 1000
-            """, AcrossSeriesAggregate.class);
-        assertExplain("""
-            PROMQL index=k8s step=5m avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))
-            | LIMIT 1000
-            """, AcrossSeriesAggregate.class);
-        assertExplain(
-            "PROMQL index=k8s step=5m avg by (pod) (avg_over_time(network.bytes_in{pod=~\"host-0|host-1|host-2\"}[1h]))",
-            AcrossSeriesAggregate.class
-        );
-        assertExplain("PROMQL index=k8s step=5m foo", InstantSelector.class);
-    }
-
-    public void assertExplain(String query, Class<? extends UnaryPlan> promqlCommandClass) {
-        assumeTrue("requires explain command", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
-        var plan = parser.parseQuery("EXPLAIN ( " + query + " )");
-        Explain explain = plan.collect(Explain.class).getFirst();
-        PromqlCommand promqlCommand = explain.query().collect(PromqlCommand.class).getFirst();
-        assertThat(promqlCommand.promqlPlan(), instanceOf(promqlCommandClass));
-    }
-
     public void testNamedParameterInDuration() {
         PromqlCommand promql = as(
-            parser.parseQuery("PROMQL index=test step=10m rate(http_requests_total[?_duration])", paramsAsConstant("_duration", "10m")),
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=10m rate(http_requests_total[?_duration])",
+                paramsAsConstant("_duration", "10m")
+            ),
             PromqlCommand.class
         );
         assertThat(promql.step().value(), equalTo(Duration.ofMinutes(10)));
@@ -335,7 +307,7 @@ public class PromqlParserTests extends ESTestCase {
 
     public void testPositionalParameterInDuration() {
         PromqlCommand promql = as(
-            parser.parseQuery("PROMQL index=test step=15m rate(http_requests_total[?1])", paramsAsConstant(null, "15m")),
+            TEST_PARSER.parseQuery("PROMQL index=test step=15m rate(http_requests_total[?1])", paramsAsConstant(null, "15m")),
             PromqlCommand.class
         );
         assertThat(promql.step().value(), equalTo(Duration.ofMinutes(15)));
@@ -346,7 +318,7 @@ public class PromqlParserTests extends ESTestCase {
 
     public void testSameParameterUsedMultipleTimes() {
         PromqlCommand promql = as(
-            parser.parseQuery("PROMQL index=test step=?_step rate(foo[?_step]) + rate(bar[?_step])", paramsAsConstant("_step", "5m")),
+            TEST_PARSER.parseQuery("PROMQL index=test step=?_step rate(foo[?_step]) + rate(bar[?_step])", paramsAsConstant("_step", "5m")),
             PromqlCommand.class
         );
         assertThat(promql.step().value(), equalTo(Duration.ofMinutes(5)));
@@ -360,7 +332,7 @@ public class PromqlParserTests extends ESTestCase {
     public void testUnknownParameterInDurationError() {
         ParsingException e = assertThrows(
             ParsingException.class,
-            () -> parser.parseQuery("PROMQL index=test step=5m rate(foo[?_unknown])", new QueryParams(List.of()))
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m rate(foo[?_unknown])", new QueryParams(List.of()))
         );
         assertThat(e.getMessage(), containsString("No value found for parameter [?_unknown]"));
     }
@@ -368,7 +340,7 @@ public class PromqlParserTests extends ESTestCase {
     public void testParameterWithInvalidDurationValue() {
         ParsingException e = assertThrows(
             ParsingException.class,
-            () -> parser.parseQuery("PROMQL index=test step=5m rate(foo[?_bad])", paramsAsConstant("_bad", "not_a_duration"))
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m rate(foo[?_bad])", paramsAsConstant("_bad", "not_a_duration"))
         );
         assertThat(e.getMessage(), containsString("Invalid time duration"));
     }
@@ -376,7 +348,7 @@ public class PromqlParserTests extends ESTestCase {
     public void testParameterWithListType() {
         ParsingException e = assertThrows(
             ParsingException.class,
-            () -> parser.parseQuery("PROMQL index=test step=5m rate(foo[?_bad])", paramsAsConstant("_bad", List.of("1m", "5m")))
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m rate(foo[?_bad])", paramsAsConstant("_bad", List.of("1m", "5m")))
         );
         assertThat(e.getMessage(), containsString("Invalid time duration"));
     }
@@ -384,34 +356,16 @@ public class PromqlParserTests extends ESTestCase {
     public void testParameterWithInvalidType() {
         ParsingException e = assertThrows(
             ParsingException.class,
-            () -> parser.parseQuery("PROMQL index=test step=5m rate(foo[?_bad])", paramsAsConstant("_bad", 42))
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m rate(foo[?_bad])", paramsAsConstant("_bad", 42))
         );
         assertThat(e.getMessage(), containsString("Expected parameter [?_bad] to be of type string, but found [INTEGER]"));
     }
 
-    public void testInstantVectorExpected() {
-        ParsingException e = assertThrows(ParsingException.class, () -> parser.parseQuery("PROMQL index=test step=5m avg(foo[5m])"));
-        assertThat(e.getMessage(), containsString("expected type instant_vector in call to function [avg], got range_vector"));
-    }
-
-    public void testInstantVectorExpectedWithGrouping() {
-        ParsingException e = assertThrows(
-            ParsingException.class,
-            () -> parser.parseQuery("PROMQL index=test step=5m avg by (pod) (foo[5m])")
-        );
-        assertThat(e.getMessage(), containsString("expected type instant_vector in call to function [avg], got range_vector"));
-    }
-
     public void testRangeVectorExpectedSupportsInstantSelector() {
+        // rate() expects a range vector; an instant selector should be implicitly promoted at analysis time
         PromqlCommand promql = parse("PROMQL index=test step=5m rate(foo)");
-        WithinSeriesAggregate rate = as(promql.promqlPlan(), WithinSeriesAggregate.class);
-        RangeSelector range = as(rate.child(), RangeSelector.class);
-        assertThat(range.range().fold(FoldContext.small()), equalTo(Duration.ofMillis(-1)));
-    }
-
-    public void testRangeVectorExpectedStillRejectsNonSelectorInstantVectors() {
-        ParsingException e = assertThrows(ParsingException.class, () -> parser.parseQuery("PROMQL index=test step=5m rate(avg(foo))"));
-        assertThat(e.getMessage(), containsString("expected type range_vector in call to function [rate], got instant_vector"));
+        assertThat(promql.promqlPlan(), instanceOf(UnresolvedPromqlFunction.class));
+        assertThat(((UnresolvedPromqlFunction) promql.promqlPlan()).functionName(), equalTo("rate"));
     }
 
     public void testCaseInsensitivityOperators() {
@@ -426,15 +380,16 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void testCaseInsensitivityAggregators() {
+        // The parser lowercases function names in visitFunction; this verifies that behaviour directly.
         List.of("Sum", "Avg", "Count", "Min", "Max", "Stddev", "Stdvar").forEach(func -> {
             var promql = parse("promql index=test step=5m " + func.toUpperCase(Locale.ROOT) + "(foo)");
-            String upper = as(promql.promqlPlan(), AcrossSeriesAggregate.class).functionName();
+            String upper = as(promql.promqlPlan(), UnresolvedPromqlFunction.class).functionName();
 
             promql = parse("promql index=test step=5m " + func.toLowerCase(Locale.ROOT) + "(foo)");
-            String lower = as(promql.promqlPlan(), AcrossSeriesAggregate.class).functionName();
+            String lower = as(promql.promqlPlan(), UnresolvedPromqlFunction.class).functionName();
 
             promql = parse("promql index=test step=5m " + func + "(foo)");
-            String camel = as(promql.promqlPlan(), AcrossSeriesAggregate.class).functionName();
+            String camel = as(promql.promqlPlan(), UnresolvedPromqlFunction.class).functionName();
 
             assertThat(upper, equalTo(func.toLowerCase(Locale.ROOT)));
             assertThat(lower, equalTo(func.toLowerCase(Locale.ROOT)));
@@ -444,7 +399,7 @@ public class PromqlParserTests extends ESTestCase {
 
     public void testCaseInsensitivityKeywords() {
         var promql = parse("PROMQL index=test step=5m avg(foo) BY (pod)");
-        assertThat(as(promql.promqlPlan(), AcrossSeriesAggregate.class).grouping(), equalTo(AcrossSeriesAggregate.Grouping.BY));
+        assertThat(as(promql.promqlPlan(), UnresolvedPromqlFunction.class).grouping(), equalTo(AcrossSeriesAggregate.Grouping.BY));
 
         promql = parse("PROMQL index=test step=5m foo OfFsEt 5m");
         assertThat(as(promql.promqlPlan(), InstantSelector.class).evaluation().offset().value(), equalTo(Duration.ofMinutes(5)));
@@ -513,8 +468,156 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Metric name must not be defined twice: [foo] or [bar]"));
     }
 
+    // ---- query-as-param tests ----
+
+    public void testQueryAsNamedParam() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m (?query)", paramsAsConstant("query", "foo")),
+            PromqlCommand.class
+        );
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(5)));
+        assertThat(promql.promqlPlan(), instanceOf(InstantSelector.class));
+    }
+
+    public void testQueryAsPositionalParam() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m (?1)", paramsAsConstant(null, "foo")),
+            PromqlCommand.class
+        );
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(5)));
+        assertThat(promql.promqlPlan(), instanceOf(InstantSelector.class));
+    }
+
+    public void testQueryAsParamWithExplicitValueName() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m value=(?query)", paramsAsConstant("query", "foo")),
+            PromqlCommand.class
+        );
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(5)));
+        assertThat(promql.promqlPlan(), instanceOf(InstantSelector.class));
+    }
+
+    public void testQueryAsParamWithAllParamsAsNamedParams() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL step=?step start=?start end=?end index=?index value=(?query)",
+                new QueryParams(
+                    List.of(
+                        paramAsConstant("query", "avg(foo)"),
+                        paramAsConstant("step", "1m"),
+                        paramAsConstant("start", "2025-10-31T00:00:00Z"),
+                        paramAsConstant("end", "2025-10-31T01:00:00Z"),
+                        paramAsConstant("index", "my-metrics")
+                    )
+                )
+            ),
+            PromqlCommand.class
+        );
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(1)));
+        assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z").toEpochMilli()));
+        assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T01:00:00Z").toEpochMilli()));
+        List<UnresolvedRelation> unresolvedRelations = promql.collect(UnresolvedRelation.class);
+        assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo("my-metrics"));
+    }
+
+    public void testQueryAsNamedParamWithoutParens() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m ?query", paramsAsConstant("query", "foo")),
+            PromqlCommand.class
+        );
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(5)));
+        assertThat(promql.promqlPlan(), instanceOf(InstantSelector.class));
+    }
+
+    public void testQueryAsPositionalParamWithoutParens() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m ?1", paramsAsConstant(null, "foo")),
+            PromqlCommand.class
+        );
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(5)));
+        assertThat(promql.promqlPlan(), instanceOf(InstantSelector.class));
+    }
+
+    public void testQueryAsParamNonStringError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m (?query)", paramsAsConstant("query", 42))
+        );
+        assertThat(e.getMessage(), containsString("Parameter [?query] in PromQL expression must be a string"));
+    }
+
+    public void testQueryAsParamUnknownParamError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m (?unknown)", new QueryParams(List.of()))
+        );
+        assertThat(e.getMessage(), containsString("No value found for parameter [?unknown]"));
+    }
+
+    public void testQueryAsParamUnknownNamedParamError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m (?_typo)", paramsAsConstant("_correct", "foo"))
+        );
+        assertThat(e.getMessage(), containsString("No value found for parameter [?_typo]"));
+    }
+
+    public void testQueryAsParamBlankStringError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m (?query)", paramsAsConstant("query", ""))
+        );
+        assertThat(e.getMessage(), containsString("PromQL expression cannot be empty"));
+    }
+
+    public void testQueryAsNamedParamWithValueName() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m value=?query", paramsAsConstant("query", "foo")),
+            PromqlCommand.class
+        );
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(5)));
+        assertThat(promql.promqlPlan(), instanceOf(InstantSelector.class));
+        assertThat(promql.valueColumnName(), equalTo("value"));
+    }
+
+    // ---- index-as-param tests ----
+
+    public void testIndexAsNamedParam() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=?idx step=5m avg(foo)", paramsAsConstant("idx", "my-metrics")),
+            PromqlCommand.class
+        );
+        List<UnresolvedRelation> unresolvedRelations = promql.collect(UnresolvedRelation.class);
+        assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo("my-metrics"));
+    }
+
+    public void testIndexAsPositionalParam() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=?1 step=5m avg(foo)", paramsAsConstant(null, "my-metrics")),
+            PromqlCommand.class
+        );
+        List<UnresolvedRelation> unresolvedRelations = promql.collect(UnresolvedRelation.class);
+        assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo("my-metrics"));
+    }
+
+    public void testIndexAsParamUnknownParamError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=?unknown step=5m avg(foo)", new QueryParams(List.of()))
+        );
+        assertThat(e.getMessage(), containsString("No value found for parameter [?unknown]"));
+    }
+
+    public void testIndexAsParamNonStringError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=?idx step=5m avg(foo)", paramsAsConstant("idx", 42))
+        );
+        assertThat(e.getMessage(), containsString("Parameter [?idx] for index must be a string"));
+    }
+
     private static PromqlCommand parse(String query) {
-        return as(parser.parseQuery(query), PromqlCommand.class);
+        return as(TEST_PARSER.parseQuery(query), PromqlCommand.class);
     }
 
     @Override

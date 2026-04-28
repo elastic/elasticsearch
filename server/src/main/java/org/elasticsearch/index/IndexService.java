@@ -884,7 +884,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
         if (mapperService != null) {
-            mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
+            // Mapper service re-parses the mapping here, potentially adding deprecation warning response headers, but we're in the process
+            // of applying the cluster state and have no way to send these warnings back to the client so we just drop them. We will have
+            // generated, and sent back, the same headers while handling the request that created this mapping in the first place.
+            try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+                mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
+            }
         }
     }
 
@@ -1001,7 +1006,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (currentSettingsVersion == newSettingsVersion) {
                 assert updateIndexSettings == false : "No index updates are expected as index settings version has not changed";
             } else {
-                assert updateIndexSettings : "Index updates are expected as index settings version has changed";
                 assert currentSettingsVersion < newSettingsVersion
                     : "expected current settings version ["
                         + currentSettingsVersion
@@ -1372,7 +1376,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     /**
      * Clears the caches for the given shard id if the shard is still allocated on this node
      */
-    public boolean clearCaches(boolean queryCache, boolean fieldDataCache, String... fields) {
+    public boolean clearCaches(boolean queryCache, boolean fieldDataCache, boolean requestCache, String... fields) {
         boolean clearedAtLeastOne = false;
         if (queryCache) {
             clearedAtLeastOne = true;
@@ -1388,7 +1392,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             }
         }
-        if (clearedAtLeastOne == false) {
+        if (clearedAtLeastOne == false && requestCache == false) {
             if (fields.length == 0) {
                 indexCache.clear("api");
                 indexFieldData.clear();

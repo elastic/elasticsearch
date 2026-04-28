@@ -11,8 +11,8 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 
 public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByScrollActionMetadataTestCase<
     UpdateByQueryRequest,
@@ -43,8 +43,8 @@ public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByScrollActionM
                 UpdateByQueryMetadataTests.this.threadPool,
                 null,
                 request(),
-                true,
-                listener()
+                listener(),
+                randomPositiveTimeValue()
             );
         }
 

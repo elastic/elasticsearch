@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
@@ -109,6 +108,10 @@ public abstract class FieldMapper extends Mapper {
     protected final MappedFieldType mappedFieldType;
     protected final BuilderParams builderParams;
 
+    // cache fields that are accessed frequently (and which would result in megamorphic callsites at runtime)
+    private SyntheticSourceMode syntheticSourceMode; // lazily cached
+    private final String fullPath; // eagerly cached
+
     /**
      * @param simpleName        the leaf name of the mapper
      * @param params            initialization params for this field mapper
@@ -117,6 +120,8 @@ public abstract class FieldMapper extends Mapper {
         super(simpleName);
         this.mappedFieldType = mappedFieldType;
         this.builderParams = params;
+        this.syntheticSourceMode = null;
+        this.fullPath = mappedFieldType.name();
 
         // could be blank but not empty on indices created < 8.6.0
         assert mappedFieldType.name().isEmpty() == false;
@@ -125,7 +130,7 @@ public abstract class FieldMapper extends Mapper {
 
     @Override
     public String fullPath() {
-        return fieldType().name();
+        return fullPath;
     }
 
     @Override
@@ -190,6 +195,9 @@ public abstract class FieldMapper extends Mapper {
         try {
             if (builderParams.hasScript) {
                 throwIndexingWithScriptParam();
+            }
+            if (isSingleValueEnforced()) {
+                context.enforceSingleValue(fullPath());
             }
 
             parseCreateField(context);
@@ -260,6 +268,14 @@ public abstract class FieldMapper extends Mapper {
      * current failing token
      */
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
+
+    /**
+     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=no}). When {@code true}, a second value for the same
+     * document throws. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
+     */
+    protected boolean isSingleValueEnforced() {
+        return false;
+    }
 
     /**
      * @return whether this field mapper uses a script to generate its values
@@ -455,7 +471,7 @@ public abstract class FieldMapper extends Mapper {
      * </p>
      * @return {@link SyntheticSourceMode}
      */
-    final SyntheticSourceMode syntheticSourceMode() {
+    private SyntheticSourceMode calculateSyntheticSourceMode() {
         if (hasScript()) {
             return SyntheticSourceMode.NATIVE;
         }
@@ -468,6 +484,13 @@ public abstract class FieldMapper extends Mapper {
         }
 
         return syntheticSourceSupport().mode();
+    }
+
+    final SyntheticSourceMode syntheticSourceMode() {
+        if (syntheticSourceMode == null) {
+            this.syntheticSourceMode = calculateSyntheticSourceMode();
+        }
+        return syntheticSourceMode;
     }
 
     /**
@@ -626,24 +649,6 @@ public abstract class FieldMapper extends Mapper {
                 if (mapper instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
-                    }
-                }
-            }
-
-            private void update(FieldMapper toMerge, MapperMergeContext context) {
-                if (fieldBuilders.containsKey(toMerge.leafName()) == false) {
-                    if (context.decrementFieldBudgetIfPossible(toMerge.getTotalFieldsCount())) {
-                        add(toMerge);
-                    }
-                } else {
-                    FieldMapper.Builder existingBuilder = fieldBuilders.get(toMerge.leafName());
-                    FieldMapper.Builder incomingBuilder = toMerge.getMergeBuilder();
-                    if (incomingBuilder != null) {
-                        MapperMergeContext childContext = MapperMergeContext.from(context.getMapperBuilderContext(), Long.MAX_VALUE);
-                        Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, childContext);
-                        fieldBuilders.put(toMerge.leafName(), (FieldMapper.Builder) merged);
-                    } else {
-                        add(toMerge);
                     }
                 }
             }
@@ -1480,6 +1485,14 @@ public abstract class FieldMapper extends Mapper {
                 SORTED_SET,
                 ARRAYS;
 
+                /**
+                 * Whether this mode restricts the field to a single value per document. Callers use this to branch between single-valued
+                 * and multi-valued code paths (e.g. Lucene field selection, block loaders, doc-values-fallback queries).
+                 */
+                public boolean isSingleValued() {
+                    return this == NO;
+                }
+
                 @Override
                 public String toString() {
                     return name().toLowerCase(Locale.ROOT);
@@ -1940,13 +1953,6 @@ public abstract class FieldMapper extends Mapper {
                     );
                 }
                 if (parameter.deprecated) {
-                    // Remove the stack track trace logging after https://github.com/elastic/elasticsearch/issues/143884
-                    if (logger.isDebugEnabled() && "default_metric".equals(propName)) {
-                        logger.debug(
-                            "Parsing [" + contentType() + "] with deprecated [default_metric] config",
-                            new ElasticsearchException("Stack trace retrieval")
-                        );
-                    }
                     deprecationLogger.warn(
                         DeprecationCategory.API,
                         propName,

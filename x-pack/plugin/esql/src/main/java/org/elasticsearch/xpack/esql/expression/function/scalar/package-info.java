@@ -20,14 +20,14 @@
  *     <li>Fork the <a href="github.com/elastic/elasticsearch">Elasticsearch repo</a>.</li>
  *     <li>Clone your fork locally.</li>
  *     <li>Add Elastic’s remote, it should look a little like:
- *         <pre>{@code
+ *         {@snippet lang="gitconfig" :
  * [remote "elastic"]
  * url = git@github.com:elastic/elasticsearch.git
  * fetch = +refs/heads/*:refs/remotes/elastic/*
  * [remote "nik9000"]
  * url = git@github.com:nik9000/elasticsearch.git
  * fetch = +refs/heads/*:refs/remotes/nik9000/*
- *         }</pre>
+ *         }
  *     </li>
  *     <li>
  *         Feel free to use {@code git} as a scratch pad. We're going to squash all commits
@@ -104,7 +104,9 @@
  *     </li>
  *     <li>
  *         Add your function to {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
- *         This links it into the language and {@code META FUNCTIONS}.
+ *         This links it into the language and {@code META FUNCTIONS}. See
+ *         {@link org.elasticsearch.xpack.esql.expression.function.FunctionDefinition#def} for
+ *         building a {@code DEFINITION}
  *     </li>
  *     <li>
  *         Implement serialization for your function by implementing
@@ -178,22 +180,32 @@
  *             {@code ./gradlew :x-pack:plugin:esql:test -Dtests.class='*SinTests'}. It’s just
  *             running your new unit test. You should see something like:
  *         </p>
- *         <pre>{@code
+ *         {@snippet lang="text" :
  *              > Task :x-pack:plugin:esql:test
  *              ESQL Docs: Only files related to [sin.md], patching them into place
- *         }</pre>
+ *         }
  *     </li>
  *     <li>
  *         Install the docs-builder binary from <a href="https://github.com/elastic/docs-builder">https://github.com/elastic/docs-builder</a>,
  *         then build the docs locally by running the command below from the elasticsearch directory:
- *          <pre>{@code
+ *          {@snippet lang="bash" :
  * docs-builder serve
- *          }</pre>
+ *          }
  *     </li>
  *     <li>
  *         You can now browse the docs at <a href="http://localhost:3000">http://localhost:3000</a>. Or you can go directly to
  *         <a href="http://localhost:3000/reference/query-languages/esql/esql-functions-operators">ES|QL functions and operators</a> to see your
  *         function in the list and follow its link to get to the page you built. Make sure it looks ok.
+ *     </li>
+ *     <li>
+ *         You automatically got usage telemetry for your new function. Rejoice! Now add an assertion to
+ *         {@code 60_usage.yml} around {@snippet lang=yaml :
+ *          - exists: esql.functions.delay} to prove it.
+ *         Then run the tests with:
+ *         {@snippet lang = shell:
+ *         ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ yamlRestTest \
+ *             -Dtests.method='*60*'
+ *         }
  *     </li>
  *     <li>
  *         Let’s finish up the code by making the tests backwards compatible. Since this is a new
@@ -206,7 +218,7 @@
  *         double-check that they run on the main branch.
  *         <br><br>
  *         NOTE: When you fix bug in your function, use
- *         {@link org.elasticsearch.xpack.esql.expression.function.FunctionDefinition#withSubCapabilities}
+ *         {@link org.elasticsearch.xpack.esql.expression.function.FunctionDefinition.Builder#capabilities}
  *         to make capabilities to mark the fix.
  *         <br><br>
  *         NOTE: You may notice tests gated based on Elasticsearch version. This was the old way
@@ -225,14 +237,19 @@
  *             <li>The class that implements your new functions has the right annotations.</li>
  *         </ul>
  *
- *         When it comes to the correct syntax, e.g.: annotations, groupings, etc., feel free to look at existing snapshot functions and
- *         Git history.
+ *         When it comes to the correct syntax, e.g.: annotations, groupings, etc., feel free to look at
+ *         existing snapshot functions and Git history.
  *
  *         If your function should be available in snapshot <strong>only</strong>, add it to the list in
- *         {@code x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/esql/60_usage.yml} around
- *         {@code not_exists: esql.functions.delay}. The release build will fail if this function is
- *         available. Check out the instructions for running a release build in {@code testing.asciidoc}
- *         if you want to test this, but it's generally enough to let CI do it.
+ *         {@code 60_usage.yml} around {@snippet lang=yaml :
+ *         - not_exists: esql.functions.delay}. The release build will fail if this function is
+ *         available. Run these tests with:
+ *         {@snippet lang = shell:
+ *         ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ yamlRestTest \
+ *             -Dbuild.snapshot=false -Dtests.jvm.argline=-Dbuild.snapshot=false \
+ *             -Dlicense.key="x-pack/license-tools/src/test/resources/public.key" \
+ *             -Dtests.method='*60*'
+ *         }
  *     </li>
  *     <li>
  *         Open the PR. The subject and description of the PR are important because those'll turn
@@ -245,9 +262,9 @@
  *     <li>
  *         CI might fail for random looking reasons. The first thing you should do is merge {@code main}
  *         into your PR branch. That’s usually just:
- *         <pre>{@code
+ *         {@snippet lang="bash" :
  * git checkout main && git pull elastic main && git checkout mybranch && git merge main
- *         }</pre>
+ *         }
  *         Don’t worry about the commit message. It'll get squashed away in the merge.
  *     </li>
  * </ol>

@@ -58,9 +58,9 @@ import static org.hamcrest.Matchers.startsWith;
  * <p>
  * Uses a two-node cluster where nodeA hosts data and nodeB runs a throttled reindex.
  * Shutting down nodeB triggers task relocation to nodeA. Verifies that
- * {@code GET _reindex/{originalTaskId}} resolves through the relocation chain and
- * returns the relocated task's live state while preserving the original task's
- * identity and start time.
+ * {@code GET _reindex/{originalTaskId}} resolves through the relocation chain (handled by the
+ * relocation-aware Get Task API) and returns the relocated task's live state while preserving
+ * the original task's identity and start time.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ReindexGetRelocationIT extends ESIntegTestCase {
@@ -68,10 +68,11 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
     private static final String SOURCE_INDEX = "reindex_src";
     private static final String DEST_INDEX = "reindex_dst";
 
-    private final int bulkSize = randomIntBetween(1, 5);
-    private final int requestsPerSecond = randomIntBetween(1, 5);
-    private final int numOfSlices = randomIntBetween(1, 10);
-    private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond * bulkSize;
+    private final int bulkSize = randomIntBetween(1, 4);
+    private final int numOfSlices = randomIntBetween(1, 4);
+    // keep RPS reasonable so each slice doesn't sleep and delay relocation for too long (max 1s)
+    private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
+    private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
 
     @BeforeClass
     public static void skipIfReindexResilienceDisabled() {
@@ -98,20 +99,14 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
 
         // GET _reindex/{originalTaskId} after relocation
         final GetReindexResponse relocatedResponse = getReindexWithWaitForCompletion(setup.originalTaskId, false);
-        final TaskResult completedOriginal = relocatedResponse.getOriginalTask();
-        assertThat("original task should be completed", completedOriginal.isCompleted(), is(true));
-        assertThat("original start time preserved", completedOriginal.getTask().startTime(), equalTo(setup.originalStartTimeMillis));
-
-        final TaskResult relocatedTask = relocatedResponse.getRelocatedTask().orElse(null);
-        assertNotNull("relocation should be present", relocatedTask);
-        final TaskInfo relocatedInfo = relocatedTask.getTask();
-        assertThat("relocated task ID matches .tasks index", relocatedInfo.taskId(), equalTo(relocatedTaskId));
-        assertThat("relocated task should not be completed", relocatedTask.isCompleted(), is(false));
-        assertThat("relocated task should be on nodeA", relocatedInfo.taskId().getNodeId(), equalTo(setup.nodeAId));
-        assertThat("relocated task should not be cancelled", relocatedInfo.cancelled(), is(false));
-        assertThat("relocated task status should be present", relocatedInfo.status(), is(notNullValue()));
-        assertThat("relocated task started after original", relocatedInfo.startTime(), greaterThan(setup.originalStartTimeMillis));
-        assertThat("relocated task has no error", relocatedTask.getError(), is(nullValue()));
+        final TaskResult taskResult = relocatedResponse.getTaskResult();
+        final TaskInfo taskInfo = taskResult.getTask();
+        assertThat("task should not be completed yet", taskResult.isCompleted(), is(false));
+        assertThat("original task ID preserved via originalTaskId", taskInfo.originalTaskId(), equalTo(setup.originalTaskId));
+        assertThat("start time adjusted to original", taskInfo.startTime(), equalTo(setup.originalStartTimeMillis));
+        assertThat("task should not be cancelled", taskInfo.cancelled(), is(false));
+        assertThat("status should be present", taskInfo.status(), is(notNullValue()));
+        assertThat("no error", taskResult.getError(), is(nullValue()));
 
         final long nanosElapsedFromReindexStart = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - setup.originalStartTimeMillis);
 
@@ -196,14 +191,13 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
         final TaskId originalTaskId = startAsyncThrottledReindexOnNode(nodeBName);
 
         final GetReindexResponse initialResponse = getReindexWithWaitForCompletion(originalTaskId, false);
-        final TaskResult initialTask = initialResponse.getOriginalTask();
-        final TaskInfo initialInfo = initialTask.getTask();
-        assertThat("initial reindex should not be completed", initialTask.isCompleted(), is(false));
-        assertThat("no relocation yet", initialResponse.getRelocatedTask().isPresent(), is(false));
+        final TaskResult initialResult = initialResponse.getTaskResult();
+        final TaskInfo initialInfo = initialResult.getTask();
+        assertThat("initial reindex should not be completed", initialResult.isCompleted(), is(false));
         assertThat("task should be on nodeB", initialInfo.taskId().getNodeId(), equalTo(nodeBId));
         assertThat("task should not be cancelled", initialInfo.cancelled(), is(false));
         assertThat("status should be present", initialInfo.status(), is(notNullValue()));
-        assertThat("no error", initialTask.getError(), is(nullValue()));
+        assertThat("no error", initialResult.getError(), is(nullValue()));
 
         return new ReindexSetup(nodeAName, nodeAId, nodeBName, nodeBId, originalTaskId, initialInfo.startTime());
     }
@@ -247,9 +241,8 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
         // trigger reindex relocation
         internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
 
-        // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
-        // on nodeA is stale and can't be promoted to primary when nodeB leaves
-        assertBusy(() -> assertTrue(indexExists(TaskResultsService.TASK_INDEX)), 30, TimeUnit.SECONDS);
+        // .tasks is created when the original task result is stored during relocation
+        assertTrue(indexExists(TaskResultsService.TASK_INDEX));
         ensureGreen(TaskResultsService.TASK_INDEX);
 
         internalCluster().stopNode(nodeName);

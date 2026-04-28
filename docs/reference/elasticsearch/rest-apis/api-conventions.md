@@ -29,9 +29,9 @@ You can pass an `X-Opaque-Id` HTTP header to track the origin of a request in {{
 * Response of any request that includes the header
 * [Task management API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-tasks) response
 * [Slow logs](/reference/elasticsearch/index-settings/slow-log.md)
-* [Deprecation logs](docs-content://deploy-manage/monitor/logging-configuration/update-elasticsearch-logging-levels.md#deprecation-logging)
+* [Deprecation logs](docs-content://deploy-manage/monitor/logging-configuration/elasticsearch-deprecation-logs.md)
 
-For the deprecation logs, {{es}} also uses the `X-Opaque-Id` value to throttle and deduplicate deprecation warnings. See [Deprecation logs throttling](docs-content://deploy-manage/monitor/logging-configuration/update-elasticsearch-logging-levels.md#_deprecation_logs_throttling).
+For the deprecation logs, {{es}} also uses the `X-Opaque-Id` value to throttle and deduplicate deprecation warnings. See [Deprecation logs throttling](docs-content://deploy-manage/monitor/logging-configuration/elasticsearch-deprecation-logs.md).
 
 The `X-Opaque-Id` header accepts any arbitrary value. However, we recommend you limit these values to a finite set, such as an ID per client. Don’t generate a unique `X-Opaque-Id` header for every request. Too many unique `X-Opaque-Id` values can prevent {{es}} from deduplicating warnings in the deprecation logs.
 
@@ -308,10 +308,10 @@ You can also exclude clusters from a list of clusters to search using the `-` ch
 Multi-target APIs that can target indices support the following query string parameters:
 
 `ignore_unavailable`
-:   (Optional, Boolean) If `false`, the request returns an error if it targets a missing or closed index. Defaults to `false`.
+:   (Optional, Boolean) If `false`, the request returns an error if it targets a concrete (non-wildcarded) index, alias, or data stream that is missing, closed, or otherwise unavailable. If `true`, unavailable concrete targets are silently ignored. Defaults to `false`.
 
 `allow_no_indices`
-:   (Optional, Boolean) If `false`, the request returns an error if any wildcard expression, [index alias](docs-content://manage-data/data-store/aliases.md), or `_all` value targets only missing or closed indices. This behavior applies even if the request targets other open indices. For example, a request targeting `foo*,bar*` returns an error if an index starts with `foo` but no index starts with `bar`.
+:   (Optional, Boolean) If `false`, the request returns an error (1) if any wildcard expression (including `_all` and `*`) resolves to zero matching indices or (2) if the complete set of resolved indices, [aliases](docs-content://manage-data/data-store/aliases.md) or data streams is empty after all expressions are evaluated. If `true`, index expressions that resolve to no indices are allowed and the request returns an empty result.
 
 `expand_wildcards`
 :   (Optional, string) Type of index that wildcard patterns can match. If the request can target data streams, this argument determines whether wildcard expressions match hidden data streams. Supports comma-separated values, such as `open,hidden`. Valid values are:

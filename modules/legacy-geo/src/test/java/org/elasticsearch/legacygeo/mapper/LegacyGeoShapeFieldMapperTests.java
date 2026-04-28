@@ -88,20 +88,21 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("tree_levels", b -> b.field("tree_levels", 5));
         checker.registerConflictCheck("precision", b -> b.field("precision", 10));
         checker.registerConflictCheck("points_only", b -> b.field("points_only", true));
-        checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
+        checker.registerUpdateCheck("orientation", b -> b.field("orientation", "right"), m -> {
             LegacyGeoShapeFieldMapper gsfm = (LegacyGeoShapeFieldMapper) m;
             assertEquals(Orientation.RIGHT, gsfm.orientation());
         });
-        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+        checker.registerUpdateCheck("ignore_z_value", b -> b.field("ignore_z_value", false), m -> {
             LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
             assertFalse(gpfm.ignoreZValue());
         });
-        checker.registerUpdateCheck(b -> b.field("coerce", true), m -> {
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", true), m -> {
             LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
             assertTrue(gpfm.coerce());
         });
         // TODO - distance_error_pct ends up being subsumed into a calculated value, how to test
-        checker.registerUpdateCheck(b -> b.field("distance_error_pct", 0.8), m -> {});
+        checker.registerUpdateCheck("distance_error_pct", b -> b.field("distance_error_pct", 0.8), m -> {});
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
     @Override

@@ -7,25 +7,16 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.TestOptimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.expression.Foldables;
-import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -41,38 +32,27 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.mockito.Mockito.mock;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.optimizer;
 
 public abstract class ApproximationTestCase extends ESTestCase {
 
-    private static final EsqlParser parser = EsqlParser.INSTANCE;
-    private static final LogicalPlanPreOptimizer preOptimizer = new LogicalPlanPreOptimizer(
-        new LogicalPreOptimizerContext(FoldContext.small(), mock(InferenceService.class), TransportVersion.current())
-    );
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("none"))
         .build();
 
-    static LogicalPlan getLogicalPlan(String query) throws Exception {
-        SetOnce<LogicalPlan> resultHolder = new SetOnce<>();
-        SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        LogicalPlan plan = parser.createStatement(query, new QueryParams()).plan();
-        plan = AnalyzerTestUtils.defaultAnalyzer().analyze(plan);
-        plan.setAnalyzed();
-        preOptimizer.preOptimize(plan, ActionListener.wrap(resultHolder::set, exceptionHolder::set));
-        if (exceptionHolder.get() != null) {
-            throw exceptionHolder.get();
-        }
-        return resultHolder.get().children().getFirst();
+    private static final TestOptimizer optimizer = optimizer().addDefaultIndex().addTestLookup().addK8s();
+
+    static LogicalPlan getLogicalPlan(String query) {
+        return optimizer.coordinatorPlan(query);
     }
 
-    static Approximation.QueryProperties verify(String query) throws Exception {
-        return Approximation.verifyPlan(getLogicalPlan(query));
+    static Approximation.QueryProperties verify(String query) {
+        return Approximation.verifyPlanOrThrow(getLogicalPlan(query));
     }
 
     static void assertError(String esql, Matcher<String> matcher) {
         Exception e = assertThrows(VerificationException.class, () -> verify(esql));
-        assertThat(e.getMessage().substring("Found 1 problem\n".length()), matcher);
+        assertThat(e.getMessage(), matcher);
     }
 
     static Result newCountResult(long count) {

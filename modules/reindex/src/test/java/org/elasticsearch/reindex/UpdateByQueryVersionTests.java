@@ -10,8 +10,8 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 
 public class UpdateByQueryVersionTests extends AbstractAsyncBulkByScrollActionMetadataTestCase<UpdateByQueryRequest, BulkByScrollResponse> {
 
@@ -53,8 +53,8 @@ public class UpdateByQueryVersionTests extends AbstractAsyncBulkByScrollActionMe
                 UpdateByQueryVersionTests.this.threadPool,
                 null,
                 request(),
-                true,
-                listener()
+                listener(),
+                randomPositiveTimeValue()
             );
         }
 

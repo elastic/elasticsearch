@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
-import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -53,7 +52,6 @@ public final class DataSourceModule implements Closeable {
     private final Map<String, ExternalSourceFactory> sourceFactories;
     // TODO(#142815): backward-compat bridge — remove once table functions land.
     private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
-    private final FilterPushdownRegistry filterPushdownRegistry;
     private final List<Closeable> managedCloseables;
     private final DataSourceCapabilities capabilities;
 
@@ -69,7 +67,7 @@ public final class DataSourceModule implements Closeable {
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
-            for (DecompressionCodec codec : plugin.decompressionCodecs(settings)) {
+            for (DecompressionCodec codec : plugin.decompressionCodecs(settings, executor)) {
                 codecRegistry.register(codec);
             }
         }
@@ -177,6 +175,7 @@ public final class DataSourceModule implements Closeable {
                     }
                 }
             }
+
         }
 
         // Register the framework-internal FileSourceFactory as a catch-all fallback.
@@ -192,24 +191,6 @@ public final class DataSourceModule implements Closeable {
         this.sourceFactories = Map.copyOf(sourceFactoryMap);
         this.pluginFactories = Map.copyOf(operatorFactoryProviders);
         this.managedCloseables = closeables;
-
-        // Build FilterPushdownRegistry -- only from non-lazy factories to avoid triggering loading.
-        // Lazy wrappers (LazyConnectorFactory, LazyTableCatalogWrapper) return null from
-        // filterPushdownSupport() by default, which is correct since the real support
-        // is only available after loading.
-        Map<String, FilterPushdownSupport> filterPushdownProviders = new HashMap<>();
-        for (Map.Entry<String, ExternalSourceFactory> entry : this.sourceFactories.entrySet()) {
-            ExternalSourceFactory factory = entry.getValue();
-            // Skip lazy wrappers to avoid triggering classloading
-            if (factory instanceof LazyConnectorFactory || factory instanceof LazyTableCatalogWrapper) {
-                continue;
-            }
-            FilterPushdownSupport fps = factory.filterPushdownSupport();
-            if (fps != null) {
-                filterPushdownProviders.put(entry.getKey(), fps);
-            }
-        }
-        this.filterPushdownRegistry = new FilterPushdownRegistry(filterPushdownProviders);
     }
 
     @Override
@@ -236,12 +217,12 @@ public final class DataSourceModule implements Closeable {
         return sourceFactories;
     }
 
-    public FilterPushdownRegistry filterPushdownRegistry() {
-        return filterPushdownRegistry;
+    public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
+        return createOperatorFactoryRegistry(executor, executor);
     }
 
-    public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
-        return new OperatorFactoryRegistry(sourceFactories, pluginFactories, executor);
+    public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor, Executor fileReadExecutor) {
+        return new OperatorFactoryRegistry(sourceFactories, pluginFactories, executor, fileReadExecutor);
     }
 
     /**
@@ -352,14 +333,6 @@ public final class DataSourceModule implements Closeable {
         }
 
         @Override
-        public FilterPushdownSupport filterPushdownSupport() {
-            if (delegate == null) {
-                return null;
-            }
-            return delegate.filterPushdownSupport();
-        }
-
-        @Override
         public SourceOperatorFactoryProvider operatorFactory() {
             return resolveDelegate().operatorFactory();
         }
@@ -447,14 +420,6 @@ public final class DataSourceModule implements Closeable {
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
             return resolveDelegate().resolveMetadata(location, config);
-        }
-
-        @Override
-        public FilterPushdownSupport filterPushdownSupport() {
-            if (delegate == null) {
-                return null;
-            }
-            return delegate.filterPushdownSupport();
         }
 
         @Override

@@ -47,7 +47,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
-        merge(mapperService, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
+        String update = """
+            {"_doc":{"properties":{"field0":{"type":"keyword"}}}}
+            """;
+        mapperService.isNoOpUpdate(new CompressedXContent(update));
         assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
         merge(
             mapperService,
@@ -358,34 +361,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
         for (IndexMode indexMode : IndexMode.values()) {
             MapperService mapperService = initMapperService.apply(indexMode);
             assertMapperService.accept(mapperService);
-        }
-    }
-
-    public void testMappingUpdateChecks() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
-
-        {
-            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
-
-            // Text fields are not stored by default, so an incoming update that is identical but
-            // just has `stored:false` should not require an update
-            builder.putMapping("""
-                {"properties":{"field":{"type":"text","store":"false"}}}""");
-            assertTrue(mapperService.assertNoUpdateRequired(builder.build()));
-        }
-
-        {
-            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
-
-            // However, an update that really does need a rebuild will throw an exception
-            builder.putMapping("""
-                {"properties":{"field":{"type":"text","store":"true"}}}""");
-            Exception e = expectThrows(IllegalStateException.class, () -> mapperService.assertNoUpdateRequired(builder.build()));
-
-            assertThat(e.getMessage(), containsString("expected current mapping ["));
-            assertThat(e.getMessage(), containsString("to be the same as new mapping"));
         }
     }
 

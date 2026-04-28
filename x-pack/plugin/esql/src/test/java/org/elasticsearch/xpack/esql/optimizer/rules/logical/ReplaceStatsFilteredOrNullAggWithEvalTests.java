@@ -45,10 +45,10 @@ import static org.hamcrest.Matchers.startsWith;
 public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[1000[INTEGER]]
      * \_LocalRelation[[sum(salary) where false{r}#26],[ConstantNullBlock[positions=1]]]
-     * }</pre>
+     * }
      */
     public void testReplaceStatsFilteredAggWithEvalSingleAgg() {
         var plan = plan("""
@@ -66,12 +66,12 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[sum(salary) + 1 where false{r}#68]]
      * \_Eval[[$$SUM$sum(salary)_+_1$0{r$}#79 + 1[INTEGER] AS sum(salary) + 1 where false]]
      *   \_Limit[1000[INTEGER]]
      *     \_LocalRelation[[$$SUM$sum(salary)_+_1$0{r$}#79],[ConstantNullBlock[positions=1]]]
-     * }</pre>
+     * }
      */
     public void testReplaceStatsFilteredAggWithEvalSingleAggWithExpression() {
         var plan = plan("""
@@ -100,13 +100,13 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[sum(salary) + 1 where false{r}#4, sum(salary) + 2{r}#6, emp_no{f}#7]]
      * \_Eval[[null[LONG] AS sum(salary) + 1 where false, $$SUM$sum(salary)_+_2$1{r$}#18 + 2[INTEGER] AS sum(salary) + 2]]
      *   \_Limit[1000[INTEGER]]
      *     \_Aggregate[STANDARD,[emp_no{f}#7],[SUM(salary{f}#12,true[BOOLEAN]) AS $$SUM$sum(salary)_+_2$1, emp_no{f}#7]]
      *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     * }</pre>
+     * }
      */
     public void testReplaceStatsFilteredAggWithEvalMixedFilterAndNoFilter() {
         var plan = plan("""
@@ -135,7 +135,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[sum(salary) + 1 where false{r}#3, sum(salary) + 3{r}#5, sum(salary) + 2 where null{r}#7,
      * sum(salary) + 4 where not true{r}#9]]
      * \_Eval[[null[LONG] AS sum(salary) + 1 where false#3, $$SUM$sum(salary)_+_3$1{r$}#22 + 3[INTEGER] AS sum(salary) + 3#5
@@ -143,7 +143,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      *   \_Limit[1000[INTEGER],false]
      *     \_Aggregate[[],[SUM(salary{f}#15,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$sum(salary)_+_3$1#22]]
      *       \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
-     * }</pre>
+     * }
      *
      */
     public void testReplaceStatsFilteredAggWithEvalFilterFalseAndNull() {
@@ -231,10 +231,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[1000[INTEGER]]
      * \_LocalRelation[[count(salary) where false{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
-     * }</pre>
+     * }
      */
     public void testReplaceStatsFilteredAggWithEvalCount() {
         var plan = plan("""
@@ -253,12 +253,12 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[count_distinct(salary + 2) + 3 where false{r}#3]]
      * \_Eval[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15 + 3[INTEGER] AS count_distinct(salary + 2) + 3 where false]]
      *   \_Limit[1000[INTEGER]]
      *     \_LocalRelation[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
-     * }</pre>
+     * }
      */
     public void testReplaceStatsFilteredAggWithEvalCountDistinctInExpression() {
         var plan = plan("""
@@ -288,14 +288,14 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[max{r}#91, max_a{r}#94, min{r}#97, min_a{r}#100, emp_no{f}#101]]
      * \_Eval[[null[INTEGER] AS max_a, null[INTEGER] AS min_a]]
      *   \_Limit[1000[INTEGER]]
      *     \_Aggregate[STANDARD,[emp_no{f}#101],[MAX(salary{f}#106,true[BOOLEAN]) AS max, MIN(salary{f}#106,true[BOOLEAN]) AS min, emp_
      * no{f}#101]]
      *       \_EsRelation[test][_meta_field{f}#107, emp_no{f}#101, first_name{f}#10..]
-     * }</pre>
+     * }
      */
     public void testReplaceStatsFilteredAggWithEvalSameAggWithAndWithoutFilter() {
         var plan = plan("""
@@ -331,10 +331,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[1000[INTEGER]]
      * \_LocalRelation[[count{r}#7],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
-     * }</pre>
+     * }
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634") // i.e. PropagateEvalFoldables applicability to Aggs
     public void testReplaceStatsFilteredAggWithEvalFilterUsingEvaledValue() {
@@ -356,13 +356,13 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
 
     /**
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[c{r}#67, emp_no{f}#68]]
      * \_Eval[[0[LONG] AS c]]
      *   \_Limit[1000[INTEGER]]
      *     \_Aggregate[STANDARD,[emp_no{f}#68],[emp_no{f}#68]]
      *       \_EsRelation[test][_meta_field{f}#74, emp_no{f}#68, first_name{f}#69, ..]
-     * }</pre>
+     * }
      */
     public void testReplaceStatsFilteredAggWithEvalSingleAggWithGroup() {
         var plan = plan("""
@@ -805,10 +805,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_LocalRelation[[max(x){r}#6],Page{blocks=[ConstantNullBlock[positions=1]]}]
-     * }</pre>
+     * }
      */
     public void testReplaceStatsMaxOnNullReferenceWithEvalSingleAgg() {
         var plan = plan("""
@@ -826,12 +826,12 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[y{r}#6]]
      * \_Eval[[null[NULL] AS y#6]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_LocalRelation[[{e}#7],Page{blocks=[ConstantNullBlock[positions=1]]}]
-     * }</pre>
+     * }
      */
     public void testReplaceStatsMaxOnNullLiteralWithEvalSingleAgg() {
         var plan = plan("""
@@ -854,13 +854,13 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[max(x){r}#9, sum(y){r}#11, x{r}#4]]
      * \_Eval[[null[NULL] AS max(x)#9]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_Aggregate[[x{r}#4],[SUM(y{r}#6,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS sum(y)#11, x{r}#4]]
      *       \_LocalRelation[[x{r}#4, y{r}#6],Page{blocks=[ConstantNullBlock[positions=1], IntVectorBlock[vector=..]]}]
-     * }</pre>
+     * }
      */
     public void testReplaceStatsMaxOnNullWithEvalAndAgg() {
         var plan = plan("""
@@ -886,12 +886,12 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[a{r}#6, b{r}#8]]
      * \_Eval[[0[LONG] AS a#6]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_LocalRelation[[b{r}#8],Page{blocks=[BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=false]]]}]
-     * }</pre>
+     * }
      */
     public void testReplaceStatsOnNullLiteralWithEvalSpecialFunctions() {
         // COUNT(null) surrogates to COUNT(*) * MV_COUNT(null), and ABSENT(x) surrogates to NOT(PRESENT(x)), so they're not included
@@ -923,14 +923,14 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_LocalRelation[[a{r}#7, b{r}#10, c{r}#13],Page{blocks=[
      *     LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]],
      *     LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]],
      *     BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=false]]
      *   ]}]
-     * }</pre>
+     * }
      */
     public void testReplaceStatsOnPropagatedNullLiteralWithEvalSpecialFunctions() {
         // ABSENT(x) surrogates to NOT(PRESENT(x)), so it's not included

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -104,6 +105,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             Collections.singletonList(
                 new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
             ),
+            Collections.emptyMap(),
             timeProvider,
             ClusterState.EMPTY_STATE,
             null,
@@ -257,6 +259,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             @Override
             public SearchShardTarget getSearchShardTarget() {
                 return new SearchShardTarget(null, null, null);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {
+
             }
         });
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
@@ -445,6 +452,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             PhaseResult phaseResult = new PhaseResult(contextId);
             phaseResult.setSearchShardTarget(shardTarget);
             return phaseResult;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+
         }
     }
 }

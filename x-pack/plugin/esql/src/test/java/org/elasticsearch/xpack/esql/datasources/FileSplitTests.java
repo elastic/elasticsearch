@@ -119,4 +119,96 @@ public class FileSplitTests extends ESTestCase {
         assertTrue(str.contains("s3://bucket/file.parquet"));
         assertTrue(str.contains("year"));
     }
+
+    public void testNamedWriteableRoundTripWithStatistics() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data/file.parquet");
+        Map<String, Object> stats = Map.of("_stats.row_count", 1000L, "_stats.columns.age.null_count", 50L);
+        FileSplit original = new FileSplit("file", path, 0, 2048, ".parquet", Map.of(), Map.of(), null, stats);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(original, deserialized);
+        assertEquals(original.hashCode(), deserialized.hashCode());
+        assertNotNull(deserialized.statistics());
+        assertEquals(1000L, deserialized.statistics().get("_stats.row_count"));
+        assertEquals(50L, deserialized.statistics().get("_stats.columns.age.null_count"));
+    }
+
+    public void testNamedWriteableRoundTripWithNullStatistics() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data/file.parquet");
+        FileSplit original = new FileSplit("file", path, 0, 2048, ".parquet", Map.of(), Map.of(), null, null);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(original, deserialized);
+        assertNull(deserialized.statistics());
+    }
+
+    public void testEqualityWithStatistics() {
+        StoragePath path = StoragePath.of("s3://bucket/file.parquet");
+        Map<String, Object> stats = Map.of("_stats.row_count", 100L);
+        FileSplit a = new FileSplit("file", path, 0, 100, ".parquet", Map.of(), Map.of(), null, stats);
+        FileSplit b = new FileSplit("file", path, 0, 100, ".parquet", Map.of(), Map.of(), null, stats);
+        FileSplit c = new FileSplit("file", path, 0, 100, ".parquet", Map.of(), Map.of(), null, null);
+
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, c);
+    }
+
+    public void testRoundTripWithSplitStats() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data/file.parquet");
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(5000).sizeInBytes(100000);
+        b.addColumn("id", 0L, 1L, 5000L, 40000);
+        b.addColumn("name", 10L, "Alice", "Zara", 50000);
+        SplitStats stats = b.build();
+        FileSplit original = FileSplit.withSplitStats("file", path, 0, 4096, ".parquet", Map.of(), Map.of(), null, stats);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(original, deserialized);
+        assertEquals(original.hashCode(), deserialized.hashCode());
+        assertNotNull(deserialized.splitStats());
+        assertEquals(5000, deserialized.splitStats().rowCount());
+        assertEquals(2, deserialized.splitStats().columnCount());
+        assertNotNull(deserialized.statistics());
+        assertEquals(5000L, deserialized.statistics().get("_stats.row_count"));
+    }
+
+    public void testLegacyMapNormalizesToSplitStats() {
+        StoragePath path = StoragePath.of("s3://bucket/file.parquet");
+        Map<String, Object> stats = Map.of("_stats.row_count", 1000L, "_stats.columns.age.null_count", 50L);
+        FileSplit split = new FileSplit("file", path, 0, 100, ".parquet", Map.of(), Map.of(), null, stats);
+
+        assertNotNull(split.splitStats());
+        assertEquals(1000, split.splitStats().rowCount());
+        assertNotNull(split.statistics());
+        assertEquals(1000L, split.statistics().get("_stats.row_count"));
+    }
+
+    public void testSplitStatsAndMapEquality() {
+        StoragePath path = StoragePath.of("s3://bucket/file.parquet");
+        Map<String, Object> statsMap = Map.of("_stats.row_count", 500L, "_stats.columns.x.null_count", 5L);
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(500);
+        b.addColumn("x", 5L, null, null, -1);
+        SplitStats splitStats = b.build();
+
+        FileSplit fromMap = new FileSplit("file", path, 0, 100, ".parquet", Map.of(), Map.of(), null, statsMap);
+        FileSplit fromSplitStats = FileSplit.withSplitStats("file", path, 0, 100, ".parquet", Map.of(), Map.of(), null, splitStats);
+
+        assertEquals(fromMap, fromSplitStats);
+        assertEquals(fromMap.hashCode(), fromSplitStats.hashCode());
+    }
 }

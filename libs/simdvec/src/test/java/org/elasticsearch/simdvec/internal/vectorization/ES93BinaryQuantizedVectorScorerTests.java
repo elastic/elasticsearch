@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -21,11 +22,15 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer.BBQ_CORRECTIONS_BYTES;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createBinarizedIndexData;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createBinarizedQueryData;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeBinarizedVectorData;
@@ -34,7 +39,8 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
 
     public enum DirectoryType {
         NIOFS,
-        MMAP
+        MMAP,
+        SNAP
     }
 
     private final DirectoryType directoryType;
@@ -50,6 +56,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
         return switch (directoryType) {
             case NIOFS -> new NIOFSDirectory(createTempDir());
             case MMAP -> new MMapDirectory(createTempDir());
+            case SNAP -> SearchableSnapshotDirectoryFactory.newDirectory(createTempDir());
         };
     }
 
@@ -67,6 +74,8 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
                 var indexData = createBinarizedIndexData(vectorValues, centroid, quantizer, dims);
                 writeBinarizedVectorData(out, indexData);
             }
+            // Required by the SNAP directory factory; harmless for NIOFS/MMAP.
+            CodecUtil.writeFooter(out);
         }
     }
 
@@ -81,16 +90,17 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
         float[] vectorValues = new float[dims];
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
 
+        final int vectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
+        final int perVectorBytes = vectorLengthInBytes + BBQ_CORRECTIONS_BYTES;
+
         try (Directory dir = newParametrizedDirectory()) {
             createTestFile(dir, numVectors, vectorValues, centroid, quantizer, dims);
 
             VectorScorerTestUtils.randomVector(random(), vectorValues, similarityFunction);
             var queryData = createBinarizedQueryData(vectorValues, centroid, quantizer, dims);
 
-            try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
-                final int vectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
-                final int perVectorBytes = vectorLengthInBytes + 14;
-                assertEquals(in.length(), (long) numVectors * perVectorBytes);
+            try (IndexInput in = openTestInput(dir, "testScore.bin", perVectorBytes)) {
+                assertEquals(in.length(), (long) numVectors * perVectorBytes + CodecUtil.footerLength());
 
                 final var defaultScorer = defaultProvider().newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
                 final var panamaScorer = maybePanamaProvider().newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
@@ -134,23 +144,26 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
         float[] vectorValues = new float[dims];
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
 
+        final int vectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
+        final int perVectorBytes = vectorLengthInBytes + BBQ_CORRECTIONS_BYTES;
+
         try (Directory dir = newParametrizedDirectory()) {
             createTestFile(dir, numVectors, vectorValues, centroid, quantizer, dims);
 
             VectorScorerTestUtils.randomVector(random(), vectorValues, similarityFunction);
             var queryData = createBinarizedQueryData(vectorValues, centroid, quantizer, dims);
 
-            try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
-                final int vectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
-                final int perVectorBytes = vectorLengthInBytes + 14;
-                assertEquals(in.length(), (long) numVectors * perVectorBytes);
+            try (IndexInput in = openTestInput(dir, "testScore.bin", perVectorBytes)) {
+                assertEquals(in.length(), (long) numVectors * perVectorBytes + CodecUtil.footerLength());
 
                 final var defaultScorer = defaultProvider().newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
                 final var panamaScorer = maybePanamaProvider().newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
 
                 final float[] scoresDefault = new float[numVectors];
                 final float[] scoresPanama = new float[numVectors];
-                final int[] nodes = IntStream.range(0, numVectors).map(x -> randomInt(numVectors - 1)).toArray();
+                var nodeList = new ArrayList<>(IntStream.range(0, numVectors).boxed().toList());
+                Collections.shuffle(nodeList, random());
+                final int[] nodes = nodeList.stream().mapToInt(Integer::intValue).toArray();
 
                 float defaultMaxScore = defaultScorer.scoreBulk(
                     queryData.vector(),

@@ -29,10 +29,12 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -141,7 +143,7 @@ public class QueryStringQueryParser extends QueryParser {
         super(defaultField, context.getIndexAnalyzers().getDefaultSearchAnalyzer());
         this.context = context;
         this.fieldsAndWeights = Collections.unmodifiableMap(fieldsAndWeights);
-        this.queryBuilder = new MultiMatchQueryParser(context);
+        this.queryBuilder = new MultiMatchQueryParser(context, QueryVisitor.EMPTY_VISITOR);
         queryBuilder.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
         queryBuilder.setLenient(lenient);
         this.lenient = lenient;
@@ -731,6 +733,7 @@ public class QueryStringQueryParser extends QueryParser {
                     + "] index level setting."
             );
         }
+        termStr = AutomatonQueries.collapseConsecutiveQuantifiers(termStr);
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields.isEmpty()) {
             return newUnmappedFieldQuery(termStr);
@@ -784,7 +787,7 @@ public class QueryStringQueryParser extends QueryParser {
         if (q == null) {
             return null;
         }
-        return fixNegativeQueryIfNeeded(q);
+        return fixNegativeQueryIfNeeded(q, QueryVisitor.EMPTY_VISITOR);
     }
 
     private static Query applySlop(Query q, int slop) {

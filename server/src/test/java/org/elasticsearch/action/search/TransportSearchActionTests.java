@@ -76,6 +76,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -282,7 +283,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 new SearchShardsGroup(new ShardId("foo", "foo_id", 1), List.of("node2", "node1"), true, SplitShardCountSummary.UNSET),
                 new SearchShardsGroup(new ShardId("bar", "bar_id", 0), List.of("node2", "node1"), false, SplitShardCountSummary.UNSET)
             );
-            searchShardsResponseMap.put("test_cluster_1", new SearchShardsResponse(groups, nodes, aliasFilters1));
+            searchShardsResponseMap.put("test_cluster_1", new SearchShardsResponse(groups, 0, nodes, aliasFilters1));
         }
         // second cluster - legacy response
         {
@@ -1063,6 +1064,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 100,
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
+                null,
+                null,
                 null
             )
         );
@@ -1960,7 +1963,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 client,
                 new UsageService(),
                 new TestActionActionLoggingFieldsProvider(),
-                ActivityLogWriterProvider.NOOP
+                ActivityLogWriterProvider.NOOP,
+                CrossProjectModeDecider.NOOP
             );
 
             CountDownLatch latch = new CountDownLatch(1);

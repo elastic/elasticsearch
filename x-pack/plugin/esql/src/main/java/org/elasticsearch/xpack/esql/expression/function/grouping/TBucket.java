@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,10 +23,12 @@ import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -44,13 +49,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * if it's a duration or period, it's the explicit bucket size.
  * <p>
  * When using a target number of buckets, start/end bounds are needed and can be provided explicitly
- * as {@code from}/{@code to} parameters.
+ * as {@code from}/{@code to} parameters or derived automatically from the query DSL {@code @timestamp} range filter
+ * via {@link TimestampBoundsAware}.
  */
 public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     implements
         OnlySurrogateExpression,
         TimestampAware,
         TwoOptionalArguments,
+        TimestampBoundsAware.OfExpression,
         ConfigurationFunction {
     public static final String NAME = "TBucket";
 
@@ -62,12 +69,21 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     @Nullable
     private final Expression to;
 
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TBucket.class)
+        .quaternaryConfig(TBucket::new)
+        .name("tbucket");
+
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
         description = """
-            Creates groups of values - buckets - out of a @timestamp attribute.
-            The size of the buckets can either be provided directly as a duration or period,
-            or chosen based on a recommended count and a range.""",
+            Creates groups of values - buckets - out of a `@timestamp` attribute.
+            The size of the buckets can be provided directly as a duration or period.
+            Alternatively, the bucket size can be chosen based on a recommended count
+            and a range {applies_to}`stack: ga 9.4`.
+
+            When using ES|QL in Kibana, the range can be derived automatically from the
+            [`@timestamp` filter](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter)
+            that Kibana adds to the query.""",
         examples = {
             @Example(
                 description = """
@@ -121,20 +137,23 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
             name = "buckets",
             type = { "integer", "date_period", "time_duration" },
             description = "Target number of buckets, or desired bucket size. "
-                + "When a number is provided, the actual bucket size is derived from `from`/`to` {applies_to}`stack: ga 9.4`. "
+                + "When a number is provided, the actual bucket size is derived from `from`/`to` "
+                + "or the `@timestamp` range in the query filter {applies_to}`stack: ga 9.4`. "
                 + "When a duration or period is provided, it is used as the explicit bucket size."
         ) Expression buckets,
         @Param(
             name = "from",
             type = { "date", "keyword", "text" },
             optional = true,
-            description = "Start of the range. Required with a numeric `buckets` {applies_to}`stack: ga 9.4`."
+            description = "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the "
+                + "query filter {applies_to}`stack: ga 9.4`."
         ) @Nullable Expression from,
         @Param(
             name = "to",
             type = { "date", "keyword", "text" },
             optional = true,
-            description = "End of the range. Required with a numeric `buckets` {applies_to}`stack: ga 9.4`."
+            description = "End of the range. Required with a numeric `buckets` when no `@timestamp` range is in the "
+                + "query filter {applies_to}`stack: ga 9.4`."
         ) @Nullable Expression to,
         Expression timestamp,
         Configuration configuration
@@ -163,9 +182,33 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     @Override
+    public boolean needsTimestampBounds() {
+        return buckets.resolved() && buckets.dataType().isWholeNumber() && from == null && to == null;
+    }
+
+    @Override
+    public Expression withTimestampBounds(Literal start, Literal end) {
+        return new TBucket(source(), buckets, from != null ? from : start, to != null ? to : end, timestamp, configuration);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (buckets.resolved() && buckets.dataType().isWholeNumber() && (from == null || to == null)) {
+            failures.add(
+                Failure.fail(
+                    this,
+                    "numeric bucket count in [{}] requires [from] and [to] parameters or a `@timestamp` range in the query filter",
+                    sourceText()
+                )
+            );
+        }
+    }
+
+    @Override
     public Expression surrogate() {
         if (buckets.resolved() && buckets.dataType().isWholeNumber()) {
-            assert from != null && to != null : "numeric bucket count requires [from] and [to]; resolveType should have caught this";
+            assert from != null && to != null
+                : "numeric bucket count requires [from] and [to]; postAnalysisVerification should have caught this";
             return new Bucket(source(), timestamp, buckets, from, to, configuration);
         }
         return new Bucket(source(), timestamp, buckets, from, to, configuration);
@@ -195,9 +238,6 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         }
         if (resolution.unresolved()) {
             return resolution;
-        }
-        if (buckets.dataType().isWholeNumber() && (from == null || to == null)) {
-            return new TypeResolution("numeric bucket count in [" + sourceText() + "] requires [from] and [to] parameters");
         }
         if (DataType.isTemporalAmount(buckets.dataType()) && (from != null || to != null)) {
             return new TypeResolution("[from] and [to] in [" + sourceText() + "] cannot be used with a duration or period bucket size");

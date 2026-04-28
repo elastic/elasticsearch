@@ -22,6 +22,7 @@ import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -50,23 +51,21 @@ import static org.hamcrest.Matchers.not;
 public class CodecTests extends ESTestCase {
 
     public void testResolveDefaultCodecs() throws Exception {
-        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG);
         CodecService codecService = createCodecService();
-        assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Elasticsearch93Lucene104Codec.class));
+        var codec = codecService.codec("default");
+        assertThat(codec, instanceOf(CodecService.DeduplicateFieldInfosCodec.class));
+        codec = ((CodecService.DeduplicateFieldInfosCodec) codec).delegate();
+        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
     }
 
     public void testDefault() throws Exception {
-        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG);
         Codec codec = createCodecService().codec("default");
-        assertEquals(
-            "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=1), chunkSize=14336, maxDocsPerChunk=128, blockShift=10)",
-            codec.storedFieldsFormat().toString()
-        );
+        Lucene90StoredFieldsFormat storedFieldsFormat = (Lucene90StoredFieldsFormat) codec.storedFieldsFormat();
+        var mode = getLucene90StoredFieldsFormatMode(storedFieldsFormat);
+        assertEquals(Lucene90StoredFieldsFormat.Mode.BEST_SPEED, mode);
     }
 
     public void testTSDBDefault() throws Exception {
-        assumeTrue("Only when synthetic id feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         boolean syntheticIdEnabled = randomBoolean();
         CodecService codecService = createCodecService(syntheticIdEnabled);
         Codec codec = codecService.codec("default");
@@ -144,7 +143,6 @@ public class CodecTests extends ESTestCase {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         var indexSettings = Settings.builder().put(nodeSettings);
         if (syntheticIdEnabled) {
-            assertTrue(IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
             indexSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true)
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "hostname");
@@ -176,6 +174,14 @@ public class CodecTests extends ESTestCase {
             null
         );
         return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE, null);
+    }
+
+    @SuppressForbidden(reason = "access violation required in order to read private field for this test")
+    static Lucene90StoredFieldsFormat.Mode getLucene90StoredFieldsFormatMode(Lucene90StoredFieldsFormat storedFieldsFormat)
+        throws NoSuchFieldException, IllegalAccessException {
+        var modeField = Lucene90StoredFieldsFormat.class.getDeclaredField("mode");
+        modeField.setAccessible(true);
+        return (Lucene90StoredFieldsFormat.Mode) modeField.get(storedFieldsFormat);
     }
 
 }

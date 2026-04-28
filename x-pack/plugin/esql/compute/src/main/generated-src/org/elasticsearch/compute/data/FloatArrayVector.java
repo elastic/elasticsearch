@@ -78,6 +78,11 @@ final class FloatArrayVector extends AbstractVector implements FloatVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, float[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.FLOAT;
     }
@@ -130,6 +135,20 @@ final class FloatArrayVector extends AbstractVector implements FloatVector {
 
     public static long ramBytesEstimated(float[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public FloatVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (FloatVector.FixedBuilder builder = blockFactory().newFloatVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendFloat(getFloat(i));
+            }
+            return builder.build();
+        }
     }
 
     @Override

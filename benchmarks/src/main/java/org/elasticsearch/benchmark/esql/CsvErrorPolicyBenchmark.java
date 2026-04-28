@@ -12,9 +12,10 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -100,7 +101,7 @@ public class CsvErrorPolicyBenchmark {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         StorageObject obj = createStorageObject(csvData);
         int totalRows = 0;
-        try (CloseableIterator<Page> iter = reader.read(obj, null, 1000, policy)) {
+        try (CloseableIterator<Page> iter = reader.read(obj, FormatReadContext.builder().batchSize(1000).errorPolicy(policy).build())) {
             while (iter.hasNext()) {
                 totalRows += iter.next().getPositionCount();
             }

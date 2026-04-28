@@ -14,7 +14,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.BaseHnswBFloat16VectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedHnswBFloat16VectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
 
-public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsFormatTestCase {
+public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuantizedHnswBFloat16VectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {

@@ -13,11 +13,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -32,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -70,15 +69,15 @@ public class PromqlAstTests extends ESTestCase {
                     "PROMQL time=0 %s"
                 ).forEach(pattern -> {
                     var query = String.format(Locale.ROOT, pattern, q);
-                    LogicalPlan esqlPlan = EsqlParser.INSTANCE.parseQuery(query);
+                    LogicalPlan esqlPlan = TEST_PARSER.parseQuery(query);
                     assertThat(esqlPlan.collect(PromqlCommand.class), hasSize(1));
 
                     if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
-                        LogicalPlan explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + ")");
+                        LogicalPlan explainPlan = TEST_PARSER.parseQuery("EXPLAIN (" + query + ")");
                         Explain explain = explainPlan.collect(Explain.class).getFirst();
                         assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
 
-                        explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + " | LIMIT 1 )");
+                        explainPlan = TEST_PARSER.parseQuery("EXPLAIN (" + query + " | LIMIT 1 )");
                         explain = explainPlan.collect(Explain.class).getFirst();
                         assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
                     }
@@ -93,13 +92,13 @@ public class PromqlAstTests extends ESTestCase {
 
     public void testUnsupportedQueries() throws Exception {
         PromqlParser parser = new PromqlParser();
-        List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-invalid.promql");
+        List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-invalid-parser.promql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
             try {
                 log.trace("Testing invalid query {}", q);
                 parser.createStatement(q);
-            } catch (QlClientException | UnsupportedOperationException ex) {
+            } catch (ParsingException ex) {
                 // Expected
                 log.trace("{}", ex.getMessage());
                 continue;
@@ -118,7 +117,7 @@ public class PromqlAstTests extends ESTestCase {
         log.info("{}", plan);
     }
 
-    static List<Tuple<String, Integer>> readQueries(String source) throws Exception {
+    public static List<Tuple<String, Integer>> readQueries(String source) throws Exception {
         var urls = EsqlTestUtils.classpathResources(source);
         assertThat(urls, not(empty()));
         List<Tuple<String, Integer>> queries = new ArrayList<>();

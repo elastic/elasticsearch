@@ -9,17 +9,15 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * Infers column types from CSV data by sampling rows when headers lack explicit type annotations.
@@ -45,7 +43,7 @@ import java.util.Map;
  */
 public class CsvSchemaInferrer {
 
-    static final int DEFAULT_SAMPLE_SIZE = 100;
+    static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private static final DataType[] TYPE_CANDIDATES = {
         DataType.BOOLEAN,
@@ -94,8 +92,7 @@ public class CsvSchemaInferrer {
         for (int col = 0; col < numCols; col++) {
             String name = columnNames[col].trim();
             DataType type = seenValue[col] ? TYPE_CANDIDATES[candidateIdx[col]] : DataType.KEYWORD;
-            EsField field = new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
-            attributes.add(new FieldAttribute(Source.EMPTY, name, field));
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, type));
         }
         return attributes;
     }

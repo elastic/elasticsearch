@@ -12,9 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -32,17 +30,19 @@ import java.util.BitSet;
 
 /**
  * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-AllValueByTimestafmpAggregator.java.st` instead.
+ * This class is generated. Edit `X-AllValueByTimestampAggregator.java.st` instead.
  */
 @Aggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "observed", type = "BOOLEAN"),
         @IntermediateState(name = "timestampPresent", type = "BOOLEAN"),
         @IntermediateState(name = "timestamp", type = "INT"),
         @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
 )
 @GroupingAggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "observed", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestampsPresent", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestamps", type = "INT_BLOCK"),
@@ -145,7 +145,7 @@ public class AllLastDoubleByIntAggregator {
     }
 
     public static Block evaluateFinal(AllIntDoubleState current, DriverContext ctx) {
-        return current.intermediateValuesBlockBuilder(ctx);
+        return current.valuesBlock(ctx);
     }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
@@ -179,130 +179,95 @@ public class AllLastDoubleByIntAggregator {
         return state.evaluateFinal(selected, ctx);
     }
 
-    public static final class GroupingState extends AbstractArrayState {
-        private final BigArrays bigArrays;
+    public static final class GroupingState extends AbstractAllByIntGroupingState {
 
         /**
-         * The group-indexed observed flags
+         * First values, stored in a dense array to minimize per-group overhead.
          */
-        private ByteArray observed;
+        private DoubleArray firstValues;
 
         /**
-         * The group-indexed timestamps seen flags
+         * The second-and-beyond values. Null for groups with zero or one value.
          */
-        private ByteArray hasTimestamp;
-
-        /**
-         * The group-indexed timestamps
-         */
-        private IntArray timestamps;
-
-        /**
-         * The group-indexed values
-         */
-        private ObjectArray<DoubleArray> values;
+        private ObjectArray<DoubleArray> tailValues;
 
         private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {
             super(bigArrays);
-            this.bigArrays = bigArrays;
             boolean success = false;
-            ByteArray observed = null;
-            ByteArray hasTimestamp = null;
-            IntArray timestamps = null;
             try {
-                // Initialize observed
-                observed = bigArrays.newByteArray(1, false);
-                observed.set(0, (byte) -1);
-                this.observed = observed;
-
-                // Initialize hasTimestamp
-                hasTimestamp = bigArrays.newByteArray(1, false);
-                hasTimestamp.set(0, (byte) -1);
-                this.hasTimestamp = hasTimestamp;
-
-                // Initialize timestamps
-                timestamps = bigArrays.newIntArray(1, false);
-                timestamps.set(0, -1);
-                this.timestamps = timestamps;
-
-                // Initialize values
-                this.values = bigArrays.newObjectArray(1);
-                this.values.set(0, null);
-
-                // Enable group id tracking because we use has hasValue in the
-                // collection itself to detect when a value first arrives.
-                enableGroupIdTracking(new SeenGroupIds.Empty());
+                this.firstValues = bigArrays.newDoubleArray(1, false);
                 success = true;
             } finally {
                 if (success == false) {
-                    if (values != null) {
-                        for (long i = 0; i < values.size(); i++) {
-                            Releasables.close(values.get(i));
-                        }
-                    }
-                    Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
+                    Releasables.close(firstValues, super::close);
                 }
             }
         }
 
         void collectValue(int group, boolean timestampPresent, int timestamp, int position, DoubleBlock valuesBlock) {
-            boolean updated = false;
-            if (withinBounds(group)) {
-                if (hasValue(group) == false
-                    || (hasTimestamp.get(group) == 0 && timestampPresent)
-                    || (timestampPresent && timestamp > timestamps.get(group))) {
-                    // We never saw this group before, even if it's within bounds.
-                    // Or, the incoming non-null timestamp wins against the null one in the state.
-                    // Or, we found a better timestamp for this group.
-                    updated = true;
+            if (group <= maxGroupId) {
+                if (hasValue(group) == false // We never saw this group before, even if it's within bounds.
+                    || (nullKey(group) && timestampPresent) // Or, the incoming non-null timestamp wins against the null one in the state.
+                    || (timestampPresent && timestamp > key(group)) // Or, we found a better timestamp for this group.
+                ) {
+                    updateValue(group, timestampPresent, timestamp, valuesBlock, position);
                 }
             } else {
                 // We must grow all arrays to accommodate this group id
-                observed = bigArrays.grow(observed, group + 1);
-                hasTimestamp = bigArrays.grow(hasTimestamp, group + 1);
-                timestamps = bigArrays.grow(timestamps, group + 1);
-                values = bigArrays.grow(values, group + 1);
-                updated = true;
+                grow(group);
+                maxGroupId = group;
+                updateValue(group, timestampPresent, timestamp, valuesBlock, position);
             }
-            if (updated) {
-                observed.set(group, (byte) 1);
-                hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
-                timestamps.set(group, timestamp);
-                boolean success = false;
-                DoubleArray groupValues = null;
-                try {
-                    if (valuesBlock.isNull(position) == false) {
-                        int count = valuesBlock.getValueCount(position);
-                        int offset = valuesBlock.getFirstValueIndex(position);
-                        groupValues = bigArrays.newDoubleArray(count);
-                        for (int i = 0; i < count; ++i) {
-                            groupValues.set(i, valuesBlock.getDouble(i + offset));
-                        }
-                    }
-                    success = true;
-                    Releasables.close(values.get(group));
-                    values.set(group, groupValues);
-                } finally {
-                    if (success == false) {
-                        Releasables.close(groupValues);
-                    }
-                }
-            }
-            maxGroupId = Math.max(maxGroupId, group);
             trackGroupId(group);
+        }
+
+        private void updateValue(int group, boolean timestampPresent, int timestamp, DoubleBlock valuesBlock, int position) {
+            if (valuesBlock.isNull(position)) {
+                markNullValue(group);
+            } else {
+                clearNullValue(group);
+            }
+            if (timestampPresent == false) {
+                markNullKey(group);
+            } else {
+                clearNullKey(group);
+            }
+            key(group, timestamp);
+            if (valuesBlock.isNull(position) == false) {
+                int count = valuesBlock.getValueCount(position);
+                int offset = valuesBlock.getFirstValueIndex(position);
+                firstValues.set(group, valuesBlock.getDouble(offset));
+                if (count > 1) {
+                    DoubleArray tail = getTailForWriting(group, count - 1);
+                    for (int i = 1; i < count; ++i) {
+                        tail.set(i - 1, valuesBlock.getDouble(offset + i));
+                    }
+                } else {
+                    clearTailValues(group);
+                }
+            } else {
+                clearTailValues(group);
+            }
+        }
+
+        @Override
+        protected void grow(int group) {
+            super.grow(group);
+            firstValues = bigArrays.grow(firstValues, group + 1);
         }
 
         @Override
         public void close() {
-            for (long i = 0; i < values.size(); i++) {
-                Releasables.close(values.get(i));
+            if (tailValues != null) {
+                for (long i = 0; i < tailValues.size(); i++) {
+                    Releasables.close(tailValues.get(i));
+                }
             }
-            Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
+            Releasables.close(firstValues, tailValues, super::close);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var observedBlockBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
@@ -311,11 +276,11 @@ public class AllLastDoubleByIntAggregator {
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
-                    if (withinBounds(group)) {
+                    if (group <= maxGroupId) {
                         // We must have seen this group before and saved its state
-                        observedBlockBuilder.appendBoolean(observed.get(group) == 1);
-                        hasTimestampBuilder.appendBoolean(hasTimestamp.get(group) == 1);
-                        timestampsBuilder.appendInt(timestamps.get(group));
+                        observedBlockBuilder.appendBoolean(hasValue(group));
+                        hasTimestampBuilder.appendBoolean(nullKey(group) == false);
+                        timestampsBuilder.appendInt(key(group));
                     } else {
                         // Unknown group so we append nulls everywhere
                         observedBlockBuilder.appendBoolean(false);
@@ -328,36 +293,75 @@ public class AllLastDoubleByIntAggregator {
                 blocks[offset + 0] = observedBlockBuilder.build();
                 blocks[offset + 1] = hasTimestampBuilder.build();
                 blocks[offset + 2] = timestampsBuilder.build();
-                blocks[offset + 3] = intermediateValuesBlockBuilder(selected, driverContext.blockFactory());
+                blocks[offset + 3] = valuesBlock(selected, driverContext.blockFactory());
             }
         }
 
         Block evaluateFinal(IntVector groups, GroupingAggregatorEvaluationContext evalContext) {
-            return intermediateValuesBlockBuilder(groups, evalContext.blockFactory());
+            return valuesBlock(groups, evalContext.blockFactory());
         }
 
-        private boolean withinBounds(int group) {
-            return group < Math.min(Math.min(timestamps.size(), values.size()), Math.min(observed.size(), hasTimestamp.size()));
+        private DoubleArray getTail(int group) {
+            if (tailValues == null) {
+                return null;
+            }
+            if (group >= tailValues.size()) {
+                return null;
+            }
+            return tailValues.get(group);
         }
 
-        private Block intermediateValuesBlockBuilder(IntVector groups, BlockFactory blockFactory) {
+        private DoubleArray getTailForWriting(int group, int count) {
+            DoubleArray existing;
+            if (tailValues == null) {
+                tailValues = bigArrays.newObjectArray(group + 1);
+                existing = null;
+            } else if (group >= tailValues.size()) {
+                tailValues = bigArrays.grow(tailValues, group + 1);
+                existing = null;
+            } else {
+                existing = tailValues.get(group);
+            }
+            if (existing == null) {
+                DoubleArray tail = bigArrays.newDoubleArray(count);
+                tailValues.set(group, tail);
+                return tail;
+            }
+            if (existing.size() == count) {
+                return existing;
+            }
+            DoubleArray resized = bigArrays.resize(existing, count);
+            tailValues.set(group, resized);
+            return resized;
+        }
+
+        private void clearTailValues(int group) {
+            DoubleArray tail = getTail(group);
+            if (tail != null) {
+                Releasables.close(tail);
+                tailValues.set(group, null);
+            }
+        }
+
+        private Block valuesBlock(IntVector groups, BlockFactory blockFactory) {
             try (var valuesBuilder = blockFactory.newDoubleBlockBuilder(groups.getPositionCount())) {
                 for (int p = 0; p < groups.getPositionCount(); p++) {
                     int group = groups.getInt(p);
-                    int count = 0;
-                    if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
-                        count = (int) values.get(group).size();
-                    }
-                    switch (count) {
-                        case 0 -> valuesBuilder.appendNull();
-                        case 1 -> valuesBuilder.appendDouble(values.get(group).get(0));
-                        default -> {
+                    if (group <= maxGroupId && hasValue(group) && nullValue(group) == false) {
+                        DoubleArray tail = getTail(group);
+                        int tailCount = tail == null ? 0 : (int) tail.size();
+                        if (tailCount == 0) {
+                            valuesBuilder.appendDouble(firstValues.get(group));
+                        } else {
                             valuesBuilder.beginPositionEntry();
-                            for (int i = 0; i < count; ++i) {
-                                valuesBuilder.appendDouble(values.get(group).get(i));
+                            valuesBuilder.appendDouble(firstValues.get(group));
+                            for (int i = 0; i < tailCount; ++i) {
+                                valuesBuilder.appendDouble(tail.get(i));
                             }
                             valuesBuilder.endPositionEntry();
                         }
+                    } else {
+                        valuesBuilder.appendNull();
                     }
                 }
                 return valuesBuilder.build();

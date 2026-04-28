@@ -10,14 +10,15 @@ package org.elasticsearch.xpack.diskbbq;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -33,7 +34,8 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new TrialLicenseStateDiskBBQPlugin(Settings.EMPTY));
+        Settings statelessSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        return List.of(new TrialLicenseStateDiskBBQPlugin(statelessSettings));
     }
 
     public void testKnnBBQIVFVectorsFormat() throws IOException {
@@ -55,22 +57,31 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
         try (var tp = new TestThreadPool(getTestName(), Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), 10).build())) {
             CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, tp);
             Codec codec = codecService.codec("default");
-            KnnVectorsFormat knnVectorsFormat;
-            if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
-                assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-                knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-            } else {
-                if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-                    codec = deduplicateFieldInfosCodec.delegate();
-                }
-                assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-                knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+                codec = deduplicateFieldInfosCodec.delegate();
             }
+            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
             String expectedString = Build.current().isSnapshot()
                 ? "ESNextDiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")"
                 : "ES940DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")";
             assertEquals(expectedString, knnVectorsFormat.toString());
         }
+    }
+
+    public void testDefaultsToBBQDiskWhenLicensedOnStatelessNode() throws IOException {
+        final int dims = randomIntBetween(1, 4096);
+        MapperService mapperService = createMapperService(getVersion(), Settings.EMPTY, () -> true, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", dims);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+        }));
+
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertNotNull(mapper);
+        assertThat(mapper.fieldType().getIndexOptions(), instanceOf(DenseVectorFieldMapper.BBQIVFIndexOptions.class));
+        assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_DISK, mapper.fieldType().getIndexOptions().getType());
     }
 
 }

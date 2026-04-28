@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Extension of {@link FormatReader} for columnar formats (Parquet, ORC) that support
@@ -36,16 +37,33 @@ import java.util.List;
 public interface RangeAwareFormatReader extends FormatReader {
 
     /**
+     * A byte range within a file with optional per-range statistics (e.g. per-row-group
+     * Parquet statistics). Statistics use the same {@code _stats.*} key convention as
+     * {@code sourceMetadata} for consistency with {@code SourceStatisticsSerializer}.
+     */
+    record SplitRange(long offset, long length, Map<String, Object> statistics) {
+        public SplitRange {
+            if (statistics == null) {
+                statistics = Map.of();
+            }
+        }
+
+        public SplitRange(long offset, long length) {
+            this(offset, length, Map.of());
+        }
+    }
+
+    /**
      * Discovers independently readable byte ranges within a file by reading its metadata.
      * Each range typically corresponds to one row group (Parquet) or stripe (ORC).
      * <p>
-     * Returns a list of {@code [startOffset, length]} pairs. An empty list means the
+     * Returns a list of {@link SplitRange} objects. An empty list means the
      * file cannot be split (e.g. single row group) and should be read as a whole.
      *
      * @param object the storage object representing the full file
-     * @return list of byte ranges, each as {@code [offset, length]}
+     * @return list of split ranges with optional per-range statistics
      */
-    List<long[]> discoverSplitRanges(StorageObject object) throws IOException;
+    List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException;
 
     /**
      * Reads only the row groups / stripes that fall within the given byte range.

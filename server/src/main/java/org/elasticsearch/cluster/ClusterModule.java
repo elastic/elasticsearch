@@ -197,7 +197,8 @@ public class ClusterModule extends AbstractModule {
             shardsAllocator,
             clusterInfoService,
             snapshotsInfoService,
-            shardRoutingRoleStrategy
+            shardRoutingRoleStrategy,
+            telemetryProvider.getMeterRegistry()
         );
         this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
@@ -493,7 +494,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new EnableAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new IndexVersionAllocationDecider());
         addAllocationDecider(deciders, new NodeVersionAllocationDecider());
-        addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
+        addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new NodeShutdownAllocationDecider());
         addAllocationDecider(deciders, new WriteLoadConstraintDecider(clusterSettings));

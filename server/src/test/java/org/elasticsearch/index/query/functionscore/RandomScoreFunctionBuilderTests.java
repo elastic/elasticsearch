@@ -29,7 +29,6 @@ public class RandomScoreFunctionBuilderTests extends AbstractBuilderTestCase {
 
     @Override
     protected Settings createTestIndexSettings() {
-        assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         return Settings.builder()
             .put("index.version.created", IndexVersion.current())
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
@@ -38,7 +37,6 @@ public class RandomScoreFunctionBuilderTests extends AbstractBuilderTestCase {
     }
 
     public void testRandomScoreWithoutFieldRequiresFieldWhenSeqNoDisabled() throws Exception {
-        assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         RandomScoreFunctionBuilder builder = new RandomScoreFunctionBuilder();
         builder.seed(42);
         SearchExecutionContext context = createSearchExecutionContext();
@@ -49,7 +47,6 @@ public class RandomScoreFunctionBuilderTests extends AbstractBuilderTestCase {
     }
 
     public void testRandomScoreWithExplicitFieldWhenSeqNoDisabled() throws Exception {
-        assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         RandomScoreFunctionBuilder builder = new RandomScoreFunctionBuilder();
         builder.seed(42);
         builder.setField(KEYWORD_FIELD_NAME);
@@ -61,7 +58,6 @@ public class RandomScoreFunctionBuilderTests extends AbstractBuilderTestCase {
     }
 
     public void testRandomScoreWithoutSeedFallsBackToDocIdWhenSeqNoDisabled() throws Exception {
-        assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         RandomScoreFunctionBuilder builder = new RandomScoreFunctionBuilder();
         SearchExecutionContext context = createSearchExecutionContext();
         assertTrue(context.getIndexSettings().sequenceNumbersDisabled());

@@ -11,16 +11,20 @@ package org.elasticsearch.index.reindex.resumeinfo;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.BulkByScrollTaskStatusTests;
 import org.elasticsearch.index.reindex.ResumeInfo;
+import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.SliceStatus;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -37,10 +41,10 @@ public class ResumeInfoTests extends ESTestCase {
 
     /** Constructor rejects null worker with null slices, or with fewer than two slices. */
     public void testResumeInfoRequiresWorkerOrSlices() {
-        expectThrows(IllegalArgumentException.class, () -> new ResumeInfo(null, null));
+        expectThrows(IllegalArgumentException.class, () -> new ResumeInfo(randomOrigin(), null, null));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ResumeInfo(null, Map.of(0, sliceStatusWithResult(0, new ElasticsearchException("e"))))
+            () -> new ResumeInfo(randomOrigin(), null, Map.of(0, sliceStatusWithResult(0, new ElasticsearchException("e"))))
         );
     }
 
@@ -53,12 +57,12 @@ public class ResumeInfoTests extends ESTestCase {
             1,
             sliceStatusWithResult(1, new ElasticsearchException("e2"))
         );
-        expectThrows(IllegalArgumentException.class, () -> new ResumeInfo(worker, slices));
+        expectThrows(IllegalArgumentException.class, () -> new ResumeInfo(randomOrigin(), worker, slices));
     }
 
     public void testResumeInfoWithWorker() {
         ScrollWorkerResumeInfo worker = scrollWorkerResumeInfo("scroll-1", 100L, taskStatus());
-        ResumeInfo info = new ResumeInfo(worker, null);
+        ResumeInfo info = new ResumeInfo(randomOrigin(), worker, null);
         assertThat(info.getTotalSlices(), equalTo(1));
         assertTrue(info.getWorker().isPresent());
         assertThat(info.getWorker().get(), equalTo(worker));
@@ -70,7 +74,7 @@ public class ResumeInfoTests extends ESTestCase {
         SliceStatus s0 = sliceStatusWithResumeInfo(0, scrollWorkerResumeInfo("s0", 1L, taskStatus()));
         SliceStatus s1 = sliceStatusWithResult(1, new ElasticsearchException("fail"));
         Map<Integer, SliceStatus> slices = Map.of(0, s0, 1, s1);
-        ResumeInfo info = new ResumeInfo(null, slices);
+        ResumeInfo info = new ResumeInfo(randomOrigin(), null, slices);
         assertThat(info.getTotalSlices(), equalTo(2));
         assertTrue(info.getWorker().isEmpty());
         assertTrue(info.getSlice(99).isEmpty());
@@ -91,7 +95,7 @@ public class ResumeInfoTests extends ESTestCase {
                 sliceStatusWithResult(1, new ElasticsearchException("b"))
             )
         );
-        ResumeInfo info = new ResumeInfo(null, mutable);
+        ResumeInfo info = new ResumeInfo(randomOrigin(), null, mutable);
         mutable.put(2, sliceStatusWithResult(2, new ElasticsearchException("c")));
         assertThat(info.slices().keySet(), hasSize(2));
     }
@@ -123,6 +127,55 @@ public class ResumeInfoTests extends ESTestCase {
 
     public void testScrollWorkerResumeInfoNullableRemoteVersion() {
         ScrollWorkerResumeInfo info = new ScrollWorkerResumeInfo("sid", 0L, taskStatus(), null);
+        assertNull(info.remoteVersion());
+    }
+
+    // ---------- PitWorkerResumeInfo ----------
+
+    /** Constructor rejects null pitId. */
+    public void testPitWorkerResumeInfoRejectsNullPitId() {
+        expectThrows(NullPointerException.class, () -> new PitWorkerResumeInfo(null, new Object[] { 1L }, 0L, taskStatus(), null));
+    }
+
+    /** Constructor rejects null searchAfterValues. */
+    public void testPitWorkerResumeInfoRejectsNullSearchAfterValues() {
+        expectThrows(
+            NullPointerException.class,
+            () -> new PitWorkerResumeInfo(new BytesArray("pit".getBytes(StandardCharsets.UTF_8)), null, 0L, taskStatus(), null)
+        );
+    }
+
+    /** Constructor rejects null status. */
+    public void testPitWorkerResumeInfoRejectsNullStatus() {
+        expectThrows(
+            NullPointerException.class,
+            () -> new PitWorkerResumeInfo(new BytesArray("pit".getBytes(StandardCharsets.UTF_8)), new Object[] { 1L }, 0L, null, null)
+        );
+    }
+
+    public void testPitWorkerResumeInfoAccessors() {
+        BytesArray pitId = new BytesArray("pit-id".getBytes(StandardCharsets.UTF_8));
+        Object[] searchAfterValues = new Object[] { 100L, "sort2" };
+        long startTime = 42L;
+        BulkByScrollTask.Status status = taskStatus();
+        Version remote = Version.CURRENT;
+        PitWorkerResumeInfo info = new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, status, remote);
+        assertThat(info.pitId(), equalTo(pitId));
+        assertThat(info.searchAfterValues(), equalTo(searchAfterValues));
+        assertThat(info.startTimeEpochMillis(), equalTo(startTime));
+        assertThat(info.status(), equalTo(status));
+        assertThat(info.remoteVersion(), equalTo(remote));
+        assertThat(info.getWriteableName(), equalTo(PitWorkerResumeInfo.NAME));
+    }
+
+    public void testPitWorkerResumeInfoNullableRemoteVersion() {
+        PitWorkerResumeInfo info = new PitWorkerResumeInfo(
+            new BytesArray("pit".getBytes(StandardCharsets.UTF_8)),
+            new Object[] { 1L },
+            0L,
+            taskStatus(),
+            null
+        );
         assertNull(info.remoteVersion());
     }
 
@@ -211,5 +264,12 @@ public class ResumeInfoTests extends ESTestCase {
 
     private static SliceStatus sliceStatusWithResult(int sliceId, Exception failure) {
         return new SliceStatus(sliceId, null, new WorkerResult(null, failure));
+    }
+
+    private static ResumeInfo.RelocationOrigin randomOrigin() {
+        return new ResumeInfo.RelocationOrigin(
+            randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomNonNegativeLong()
+        );
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -148,7 +149,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     auditor,
                     new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
-                    mock(CrossProjectModeDecider.class)
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false,
+                    mock(ProjectResolver.class)
                 ),
                 checkpointProvider,
                 initialState,

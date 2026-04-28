@@ -46,4 +46,11 @@ Authentication::
 * Add attribute count to `SamlAttribute` `toString` {es-pull}131173[#131173]
 * In-response-to in saml successful response {es-pull}137599[#137599] (issue: {es-issue}128179[#128179])
 
+[[upgrade-8.19.15]]
+[float]
+=== Upgrades
+
+Security::
+* Upgrade bouncycastle to 1.84 {es-pull}147197[#147197]
+
 

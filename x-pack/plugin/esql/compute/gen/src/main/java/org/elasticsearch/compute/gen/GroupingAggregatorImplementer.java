@@ -335,8 +335,9 @@ public class GroupingAggregatorImplementer {
             Argument a = aggParams.get(i);
             builder.addStatement("$T $L = page.getBlock(channels.get($L))", a.dataType(true), a.blockName(), i);
         }
-        if (processNulls == false) {
-            for (Argument a : aggParams) {
+        for (Argument a : aggParams) {
+            // Standard arguments never accept nulls, so we can always skip if they are all-null
+            if (processNulls == false || a instanceof StandardArgument) {
                 builder.beginControlFlow("if ($L.areAllValuesNull())", a.blockName());
                 builder.addCode("""
                     /*

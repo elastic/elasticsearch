@@ -31,6 +31,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.BitSet;
 
 /**
@@ -1102,9 +1103,7 @@ final class PageColumnReader {
     // for the regression coverage.
 
     private Block takeLongBlock(BlockFactory blockFactory, int rowCount, boolean noNulls, BitSet nullBitSet) {
-        long[] src = buffers.takeLongs();
-        long[] owned = new long[rowCount];
-        System.arraycopy(src, 0, owned, 0, rowCount);
+        long[] owned = Arrays.copyOf(buffers.takeLongs(), rowCount);
         if (noNulls) {
             return blockFactory.newLongArrayVector(owned, rowCount).asBlock();
         }
@@ -1112,9 +1111,7 @@ final class PageColumnReader {
     }
 
     private Block takeDoubleBlock(BlockFactory blockFactory, int rowCount, boolean noNulls, BitSet nullBitSet) {
-        double[] src = buffers.takeDoubles();
-        double[] owned = new double[rowCount];
-        System.arraycopy(src, 0, owned, 0, rowCount);
+        double[] owned = Arrays.copyOf(buffers.takeDoubles(), rowCount);
         if (noNulls) {
             return blockFactory.newDoubleArrayVector(owned, rowCount).asBlock();
         }
@@ -1122,8 +1119,7 @@ final class PageColumnReader {
     }
 
     private Block takeIntBlock(BlockFactory blockFactory, int[] src, int rowCount, boolean noNulls, BitSet nullBitSet) {
-        int[] owned = new int[rowCount];
-        System.arraycopy(src, 0, owned, 0, rowCount);
+        int[] owned = Arrays.copyOf(src, rowCount);
         if (noNulls) {
             return blockFactory.newIntArrayVector(owned, rowCount).asBlock();
         }
@@ -1131,8 +1127,7 @@ final class PageColumnReader {
     }
 
     private Block takeBooleanBlock(BlockFactory blockFactory, boolean[] src, int rowCount, boolean noNulls, BitSet nullBitSet) {
-        boolean[] owned = new boolean[rowCount];
-        System.arraycopy(src, 0, owned, 0, rowCount);
+        boolean[] owned = Arrays.copyOf(src, rowCount);
         if (noNulls) {
             return blockFactory.newBooleanArrayVector(owned, rowCount).asBlock();
         }

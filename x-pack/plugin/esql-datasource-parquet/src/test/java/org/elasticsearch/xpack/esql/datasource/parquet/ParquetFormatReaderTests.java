@@ -2154,27 +2154,18 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Regression test for the buffer-aliasing bug where {@code PageColumnReader} could let a
-     * later batch's decode mutate the values inside an earlier still-referenced {@link Page}.
+     * Regression test for the {@code PageColumnReader} buffer-aliasing bug. Models the producer/
+     * consumer boundary deterministically in a single thread by maintaining a queue lookahead
+     * larger than the {@link DecodeBuffers} slot count, so every {@link Page} the consumer reads
+     * has been alive across several subsequent decodes by the producer - the same shape
+     * {@code AsyncExternalSourceBuffer} produces in production. See the {@code Block construction
+     * helpers} block in {@link PageColumnReader} for the bug mechanism.
      *
-     * <p>The bug: {@code PageColumnReader.take{Long,Double,Int,Boolean}Block} used to hand the
-     * pooled {@code DecodeBuffers} array directly to {@link BlockFactory}. {@link BlockFactory}
-     * does not copy: it stores the reference. {@code DecodeBuffers} reuses its primitive arrays
-     * across batches (longs/doubles via two-slot rotation; ints/booleans single-buffered), so
-     * when more than two pages from the same column reader were alive at once - the normal case
-     * for {@code AsyncExternalSourceBuffer} - the producer's next decode would overwrite values
-     * inside an earlier emitted Block. Symptom: aggregations like SUM and AVG produced
-     * non-deterministic, incorrect results across runs while COUNT(*) stayed correct.
-     *
-     * <p>The shape that triggers the bug in production is {@code AsyncExternalSourceBuffer}: a
-     * producer driver decodes pages and queues them, and a consumer driver pulls them out
-     * later, after the producer has already advanced several pages further. This test models
-     * that boundary deterministically in a single thread - alternating produce and consume
-     * with a fixed lookahead larger than the {@link DecodeBuffers} slot count - so each Page
-     * the consumer reads has been "alive" while the producer kept reusing the underlying
-     * primitive arrays. With the fix every read value equals the row index it was assigned at
-     * write time; without it the consumer sees values from a later batch (e.g.
-     * {@code expected:<0> but was:<180>}).
+     * <p>All four affected primitive types are covered: longs and doubles (two-slot rotation in
+     * {@code DecodeBuffers}), ints and booleans (single slot - aliasing hits at queue depth 2).
+     * Without the fix each batch's decode mutates earlier emitted Blocks (typical failure:
+     * {@code expected:<0> but was:<160>}); with the fix every value equals its write-time row
+     * index.
      */
     public void testEmittedPagesAreNotMutatedAcrossProducerConsumerBoundary() throws Exception {
         MessageType schema = Types.buildMessage()
@@ -2184,10 +2175,15 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .named("v_int")
             .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
             .named("v_double")
+            .required(PrimitiveType.PrimitiveTypeName.BOOLEAN)
+            .named("v_bool")
             .named("retention_test_pc");
 
-        int totalRows = 600;
-        int batchSize = 30;
+        // batchSize must be a multiple of 8 so PlainValueDecoder.readBooleans does not skip
+        // bits across batch boundaries - that is an unrelated decoder issue we do not want to
+        // entangle with this regression.
+        int batchSize = 32;
+        int totalRows = batchSize * 20;
         // Lookahead must exceed the DecodeBuffers slot count (2 for long/double, 1 for
         // int/boolean) so the producer is guaranteed to reuse a buffer the consumer still
         // references. 6 mirrors the typical AsyncExternalSourceBuffer queue depth.
@@ -2200,6 +2196,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 g.add("v_long", (long) i);
                 g.add("v_int", i);
                 g.add("v_double", (double) i);
+                // (i % 7) < 3 has period 7, which does not divide batchSize=32, so the
+                // boolean pattern differs between consecutive batches and aliasing actually
+                // shows up as a visible mutation.
+                g.add("v_bool", (i % 7) < 3);
                 groups.add(g);
             }
             return groups;
@@ -2229,6 +2229,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     LongBlock lb = (LongBlock) page.getBlock(0);
                     IntBlock ib = (IntBlock) page.getBlock(1);
                     DoubleBlock db = (DoubleBlock) page.getBlock(2);
+                    BooleanBlock bb = (BooleanBlock) page.getBlock(3);
                     for (int r = 0; r < rows; r++) {
                         long expected = rowOffset + r;
                         assertEquals(
@@ -2246,6 +2247,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
                             (double) expected,
                             db.getDouble(r),
                             0.0
+                        );
+                        assertEquals(
+                            "boolean value mutated after queue lookahead (page-rel row=" + r + ", abs=" + expected + ")",
+                            (expected % 7) < 3,
+                            bb.getBoolean(r)
                         );
                     }
                     rowOffset += rows;

@@ -610,10 +610,9 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     private static BytesRef encodeBFloat16Vectors(float[][] vectors) {
         int dims = vectors[0].length;
         ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        var bFloat16Buffer = buffer.asShortBuffer();
         for (float[] vector : vectors) {
-            for (float value : vector) {
-                buffer.putShort(BFloat16.floatToBFloat16(value));
-            }
+            BFloat16.floatToBFloat16(vector, bFloat16Buffer);
         }
         return new BytesRef(buffer.array());
     }

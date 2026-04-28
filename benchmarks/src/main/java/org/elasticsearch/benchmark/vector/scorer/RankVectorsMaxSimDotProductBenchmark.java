@@ -12,7 +12,6 @@ package org.elasticsearch.benchmark.vector.scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.BFloat16RankVectors;
 import org.elasticsearch.script.field.vectors.ByteRankVectors;
 import org.elasticsearch.script.field.vectors.FloatRankVectors;
@@ -109,8 +108,7 @@ public class RankVectorsMaxSimDotProductBenchmark {
             magnitudes,
             numDocVectors,
             dims,
-            encodeByteDocVectors(byteDocVectors),
-            ElementType.BYTE
+            encodeByteDocVectors(byteDocVectors)
         );
         bfloat16RankVectors = new BFloat16RankVectors(
             VectorIterator.from(bfloat16DocVectors),
@@ -143,10 +141,9 @@ public class RankVectorsMaxSimDotProductBenchmark {
     private static BytesRef encodeFloatDocVectors(float[][] vectors) {
         int dims = vectors[0].length;
         ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        var floatBuffer = buffer.asFloatBuffer();
         for (float[] vector : vectors) {
-            for (float value : vector) {
-                buffer.putFloat(value);
-            }
+            floatBuffer.put(vector);
         }
         return new BytesRef(buffer.array());
     }
@@ -165,10 +162,9 @@ public class RankVectorsMaxSimDotProductBenchmark {
     private static BytesRef encodeBFloat16DocVectors(float[][] vectors) {
         int dims = vectors[0].length;
         ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        var bFloat16Buffer = buffer.asShortBuffer();
         for (float[] vector : vectors) {
-            for (float value : vector) {
-                buffer.putShort(BFloat16.floatToBFloat16(value));
-            }
+            BFloat16.floatToBFloat16(vector, bFloat16Buffer);
         }
         return new BytesRef(buffer.array());
     }

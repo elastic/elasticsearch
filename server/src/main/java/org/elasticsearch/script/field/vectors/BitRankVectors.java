@@ -11,7 +11,6 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
@@ -22,7 +21,7 @@ public class BitRankVectors extends ByteRankVectors {
     }
 
     public BitRankVectors(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims, BytesRef vectorBytes) {
-        super(vectorValues, magnitudesBytes, numVecs, dims, vectorBytes, ElementType.BIT);
+        super(vectorValues, magnitudesBytes, numVecs, dims, vectorBytes);
     }
 
     @Override

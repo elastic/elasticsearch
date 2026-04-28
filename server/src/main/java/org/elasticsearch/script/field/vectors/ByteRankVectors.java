@@ -11,7 +11,6 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
@@ -28,29 +27,20 @@ public class ByteRankVectors implements RankVectors, MultiByteVectorsSource {
     private float[] magnitudes;
     private final BytesRef magnitudesBytes;
     private final BytesRef vectorBytes;
-    private final ElementType elementType;
     private float[] scoresScratch = new float[0];
     private float[] maxesScratch = new float[0];
 
     public ByteRankVectors(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
-        this(vectorValues, magnitudesBytes, numVecs, dims, null, ElementType.BYTE);
+        this(vectorValues, magnitudesBytes, numVecs, dims, null);
     }
 
-    public ByteRankVectors(
-        VectorIterator<byte[]> vectorValues,
-        BytesRef magnitudesBytes,
-        int numVecs,
-        int dims,
-        BytesRef vectorBytes,
-        ElementType elementType
-    ) {
+    public ByteRankVectors(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims, BytesRef vectorBytes) {
         assert magnitudesBytes.length == numVecs * Float.BYTES;
         this.vectorValues = vectorValues;
         this.numVecs = numVecs;
         this.dims = dims;
         this.magnitudesBytes = magnitudesBytes;
         this.vectorBytes = vectorBytes;
-        this.elementType = elementType;
     }
 
     @Override
@@ -125,10 +115,6 @@ public class ByteRankVectors implements RankVectors, MultiByteVectorsSource {
     @Override
     public int vectorByteSize() {
         return dims;
-    }
-
-    public ElementType elementType() {
-        return elementType;
     }
 
     @Override

@@ -1,5 +1,5 @@
 area: Infra/Plugins
 issues: []
 pr: 146975
-summary: Add `effective_config_hash` and `effective_config_label` keyword mapping to fleet-agents index
+summary: Add `effective_config_hash` keyword mapping to fleet-agents index
 type: enhancement

@@ -21,6 +21,7 @@ public final class SliceIndexing {
 
     private SliceIndexing() {}
 
+    public static final String PARAM_NAME = "_slice";
     public static final FeatureFlag SLICE_FEATURE_FLAG = new FeatureFlag("slice_indexing");
     private static final int MAX_SLICE_VALUE_LENGTH = 128;
     private static final Pattern VALID_SLICE_VALUE_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9._:-]*[a-zA-Z0-9])?");
@@ -76,7 +77,7 @@ public final class SliceIndexing {
      */
     public static ParsedRouting parseRoutingOrSliceWithProvenance(RestRequest request) {
         final String routing = request.param("routing");
-        final String slice = request.param("_slice");
+        final String slice = request.param(PARAM_NAME);
         if (slice != null && SLICE_FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException("request does not support [_slice]");
         }

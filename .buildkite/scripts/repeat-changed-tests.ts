@@ -282,7 +282,13 @@ function main() {
   if (!targetBranch) {
     throw new Error("GITHUB_PR_TARGET_BRANCH environment variable is required");
   }
-  const mergeBase = execSync(`git merge-base ${targetBranch} HEAD`, { cwd: PROJECT_ROOT }).toString().trim();
+  // The Buildkite agent only fetches the PR head, so the target branch ref
+  // may not be present locally (e.g. for serverless patch base branches).
+  // Fetch it explicitly before computing merge-base.
+  execSync(`git fetch origin ${targetBranch}`, { cwd: PROJECT_ROOT, stdio: ["ignore", "inherit", "inherit"] });
+  const mergeBase = execSync(`git merge-base origin/${targetBranch} HEAD`, { cwd: PROJECT_ROOT })
+    .toString()
+    .trim();
   console.log(`Merge base: ${mergeBase}`);
 
   console.log("Getting changed files...");

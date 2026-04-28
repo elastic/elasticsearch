@@ -74,8 +74,7 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
         // LinkedHashSet that is never reassigned. This check captures the state if a JIT bug nullifies the reference.
         if (notNullExpressions == null) {
             logger.error(
-                "notNullExpressions is null before second replace() call. "
-                    + "nullExpressions={}, others={}, splits={}, and={}",
+                "notNullExpressions is null before second replace() call. " + "nullExpressions={}, others={}, splits={}, and={}",
                 nullExpressions,
                 others,
                 splits,

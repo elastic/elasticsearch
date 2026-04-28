@@ -2458,6 +2458,11 @@ public class EsqlCapabilities {
         LIMIT_BY_ENRICH_FIX(ESQL_LIMIT_BY.isEnabled()),
 
         /**
+         * Fixes validation for LIMIT BY used before fulltext functions
+         */
+        LIMIT_BY_BEFORE_FULLTEXT(ESQL_LIMIT_BY.isEnabled()),
+
+        /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
          */
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,

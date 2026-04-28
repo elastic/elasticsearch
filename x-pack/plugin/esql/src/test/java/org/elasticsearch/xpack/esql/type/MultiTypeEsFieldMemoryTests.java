@@ -48,7 +48,6 @@ import static org.hamcrest.Matchers.lessThan;
  * across fields - they're built per-field from {@code FieldCapabilitiesResponse} - so the per-field copy here is the realistic case.
  */
 public class MultiTypeEsFieldMemoryTests extends ESTestCase {
-
     private static final int NUM_INDICES = 5_000;
     private static final int NUM_CONFLICTING_FIELDS = 50;
 
@@ -60,26 +59,22 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
     private static final RamUsageTester.Accumulator ACCUMULATOR = new RamUsageTester.Accumulator() {
         @Override
         public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
-            if (o instanceof Locale || o instanceof ZoneId) {
-                return shallowSize;
-            }
-            return super.accumulateObject(o, shallowSize, fieldValues, queue);
+            return o instanceof Locale || o instanceof ZoneId ? shallowSize : super.accumulateObject(o, shallowSize, fieldValues, queue);
         }
     };
 
     public void testV2AnalyzedPlanIsAtLeastTenTimesSmallerThanLegacy() {
         String query = buildExplicitConversionQuery(NUM_CONFLICTING_FIELDS);
 
-        LogicalPlan legacyPlan = analyzer().addIndex(unionTypedIndex(NUM_INDICES, NUM_CONFLICTING_FIELDS, false))
+        LogicalPlan legacyPlan = analyzer().addIndex(unionTypedIndex(false))
             .minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(MultiTypeEsField2.ESQL_MULTI_TYPE_ES_FIELD_2))
             .query(query);
-        LogicalPlan v2Plan = analyzer().addIndex(unionTypedIndex(NUM_INDICES, NUM_CONFLICTING_FIELDS, true))
+        LogicalPlan v2Plan = analyzer().addIndex(unionTypedIndex(true))
             .minimumTransportVersion(MultiTypeEsField2.ESQL_MULTI_TYPE_ES_FIELD_2)
             .query(query);
 
         long legacyBytes = RamUsageTester.ramUsed(legacyPlan, ACCUMULATOR);
         long v2Bytes = RamUsageTester.ramUsed(v2Plan, ACCUMULATOR);
-        logger.info("legacy plan bytes={}, v2 plan bytes={}", legacyBytes, v2Bytes);
         assertThat(v2Bytes * 10L, lessThan(legacyBytes));
     }
 
@@ -101,20 +96,19 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
      * conflicting fields are built from {@link InvalidMappedField2} (truncated index lists), matching what a v2-capable coordinator
      * produces; otherwise the full {@link InvalidMappedField} is used.
      */
-    private static IndexResolution unionTypedIndex(int numIndices, int numConflictingFields, boolean compact) {
+    private static IndexResolution unionTypedIndex(boolean compact) {
         Map<String, IndexMode> indexNamesWithModes = new HashMap<>();
-        for (int i = 0; i < numIndices; i++) {
+        for (int i = 0; i < MultiTypeEsFieldMemoryTests.NUM_INDICES; i++) {
             indexNamesWithModes.put("idx_" + i, IndexMode.STANDARD);
         }
         Map<String, EsField> mapping = new HashMap<>();
-        for (int i = 0; i < numConflictingFields; i++) {
+        for (int i = 0; i < MultiTypeEsFieldMemoryTests.NUM_CONFLICTING_FIELDS; i++) {
             String fieldName = "id_" + i;
             Map<String, Set<String>> perFieldTypesToIndices = new HashMap<>();
             perFieldTypesToIndices.put("keyword", new HashSet<>());
             perFieldTypesToIndices.put("integer", new HashSet<>());
-            for (int j = 0; j < numIndices; j++) {
-                String idxName = "idx_" + j;
-                perFieldTypesToIndices.get(j % 2 == 0 ? "keyword" : "integer").add(idxName);
+            for (int j = 0; j < MultiTypeEsFieldMemoryTests.NUM_INDICES; j++) {
+                perFieldTypesToIndices.get(j % 2 == 0 ? "keyword" : "integer").add("idx_" + j);
             }
             mapping.put(
                 fieldName,
@@ -123,7 +117,6 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
                     : new InvalidMappedField(fieldName, perFieldTypesToIndices)
             );
         }
-        EsIndex esIndex = new EsIndex("idx*", mapping, indexNamesWithModes, Map.of(), Map.of());
-        return IndexResolution.valid(esIndex);
+        return IndexResolution.valid(new EsIndex("idx*", mapping, indexNamesWithModes, Map.of(), Map.of()));
     }
 }

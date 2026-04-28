@@ -23,10 +23,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.not;
 
 public class InvalidMappedField2Tests extends ESTestCase {
-
     public void testKeepsAllIndicesWhenAtOrBelowLimit() {
         Map<String, Set<String>> input = Map.of(
             DataType.KEYWORD.typeName(),
@@ -41,9 +39,6 @@ public class InvalidMappedField2Tests extends ESTestCase {
         assertThat(stored.keySet(), containsInAnyOrder(DataType.KEYWORD.typeName(), DataType.LONG.typeName()));
         assertThat(stored.get(DataType.KEYWORD.typeName()), containsInAnyOrder("idx_a", "idx_b"));
         assertThat(stored.get(DataType.LONG.typeName()), containsInAnyOrder("idx_c", "idx_d", "idx_e"));
-        for (Set<String> indices : stored.values()) {
-            assertThat(indices, not(containsInAnyOrder(InvalidMappedField2.ELLIPSIS)));
-        }
     }
 
     public void testTruncatesAboveLimitAndAddsEllipsisSentinel() {

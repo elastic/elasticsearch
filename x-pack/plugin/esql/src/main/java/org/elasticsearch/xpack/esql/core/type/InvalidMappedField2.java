@@ -26,9 +26,8 @@ import java.util.TreeMap;
  * anyway, so the truncation no longer matters.
  */
 public class InvalidMappedField2 extends InvalidMappedField {
-
-    public static final String ELLIPSIS = "...";
-    public static final int MAX_INDICES_PER_TYPE = 3;
+    private static final String ELLIPSIS = "...";
+    private static final int MAX_INDICES_PER_TYPE = 3;
 
     public InvalidMappedField2(String name, Map<String, Set<String>> typesToIndices) {
         super(name, makeErrorMessage(typesToIndices, false), new TreeMap<>(), truncate(typesToIndices), false, TimeSeriesFieldType.UNKNOWN);
@@ -61,7 +60,7 @@ public class InvalidMappedField2 extends InvalidMappedField {
      * dropped. The retained 3 are picked by sorted order so that the (already truncated) error message and the stored set stay
      * consistent.
      */
-    static Map<String, Set<String>> truncate(Map<String, Set<String>> typesToIndices) {
+    private static Map<String, Set<String>> truncate(Map<String, Set<String>> typesToIndices) {
         Map<String, Set<String>> result = new TreeMap<>();
         for (Map.Entry<String, Set<String>> entry : typesToIndices.entrySet()) {
             Set<String> indices = entry.getValue();

@@ -2311,7 +2311,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
 
-        static boolean isMultiType(EsField field) {
+        private static boolean isMultiType(EsField field) {
             return field instanceof MultiTypeEsField || field instanceof MultiTypeEsField2;
         }
 
@@ -2320,23 +2320,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * (type-keyed) based on the cluster minimum transport version, so that newly-built plans remain
          * deserializable on older nodes during a rolling upgrade.
          */
-        static EsField buildMultiTypeEsField(
+        private static EsField buildMultiTypeEsField(
             InvalidMappedField imf,
             Map<String, Expression> typesToConversionExpressions,
             @Nullable Expression unmappedConversionExpression,
             AnalyzerContext context
         ) {
-            if (context.minimumVersion().supports(MultiTypeEsField2.ESQL_MULTI_TYPE_ES_FIELD_2)) {
-                return MultiTypeEsField2.resolveFrom(imf, typesToConversionExpressions, unmappedConversionExpression);
-            }
-            return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions)
-                .withPotentiallyUnmappedExpression(unmappedConversionExpression);
+            return context.minimumVersion().supports(MultiTypeEsField2.ESQL_MULTI_TYPE_ES_FIELD_2)
+                ? MultiTypeEsField2.resolveFrom(imf, typesToConversionExpressions, unmappedConversionExpression)
+                : MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions)
+                    .withPotentiallyUnmappedExpression(unmappedConversionExpression);
         }
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             List<Attribute.IdIgnoringWrapper> unionFieldAttributes = new ArrayList<>();
-            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p, unionFieldAttributes, context));
+            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() ? doRule(p, unionFieldAttributes, context) : p);
         }
 
 

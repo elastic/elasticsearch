@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -845,7 +846,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     /**
      * When the query plan type cannot be satisfied from this file's Parquet-derived ESQL type (after
      * applying the same widening rules as {@link EsqlDataTypeConverter#commonType}, plus KEYWORD/TEXT
-     * interchangeability), log a warning and read the column as null instead of failing at decode time.
+     * interchangeability), emit a response Warning header (and log a warning) and read the column as
+     * null instead of failing at decode time. The warning header lets clients see — alongside other
+     * recoverable ES|QL warnings — exactly which columns were silently null-replaced.
      */
     private static void validatePlannerTypesAgainstFile(
         Logger logger,
@@ -855,6 +858,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ColumnInfo[] columnInfos
     ) {
         MessageType fullSchema = reader.getFileMetaData().getSchema();
+        SkipWarnings skipWarnings = null;
         for (int i = 0; i < attributes.size(); i++) {
             if (columnInfos[i] == null) {
                 continue;
@@ -868,6 +872,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
             DataType actualInFile = convertParquetTypeToEsql(fullSchema.getType(attr.name()));
             if (plannerTypeCompatibleWithFileDerivedType(attr.dataType(), actualInFile) == false) {
+                if (skipWarnings == null) {
+                    skipWarnings = new SkipWarnings(
+                        "Parquet file ["
+                            + fileLocation
+                            + "] has columns whose on-disk type is incompatible with the planner type; "
+                            + "they are returned as null"
+                    );
+                }
+                skipWarnings.add(
+                    "Column ["
+                        + attr.name()
+                        + "] in file ["
+                        + fileLocation
+                        + "] has type ["
+                        + actualInFile
+                        + "] incompatible with planner type ["
+                        + attr.dataType()
+                        + "]; returning nulls for this column"
+                );
                 logger.warn(
                     "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}] after widening; "
                         + "returning nulls for this column",

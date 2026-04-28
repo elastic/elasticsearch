@@ -418,6 +418,9 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
   method: testUpdateTransformWithProjectRouting
   issue: https://github.com/elastic/elasticsearch/issues/147655
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testDoExecuteReleasesRegistrationOnLastChunkDeserializationFailure
+  issue: https://github.com/elastic/elasticsearch/issues/147693
 
 # Examples:
 #

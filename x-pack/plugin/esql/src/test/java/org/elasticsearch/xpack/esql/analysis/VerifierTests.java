@@ -745,15 +745,32 @@ public class VerifierTests extends ESTestCase {
     public void testBucketOnlyInAggs() {
         defaultAnalyzer().error(
             "FROM test | WHERE ABS(BUCKET(emp_no, 100.)) > 0",
-            equalTo("1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command")
+            equalTo("1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
         );
         defaultAnalyzer().error(
             "FROM test | EVAL 3 + BUCKET(emp_no, 100.)",
-            equalTo("1:22: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command")
+            equalTo("1:22: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
         );
         defaultAnalyzer().error(
             "FROM test | SORT BUCKET(emp_no, 100.)",
-            equalTo("1:18: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command")
+            equalTo("1:18: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
+        );
+    }
+
+    public void testBucketAllowedInLimitBy() {
+        // Bare evaluatable grouping function as the LIMIT BY key.
+        defaultAnalyzer().query("FROM test | LIMIT 1 BY BUCKET(emp_no, 100.)");
+        // Wrapped in a scalar expression.
+        defaultAnalyzer().query("FROM test | LIMIT 1 BY BUCKET(emp_no, 100.) + 1");
+        // Combined with a regular field grouping.
+        defaultAnalyzer().query("FROM test | LIMIT 1 BY BUCKET(emp_no, 100.), languages");
+    }
+
+    public void testCategorizeNotAllowedInLimitBy() {
+        // Stateful grouping functions still require a STATS context.
+        defaultAnalyzer().error(
+            "FROM test | LIMIT 1 BY CATEGORIZE(first_name)",
+            equalTo("1:24: cannot use grouping function [CATEGORIZE(first_name)] outside of a STATS command")
         );
     }
 

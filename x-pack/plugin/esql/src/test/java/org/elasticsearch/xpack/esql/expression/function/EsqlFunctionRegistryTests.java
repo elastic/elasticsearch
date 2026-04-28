@@ -39,7 +39,6 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.constructorWithFunctionInfo;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -47,7 +46,7 @@ import static org.mockito.Mockito.mock;
 public class EsqlFunctionRegistryTests extends ESTestCase {
 
     public void testNoArgFunction() {
-        UnresolvedFunction ur = uf(DEFAULT);
+        UnresolvedFunction ur = uf();
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(
             FunctionDefinition.def(DummyFunction.class).noArgs(DummyFunction::new).name("dummyFunction")
         );
@@ -56,7 +55,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
     }
 
     public void testBinaryFunction() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class), mock(Expression.class));
+        UnresolvedFunction ur = uf(mock(Expression.class), mock(Expression.class));
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(
             FunctionDefinition.def(DummyFunction.class).binary((Source l, Expression lhs, Expression rhs) -> {
                 assertSame(lhs, ur.children().get(0));
@@ -68,20 +67,17 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf().buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), containsString("expects exactly two arguments"));
 
         // One child isn't supported
-        e = expectThrows(ParsingException.class, () -> uf(DEFAULT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
+        e = expectThrows(ParsingException.class, () -> uf(mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), containsString("expects exactly two arguments"));
 
         // Many children aren't supported
         e = expectThrows(
             ParsingException.class,
-            () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class), mock(Expression.class)).buildResolved(
-                randomConfiguration(),
-                def
-            )
+            () -> uf(mock(Expression.class), mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
         );
         assertThat(e.getMessage(), containsString("expects exactly two arguments"));
     }
@@ -122,7 +118,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
     }
 
     public void testFunctionResolving() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
+        UnresolvedFunction ur = uf(mock(Expression.class));
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(defineDummyFunction(ur, "dummyfunction", "dummyfunc"));
 
         // Resolve by primary name
@@ -153,24 +149,24 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
     }
 
     public void testUnaryFunction() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
+        UnresolvedFunction ur = uf(mock(Expression.class));
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(defineDummyUnaryFunction(ur));
         FunctionDefinition def = r.resolveFunction(ur.name());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf().buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), containsString("expects exactly one argument"));
 
         // Multiple children aren't supported
         e = expectThrows(
             ParsingException.class,
-            () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
+            () -> uf(mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
         );
         assertThat(e.getMessage(), containsString("expects exactly one argument"));
     }
 
     public void testConfigurationOptionalFunction() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
+        UnresolvedFunction ur = uf(mock(Expression.class));
         FunctionDefinition def;
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(
             FunctionDefinition.def(DummyConfigurationOptionalArgumentFunction.class)
@@ -183,12 +179,12 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         def = r.resolveFunction(r.resolveAlias("DUMMY"));
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
-        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf().buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), containsString("expects exactly one argument"));
     }
 
-    private static UnresolvedFunction uf(FunctionResolutionStrategy resolutionStrategy, Expression... children) {
-        return new UnresolvedFunction(SourceTests.randomSource(), "dummyFunction", resolutionStrategy, Arrays.asList(children));
+    private static UnresolvedFunction uf(Expression... children) {
+        return new UnresolvedFunction(SourceTests.randomSource(), "dummyFunction", Arrays.asList(children));
     }
 
     private static FunctionDefinition defineDummyFunction(UnresolvedFunction ur, String name, String... aliases) {

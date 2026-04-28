@@ -5,7 +5,7 @@
 serverless: preview
 stack: preview 9.4.0
 ```
-Enables query approximation if possible for the query. A boolean value `false` (default) disables query approximation and `true` enables it with default settings. Map values enable query approximation with custom settings.
+Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the query. A boolean value `false` (default) disables query approximation and `true` enables it with default settings. Map values enable query approximation with custom settings.
 
 **Type**: `boolean` `map_param`
 

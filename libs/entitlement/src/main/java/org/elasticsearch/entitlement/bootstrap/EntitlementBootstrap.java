@@ -200,6 +200,7 @@ public class EntitlementBootstrap {
 
     private static void registerEntitlementRules(InternalInstrumentationRegistry instrumentationRegistry) {
         new MainInstrumentationProvider().init(instrumentationRegistry);
+        instrumentationRegistry.validate();
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

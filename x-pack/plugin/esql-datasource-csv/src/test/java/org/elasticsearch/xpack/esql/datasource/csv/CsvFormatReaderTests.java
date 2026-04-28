@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -51,6 +53,22 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+    }
+
+    /**
+     * Several tests below exercise non-strict {@link ErrorPolicy} paths which now emit response-header
+     * warnings via {@link HeaderWarning#addWarning(String, Object[])}. Drop them here so the parent
+     * {@code ensureNoWarnings} post-check passes; tests that want to assert on them call
+     * {@code drainWarnings()} from inside the test method.
+     */
+    @After
+    public void clearWarningHeaders() {
+        if (threadContext != null) {
+            // Swap in a fresh empty context (we deliberately do not restore() - the parent
+            // ESTestCase provides a fresh threadContext for the next test, so the stashed one
+            // can be discarded).
+            threadContext.stashContext();
+        }
     }
 
     public void testSchema() throws IOException {
@@ -2216,11 +2234,13 @@ public class CsvFormatReaderTests extends ESTestCase {
             while (iterator.hasNext()) {
                 iterator.next();
             }
-            List<String> warnings = CsvFormatReader.getWarnings(iterator);
-            assertEquals(2, warnings.size());
-            assertTrue("Warning should include row number, got: " + warnings.get(0), warnings.get(0).startsWith("Row [2]"));
-            assertTrue("Warning should include row number, got: " + warnings.get(1), warnings.get(1).startsWith("Row [4]"));
         }
+        // 1 summary + 2 details
+        List<String> warnings = drainWarnings();
+        assertEquals(3, warnings.size());
+        assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
+        assertTrue("Detail should include row number, got: " + warnings.get(1), warnings.get(1).contains("Row [2]"));
+        assertTrue("Detail should include row number, got: " + warnings.get(2), warnings.get(2).contains("Row [4]"));
     }
 
     public void testWarningsIncludeFieldNameInPermissiveMode() throws IOException {
@@ -2244,12 +2264,14 @@ public class CsvFormatReaderTests extends ESTestCase {
             while (iterator.hasNext()) {
                 iterator.next();
             }
-            List<String> warnings = CsvFormatReader.getWarnings(iterator);
-            assertEquals(2, warnings.size());
-            assertTrue("Warning should include field name, got: " + warnings.get(0), warnings.get(0).contains("field [id]"));
-            assertTrue("Warning should include field name, got: " + warnings.get(1), warnings.get(1).contains("field [score]"));
-            assertTrue("Warning should include row number, got: " + warnings.get(0), warnings.get(0).contains("Row [2]"));
         }
+        // 1 summary + 2 details
+        List<String> warnings = drainWarnings();
+        assertEquals(3, warnings.size());
+        assertTrue("Summary should mention null_field, got: " + warnings.get(0), warnings.get(0).contains("policy: null_field"));
+        assertTrue("Detail should include field name, got: " + warnings.get(1), warnings.get(1).contains("field [id]"));
+        assertTrue("Detail should include field name, got: " + warnings.get(2), warnings.get(2).contains("field [score]"));
+        assertTrue("Detail should include row number, got: " + warnings.get(1), warnings.get(1).contains("Row [2]"));
     }
 
     public void testWarningsOverflowMessage() throws IOException {
@@ -2268,14 +2290,28 @@ public class CsvFormatReaderTests extends ESTestCase {
             while (iterator.hasNext()) {
                 iterator.next();
             }
-            List<String> warnings = CsvFormatReader.getWarnings(iterator);
-            assertEquals(21, warnings.size());
-            assertTrue("First warning should have row number, got: " + warnings.get(0), warnings.get(0).startsWith("Row [1]"));
-            assertTrue(
-                "Last warning should note suppression, got: " + warnings.get(20),
-                warnings.get(20).contains("further warnings suppressed")
-            );
         }
+        // 1 summary + 20 details + 1 overflow
+        List<String> warnings = drainWarnings();
+        assertEquals(22, warnings.size());
+        assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
+        assertTrue("First detail should have row number, got: " + warnings.get(1), warnings.get(1).contains("Row [1]"));
+        assertTrue(
+            "Last warning should note suppression, got: " + warnings.get(21),
+            warnings.get(21).contains("further warnings suppressed")
+        );
+    }
+
+    /**
+     * Reads the response-header warnings emitted on the test thread and clears them so the
+     * {@link ESTestCase#after()} no-warnings post-check passes. Returns the unwrapped warning
+     * messages (without the "299 Elasticsearch-... " prefix and surrounding quotes).
+     */
+    private List<String> drainWarnings() {
+        List<String> raw = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+        List<String> messages = raw.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false)).toList();
+        threadContext.stashContext();
+        return messages;
     }
 
     // --- Boolean case-insensitive tests (#309) ---

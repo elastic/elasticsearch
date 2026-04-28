@@ -42,7 +42,6 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
@@ -2366,13 +2365,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 final FixedBitSet matches = new FixedBitSet(new long[(numericBlockMask + 1) >>> 6], numericBlockMask + 1);
 
                 @Override
-                public void collectMatches(
-                    LeafCollector collector,
-                    int firstDoc,
-                    int lastDoc,
-                    long lowerValue,
-                    long upperValue
-                ) throws IOException {
+                public void collectMatches(LeafCollector collector, int firstDoc, int lastDoc, long lowerValue, long upperValue)
+                    throws IOException {
                     int firstBlock = firstDoc >>> numericBlockShift;
                     int lastBlock = lastDoc >>> numericBlockShift;
                     for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {

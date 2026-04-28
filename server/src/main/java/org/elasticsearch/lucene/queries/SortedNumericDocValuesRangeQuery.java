@@ -134,10 +134,17 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
 
                         @Override
                         public BulkScorer bulkScorer() throws IOException {
+                            final float constantScore = score();
                             return new BulkScorer() {
 
                                 @Override
                                 public int score(LeafCollector collector, Bits acceptDocs, int min, int maxExclusive) throws IOException {
+                                    collector.setScorer(new Scorable() {
+                                        @Override
+                                        public float score() {
+                                            return constantScore;
+                                        }
+                                    });
                                     int max = maxExclusive - 1;
                                     int currBlockStart = min;
                                     while (currBlockStart <= max) {
@@ -173,9 +180,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                                         } else if (minVal <= upperValue && lowerValue <= maxVal) {
                                             // Skipper range overlaps with query range
                                             // Collect accepted docs within [lowerValue, upperValue]
-                                            LeafCollector acceptedCollector = acceptDocs == null
-                                                ? collector
-                                                : new LeafCollector() {
+                                            LeafCollector acceptedCollector = acceptDocs == null ? collector : new LeafCollector() {
 
                                                 @Override
                                                 public void setScorer(Scorable scorer) throws IOException {

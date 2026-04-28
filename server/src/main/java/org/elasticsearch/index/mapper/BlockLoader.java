@@ -16,7 +16,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -266,14 +265,8 @@ public interface BlockLoader {
      * callers are responsible for applying block-level skipping on top.
      */
     interface NumericRangeReader {
-        default void collectMatches(
-            LeafCollector collect,
-            int firstDoc,
-            int lastDoc,
-            long lowerValue,
-            long upperValue
-        ) throws IOException {
-
+        default void collectMatches(LeafCollector collect, int firstDoc, int lastDoc, long lowerValue, long upperValue) throws IOException {
+            throw new UnsupportedOperationException();
         };
     }
 

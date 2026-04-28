@@ -2061,7 +2061,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             assertTrue(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
 
-            // start populating again the first region; populate completes directly
+            // start populating again the first region; async notified
             entry = cacheService.get(cacheKey, blobLength, 0);
             final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
             entry.populate(
@@ -2077,11 +2077,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 future3
             );
 
+            assertThat(future3.isDone(), is(false));
+            taskQueue.runAllRunnableTasks();
             assertThat(future3.isDone(), is(true));
+
             var written = future3.get(10L, TimeUnit.SECONDS);
             assertThat(written, is(false));
-
-            taskQueue.runAllRunnableTasks();
 
             written = future1.get(10L, TimeUnit.SECONDS);
             assertThat(future1.isDone(), is(true));

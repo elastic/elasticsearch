@@ -68,6 +68,36 @@ setup:
           embedding: [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
         refresh: true
 
+  - do:
+      indices.create:
+        index: test-semantic-embedding-index
+        body:
+          mappings:
+            properties:
+              content:
+                type: keyword
+              embedding:
+                type: semantic_text
+                inference_id: embedding-inference-id
+
+  - do:
+      index:
+        index: test-semantic-embedding-index
+        id: doc_1
+        body:
+          content: "first document"
+          embedding: "first document text"
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-embedding-index
+        id: doc_2
+        body:
+          content: "second document"
+          embedding: "second document text"
+        refresh: true
+
 ---
 "input as string":
   - do:
@@ -576,36 +606,6 @@ setup:
       cluster_features: "search.embedding_query_vector_builder.infers_inference_id"
       reason: embedding query vector builder infers inference_id from semantic field metadata
 
-  - do:
-      indices.create:
-        index: test-semantic-embedding-index
-        body:
-          mappings:
-            properties:
-              content:
-                type: keyword
-              embedding:
-                type: semantic_text
-                inference_id: embedding-inference-id
-
-  - do:
-      index:
-        index: test-semantic-embedding-index
-        id: doc_1
-        body:
-          content: "first document"
-          embedding: "first document text"
-        refresh: true
-
-  - do:
-      index:
-        index: test-semantic-embedding-index
-        id: doc_2
-        body:
-          content: "second document"
-          embedding: "second document text"
-        refresh: true
-
   # Search without specifying inference_id - should be inferred from the semantic_text field
   - do:
       search:
@@ -646,29 +646,11 @@ setup:
       reason: embedding query vector builder infers inference_id from semantic field metadata
 
   - do:
-      indices.create:
-        index: test-semantic-embedding-index-2
-        body:
-          mappings:
-            properties:
-              embedding:
-                type: semantic_text
-                inference_id: embedding-inference-id
-
-  - do:
-      index:
-        index: test-semantic-embedding-index-2
-        id: doc_1
-        body:
-          embedding: "some text"
-        refresh: true
-
-  - do:
       catch: bad_request
       search:
         index:
           - test-embedding-index
-          - test-semantic-embedding-index-2
+          - test-semantic-embedding-index
         body:
           query:
             knn:
@@ -688,40 +670,10 @@ setup:
       cluster_features: "search.embedding_query_vector_builder.infers_inference_id"
       reason: embedding query vector builder infers inference_id from semantic field metadata
 
-  - do:
-      indices.create:
-        index: test-semantic-embedding-image-index
-        body:
-          mappings:
-            properties:
-              content:
-                type: keyword
-              embedding:
-                type: semantic_text
-                inference_id: embedding-inference-id
-
-  - do:
-      index:
-        index: test-semantic-embedding-image-index
-        id: doc_1
-        body:
-          content: "first document"
-          embedding: "first document text"
-        refresh: true
-
-  - do:
-      index:
-        index: test-semantic-embedding-image-index
-        id: doc_2
-        body:
-          content: "second document"
-          embedding: "second document text"
-        refresh: true
-
   # Search with image input without specifying inference_id - should be inferred from the semantic_text field
   - do:
       search:
-        index: test-semantic-embedding-image-index
+        index: test-semantic-embedding-index
         body:
           query:
             knn:
@@ -739,7 +691,7 @@ setup:
   # Search with explicit inference_id and image input should also work
   - do:
       search:
-        index: test-semantic-embedding-image-index
+        index: test-semantic-embedding-index
         body:
           query:
             knn:

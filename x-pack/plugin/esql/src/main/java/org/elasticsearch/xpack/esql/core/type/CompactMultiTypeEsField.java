@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+// FIXME(gal, NOCOMMIT) Go over this javadocs
+// FIXME(gal, NOCOMMIT) Reduce duplication with MultiTypeEsField
 /**
  * Memory-efficient variant of {@link MultiTypeEsField} that stores the per-source-type conversion
  * expressions directly, rather than expanding them to one entry per index. Plus an optional
@@ -33,16 +35,20 @@ import java.util.Set;
  * legacy {@link MultiTypeEsField} when the cluster minimum transport version does not yet support
  * {@code esql_multi_type_es_field_2}.
  */
-public class MultiTypeEsField2 extends EsField implements UnionTypeEsField {
-
+public class CompactMultiTypeEsField extends EsField implements UnionTypeEsField {
+    // FIXME(gal, NOCOMMIT) rename
     public static final TransportVersion ESQL_MULTI_TYPE_ES_FIELD_2 = TransportVersion.fromName("esql_multi_type_es_field_2");
 
     private final Map<String, Expression> typeToConversionExpressions;
 
+    /**
+     * If this is not {@code null}, then this expression should be used to convert the field value in case the field is not mapped in an
+     * index from {@link DataType#KEYWORD} to the target type.
+     */
     @Nullable
     private final Expression unmappedConversionExpression;
 
-    public MultiTypeEsField2(
+    public CompactMultiTypeEsField(
         String name,
         DataType dataType,
         boolean aggregatable,
@@ -55,7 +61,7 @@ public class MultiTypeEsField2 extends EsField implements UnionTypeEsField {
         this.unmappedConversionExpression = unmappedConversionExpression;
     }
 
-    protected MultiTypeEsField2(StreamInput in) throws IOException {
+    protected CompactMultiTypeEsField(StreamInput in) throws IOException {
         this(
             ((PlanStreamInput) in).readCachedString(),
             DataType.readFrom(in),
@@ -78,12 +84,12 @@ public class MultiTypeEsField2 extends EsField implements UnionTypeEsField {
 
     @Override
     public String getWriteableName(TransportVersion transportVersion) {
-        return "MultiTypeEsField2";
+        return getNodeStringName();
     }
 
     @Override
     public String getNodeStringName() {
-        return "MultiTypeEsField2";
+        return "CompactMultiTypeEsField";
     }
 
     public Map<String, Expression> getTypeToConversionExpressions() {
@@ -104,23 +110,12 @@ public class MultiTypeEsField2 extends EsField implements UnionTypeEsField {
         return unmappedConversionExpression;
     }
 
-    public MultiTypeEsField2 withUnmappedConversionExpression(@Nullable Expression unmappedConversionExpression) {
-        return new MultiTypeEsField2(
-            getName(),
-            getDataType(),
-            isAggregatable(),
-            typeToConversionExpressions,
-            getTimeSeriesFieldType(),
-            unmappedConversionExpression
-        );
-    }
-
     /**
-     * Build a {@link MultiTypeEsField2} from the per-type resolutions previously computed against an
+     * Build a {@link CompactMultiTypeEsField} from the per-type resolutions previously computed against an
      * {@link InvalidMappedField}. Only types present in {@code imf.getTypesToIndices()} for which a
      * conversion was supplied are included.
      */
-    public static MultiTypeEsField2 resolveFrom(
+    public static CompactMultiTypeEsField resolveFrom(
         InvalidMappedField imf,
         Map<String, Expression> typesToConversionExpressions,
         @Nullable Expression unmappedConversionExpression
@@ -143,7 +138,7 @@ public class MultiTypeEsField2 extends EsField implements UnionTypeEsField {
         if (resolvedDataType == DataType.UNSUPPORTED && unmappedConversionExpression != null) {
             resolvedDataType = unmappedConversionExpression.dataType();
         }
-        return new MultiTypeEsField2(
+        return new CompactMultiTypeEsField(
             imf.getName(),
             resolvedDataType,
             false,
@@ -158,7 +153,7 @@ public class MultiTypeEsField2 extends EsField implements UnionTypeEsField {
         if (super.equals(obj) == false) {
             return false;
         }
-        if (obj instanceof MultiTypeEsField2 other) {
+        if (obj instanceof CompactMultiTypeEsField other) {
             return typeToConversionExpressions.equals(other.typeToConversionExpressions)
                 && Objects.equals(unmappedConversionExpression, other.unmappedConversionExpression);
         }

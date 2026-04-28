@@ -11,9 +11,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField2;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
@@ -39,9 +39,9 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 
 /**
- * Mirror of {@link MultiTypeEsFieldTests} for the type-keyed {@link MultiTypeEsField2}.
+ * Mirror of {@link MultiTypeEsFieldTests} for the type-keyed {@link CompactMultiTypeEsField}.
  */
-public class MultiTypeEsField2Tests extends AbstractEsFieldTypeTests<MultiTypeEsField2> {
+public class CompactMultiTypeEsFieldTests extends AbstractEsFieldTypeTests<CompactMultiTypeEsField> {
 
     private Configuration config;
 
@@ -56,7 +56,7 @@ public class MultiTypeEsField2Tests extends AbstractEsFieldTypeTests<MultiTypeEs
     }
 
     @Override
-    protected MultiTypeEsField2 createTestInstance() {
+    protected CompactMultiTypeEsField createTestInstance() {
         String name = randomAlphaOfLength(4);
         boolean toString = randomBoolean();
         DataType dataType = randomFrom(types());
@@ -66,11 +66,11 @@ public class MultiTypeEsField2Tests extends AbstractEsFieldTypeTests<MultiTypeEs
 
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
 
-        return new MultiTypeEsField2(name, toType, false, typeToConvertExpressions, tsType, unmappedConversionExpression);
+        return new CompactMultiTypeEsField(name, toType, false, typeToConvertExpressions, tsType, unmappedConversionExpression);
     }
 
     @Override
-    protected MultiTypeEsField2 mutateInstance(MultiTypeEsField2 instance) throws IOException {
+    protected CompactMultiTypeEsField mutateInstance(CompactMultiTypeEsField instance) throws IOException {
         String name = instance.getName();
         DataType dataType = instance.getDataType();
         Map<String, Expression> typeToConvertExpressions = instance.getTypeToConversionExpressions();
@@ -84,7 +84,7 @@ public class MultiTypeEsField2Tests extends AbstractEsFieldTypeTests<MultiTypeEs
             case 4 -> unmappedConversionExpression = unmappedConversionExpression != null ? null : createToString(name, dataType);
             default -> throw new IllegalArgumentException();
         }
-        return new MultiTypeEsField2(name, dataType, false, typeToConvertExpressions, tsType, unmappedConversionExpression);
+        return new CompactMultiTypeEsField(name, dataType, false, typeToConvertExpressions, tsType, unmappedConversionExpression);
     }
 
     @Override
@@ -96,7 +96,7 @@ public class MultiTypeEsField2Tests extends AbstractEsFieldTypeTests<MultiTypeEs
 
     /**
      * Random map keyed by {@link DataType#typeName()}, so it can be used as the source-type map of
-     * {@link MultiTypeEsField2}.
+     * {@link CompactMultiTypeEsField}.
      */
     private Map<String, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {
         Map<String, Expression> typeToConvertExpressions = new HashMap<>();

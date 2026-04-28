@@ -12,11 +12,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+// FIXME(gal, NOCOMMIT) Go over this javadocs
+// FIXME(gal, NOCOMMIT) Reduce duplication with InvalidMappedField
 /**
  * Memory-frugal variant of {@link InvalidMappedField}: stores at most {@value #MAX_INDICES_PER_TYPE} concrete index names per source type
  * (plus the {@value #ELLIPSIS} sentinel when more existed) instead of the full per-type index list. Wide union-typed fields routinely span
  * thousands of indices but the only consumers that need the full list are the legacy index-keyed conversion structures, and they aren't
- * used on transport versions that support {@link MultiTypeEsField2}. Truncating here lets the analyzed plan stay small while still
+ * used on transport versions that support {@link CompactMultiTypeEsField}. Truncating here lets the analyzed plan stay small while still
  * producing a good "[a, b, c, ...]" error message: the message itself is rendered from the full input map at construction time and then
  * stored as a string, so we lose only the post-construction ability to enumerate every index.
  *
@@ -25,16 +27,16 @@ import java.util.TreeMap;
  * plain {@link InvalidMappedField} on the receiving side &mdash; that's fine because {@code typesToIndices} is empty after deserialization
  * anyway, so the truncation no longer matters.
  */
-public class InvalidMappedField2 extends InvalidMappedField {
+public class CompactInvalidMappedField extends InvalidMappedField {
     private static final String ELLIPSIS = "...";
     private static final int MAX_INDICES_PER_TYPE = 3;
 
-    public InvalidMappedField2(String name, Map<String, Set<String>> typesToIndices) {
+    public CompactInvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
         super(name, makeErrorMessage(typesToIndices, false), new TreeMap<>(), truncate(typesToIndices), false, TimeSeriesFieldType.UNKNOWN);
     }
 
-    public static InvalidMappedField2 potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
-        return new InvalidMappedField2(
+    public static CompactInvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
+        return new CompactInvalidMappedField(
             name,
             makeErrorMessage(typesToIndices, true),
             new TreeMap<>(),
@@ -44,7 +46,7 @@ public class InvalidMappedField2 extends InvalidMappedField {
         );
     }
 
-    private InvalidMappedField2(
+    private CompactInvalidMappedField(
         String name,
         String errorMessage,
         Map<String, EsField> properties,

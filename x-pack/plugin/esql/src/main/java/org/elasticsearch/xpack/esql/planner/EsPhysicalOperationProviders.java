@@ -80,11 +80,11 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField2;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
@@ -276,7 +276,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             MappedFieldType mft = shardContext.fieldType(fieldName);
             conversion = mft == null
                 ? null
-                : ((MultiTypeEsField2) unionTypes).getConversionExpressionForType(
+                : ((CompactMultiTypeEsField) unionTypes).getConversionExpressionForType(
                     EsqlDataTypeRegistry.INSTANCE.fromEs(mft.typeName(), mft.getMetricType())
                 );
         }

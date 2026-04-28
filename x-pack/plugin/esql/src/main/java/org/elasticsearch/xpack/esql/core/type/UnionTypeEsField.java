@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 /**
  * Common interface implemented by both {@link MultiTypeEsField} (legacy, keyed by index name) and
- * {@link MultiTypeEsField2} (newer, keyed by source data type) so that callers that only care about
+ * {@link CompactMultiTypeEsField} (newer, keyed by source data type) so that callers that only care about
  * the existence of a per-(index|type) conversion or about the unmapped-side conversion can treat the
  * two implementations uniformly.
  */

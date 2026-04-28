@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.CompactInvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField2;
 
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class InvalidMappedField2Tests extends ESTestCase {
+public class CompactInvalidMappedFieldTests extends ESTestCase {
     public void testKeepsAllIndicesWhenAtOrBelowLimit() {
         Map<String, Set<String>> input = Map.of(
             DataType.KEYWORD.typeName(),
@@ -34,7 +34,7 @@ public class InvalidMappedField2Tests extends ESTestCase {
             new LinkedHashSet<>(Set.of("idx_c", "idx_d", "idx_e"))
         );
 
-        InvalidMappedField2 field = new InvalidMappedField2("f", input);
+        CompactInvalidMappedField field = new CompactInvalidMappedField("f", input);
 
         assertMap(
             field.getTypesToIndices(),
@@ -49,11 +49,11 @@ public class InvalidMappedField2Tests extends ESTestCase {
             .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<String, Set<String>> input = Map.of(DataType.KEYWORD.typeName(), manyIndices);
 
-        InvalidMappedField2 field = new InvalidMappedField2("f", input);
+        CompactInvalidMappedField field = new CompactInvalidMappedField("f", input);
 
         assertMap(
             field.getTypesToIndices(),
-            matchesMap().entry(DataType.KEYWORD.typeName(), Set.of("idx_00000", "idx_00001", "idx_00002", InvalidMappedField2.ELLIPSIS))
+            matchesMap().entry(DataType.KEYWORD.typeName(), Set.of("idx_00000", "idx_00001", "idx_00002", CompactInvalidMappedField.ELLIPSIS))
         );
     }
 
@@ -63,8 +63,9 @@ public class InvalidMappedField2Tests extends ESTestCase {
             .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<String, Set<String>> input = new TreeMap<>(Map.of(DataType.KEYWORD.typeName(), manyIndices));
 
-        String message = new InvalidMappedField2("f", input).errorMessage();
+        String message = new CompactInvalidMappedField("f", input).errorMessage();
 
+        // FIXME(gal, NOCOMMIT) Can we have a less testing of the string contents? Maybe using a TreeMap?
         assertThat(message, containsString("[1] incompatible types"));
         assertThat(message, containsString("[idx_00000, idx_00001, idx_00002]"));
         assertThat(message, containsString("[" + (5_000 - 3) + "] other indices"));
@@ -80,13 +81,13 @@ public class InvalidMappedField2Tests extends ESTestCase {
             )
         );
 
-        assertThat(new InvalidMappedField2("f", input).errorMessage(), equalTo(new InvalidMappedField("f", input).errorMessage()));
+        assertThat(new CompactInvalidMappedField("f", input).errorMessage(), equalTo(new InvalidMappedField("f", input).errorMessage()));
     }
 
     public void testPotentiallyUnmappedFlagAndMessageInsistOnKeyword() {
         Map<String, Set<String>> input = new TreeMap<>(Map.of(DataType.LONG.typeName(), new LinkedHashSet<>(Set.of("idx_a"))));
 
-        InvalidMappedField2 field = InvalidMappedField2.potentiallyUnmapped("f", input);
+        CompactInvalidMappedField field = CompactInvalidMappedField.potentiallyUnmapped("f", input);
 
         assertThat(field.isPotentiallyUnmapped(), equalTo(true));
         assertThat(field.errorMessage(), containsString("[keyword] due to loading from _source"));
@@ -103,9 +104,7 @@ public class InvalidMappedField2Tests extends ESTestCase {
             )
         );
 
-        InvalidMappedField2 field = new InvalidMappedField2("f", input);
-
-        assertThat(field.types(), containsInAnyOrder(DataType.KEYWORD, DataType.LONG));
+        assertThat(new CompactInvalidMappedField("f", input).types(), containsInAnyOrder(DataType.KEYWORD, DataType.LONG));
     }
 
 }

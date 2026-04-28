@@ -54,11 +54,11 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField2;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -2312,11 +2312,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
 
         private static boolean isMultiType(EsField field) {
-            return field instanceof MultiTypeEsField || field instanceof MultiTypeEsField2;
+            return field instanceof MultiTypeEsField || field instanceof CompactMultiTypeEsField;
         }
 
         /**
-         * Picks between the legacy {@link MultiTypeEsField} (index-keyed) and the new {@link MultiTypeEsField2}
+         * Picks between the legacy {@link MultiTypeEsField} (index-keyed) and the new {@link CompactMultiTypeEsField}
          * (type-keyed) based on the cluster minimum transport version, so that newly-built plans remain
          * deserializable on older nodes during a rolling upgrade.
          */
@@ -2326,8 +2326,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             @Nullable Expression unmappedConversionExpression,
             AnalyzerContext context
         ) {
-            return context.minimumVersion().supports(MultiTypeEsField2.ESQL_MULTI_TYPE_ES_FIELD_2)
-                ? MultiTypeEsField2.resolveFrom(imf, typesToConversionExpressions, unmappedConversionExpression)
+            return context.minimumVersion().supports(CompactMultiTypeEsField.ESQL_MULTI_TYPE_ES_FIELD_2)
+                ? CompactMultiTypeEsField.resolveFrom(imf, typesToConversionExpressions, unmappedConversionExpression)
                 : MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions)
                     .withPotentiallyUnmappedExpression(unmappedConversionExpression);
         }
@@ -2338,8 +2338,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() ? doRule(p, unionFieldAttributes, context) : p);
         }
 
-
-        private LogicalPlan doRule(LogicalPlan plan, List<Attribute.IdIgnoringWrapper> unionFieldAttributes, AnalyzerContext context) {
+        private static LogicalPlan doRule(
+            LogicalPlan plan,
+            List<Attribute.IdIgnoringWrapper> unionFieldAttributes,
+            AnalyzerContext context
+        ) {
             Holder<Integer> alreadyAddedUnionFieldAttributes = new Holder<>(unionFieldAttributes.size());
             // Collect field attributes from previous runs
             if (plan instanceof EsRelation rel) {
@@ -2408,7 +2411,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return res;
         }
 
-        private Expression resolveConvertFunction(
+        private static Expression resolveConvertFunction(
             ConvertFunction convert,
             List<Attribute.IdIgnoringWrapper> unionFieldAttributes,
             AnalyzerContext context
@@ -2505,12 +2508,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     null
                 );
             } else {
-                MultiTypeEsField2 mtf = (MultiTypeEsField2) fa.field();
+                CompactMultiTypeEsField mtf = (CompactMultiTypeEsField) fa.field();
                 Map<String, Expression> typeToConversionExpressions = new HashMap<>();
                 for (Map.Entry<String, Expression> entry : mtf.getTypeToConversionExpressions().entrySet()) {
                     typeToConversionExpressions.put(entry.getKey(), wrapWith(convertExpression, entry.getValue()));
                 }
-                return new MultiTypeEsField2(
+                return new CompactMultiTypeEsField(
                     fa.fieldName().string(),
                     convertExpression.dataType(),
                     false,
@@ -2526,7 +2529,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return convertExpression.replaceChildren(Collections.singletonList(inner.field()));
         }
 
-        private Expression createIfDoesNotAlreadyExist(
+        private static Expression createIfDoesNotAlreadyExist(
             FieldAttribute fa,
             EsField resolvedField,
             List<Attribute.IdIgnoringWrapper> unionFieldAttributes
@@ -2576,7 +2579,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static boolean canConvertOriginalTypes(EsField multiTypeEsField, Set<DataType> supportedTypes) {
             Map<String, Expression> conversionExpressions = multiTypeEsField instanceof MultiTypeEsField legacy
                 ? legacy.getIndexToConversionExpressions()
-                : ((MultiTypeEsField2) multiTypeEsField).getTypeToConversionExpressions();
+                : ((CompactMultiTypeEsField) multiTypeEsField).getTypeToConversionExpressions();
             return conversionExpressions.values()
                 .stream()
                 .allMatch(

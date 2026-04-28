@@ -27,7 +27,7 @@ public class ApmAgentMetricsIT extends AbstractMetricsIT {
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = AbstractMetricsIT.buildRuleChain(recordingApmServer, cluster);
+    public static TestRule ruleChain = buildRuleChain(recordingApmServer, cluster);
 
     @Override
     protected RecordingApmServer apmServer() {

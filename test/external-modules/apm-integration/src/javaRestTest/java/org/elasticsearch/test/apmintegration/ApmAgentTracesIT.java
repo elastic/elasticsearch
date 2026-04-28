@@ -31,7 +31,7 @@ public class ApmAgentTracesIT extends AbstractTracesIT {
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = buildTracesRuleChain(recordingApmServer, cluster);
+    public static TestRule ruleChain = buildRuleChain(recordingApmServer, cluster);
 
     @Override
     protected RecordingApmServer apmServer() {

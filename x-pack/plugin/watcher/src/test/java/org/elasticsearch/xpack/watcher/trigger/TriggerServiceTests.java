@@ -121,13 +121,13 @@ public class TriggerServiceTests extends ESTestCase {
 
     public void testCountOnStart() {
         assertThat(service.count(), is(0L));
-        service.start(List.of(watch1, watch2));
+        service.start(Arrays.asList(watch1, watch2));
         assertThat(service.count(), is(2L));
     }
 
     public void testCountOnStop() {
         assertThat(service.count(), is(0L));
-        service.start(List.of(watch1, watch2));
+        service.start(Arrays.asList(watch1, watch2));
         assertThat(service.count(), is(2L));
         service.stop();
         assertThat(service.count(), is(0L));

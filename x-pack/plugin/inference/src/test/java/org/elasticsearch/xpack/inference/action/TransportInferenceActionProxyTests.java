@@ -71,14 +71,11 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
     }
 
     public void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest_NullTimeout() {
-        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest(null, TimeValue.timeValueSeconds(120));
+        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest(null, TIMEOUT_NOT_DETERMINED);
     }
 
     public void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest_TimeoutNotDetermined() {
-        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest(
-            TIMEOUT_NOT_DETERMINED,
-            TimeValue.timeValueSeconds(120)
-        );
+        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
     }
 
     private void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest(
@@ -126,14 +123,11 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
     }
 
     public void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage_NullTimeout() {
-        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage(null, TimeValue.timeValueSeconds(120));
+        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage(null, TIMEOUT_NOT_DETERMINED);
     }
 
     public void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage_TimeoutNotDetermined() {
-        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage(
-            TIMEOUT_NOT_DETERMINED,
-            TimeValue.timeValueSeconds(120)
-        );
+        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
     }
 
     private void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage(
@@ -189,11 +183,11 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
     }
 
     public void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest_NullTimeout() {
-        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest(null, TimeValue.timeValueSeconds(120));
+        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest(null, TIMEOUT_NOT_DETERMINED);
     }
 
     public void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest_TimeoutNotDetermined() {
-        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest(TIMEOUT_NOT_DETERMINED, TimeValue.timeValueSeconds(120));
+        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
     }
 
     private void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest(TimeValue timeout, TimeValue expectedTimeout) {
@@ -227,11 +221,11 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
     }
 
     public void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage_NullTimeout() {
-        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage(null, TimeValue.timeValueSeconds(120));
+        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage(null, TIMEOUT_NOT_DETERMINED);
     }
 
     public void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage_TimeoutNotDetermined() {
-        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage(TIMEOUT_NOT_DETERMINED, TimeValue.timeValueSeconds(120));
+        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
     }
 
     private void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage(TimeValue timeout, TimeValue expectedTimeout) {
@@ -271,11 +265,11 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
     }
 
     public void testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest_NullTimeout() {
-        testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest(null, TimeValue.timeValueSeconds(30));
+        testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest(null, TIMEOUT_NOT_DETERMINED);
     }
 
     public void testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest_TimeoutNotDetermined() {
-        testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest(TIMEOUT_NOT_DETERMINED, TimeValue.timeValueSeconds(30));
+        testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
     }
 
     private void testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest(TimeValue timeout, TimeValue expectedTimeout) {
@@ -316,11 +310,11 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
     }
 
     public void testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage_NullTimeout() {
-        testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage(null, TimeValue.timeValueSeconds(30));
+        testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage(null, TIMEOUT_NOT_DETERMINED);
     }
 
     public void testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage_TimeoutNotDetermined() {
-        testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage(TIMEOUT_NOT_DETERMINED, TimeValue.timeValueSeconds(30));
+        testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
     }
 
     private void testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage(TimeValue timeout, TimeValue expectedTimeout) {

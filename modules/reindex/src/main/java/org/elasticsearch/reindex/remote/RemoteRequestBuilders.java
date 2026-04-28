@@ -50,6 +50,21 @@ import static org.elasticsearch.core.TimeValue.timeValueMillis;
 final class RemoteRequestBuilders {
     private RemoteRequestBuilders() {}
 
+    /**
+     * Cross-project {@code project_routing} on {@code POST /_search} and open PIT was added in 9.3.
+     */
+    private static final Version REMOTE_PROJECT_ROUTING_SUPPORTED = Version.V_9_3_0;
+
+    /**
+     * {@code allow_partial_search_results} on {@code POST /{index}/_pit} was added in 8.16
+     */
+    private static final Version REMOTE_ALLOW_PARTIAL_SEARCH_RESULTS_SUPPORTED = Version.V_8_16_0;
+
+    /**
+     * {@code index_filter} on {@code POST /{index}/_pit} was added in 8.12
+     */
+    private static final Version REMOTE_OPEN_PIT_INDEX_FILTER_SUPPORTED = Version.V_8_12_0;
+
     static Request initialSearch(SearchRequest searchRequest, BytesReference query, Version remoteVersion) {
         // It is nasty to build paths with StringBuilder but we'll be careful....
         StringBuilder path = new StringBuilder("/");
@@ -174,7 +189,7 @@ final class RemoteRequestBuilders {
                 }
             }
 
-            if (searchRequest.getProjectRouting() != null) {
+            if (searchRequest.getProjectRouting() != null && remoteVersion.onOrAfter(REMOTE_PROJECT_ROUTING_SUPPORTED)) {
                 entity.field("project_routing", searchRequest.getProjectRouting());
             }
 
@@ -187,18 +202,29 @@ final class RemoteRequestBuilders {
     }
 
     /**
-     * Builds a {@code POST /{index}/_pit} request. Optional JSON body may include {@code project_routing} and/or {@code index_filter}
+     * Builds a {@code POST /{index}/_pit} request. Optional JSON body may include {@code project_routing} (9.3+) and/or
+     * {@code index_filter} (8.12+) when the remote version supports them.
      */
-    static Request openPit(String[] indices, TimeValue keepAlive, SearchRequest searchRequest) {
+    static Request openPit(String[] indices, TimeValue keepAlive, SearchRequest searchRequest, Version remoteVersion) {
         StringBuilder path = new StringBuilder("/");
         addIndices(path, indices);
         path.append("_pit");
         Request request = new Request("POST", path.toString());
         request.addParameter("keep_alive", keepAlive.getStringRep());
-        request.addParameter("allow_partial_search_results", "false");
+        if (remoteVersion.onOrAfter(REMOTE_ALLOW_PARTIAL_SEARCH_RESULTS_SUPPORTED)) {
+            request.addParameter("allow_partial_search_results", "false");
+        }
 
-        String projectRouting = searchRequest.getProjectRouting();
-        QueryBuilder indexFilter = searchRequest.source() != null ? searchRequest.source().query() : null;
+        String projectRouting = null;
+        if (searchRequest.getProjectRouting() != null && remoteVersion.onOrAfter(REMOTE_PROJECT_ROUTING_SUPPORTED)) {
+            projectRouting = searchRequest.getProjectRouting();
+        }
+        QueryBuilder indexFilter = null;
+        if (searchRequest.source() != null
+            && searchRequest.source().query() != null
+            && remoteVersion.onOrAfter(REMOTE_OPEN_PIT_INDEX_FILTER_SUPPORTED)) {
+            indexFilter = searchRequest.source().query();
+        }
         if (projectRouting != null || indexFilter != null) {
             try (XContentBuilder entity = JsonXContent.contentBuilder()) {
                 entity.startObject();

@@ -4,7 +4,7 @@
 
 multipleAggsWithoutTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v1
+required_capability: tsdb_temporality_support_v2
 
 TS metric_temporality
  | STATS bytes_per_second = SUM(rate(network.total_bytes_in)), bytes = SUM(increase(network.total_bytes_in)) BY cluster
@@ -15,7 +15,7 @@ TS metric_temporality
 
 cluster:keyword | bytes_per_second:double | bytes:double
 prod-cumulative | 0.2928479               | 264.0
-prod-delta      | 0.1919041               | 173.0
+prod-delta      | 0.2928479               | 264.0
 prod-null       | 0.2928479               | 264.0
 ;
 
@@ -24,7 +24,7 @@ prod-null       | 0.2928479               | 264.0
 
 rateGroupedByTemporality
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v1
+required_capability: tsdb_temporality_support_v2
 
 TS metric_temporality
  | STATS bytes_per_second = SUM(rate(network.total_bytes_in)) BY my_temporality
@@ -35,7 +35,7 @@ TS metric_temporality
 
 my_temporality:keyword | bytes_per_second:double
 cumulative             | 0.2928479
-delta                  | 0.1919041
+delta                  | 0.2928479
 null                   | 0.2928479
 ;
 
@@ -44,7 +44,7 @@ null                   | 0.2928479
 
 multipleAggsByTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v1
+required_capability: tsdb_temporality_support_v2
 
 TS metric_temporality
  | STATS bytes_per_second = SUM(rate(network.total_bytes_in)), bytes = SUM(increase(network.total_bytes_in)) BY cluster, bucket = TBUCKET(300s)
@@ -55,13 +55,13 @@ TS metric_temporality
 
 bucket:datetime          | cluster:keyword | bytes_per_second:double | bytes:double
 2024-05-10T00:00:00.000Z | prod-cumulative | 0.33                    | 99.0
-2024-05-10T00:00:00.000Z | prod-delta      | 0.2266667               | 68.0
+2024-05-10T00:00:00.000Z | prod-delta      | 0.33                    | 99.0
 2024-05-10T00:00:00.000Z | prod-null       | 0.33                    | 99.0
 2024-05-10T00:05:00.000Z | prod-cumulative | 0.2719509               | 81.5852785
-2024-05-10T00:05:00.000Z | prod-delta      | 0.1696655               | 50.8996611
+2024-05-10T00:05:00.000Z | prod-delta      | 0.2719509               | 81.5852785
 2024-05-10T00:05:00.000Z | prod-null       | 0.2719509               | 81.5852785
 2024-05-10T00:10:00.000Z | prod-cumulative | 0.2751714               | 82.5514065
-2024-05-10T00:10:00.000Z | prod-delta      | 0.1774567               | 53.237024
+2024-05-10T00:10:00.000Z | prod-delta      | 0.2751714               | 82.5514065
 2024-05-10T00:10:00.000Z | prod-null       | 0.2751714               | 82.5514065
 2024-05-10T00:15:00.000Z | prod-cumulative | 0.5786293               | 0.863315
 2024-05-10T00:15:00.000Z | prod-delta      | 0.5786293               | 0.863315

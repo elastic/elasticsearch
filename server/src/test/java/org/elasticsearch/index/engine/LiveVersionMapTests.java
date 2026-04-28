@@ -120,9 +120,14 @@ public class LiveVersionMapTests extends ESTestCase {
             assertEquals(new DeleteVersionValue(1, 1, 1, 1), map.getUnderLock(uid("test")));
             map.afterRefresh(randomBoolean());
             assertEquals(new DeleteVersionValue(1, 1, 1, 1), map.getUnderLock(uid("test")));
-            map.pruneTombstones(2, 0);
+        }
+        // pruneTombstones uses tryAcquireLock internally; the lock must not be held by the caller
+        map.pruneTombstones(2, 0);
+        try (Releasable r = map.acquireLock(uid("test"))) {
             assertEquals(new DeleteVersionValue(1, 1, 1, 1), map.getUnderLock(uid("test")));
-            map.pruneTombstones(2, 1);
+        }
+        map.pruneTombstones(2, 1);
+        try (Releasable r = map.acquireLock(uid("test"))) {
             assertNull(map.getUnderLock(uid("test")));
         }
     }

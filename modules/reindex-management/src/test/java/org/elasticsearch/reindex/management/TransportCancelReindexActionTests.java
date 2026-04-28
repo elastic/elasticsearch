@@ -65,8 +65,6 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        // The action constructor reads transportService.getThreadPool().executor(GENERIC); the executor is only used for incoming
-        // request dispatch (not exercised in these direct doExecute tests), so an inline executor is sufficient.
         when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
@@ -86,7 +84,7 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         CancelTasksRequest sent = captor.getValue();
         assertThat(sent.getTargetTaskId(), is(taskId));
         assertThat(sent.getActions(), is(new String[] { ReindexAction.NAME }));
-        assertThat("parent_task_only is what protects us from sub-task cancellation", sent.parentTaskOnly(), is(true));
+        assertThat("exclude_child_tasks is what protects us from sub-task cancellation", sent.excludeChildTasks(), is(true));
         assertThat("waitForCompletion is handled separately via Get Reindex", sent.waitForCompletion(), is(false));
     }
 
@@ -136,7 +134,6 @@ public class TransportCancelReindexActionTests extends ESTestCase {
     }
 
     public void testNodeFailureWithFilterMismatchIaeTreatedAsNotFound() {
-        // This is the path for a sub-task targeted with parent_task_only=true: cancel-tasks throws IAE("doesn't support this operation").
         FailedNodeException nodeFailure = new FailedNodeException(
             taskId.getNodeId(),
             "node failed",

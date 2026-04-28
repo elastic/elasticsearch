@@ -55,32 +55,32 @@ public class CancelTasksRequestTests extends ESTestCase {
         );
     }
 
-    public void testMatch_parentTaskOnlyRejectsTasksWithParent() {
+    public void testMatch_excludeChildTasksRejectsTasksWithParent() {
         CancelTasksRequest request = new CancelTasksRequest();
         request.setTargetTaskId(new TaskId("node-a", 42));
-        request.setParentTaskOnly(true);
+        request.setExcludeChildTasks(true);
         assertFalse(
-            "parent_task_only should reject tasks that have a parent",
+            "exclude_child_tasks should reject tasks that have a parent",
             request.match(cancellableTask(42, REINDEX_ACTION, new TaskId("node-a", 7)))
         );
     }
 
-    public void testMatch_parentTaskOnlyAcceptsParentlessTasks() {
+    public void testMatch_excludeChildTasksAcceptsParentlessTasks() {
         CancelTasksRequest request = new CancelTasksRequest();
         request.setTargetTaskId(new TaskId("node-a", 42));
-        request.setParentTaskOnly(true);
+        request.setExcludeChildTasks(true);
         assertTrue(
-            "parent_task_only should accept tasks that have no parent",
+            "exclude_child_tasks should accept tasks that have no parent",
             request.match(cancellableTask(42, REINDEX_ACTION, TaskId.EMPTY_TASK_ID))
         );
     }
 
-    public void testMatch_parentTaskOnlyDefaultsToFalseAndAcceptsTasksWithParent() {
+    public void testMatch_excludeChildTasksDefaultsToFalseAndAcceptsTasksWithParent() {
         CancelTasksRequest request = new CancelTasksRequest();
         request.setTargetTaskId(new TaskId("node-a", 42));
-        assertFalse("default should be false", request.parentTaskOnly());
+        assertFalse("default should be false", request.excludeChildTasks());
         assertTrue(
-            "without parent_task_only, tasks with a parent should still match",
+            "without exclude_child_tasks, tasks with a parent should still match",
             request.match(cancellableTask(42, REINDEX_ACTION, new TaskId("node-a", 7)))
         );
     }

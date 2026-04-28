@@ -27,15 +27,15 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
     public static final String DEFAULT_REASON = "by user request";
     public static final boolean DEFAULT_WAIT_FOR_COMPLETION = false;
 
-    static final TransportVersion CANCEL_TASKS_PARENT_TASK_ONLY = TransportVersion.fromName("cancel_tasks_parent_task_only");
+    static final TransportVersion CANCEL_TASKS_EXCLUDE_CHILD_TASKS = TransportVersion.fromName("cancel_tasks_exclude_child_tasks");
 
     private String reason = DEFAULT_REASON;
     private boolean waitForCompletion = DEFAULT_WAIT_FOR_COMPLETION;
     /**
-     * When {@code true}, restricts matching to tasks that have no parent. Useful for callers (e.g. cancel-reindex) that want to operate
-     * only on top-level user-initiated tasks and treat sub-tasks as if they didn't exist.
+     * When {@code true}, child tasks (tasks whose {@link Task#getParentTaskId()} is set) are excluded from matching. Useful for callers
+     * (e.g. cancel-reindex) that want to operate only on top-level user-initiated tasks and treat sub-tasks as if they didn't exist.
      */
-    private boolean parentTaskOnly = false;
+    private boolean excludeChildTasks = false;
 
     public CancelTasksRequest() {}
 
@@ -43,8 +43,8 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
         super(in);
         this.reason = in.readString();
         waitForCompletion = in.readBoolean();
-        if (in.getTransportVersion().supports(CANCEL_TASKS_PARENT_TASK_ONLY)) {
-            parentTaskOnly = in.readBoolean();
+        if (in.getTransportVersion().supports(CANCEL_TASKS_EXCLUDE_CHILD_TASKS)) {
+            excludeChildTasks = in.readBoolean();
         }
     }
 
@@ -53,8 +53,8 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
         super.writeTo(out);
         out.writeString(reason);
         out.writeBoolean(waitForCompletion);
-        if (out.getTransportVersion().supports(CANCEL_TASKS_PARENT_TASK_ONLY)) {
-            out.writeBoolean(parentTaskOnly);
+        if (out.getTransportVersion().supports(CANCEL_TASKS_EXCLUDE_CHILD_TASKS)) {
+            out.writeBoolean(excludeChildTasks);
         }
     }
 
@@ -64,7 +64,7 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
         if ((task instanceof CancellableTask) == false || matchesActionAndParent(task) == false) {
             return false;
         }
-        if (parentTaskOnly && task.getParentTaskId().isSet()) {
+        if (excludeChildTasks && task.getParentTaskId().isSet()) {
             return false;
         }
         return true;
@@ -98,19 +98,19 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
     }
 
     /**
-     * If {@code true}, the request rejects target tasks that have a parent (i.e. only matches top-level tasks). Defaults to {@code false}.
+     * If {@code true}, child tasks are excluded from matching, leaving only top-level (parentless) tasks. Defaults to {@code false}.
      * <p>
      * Implemented as part of {@link #match(Task)}; combined with an explicit {@code targetTaskId}, this causes {@code processTasks} to
-     * report {@link IllegalArgumentException} for sub-tasks (mirroring the existing "doesn't support this operation" behaviour for any
+     * report {@link IllegalArgumentException} for child tasks (mirroring the existing "doesn't support this operation" behaviour for any
      * other filter mismatch).
      */
-    public CancelTasksRequest setParentTaskOnly(boolean parentTaskOnly) {
-        this.parentTaskOnly = parentTaskOnly;
+    public CancelTasksRequest setExcludeChildTasks(boolean excludeChildTasks) {
+        this.excludeChildTasks = excludeChildTasks;
         return this;
     }
 
-    public boolean parentTaskOnly() {
-        return parentTaskOnly;
+    public boolean excludeChildTasks() {
+        return excludeChildTasks;
     }
 
     @Override

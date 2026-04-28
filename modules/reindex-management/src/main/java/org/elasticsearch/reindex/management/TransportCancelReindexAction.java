@@ -65,7 +65,7 @@ public class TransportCancelReindexAction extends HandledTransportAction<CancelR
         final CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
         cancelTasksRequest.setTargetTaskId(taskId);
         cancelTasksRequest.setActions(ReindexAction.NAME);
-        cancelTasksRequest.setParentTaskOnly(true);
+        cancelTasksRequest.setExcludeChildTasks(true);
         cancelTasksRequest.setWaitForCompletion(false);
 
         client.execute(TransportCancelTasksAction.TYPE, cancelTasksRequest, listener.delegateFailureAndWrap((l, cancelResponse) -> {

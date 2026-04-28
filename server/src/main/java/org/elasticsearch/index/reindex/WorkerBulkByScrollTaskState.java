@@ -12,10 +12,12 @@ package org.elasticsearch.index.reindex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -78,6 +80,9 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      * Reference to any the last delayed prepareBulkRequest call. Used during rethrottling and canceling to reschedule the request.
      */
     private final AtomicReference<DelayedPrepareBulkRequest> delayedPrepareBulkRequestReference = new AtomicReference<>();
+
+    /** Set under {@link #delayedPrepareBulkRequestReference} lock during relocation to block concurrent rethrottle. */
+    private boolean capturedRpsForRelocation = false;
 
     public WorkerBulkByScrollTaskState(BulkByScrollTask task, Integer sliceId, float requestsPerSecond) {
         this.task = task;
@@ -274,6 +279,33 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
             }
 
             this.delayedPrepareBulkRequestReference.set(delayedPrepareBulkRequest.rethrottle(newRequestsPerSecond));
+        }
+    }
+
+    /**
+     * Rethrottle with relocation guard. For non-sliced workers ({@code sliceId == null}), checks whether the RPS
+     * has been captured for relocation and throws 503 if so. For sliced children the guard is skipped since the
+     * leader guard handles the race. Java {@code synchronized} is reentrant so the nested acquire inside
+     * {@link #rethrottle} is safe.
+     */
+    public void rethrottleWithRelocationGuard(float newRequestsPerSecond) {
+        synchronized (delayedPrepareBulkRequestReference) {
+            if (sliceId == null && capturedRpsForRelocation) {
+                throw new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.SERVICE_UNAVAILABLE);
+            }
+            rethrottle(newRequestsPerSecond);
+        }
+    }
+
+    /**
+     * Atomically reads the current RPS and sets a flag preventing further rethrottle via
+     * {@link #rethrottleWithRelocationGuard}. Only valid for non-sliced workers.
+     */
+    public float captureRequestsPerSecondForRelocation() {
+        assert sliceId == null : "should only be called on non-sliced workers";
+        synchronized (delayedPrepareBulkRequestReference) {
+            capturedRpsForRelocation = true;
+            return requestsPerSecond;
         }
     }
 

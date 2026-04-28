@@ -10,10 +10,12 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,12 +52,20 @@ public class LeaderBulkByScrollTaskState {
      */
     private final AtomicReference<BytesReference> latestPitId = new AtomicReference<>();
 
-    public LeaderBulkByScrollTaskState(BulkByScrollTask task, int slices) {
+    /**
+     * The canonical total requests-per-second for this sliced task. Updated by rethrottle, read during relocation
+     * to patch per-slice RPS in ResumeInfo. Guarded by {@code synchronized(this)}.
+     */
+    private float relocationRequestsPerSecond;
+    private boolean capturedRpsForRelocation = false;
+
+    public LeaderBulkByScrollTaskState(BulkByScrollTask task, int slices, float requestsPerSecond) {
         this.task = task;
         this.slices = slices;
         results = new AtomicArray<>(slices);
         runningSubtasks = new AtomicInteger(slices);
         this.nodeToRelocateToSupplier = new SetOnce<>();
+        setRequestsPerSecond(requestsPerSecond);
     }
 
     /**
@@ -133,6 +143,27 @@ public class LeaderBulkByScrollTaskState {
             throw new IllegalStateException("Node to relocate to supplier should be set before, if this method is called");
         }
         return supplier.get();
+    }
+
+    /**
+     * Updates the canonical total RPS for this leader task. Called by rethrottle before fanning out to children.
+     * Throws 503 if the RPS has already been captured for relocation, meaning the task is mid-relocation and the
+     * caller should retry after the relocation completes.
+     */
+    public synchronized void setRequestsPerSecond(float rps) {
+        if (capturedRpsForRelocation) {
+            throw new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.SERVICE_UNAVAILABLE);
+        }
+        relocationRequestsPerSecond = rps;
+    }
+
+    /**
+     * Atomically reads the canonical RPS and sets a flag preventing further rethrottle. Called during relocation
+     * assembly so that the captured value is consistent with what the destination will inherit.
+     */
+    public synchronized float captureRequestsPerSecondForRelocation() {
+        capturedRpsForRelocation = true;
+        return relocationRequestsPerSecond;
     }
 
     private void recordSliceCompletionAndRespondIfAllDone(ActionListener<BulkByScrollResponse> listener) {

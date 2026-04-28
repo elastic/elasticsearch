@@ -93,6 +93,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -734,9 +735,39 @@ public class Reindexer {
                 l.onFailure(e);
                 return;
             }
-            request.setResumeInfo(
-                new ResumeInfo(resumeInfo.relocationOrigin(), resumeInfo.worker(), resumeInfo.slices(), sourceTaskResult)
-            );
+
+            // Capture RPS under the relocation guard, blocking concurrent rethrottle from this point on.
+            // Then patch per-worker RPS in the ResumeInfo so the destination inherits the correct rate.
+            final ResumeInfo patchedResumeInfo;
+            if (task.isLeader()) {
+                float capturedRPS = task.getLeaderState().captureRequestsPerSecondForRelocation();
+                // todo(szy): review -- if incompleteSlices is 0 all work is done; should we still relocate?
+                long incompleteSlices = resumeInfo.slices().values().stream().filter(s -> s.isCompleted() == false).count();
+                float perSliceRPS = capturedRPS / incompleteSlices;
+
+                Map<Integer, ResumeInfo.SliceStatus> patched = new HashMap<>();
+                for (var entry : resumeInfo.slices().entrySet()) {
+                    ResumeInfo.SliceStatus s = entry.getValue();
+                    if (s.isCompleted()) {
+                        patched.put(entry.getKey(), s);
+                    } else {
+                        patched.put(
+                            entry.getKey(),
+                            new ResumeInfo.SliceStatus(s.sliceId(), s.resumeInfo().withRequestsPerSecond(perSliceRPS), null)
+                        );
+                    }
+                }
+                patchedResumeInfo = new ResumeInfo(resumeInfo.relocationOrigin(), null, patched, sourceTaskResult);
+            } else {
+                float capturedRPS = task.getWorkerState().captureRequestsPerSecondForRelocation();
+                patchedResumeInfo = new ResumeInfo(
+                    resumeInfo.relocationOrigin(),
+                    resumeInfo.worker().withRequestsPerSecond(capturedRPS),
+                    null,
+                    sourceTaskResult
+                );
+            }
+            request.setResumeInfo(patchedResumeInfo);
             final ResumeBulkByScrollRequest resumeRequest = new ResumeBulkByScrollRequest(request);
             final ActionListener<ResumeBulkByScrollResponse> relocationListener = ActionListener.wrap(resp -> {
                 onRelocationResponseListener.onResponse(resp);

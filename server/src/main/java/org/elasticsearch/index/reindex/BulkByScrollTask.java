@@ -50,12 +50,12 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
  * <p>When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
  *
  * <p>When the request is sliced, this task can either represent a coordinating task (using
- * {@link BulkByScrollTask#setWorkerCount(int)}) or a worker task that performs search queries (using
+ * {@link BulkByScrollTask#setWorkerCount(int, float)}) or a worker task that performs search queries (using
  * {@link BulkByScrollTask#setWorker(float, Integer)}).
  *
  * <p>We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
  * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
- * class with {@link #setWorkerCount(int)} or {@link #setWorker(float, Integer)}.
+ * class with {@link #setWorkerCount(int, float)} or {@link #setWorker(float, Integer)}.
  */
 public class BulkByScrollTask extends CancellableTask {
 
@@ -130,8 +130,9 @@ public class BulkByScrollTask extends CancellableTask {
 
     /**
      * Sets this task to be a leader task for {@code slices} sliced subtasks
+     * @param requestsPerSecond the initial total RPS for the leader, tracked for relocation
      */
-    public void setWorkerCount(int slices) {
+    public void setWorkerCount(int slices, float requestsPerSecond) {
         if (isLeader()) {
             throw new IllegalStateException("This task is already a leader for other slice subtasks");
         }
@@ -139,7 +140,7 @@ public class BulkByScrollTask extends CancellableTask {
             throw new IllegalStateException("This task is already a worker");
         }
 
-        leaderState = new LeaderBulkByScrollTaskState(this, slices);
+        leaderState = new LeaderBulkByScrollTaskState(this, slices, requestsPerSecond);
     }
 
     /**
@@ -861,6 +862,26 @@ public class BulkByScrollTask extends CancellableTask {
          */
         public List<StatusOrException> getSliceStatuses() {
             return sliceStatuses;
+        }
+
+        /** Returns a copy of this status with the given {@code requestsPerSecond}, all other fields unchanged. */
+        public Status withRequestsPerSecond(float requestsPerSecond) {
+            return new Status(
+                sliceId,
+                total,
+                updated,
+                created,
+                deleted,
+                batches,
+                versionConflicts,
+                noops,
+                bulkRetries,
+                searchRetries,
+                throttled,
+                requestsPerSecond,
+                reasonCancelled,
+                throttledUntil
+            );
         }
 
         @Override

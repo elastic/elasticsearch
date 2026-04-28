@@ -153,7 +153,7 @@ class BulkByPaginatedSearchParallelizationHelper {
         int slices
     ) {
         if (slices > 1) {
-            task.setWorkerCount(slices);
+            task.setWorkerCount(slices, request.getRequestsPerSecond());
         } else {
             SliceBuilder sliceBuilder = request.getSearchRequest().source().slice();
             Integer sliceId = sliceBuilder == null ? null : sliceBuilder.getId();

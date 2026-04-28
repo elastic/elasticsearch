@@ -499,15 +499,6 @@ public class SynonymsManagementAPIService {
         String synonymSetId,
         SynonymRule[] synonymsSet,
         boolean refresh,
-        ActionListener<SynonymsReloadResult> listener
-    ) {
-        putSynonymsSet(synonymSetId, synonymsSet, refresh, true, listener);
-    }
-
-    public void putSynonymsSet(
-        String synonymSetId,
-        SynonymRule[] synonymsSet,
-        boolean refresh,
         boolean replaceAll,
         ActionListener<SynonymsReloadResult> listener
     ) {
@@ -587,6 +578,8 @@ public class SynonymsManagementAPIService {
         UpdateSynonymsResultStatus status,
         ActionListener<SynonymsReloadResult> listener
     ) {
+        // Count is best-effort: search results may lag behind recent writes by up to one refresh
+        // interval. This is consistent with the same trade-off accepted in putSynonymRule.
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setQuery(
                 QueryBuilders.boolQuery()

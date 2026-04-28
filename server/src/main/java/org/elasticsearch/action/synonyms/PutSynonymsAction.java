@@ -48,7 +48,7 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
         private final boolean replaceAll;
 
         public static final ParseField SYNONYMS_SET_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYMS_SET_FIELD);
-        public static final ParseField REPLACE_ALL_FIELD = new ParseField("replace_all");
+        private static final ParseField REPLACE_ALL_FIELD = new ParseField("replace_all");
 
         private record ParsedBody(List<SynonymRule> rules, Boolean replaceAll) {}
 

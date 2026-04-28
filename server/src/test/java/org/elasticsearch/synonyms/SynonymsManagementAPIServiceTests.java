@@ -138,7 +138,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
 
             SynonymRule[] rules = randomSynonymsSet(SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT + 1);
             var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult>();
-            service.putSynonymsSet("my-set", rules, false, future);
+            service.putSynonymsSet("my-set", rules, false, true, future);
 
             Exception ex = expectThrows(ElasticsearchException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(ex.getMessage(), containsString("all nodes in the cluster have been upgraded"));

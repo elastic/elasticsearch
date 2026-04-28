@@ -1,0 +1,6 @@
+pr: 147759
+summary: Raise entitlement agent attach timeout
+area: Infra/Core
+type: bug
+issues:
+ - 146333

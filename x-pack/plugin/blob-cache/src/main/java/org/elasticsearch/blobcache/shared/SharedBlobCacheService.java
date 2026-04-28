@@ -324,6 +324,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     private interface Cache<K, T> extends Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
+        boolean containsKey(K cacheKey, int region);
+
         int forceEvict(Predicate<K> cacheKeyPredicate);
 
         void forceEvictAsync(Predicate<K> cacheKey);
@@ -964,8 +966,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert Thread.holdsLock(blobCacheService) : "must hold lock when evicting";
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
-                blobCacheService.evictCount.increment();
                 blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+                if (tracker.checkAvailable(1)) {
+                    blobCacheService.evictCount.increment();
+                }
                 decRef();
                 return true;
             }
@@ -976,8 +980,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert Thread.holdsLock(blobCacheService) : "must hold lock when evicting";
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted and take {} with channel offset {}", regionKey, physicalStartOffset());
-                blobCacheService.evictCount.increment();
                 blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+                if (tracker.checkAvailable(1)) {
+                    blobCacheService.evictCount.increment();
+                }
                 return true;
             }
 
@@ -988,8 +994,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert Thread.holdsLock(blobCacheService) : "must hold lock when evicting";
             if (evict()) {
                 logger.trace("force evicted {} with channel offset {}", regionKey, physicalStartOffset());
-                blobCacheService.evictCount.increment();
                 blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+                if (tracker.checkAvailable(1)) {
+                    blobCacheService.evictCount.increment();
+                }
                 decRef();
                 return true;
             }
@@ -1355,6 +1363,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
                 if (subRangeToRead.isEmpty()) {
                     // nothing to read, skip
+                    continue;
+                }
+                if (cache.containsKey(cacheKey, region) == false) {
                     continue;
                 }
                 var fileRegion = lastAccessedRegion;
@@ -1992,6 +2003,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
 
             return entry;
+        }
+
+        @Override
+        public boolean containsKey(KeyType cacheKey, int region) {
+            final RegionKey<KeyType> regionKey = new RegionKey<>(cacheKey, region);
+            final var entry = keyMapping.get(cacheKey.shardId(), regionKey);
+            return entry != null && entry.chunk.isEvicted() == false;
         }
 
         @Override

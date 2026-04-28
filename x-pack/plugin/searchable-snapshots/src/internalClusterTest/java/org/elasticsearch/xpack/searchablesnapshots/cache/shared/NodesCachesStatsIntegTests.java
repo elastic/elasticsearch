@@ -200,13 +200,13 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
                     assertThat(bytesWritten, greaterThan(0L));
                     assertThat(reads, greaterThan(0L));
                     assertThat(bytesRead, greaterThan(0L));
-                    // assertThat(evictions, greaterThan(0L));
+                    assertThat(evictions, greaterThan(0L));
                 } else {
                     assertThat(writes, equalTo(0L));
                     assertThat(bytesWritten, equalTo(0L));
                     assertThat(reads, equalTo(0L));
                     assertThat(bytesRead, equalTo(0L));
-                    // assertThat(evictions, equalTo(0L));
+                    assertThat(evictions, equalTo(0L));
                 }
             }
         });

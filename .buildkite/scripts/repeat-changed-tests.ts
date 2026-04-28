@@ -56,6 +56,7 @@ interface PipelineStep {
   command: string;
   timeout_in_minutes: number;
   agents: typeof AGENTS;
+  soft_fail: boolean;
   parallelism?: number;
   env?: Record<string, string>;
 }
@@ -70,7 +71,13 @@ interface Pipeline {
 }
 
 export function toGradleProject(path: string): string {
-  return ":" + path.replace(/\//g, ":");
+  const segments = path.split("/");
+  // Mirror the rename in settings.gradle: direct children of :test:external-modules
+  // have their project name prefixed with "test-".
+  if (segments[0] === "test" && segments[1] === "external-modules" && segments.length >= 3) {
+    segments[2] = `test-${segments[2]}`;
+  }
+  return ":" + segments.join(":");
 }
 
 export function toFqcn(javaPath: string): string {
@@ -187,12 +194,12 @@ export function generateBatchCommand(batch: ClassifiedTest[]): string {
     case "test": {
       const projects = [...new Set(batch.map((t) => `${t.gradleProject}:test`))];
       const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
-      return `.ci/scripts/run-gradle.sh -Dtests.iters=100 ${projects.join(" ")} ${testFilters}`;
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! ${projects.join(" ")} ${testFilters}`;
     }
     case "internalClusterTest": {
       const projects = [...new Set(batch.map((t) => `${t.gradleProject}:internalClusterTest`))];
       const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
-      return `.ci/scripts/run-gradle.sh -Dtests.iters=20 ${projects.join(" ")} ${testFilters}`;
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=20 -Dtests.timeoutSuite=3600000! ${projects.join(" ")} ${testFilters}`;
     }
     case "javaRestTest": {
       const projects = [...new Set(batch.map((t) => `${t.gradleProject}:javaRestTest`))];
@@ -243,6 +250,7 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
       command: batchCommands[0],
       timeout_in_minutes: 60,
       agents: { ...AGENTS },
+      soft_fail: true,
     };
 
     if (totalBatches > 1) {

@@ -28,7 +28,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -46,6 +48,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -342,7 +345,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
-                projectId -> false
+                projectId -> false,
+                mock(ProjectResolver.class)
             ),
             client,
             config
@@ -402,7 +406,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
                     crossProjectModeDecider,
-                    projectId -> true
+                    projectId -> true,
+                    mock(ProjectResolver.class)
                 ),
                 client,
                 config
@@ -428,7 +433,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
                     crossProjectModeDecider,
-                    projectId -> false
+                    projectId -> false,
+                    mock(ProjectResolver.class)
                 ),
                 client,
                 config
@@ -553,6 +559,115 @@ public class ClientTransformIndexerTests extends ESTestCase {
         assertFalse(context.isWaitingForIndexToUnblock());
     }
 
+    public void testProjectIdPropagatedToClientExecute() throws InterruptedException {
+        String expectedProjectId = "test-project-for-search";
+        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSettings(
+            new SettingsConfig.Builder().setUsePit(false).build()
+        ).build();
+
+        try (var threadPool = createThreadPool()) {
+            AtomicReference<String> capturedProjectId = new AtomicReference<>();
+            var client = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    if (request instanceof SearchRequest) {
+                        capturedProjectId.set(threadPool().getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
+                        ActionListener.respondAndRelease(
+                            listener,
+                            (Response) new SearchResponse(
+                                SearchHits.unpooled(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0f),
+                                null,
+                                new Suggest(Collections.emptyList()),
+                                false,
+                                false,
+                                new SearchProfileResults(Collections.emptyMap()),
+                                1,
+                                null,
+                                1,
+                                1,
+                                0,
+                                0,
+                                ShardSearchFailure.EMPTY_ARRAY,
+                                SearchResponse.Clusters.EMPTY,
+                                null,
+                                null,
+                                null
+                            )
+                        );
+                        return;
+                    }
+                    super.doExecute(action, request, listener);
+                }
+            };
+
+            // Set up the indexer with a project ID in the thread context (simulating what maybeTriggerAsyncJob does)
+            threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, expectedProjectId);
+
+            ProjectResolver multiProjectResolver = mock(ProjectResolver.class);
+            when(multiProjectResolver.supportsMultipleProjects()).thenReturn(true);
+            MockClientTransformIndexer indexer = new MockClientTransformIndexer(
+                threadPool,
+                mock(ClusterService.class),
+                mock(IndexNameExpressionResolver.class),
+                mock(TransformExtension.class),
+                new TransformServices(
+                    mock(IndexBasedTransformConfigManager.class),
+                    mock(TransformCheckpointService.class),
+                    mock(TransformAuditor.class),
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false,
+                    multiProjectResolver
+                ),
+                mock(CheckpointProvider.class),
+                new AtomicReference<>(IndexerState.STOPPED),
+                null,
+                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
+                mock(TransformIndexerStats.class),
+                config,
+                null,
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    0L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    2L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
+                new TransformContext(
+                    TransformTaskState.STARTED,
+                    "",
+                    0,
+                    null,
+                    mock(TransformContext.Listener.class),
+                    ProjectId.fromId(expectedProjectId)
+                ),
+                false
+            );
+
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals(
+                    "Project ID should be present at client.execute() call inside ClientHelper.executeWithHeadersAsync",
+                    expectedProjectId,
+                    capturedProjectId.get()
+                );
+            });
+        }
+    }
+
     private ClusterService serviceWithBlockCheck(boolean checkResponse) {
         var clusterBlocks = mock(ClusterBlocks.class);
         when(clusterBlocks.indexBlocked(eq(ClusterBlockLevel.WRITE), anyString())).thenReturn(checkResponse);
@@ -603,7 +718,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
-                projectId -> false
+                projectId -> false,
+                mock(ProjectResolver.class)
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
@@ -818,7 +934,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
-                projectId -> false
+                projectId -> false,
+                mock(ProjectResolver.class)
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

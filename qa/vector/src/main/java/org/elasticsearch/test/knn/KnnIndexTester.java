@@ -49,18 +49,24 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.knn.data.DataGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -386,6 +392,7 @@ public class KnnIndexTester {
         }
 
         logger.info("Using configuration file: " + jsonConfigPath);
+        String rawConfigJson = Files.readString(jsonConfigPath);
         // Parse the JSON config file to get command line arguments
         // This assumes that the JSON file is the correct format
         List<TestConfiguration> testConfigurationList = new ArrayList<>();
@@ -406,6 +413,7 @@ public class KnnIndexTester {
             }
         }
         FormattedResults formattedResults = new FormattedResults();
+        LocalDateTime runStart = LocalDateTime.now();
 
         for (TestConfiguration testConfiguration : testConfigurationList) {
             // check this here so IVF/GPUHNSW can guarantee quantizeBits is set properly
@@ -450,6 +458,15 @@ public class KnnIndexTester {
             }
         }
         logger.info("Results: \n" + formattedResults);
+        GitInfo gitInfo = captureGitInfo();
+        Path dumpFile = writeResultsDump(jsonConfigPath, rawConfigJson, formattedResults, gitInfo, runStart);
+        Path csvFile = appendResultsCsv(jsonConfigPath, testConfigurationList, formattedResults, gitInfo, runStart);
+        List<String> outputPaths = new ArrayList<>();
+        if (dumpFile != null) outputPaths.add(dumpFile.toString());
+        if (csvFile != null) outputPaths.add(csvFile.toString());
+        if (outputPaths.isEmpty() == false) {
+            logger.info("Output files written:\n  {}", String.join("\n  ", outputPaths));
+        }
     }
 
     /**
@@ -682,6 +699,7 @@ public class KnnIndexTester {
                 "avg_cpu_count",
                 "QPS",
                 "recall",
+                "top_k",
                 "visited",
                 "filter_selectivity",
                 "filter_cached",
@@ -725,6 +743,7 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
                     String.format(Locale.ROOT, "%.2f", queryResult.qps),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
+                    String.format(Locale.ROOT, "%d", queryResult.topK),
                     String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
                     String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
                     Boolean.toString(queryResult.filterCached),
@@ -829,6 +848,7 @@ public class KnnIndexTester {
         double overSamplingFactor;
         boolean earlyTermination;
         int numCandidates;
+        int topK;
         Map<String, Float> perPartitionRecall;
 
         Results(String indexName, String indexType, int numDocs) {
@@ -851,5 +871,274 @@ public class KnnIndexTester {
             cpuTimesNS = threadBean.getThreadCpuTime(threadIDs);
             threadInfos = threadBean.getThreadInfo(threadIDs);
         }
+    }
+
+    private record GitInfo(String branch, String commit) {}
+
+    private static GitInfo captureGitInfo() {
+        try {
+            String branch = runProcess("git", "branch", "--show-current").trim();
+            String commit = runProcess("git", "log", "-1", "--format=%h %s").trim();
+            return new GitInfo(branch, commit);
+        } catch (Exception e) {
+            logger.debug("Could not capture git info: {}", e.getMessage());
+            return new GitInfo("", "");
+        }
+    }
+
+    private static String runProcess(String... command) throws IOException, InterruptedException {
+        Process p = new ProcessBuilder(command).redirectErrorStream(true).start();
+        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        p.waitFor();
+        return output;
+    }
+
+    private static Path writeResultsDump(
+        Path configFilePath,
+        String rawConfigJson,
+        FormattedResults formattedResults,
+        GitInfo gitInfo,
+        LocalDateTime timestamp
+    ) {
+        try {
+            Path outDir = PathUtils.get("target/knn_results");
+            Files.createDirectories(outDir);
+            String configFileName = configFilePath.getFileName().toString();
+            int dotIdx = configFileName.lastIndexOf('.');
+            String configBaseName = dotIdx > 0 ? configFileName.substring(0, dotIdx) : configFileName;
+            String fileTs = timestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+            Path outFile = outDir.resolve(fileTs + "_" + configBaseName + ".txt");
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("=".repeat(80)).append("\n");
+            sb.append("  KNN Index Tester Results\n");
+            sb.append("=".repeat(80)).append("\n");
+            sb.append("Timestamp:   ").append(timestamp.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).append("\n");
+            sb.append("Config file: ").append(configFilePath.toAbsolutePath()).append("\n\n");
+
+            sb.append("--- System Information ").append("-".repeat(58)).append("\n");
+            sb.append("OS:          ")
+                .append(System.getProperty("os.name"))
+                .append(" ")
+                .append(System.getProperty("os.version"))
+                .append(" (")
+                .append(System.getProperty("os.arch"))
+                .append(")\n");
+            sb.append("JVM:         ")
+                .append(System.getProperty("java.vm.name"))
+                .append(" ")
+                .append(System.getProperty("java.version"))
+                .append(" (")
+                .append(System.getProperty("java.vendor"))
+                .append(")\n");
+            sb.append("Processors:  ").append(Runtime.getRuntime().availableProcessors()).append("\n");
+            sb.append("Heap max:    ").append(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / (1024 * 1024)).append(" MB\n\n");
+
+            sb.append("--- Git Information ").append("-".repeat(61)).append("\n");
+            if (gitInfo.branch().isEmpty() && gitInfo.commit().isEmpty()) {
+                sb.append("(unavailable)\n\n");
+            } else {
+                sb.append("Branch: ").append(gitInfo.branch()).append("\n");
+                sb.append("Commit: ").append(gitInfo.commit()).append("\n\n");
+            }
+
+            sb.append("--- Configuration ").append("-".repeat(62)).append("\n");
+            sb.append(rawConfigJson).append("\n\n");
+
+            sb.append("--- Results ").append("-".repeat(68)).append("\n");
+            sb.append(formattedResults);
+            sb.append("\n").append("=".repeat(80)).append("\n");
+
+            Files.writeString(outFile, sb.toString());
+            return outFile.toAbsolutePath();
+        } catch (IOException e) {
+            logger.warn("Failed to write results dump: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private static final String[] CSV_HEADERS = {
+        "timestamp",
+        "config_file",
+        "git_branch",
+        "git_commit",
+        "os",
+        "jvm_version",
+        "processors",
+        "heap_max_mb",
+        "index_name",
+        "index_type",
+        "num_docs",
+        "num_segments",
+        "quantize_bits",
+        "vector_encoding",
+        "vector_space",
+        "hnsw_m",
+        "hnsw_ef_construction",
+        "ivf_cluster_size",
+        "secondary_cluster_size",
+        "merge_policy",
+        "on_disk_rescore",
+        "precondition",
+        "flat_vector_threshold",
+        "top_k",
+        "num_candidates",
+        "visit_percentage",
+        "over_sampling_factor",
+        "early_termination",
+        "filter_selectivity",
+        "filter_cached",
+        "search_threads",
+        "num_searchers",
+        "doc_add_time_ms",
+        "index_time_ms",
+        "force_merge_time_ms",
+        "recall",
+        "qps",
+        "avg_latency_ms",
+        "net_cpu_time_ms",
+        "avg_cpu_count",
+        "visited",
+        "visit_pct_configured",
+        "visit_pct_actual",
+        "partition_recall_min",
+        "partition_recall_max",
+        "partition_recall_avg" };
+
+    private static Path appendResultsCsv(
+        Path configFilePath,
+        List<TestConfiguration> configs,
+        FormattedResults formattedResults,
+        GitInfo gitInfo,
+        LocalDateTime timestamp
+    ) {
+        try {
+            Path outDir = PathUtils.get("target/knn_results");
+            Files.createDirectories(outDir);
+            Path csvFile = outDir.resolve("results.csv");
+            boolean writeHeader = Files.exists(csvFile) == false || Files.size(csvFile) == 0;
+
+            if (writeHeader == false) {
+                String existingHeader;
+                try (var lines = Files.lines(csvFile, StandardCharsets.UTF_8)) {
+                    existingHeader = lines.findFirst().orElse("");
+                }
+                if (existingHeader.equals(buildCsvRow(CSV_HEADERS)) == false) {
+                    String archiveTs = timestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+                    Path archiveFile = outDir.resolve("results_archived_" + archiveTs + ".csv");
+                    Files.move(csvFile, archiveFile);
+                    logger.info("CSV headers changed — archived existing results to: {}", archiveFile.getFileName());
+                    writeHeader = true;
+                }
+            }
+
+            String ts = timestamp.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            String configPath = configFilePath.toAbsolutePath().toString();
+            String os = System.getProperty("os.name") + " " + System.getProperty("os.version") + " (" + System.getProperty("os.arch") + ")";
+            String jvmVersion = System.getProperty("java.vm.name") + " " + System.getProperty("java.version");
+            String processors = Integer.toString(Runtime.getRuntime().availableProcessors());
+            String heapMaxMb = Long.toString(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / (1024 * 1024));
+
+            try (
+                BufferedWriter writer = Files.newBufferedWriter(
+                    csvFile,
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.APPEND,
+                    StandardOpenOption.CREATE
+                )
+            ) {
+                if (writeHeader) {
+                    writer.write(buildCsvRow(CSV_HEADERS));
+                    writer.newLine();
+                }
+                int queryResultIdx = 0;
+                for (int configIdx = 0; configIdx < configs.size(); configIdx++) {
+                    TestConfiguration config = configs.get(configIdx);
+                    Results indexResult = formattedResults.indexResults.get(configIdx);
+                    for (int searchIdx = 0; searchIdx < config.numberOfSearchRuns(); searchIdx++) {
+                        Results qr = formattedResults.queryResults.get(queryResultIdx++);
+                        SearchParameters sp = config.searchParams().get(searchIdx);
+
+                        String partMin = "", partMax = "", partAvg = "";
+                        if (qr.perPartitionRecall != null && qr.perPartitionRecall.isEmpty() == false) {
+                            var stats = qr.perPartitionRecall.values().stream().mapToDouble(Float::doubleValue).summaryStatistics();
+                            partMin = String.format(Locale.ROOT, "%.4f", stats.getMin());
+                            partMax = String.format(Locale.ROOT, "%.4f", stats.getMax());
+                            partAvg = String.format(Locale.ROOT, "%.4f", stats.getAverage());
+                        }
+
+                        String[] row = {
+                            ts,
+                            configPath,
+                            gitInfo.branch(),
+                            gitInfo.commit(),
+                            os,
+                            jvmVersion,
+                            processors,
+                            heapMaxMb,
+                            qr.indexName,
+                            qr.indexType,
+                            Integer.toString(qr.numDocs),
+                            Integer.toString(qr.numSegments),
+                            config.quantizeBits() != null ? Integer.toString(config.quantizeBits()) : "",
+                            config.vectorEncoding().name().toLowerCase(Locale.ROOT),
+                            config.vectorSpace() != null ? config.vectorSpace().name().toLowerCase(Locale.ROOT) : "",
+                            Integer.toString(config.hnswM()),
+                            Integer.toString(config.hnswEfConstruction()),
+                            Integer.toString(config.ivfClusterSize()),
+                            Integer.toString(config.secondaryClusterSize()),
+                            config.mergePolicy() != null ? config.mergePolicy().name().toLowerCase(Locale.ROOT) : "",
+                            Boolean.toString(config.onDiskRescore()),
+                            Boolean.toString(config.doPrecondition()),
+                            Integer.toString(config.flatVectorThreshold()),
+                            Integer.toString(sp.topK()),
+                            Integer.toString(sp.numCandidates()),
+                            String.format(Locale.ROOT, "%.4f", sp.visitPercentage()),
+                            String.format(Locale.ROOT, "%.4f", sp.overSamplingFactor()),
+                            Boolean.toString(sp.earlyTermination()),
+                            String.format(Locale.ROOT, "%.4f", sp.filterSelectivity()),
+                            Boolean.toString(sp.filterCached()),
+                            Integer.toString(sp.searchThreads()),
+                            Integer.toString(sp.numSearchers()),
+                            Long.toString(indexResult.docAddTimeMS),
+                            Long.toString(indexResult.indexTimeMS),
+                            Long.toString(indexResult.forceMergeTimeMS),
+                            String.format(Locale.ROOT, "%.4f", qr.avgRecall),
+                            String.format(Locale.ROOT, "%.2f", qr.qps),
+                            String.format(Locale.ROOT, "%.2f", qr.avgLatency),
+                            String.format(Locale.ROOT, "%.2f", qr.netCpuTimeMS),
+                            String.format(Locale.ROOT, "%.2f", qr.avgCpuCount),
+                            String.format(Locale.ROOT, "%.2f", qr.averageVisited),
+                            String.format(Locale.ROOT, "%.4f", qr.visitPercentage),
+                            String.format(Locale.ROOT, "%.4f", qr.actualVisitPercentage),
+                            partMin,
+                            partMax,
+                            partAvg };
+                        writer.write(buildCsvRow(row));
+                        writer.newLine();
+                    }
+                }
+            }
+            return csvFile.toAbsolutePath();
+        } catch (IOException e) {
+            logger.warn("Failed to append results to CSV: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private static String buildCsvRow(String[] values) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < values.length; i++) {
+            if (i > 0) sb.append(',');
+            sb.append(csvQuote(values[i]));
+        }
+        return sb.toString();
+    }
+
+    private static String csvQuote(String value) {
+        if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
     }
 }

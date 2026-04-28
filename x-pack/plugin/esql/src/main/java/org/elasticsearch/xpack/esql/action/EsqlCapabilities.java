@@ -2623,6 +2623,12 @@ public class EsqlCapabilities {
         INFERENCE_ACCEPT_TIMEOUT,
 
         /**
+         * Fix for SET reporting wrong line/column number (-1:-1) in validation errors.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/145873">ES|QL: wrong line/column number #145873</a>
+         */
+        FIX_SET_WRONG_LINE_COLUMN,
+
+        /**
          * Support for the {@code DISTINCT} command, which removes duplicate rows from the result set.
          * Snapshot-only.
          */

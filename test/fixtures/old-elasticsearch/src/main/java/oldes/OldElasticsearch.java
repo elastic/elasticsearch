@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -93,6 +94,13 @@ public class OldElasticsearch {
         Path pidPath = baseDir.relativize(baseDir.resolve("pid"));
         command.add(pidPath.toString().replace("&", "\\&"));
         ProcessBuilder subprocess = new ProcessBuilder(command);
+        /*
+         * Gradle starts this JVM with CLASSPATH pointing at the fixture (which depends on the repo's Lucene).
+         * Elasticsearch's launch scripts propagate the environment, so a child ES node would then load two
+         * incompatible lucene-core versions. Drop inherited CLASSPATH so only the distribution's lib/ is used.
+         */
+        Map<String, String> childEnv = subprocess.environment();
+        childEnv.remove("CLASSPATH");
         Process process = subprocess.start();
         System.out.println("Running " + command);
 

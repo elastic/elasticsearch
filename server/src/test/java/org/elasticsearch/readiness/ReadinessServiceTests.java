@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -53,6 +53,9 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata.ErrorKind.TRANSIENT;
 import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ReadinessServiceTests extends ESTestCase implements ReadinessClientProbe {
     private ClusterService clusterService;
@@ -104,12 +107,9 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     public void setUp() throws Exception {
         super.setUp();
         threadpool = new TestThreadPool("readiness_service_tests");
-        clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadpool,
-            null
-        );
+        clusterService = mock(ClusterService.class);
+        when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        when(clusterService.state()).thenReturn(emptyState());
         env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
 
         httpTransport = new FakeHttpTransport();
@@ -118,6 +118,14 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
     @After
     public void tearDown() throws Exception {
+        // make sure readiness service is shut down
+        if (readinessService.lifecycleState() == Lifecycle.State.STARTED) {
+            readinessService.stop();
+        }
+        if (readinessService.lifecycleState() == Lifecycle.State.STOPPED) {
+            readinessService.close();
+        }
+
         super.tearDown();
         threadpool.shutdownNow();
     }
@@ -198,9 +206,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
         // test that we cannot connect to the socket anymore
         tcpReadinessProbeFalse(readinessService);
-
-        readinessService.stop();
-        readinessService.close();
     }
 
     public void testStatusChange() throws Exception {
@@ -283,9 +288,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         }
         assertFalse(readinessService.ready());
         tcpReadinessProbeFalse(readinessService);
-
-        readinessService.stop();
-        readinessService.close();
     }
 
     public void testFileSettingsUpdateError() throws Exception {
@@ -305,9 +307,13 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         ClusterChangedEvent event = new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE);
         readinessService.clusterChanged(event);
         assertTrue(readinessService.ready());
+    }
 
-        readinessService.stop();
-        readinessService.close();
+    public void testAlreadyReadyWhenStarted() throws Exception {
+        ClusterState readyState = ClusterState.builder(noFileSettingsState()).metadata(emptyReservedStateMetadata).build();
+        when(clusterService.state()).thenReturn(readyState);
+        readinessService.start();
+        assertTrue(readinessService.ready());
     }
 
     public void testFileSettingsMixedCluster() throws Exception {

@@ -12,6 +12,9 @@ import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.NanoTime;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.filter2.compat.FilterCompat;
+import org.apache.parquet.filter2.predicate.FilterApi;
+import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
@@ -57,6 +60,7 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -74,6 +78,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -408,7 +413,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         // Check that we read at least 1 page and that all memory has been released
-        assertThat(pageCount.get(), greaterThan(1));
+        assertThat(pageCount.get(), greaterThan(0));
         assertEquals(0, limitedBreaker.getUsed());
     }
 
@@ -1266,7 +1271,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testFormatUuid() {
         UUID uuid = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
         byte[] bytes = toUuidBytes(uuid);
-        String formatted = ParquetFormatReader.formatUuid(bytes);
+        String formatted = ParquetColumnDecoding.formatUuid(bytes);
         assertEquals("550e8400-e29b-41d4-a716-446655440000", formatted);
     }
 
@@ -1764,6 +1769,67 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals("Sum of rows across splits must equal the row count written", numRows, totalRowsFromRanges);
     }
 
+    /**
+     * End-to-end test: reads a multi-row-group Parquet file with a filter via {@code read()},
+     * then reads via per-range {@code readRange()} with the same filter. Asserts the union of
+     * range reads produces identical rows to the full read.
+     */
+    public void testReadRangeWithFilterProducesCorrectResults() throws Exception {
+        byte[] parquetData = createWideMultiRowGroupFile(500);
+        StorageObject storageObject = createStorageObject(parquetData);
+        FilterPredicate filter = FilterApi.gt(FilterApi.longColumn("id"), -1L);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(FilterCompat.get(filter));
+
+        List<String> fullRows = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 500)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock ids = (LongBlock) page.getBlock(0);
+                BytesRefBlock payloads = (BytesRefBlock) page.getBlock(1);
+                BytesRef scratch = new BytesRef();
+                for (int row = 0; row < page.getPositionCount(); row++) {
+                    fullRows.add(ids.getLong(row) + "|" + payloads.getBytesRef(row, scratch).utf8ToString());
+                }
+            }
+        }
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Need at least 2 ranges for this test, got " + ranges.size(), ranges.size() >= 2);
+
+        List<String> rangeRows = new ArrayList<>();
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            long rangeStart = range.offset();
+            long rangeEnd = rangeStart + range.length();
+            try (
+                CloseableIterator<Page> iterator = reader.readRange(
+                    storageObject,
+                    null,
+                    500,
+                    rangeStart,
+                    rangeEnd,
+                    List.of(),
+                    ErrorPolicy.STRICT
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    Page page = iterator.next();
+                    LongBlock ids = (LongBlock) page.getBlock(0);
+                    BytesRefBlock payloads = (BytesRefBlock) page.getBlock(1);
+                    BytesRef scratch = new BytesRef();
+                    for (int row = 0; row < page.getPositionCount(); row++) {
+                        rangeRows.add(ids.getLong(row) + "|" + payloads.getBytesRef(row, scratch).utf8ToString());
+                    }
+                }
+            }
+        }
+
+        assertEquals(fullRows.size(), rangeRows.size());
+        Comparator<String> byId = Comparator.comparingLong(s -> Long.parseLong(s.split("\\|", 2)[0]));
+        fullRows.sort(byId);
+        rangeRows.sort(byId);
+        assertEquals(fullRows, rangeRows);
+    }
+
     // --- Test helpers ---
 
     /**
@@ -1998,19 +2064,19 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testWithConfigOptimizedReaderTrue() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", true));
-        assertNotSame(reader, configured);
+        assertSame(reader, configured);
     }
 
     public void testWithConfigOptimizedReaderFalse() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", false));
-        assertSame(reader, configured);
+        assertNotSame(reader, configured);
     }
 
     public void testWithConfigOptimizedReaderStringTrue() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", "true"));
-        assertNotSame(reader, configured);
+        assertSame(reader, configured);
     }
 
     public void testWithConfigDefaults() {

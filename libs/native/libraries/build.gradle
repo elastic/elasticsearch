@@ -19,7 +19,8 @@ configurations {
 }
 
 var zstdVersion = "1.5.7"
-var vecVersion = "1.0.105"
+var vecVersion = "1.0.106"
+var pqrsVersion = "0.2.0"
 
 repositories {
   exclusiveContent {
@@ -34,6 +35,7 @@ repositories {
     filter {
       includeModule("org.elasticsearch", "zstd")
       includeModule("org.elasticsearch", "vec")
+      includeModule("org.elasticsearch", "es-parquet-rs")
     }
   }
 }
@@ -56,6 +58,10 @@ dependencies {
   // See `simdvec/native/Makefile` for details on how to compile locally
   if (System.getenv("LOCAL_VEC_BINARY_OS") == null){
     libs "org.elasticsearch:vec:${vecVersion}@zip"
+  }
+  // See `libs/parquet-rs/native/Makefile` for local builds
+  if (System.getenv("LOCAL_PQRS_BINARY") == null){
+    libs "org.elasticsearch:es-parquet-rs:${pqrsVersion}@zip"
   }
 }
 

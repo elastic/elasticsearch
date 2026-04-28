@@ -1263,9 +1263,13 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             );
             assertThat(
                 thrownException.getMessage(),
-                CoreMatchers.is(Strings.format("""
-                    The [%s] service does not support task type [%s]""", GoogleVertexAiService.NAME, TaskType.SPARSE_EMBEDDING))
-
+                CoreMatchers.is(
+                    Strings.format(
+                        "The [%s] service does not support task type [%s]",
+                        GoogleVertexAiService.NAME,
+                        TaskType.SPARSE_EMBEDDING
+                    )
+                )
             );
         }
     }

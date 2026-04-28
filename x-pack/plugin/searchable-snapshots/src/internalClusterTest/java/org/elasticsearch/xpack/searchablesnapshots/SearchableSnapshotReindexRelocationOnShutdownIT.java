@@ -76,7 +76,7 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
      */
     public void testReindexRelocatesWithSearchableSnapshotSource() throws Exception {
         disableRepoConsistencyCheck(
-            "When the assumeTrue below fails for REINDEX_RESILIENCE_ENABLED, it's possible no node has been started"
+            "When the assumeTrue below fails for REINDEX_RESILIENCE_ENABLED, no node has been started"
         );
         assumeTrue("reindex resilience must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);

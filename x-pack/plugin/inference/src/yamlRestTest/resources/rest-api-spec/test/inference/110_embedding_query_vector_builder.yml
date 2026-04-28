@@ -311,8 +311,9 @@ setup:
                   input: "test query"
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "[inference_id] must be specified" }
+  - match: { error.reason: "[inference_id] must be specified." }
 
+  # The retriever path uses KnnRetrieverBuilder which calls buildVector() directly, bypassing the query interceptor
   - do:
       catch: bad_request
       search:
@@ -568,3 +569,115 @@ setup:
 
   - match: { error.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
   - match: { error.caused_by.caused_by.caused_by.reason: "Required [type, value]" }
+
+---
+"knn query against semantic_text field infers inference_id from field metadata":
+  - requires:
+      cluster_features: "search.embedding_query_vector_builder.infers_inference_id"
+      reason: embedding query vector builder infers inference_id from semantic field metadata
+
+  - do:
+      indices.create:
+        index: test-semantic-embedding-index
+        body:
+          mappings:
+            properties:
+              content:
+                type: keyword
+              embedding:
+                type: semantic_text
+                inference_id: embedding-inference-id
+
+  - do:
+      index:
+        index: test-semantic-embedding-index
+        id: doc_1
+        body:
+          content: "first document"
+          embedding: "first document text"
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-embedding-index
+        id: doc_2
+        body:
+          content: "second document"
+          embedding: "second document text"
+        refresh: true
+
+  # Search without specifying inference_id - should be inferred from the semantic_text field
+  - do:
+      search:
+        index: test-semantic-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  input: "test query"
+
+  - match: { hits.total.value: 2 }
+
+  # Search with explicit inference_id should also still work
+  - do:
+      search:
+        index: test-semantic-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input: "test query"
+
+  - match: { hits.total.value: 2 }
+
+---
+"knn query against combined dense_vector and semantic_text fields still requires inference_id":
+  - requires:
+      cluster_features: "search.embedding_query_vector_builder.infers_inference_id"
+      reason: embedding query vector builder infers inference_id from semantic field metadata
+
+  - do:
+      indices.create:
+        index: test-semantic-embedding-index-2
+        body:
+          mappings:
+            properties:
+              embedding:
+                type: semantic_text
+                inference_id: embedding-inference-id
+
+  - do:
+      index:
+        index: test-semantic-embedding-index-2
+        id: doc_1
+        body:
+          embedding: "some text"
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index:
+          - test-embedding-index
+          - test-semantic-embedding-index-2
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  input: "test query"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "[inference_id] must be specified." }

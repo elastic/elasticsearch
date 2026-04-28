@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -44,6 +45,10 @@ import java.util.Map;
 
 public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> {
     public static final String NAME = "intercepted_inference_knn";
+
+    public static final NodeFeature EMBEDDING_QVB_INFERS_INFERENCE_ID = new NodeFeature(
+        "search.embedding_query_vector_builder.infers_inference_id"
+    );
 
     @SuppressWarnings("deprecation")
     private static final QueryRewriteInterceptor BWC_INTERCEPTOR = new LegacySemanticKnnVectorQueryRewriteInterceptor();
@@ -425,11 +430,11 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                 // TextEmbeddingQueryVectorBuilder needs validation when an explicit inference ID is required. A non-null model text value
                 // is guaranteed by its constructor.
                 if (tevb.getModelId() == null) {
-                    throw new IllegalArgumentException("[model_id] must not be null.");
+                    throw new IllegalArgumentException("[model_id] must be specified.");
                 }
             } else if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
                 if (eqvb.getInferenceId() == null) {
-                    throw new IllegalArgumentException("[inference_id] must not be null.");
+                    throw new IllegalArgumentException("[inference_id] must be specified.");
                 }
             }
         }

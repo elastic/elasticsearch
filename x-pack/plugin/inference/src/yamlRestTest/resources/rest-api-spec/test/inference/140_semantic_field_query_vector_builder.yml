@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: "search.embedding_query_vector_builder.infers_inference_id"
-      reason: embedding query vector builder infers inference_id from semantic field metadata
+      cluster_features: "semantic_field.semantic_field_mapper"
+      reason: "semantic field needs to be available"
 
   - do:
       inference.put:

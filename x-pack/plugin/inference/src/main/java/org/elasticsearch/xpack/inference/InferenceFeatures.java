@@ -32,7 +32,6 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.S
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID;
-import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceKnnVectorQueryBuilder.EMBEDDING_QVB_INFERS_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_FILTER_FIX;
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticMatchQueryRewriteInterceptor.SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
@@ -154,7 +153,6 @@ public class InferenceFeatures implements FeatureSpecification {
         );
         if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
             testFeatures.add(SemanticFieldMapper.SEMANTIC_FIELD_MAPPER);
-            testFeatures.add(EMBEDDING_QVB_INFERS_INFERENCE_ID);
         }
         testFeatures.addAll(getFeatures());
         return testFeatures;

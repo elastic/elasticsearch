@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 147757
+summary: Testing that an s3-compatible object store returns correct http codes
+type: enhancement

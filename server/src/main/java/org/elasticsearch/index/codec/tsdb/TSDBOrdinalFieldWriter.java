@@ -18,7 +18,7 @@ import java.io.IOException;
  * {@link OrdinalFieldWriter} implementation that writes the ordinal stream of sorted and
  * sorted-set fields using the TSDB block layout.
  *
- * <p>{@link #writeField} computes the per-ordinal bit width, then delegates to the shared
+ * <p>{@link #writeFieldEntry} computes the per-ordinal bit width, then delegates to the shared
  * write loop in {@link TSDBDocValuesBlockWriter} with the {@link Encoder} supplied at
  * construction time.
  */
@@ -44,7 +44,7 @@ public final class TSDBOrdinalFieldWriter implements OrdinalFieldWriter {
     }
 
     @Override
-    public DocValueFieldCountStats writeField(
+    public DocValueFieldCountStats writeFieldEntry(
         final FieldInfo field,
         final TsdbDocValuesProducer valuesSource,
         long maxOrd,
@@ -52,7 +52,7 @@ public final class TSDBOrdinalFieldWriter implements OrdinalFieldWriter {
         final SortedFieldObserver sortedFieldObserver
     ) throws IOException {
         final int bitsPerOrd = PackedInts.bitsRequired(Math.max(maxOrd - 1, 0));
-        return BLOCK_WRITER.writeField(
+        return BLOCK_WRITER.writeFieldEntry(
             ctx,
             field,
             valuesSource,

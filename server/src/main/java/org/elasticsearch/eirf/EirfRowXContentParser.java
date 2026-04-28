@@ -221,10 +221,9 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
                 SchemaNode child = node.children[childIdx];
                 childIdxStack[stackDepth - 1]++;
 
-                // Skip null leaves
                 if (child.isLeaf()) {
                     int colIdx = child.leafColumnIndex;
-                    if (colIdx >= row.columnCount() || row.isNull(colIdx)) {
+                    if (colIdx >= row.columnCount() || row.isAbsent(colIdx)) {
                         continue;
                     }
                 }

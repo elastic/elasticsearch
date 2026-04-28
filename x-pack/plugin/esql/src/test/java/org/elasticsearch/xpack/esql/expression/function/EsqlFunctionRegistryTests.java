@@ -148,6 +148,13 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         assertThat(e.getMessage(), is("Cannot find function dummy_function; this should have been caught during analysis"));
     }
 
+    public void testTStepIsSnapshotOnly() {
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        assertThat(EsqlFunctionRegistry.isSnapshotOnly("tstep"), is(true));
+        assertThat(registry.functionExists("tstep"), is(false));
+        assertThat(registry.snapshotRegistry().functionExists("tstep"), is(Build.current().isSnapshot()));
+    }
+
     public void testUnaryFunction() {
         UnresolvedFunction ur = uf(mock(Expression.class));
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(defineDummyUnaryFunction(ur));

@@ -11,7 +11,10 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionResponse.Empty;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -33,9 +36,7 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportConnectionListener;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -105,6 +106,8 @@ public final class FollowersChecker {
     private final NodeHealthService nodeHealthService;
     private final Executor clusterCoordinationExecutor;
     private volatile FastResponseState fastResponseState;
+
+    private static final TransportRequestOptions PING_REQUEST_OPTIONS = TransportRequestOptions.of(null, Type.PING);
 
     public FollowersChecker(
         Settings settings,
@@ -289,6 +292,57 @@ public final class FollowersChecker {
             handleWakeUp();
         }
 
+        private final ActionListener<ActionResponse.Empty> responseHandler = new ActionListener<>() {
+            @Override
+            public void onResponse(Empty ignored) {
+                if (running() == false) {
+                    logger.trace("{} no longer running", FollowerChecker.this);
+                    return;
+                }
+
+                failureCountSinceLastSuccess = 0;
+                timeoutCountSinceLastSuccess = 0;
+                logger.trace("{} check successful", FollowerChecker.this);
+                scheduleNextWakeUp();
+            }
+
+            @Override
+            public void onFailure(Exception exp) {
+                if (running() == false) {
+                    logger.debug(() -> format("%s no longer running", FollowerChecker.this), exp);
+                    return;
+                }
+
+                if (exp instanceof ElasticsearchTimeoutException) {
+                    timeoutCountSinceLastSuccess++;
+                } else {
+                    failureCountSinceLastSuccess++;
+                }
+
+                final String reason;
+                if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
+                    logger.debug(() -> format("%s disconnected", FollowerChecker.this), exp);
+                    reason = "disconnected";
+                } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
+                    logger.debug(() -> format("%s health check failed", FollowerChecker.this), exp);
+                    reason = "health check failed";
+                } else if (failureCountSinceLastSuccess + timeoutCountSinceLastSuccess >= followerCheckRetryCount) {
+                    logger.debug(() -> format("%s failed too many times", FollowerChecker.this), exp);
+                    reason = "followers check retry count exceeded [timeouts="
+                        + timeoutCountSinceLastSuccess
+                        + ", failures="
+                        + failureCountSinceLastSuccess
+                        + "]";
+                } else {
+                    logger.debug(() -> format("%s failed, retrying", FollowerChecker.this), exp);
+                    scheduleNextWakeUp();
+                    return;
+                }
+
+                failNode(reason);
+            }
+        };
+
         private void handleWakeUp() {
             if (running() == false) {
                 logger.trace("handleWakeUp: not running");
@@ -302,63 +356,18 @@ public final class FollowersChecker {
                 discoveryNode,
                 FOLLOWER_CHECK_ACTION_NAME,
                 request,
-                TransportRequestOptions.of(followerCheckTimeout, Type.PING),
-                new TransportResponseHandler.Empty() {
-
-                    @Override
-                    public Executor executor() {
-                        return TransportResponseHandler.TRANSPORT_WORKER;
-                    }
-
-                    @Override
-                    public void handleResponse() {
-                        if (running() == false) {
-                            logger.trace("{} no longer running", FollowerChecker.this);
-                            return;
-                        }
-
-                        failureCountSinceLastSuccess = 0;
-                        timeoutCountSinceLastSuccess = 0;
-                        logger.trace("{} check successful", FollowerChecker.this);
-                        scheduleNextWakeUp();
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        if (running() == false) {
-                            logger.debug(() -> format("%s no longer running", FollowerChecker.this), exp);
-                            return;
-                        }
-
-                        if (exp instanceof ReceiveTimeoutTransportException) {
-                            timeoutCountSinceLastSuccess++;
-                        } else {
-                            failureCountSinceLastSuccess++;
-                        }
-
-                        final String reason;
-                        if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
-                            logger.debug(() -> format("%s disconnected", FollowerChecker.this), exp);
-                            reason = "disconnected";
-                        } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
-                            logger.debug(() -> format("%s health check failed", FollowerChecker.this), exp);
-                            reason = "health check failed";
-                        } else if (failureCountSinceLastSuccess + timeoutCountSinceLastSuccess >= followerCheckRetryCount) {
-                            logger.debug(() -> format("%s failed too many times", FollowerChecker.this), exp);
-                            reason = "followers check retry count exceeded [timeouts="
-                                + timeoutCountSinceLastSuccess
-                                + ", failures="
-                                + failureCountSinceLastSuccess
-                                + "]";
-                        } else {
-                            logger.debug(() -> format("%s failed, retrying", FollowerChecker.this), exp);
-                            scheduleNextWakeUp();
-                            return;
-                        }
-
-                        failNode(reason);
-                    }
-                }
+                PING_REQUEST_OPTIONS,
+                new ActionListenerResponseHandler<>(
+                    ActionListener.addTimeout(
+                        followerCheckTimeout,
+                        transportService.getThreadPool(),
+                        TransportResponseHandler.TRANSPORT_WORKER,
+                        responseHandler,
+                        () -> {/* not cancellable */}
+                    ),
+                    ignored -> ActionResponse.Empty.INSTANCE,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
             );
         }
 

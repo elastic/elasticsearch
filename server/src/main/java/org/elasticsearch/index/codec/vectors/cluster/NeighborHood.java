@@ -64,7 +64,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
             float[] center = centers[i];
             int j = i + 1;
             for (; j < limit; j += 4) {
-                ESVectorUtil.squareDistanceBulk(center, centers[j], centers[j + 1], centers[j + 2], centers[j + 3], scores);
+                ESVectorUtil.squareDistanceBulk(center, centers[j], centers[j + 1], centers[j + 2], centers[j + 3], 0, scores);
                 for (int h = 0; h < 4; h++) {
                     neighborQueues[j + h].insertWithOverflow(i, scores[h]);
                     neighborQueues[i].insertWithOverflow(j + h, scores[h]);
@@ -211,6 +211,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
                             centers[nodes[i + 1]],
                             centers[nodes[i + 2]],
                             centers[nodes[i + 3]],
+                            0,
                             distances
                         );
                         for (int j = 0; j < 4; j++) {

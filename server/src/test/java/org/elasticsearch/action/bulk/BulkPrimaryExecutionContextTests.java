@@ -18,6 +18,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -47,8 +50,13 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             }
         }
 
+        final IndexShard primary = mock(IndexShard.class);
+        when(primary.shardId()).thenReturn(shardRequest.shardId());
+        ShardRouting shardRouting = newShardRouting(shardRequest.shardId(), ShardRouting.Role.DEFAULT);
+        when(primary.routingEntry()).thenReturn(shardRouting);
+
         ArrayList<DocWriteRequest<?>> visitedRequests = new ArrayList<>();
-        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, null); context
+        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, primary); context
             .hasMoreOperationsToExecute();) {
             visitedRequests.add(context.getCurrent());
             context.setRequestToExecute(context.getCurrent());
@@ -89,6 +97,8 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
         when(primary.indexSettings()).thenReturn(new IndexSettings(indexMetadata, Settings.EMPTY));
+        ShardRouting shardRouting = newShardRouting(shardRequest.shardId(), ShardRouting.Role.DEFAULT);
+        when(primary.routingEntry()).thenReturn(shardRouting);
 
         long translogGen = 0;
         long translogOffset = 0;
@@ -141,5 +151,10 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
         }
 
         assertThat(context.getLocationToSync(), equalTo(expectedLocation));
+    }
+
+    private ShardRouting newShardRouting(ShardId shardId, ShardRouting.Role role) {
+        final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
+        return ShardRouting.newUnassigned(shardId, true, RecoverySource.ExistingStoreRecoverySource.INSTANCE, unassignedInfo, role);
     }
 }

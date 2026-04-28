@@ -1186,6 +1186,18 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
+    public boolean supportsBatchIndexing() {
+        // Plain date mappers can be driven through parseCreateField by the bulk batch path.
+        // Excludes: scripts, copy_to, multi-fields, and the data-stream @timestamp field
+        // (which has an additional side effect in indexValue that the v1 batch path does
+        // not handle).
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && isDataStreamTimestampField == false;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
 
         long timestamp;

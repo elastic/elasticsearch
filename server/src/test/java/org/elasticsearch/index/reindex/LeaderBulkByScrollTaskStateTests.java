@@ -50,7 +50,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             false,
             randomBoolean() ? null : randomOrigin()
         );
-        task.setWorkerCount(slices);
+        task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
         taskState = task.getLeaderState();
     }
 
@@ -267,7 +267,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             false,
             randomBoolean() ? null : randomOrigin()
         );
-        task.setWorkerCount(sliceCount);
+        task.setWorkerCount(sliceCount, Float.POSITIVE_INFINITY);
         return task;
     }
 
@@ -324,7 +324,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             true,
             randomBoolean() ? null : randomOrigin()
         );
-        task.setWorkerCount(sliceCount);
+        task.setWorkerCount(sliceCount, Float.POSITIVE_INFINITY);
         task.requestRelocation();
         task.getLeaderState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
         return task;

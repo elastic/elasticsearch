@@ -300,7 +300,7 @@ public class ReindexerTests extends ESTestCase {
             true,
             randomOrigin()
         );
-        leaderTask.setWorkerCount(2);
+        leaderTask.setWorkerCount(2, Float.POSITIVE_INFINITY);
 
         final TaskManager taskManager = mock(TaskManager.class);
         when(taskManager.getCancellableTasks()).thenReturn(Map.of(parentTaskId, leaderTask));
@@ -2856,7 +2856,7 @@ public class ReindexerTests extends ESTestCase {
             randomBoolean(),
             randomOrigin()
         );
-        task.setWorkerCount(randomIntBetween(2, 10));
+        task.setWorkerCount(randomIntBetween(2, 10), Float.POSITIVE_INFINITY);
         return task;
     }
 

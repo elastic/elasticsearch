@@ -62,7 +62,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
                 ? null
                 : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong())
         );
-        task.setWorkerCount(slices);
+        task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
     }
 
     /**

@@ -347,13 +347,7 @@ static inline void bf16Qf32_bulk_avx512(
  *                top of this file (e.g. dotDbf16Qbf16_inner_avx512) already use the
  *                same trick under their local `unroll_dim` constant.
  *
- * Why two axes and not just a larger `batches`? On sequential paths `batches` is
- * forced to 1 by the cache-aliasing argument above, so the only way to add
- * accumulators there is along the dim axis. On offsets/sparse paths `batches=4`
- * already provides four concurrent accumulators across vectors; layering dim
- * unrolling on top adds reduction overhead without consistently winning. The two
- * axes are therefore alternatives rather than complements — see the static_assert
- * inside the template.
+ * The two axes are mutually exclusive — see the static_assert inside the template.
  */
 template <
     typename TData,
@@ -413,28 +407,23 @@ static inline void dotDbf16Qbf16_bulk_avx512(
             });
         }
 
-        // Per-batch live accumulator that the dim-tail loops feed into. At unroll_dim=1
-        // we just alias sums[I]; at unroll_dim > 1 we tree-reduce the unroll_dim slots
-        // for each batch member into a single accumulator. The constexpr keeps the
-        // unroll_dim=1 instantiation byte-equivalent to the pre-optimisation code.
-        __m512 acc[batches];
+        // After the main loop, fold the unroll_dim accumulators per batch back into
+        // sums[I]. The constexpr branch is skipped at unroll_dim=1, where the main
+        // loop already wrote sums[I*1+0] = sums[I] and the tail loops just feed it
+        // -- byte-equivalent to the pre-optimisation code.
         if constexpr (unroll_dim > 1) {
             apply_indexed<batches>([&](auto I) {
-                acc[I] = tree_reduce<unroll_dim, __m512, _mm512_add_ps>(&sums[I * unroll_dim]);
+                sums[I] = tree_reduce<unroll_dim, __m512, _mm512_add_ps>(&sums[I * unroll_dim]);
             });
 
             // Dim-unroll-1 tail: full 32-element blocks not consumed by the main loop.
             for (; i + elements <= dims; i += elements) {
                 __m512bh qi = (__m512bh)_mm512_loadu_epi16(b + i);
                 apply_indexed<batches>([&](auto I) {
-                    acc[I] = _mm512_dpbf16_ps(acc[I],
+                    sums[I] = _mm512_dpbf16_ps(sums[I],
                         (__m512bh)_mm512_loadu_epi16(current_vecs[I] + i), qi);
                 });
             }
-        } else {
-            apply_indexed<batches>([&](auto I) {
-                acc[I] = sums[I];
-            });
         }
 
         // Masked tail (< 32 BF16 elements left).
@@ -445,12 +434,12 @@ static inline void dotDbf16Qbf16_bulk_avx512(
             __m512bh qi = (__m512bh)_mm512_maskz_loadu_epi16(readMask, b + i);
             apply_indexed<batches>([&](auto I) {
                 __m512bh ai = (__m512bh)_mm512_maskz_loadu_epi16(readMask, current_vecs[I] + i);
-                acc[I] = _mm512_mask_dpbf16_ps(acc[I], dpMask, ai, qi);
+                sums[I] = _mm512_mask_dpbf16_ps(sums[I], dpMask, ai, qi);
             });
         }
 
         apply_indexed<batches>([&](auto I) {
-            f32_t result = _mm512_reduce_add_ps(acc[I]);
+            f32_t result = _mm512_reduce_add_ps(sums[I]);
             if ((rem & 1) != 0) {
                 result += dot_scalar(current_vecs[I][dims - 1], b[dims - 1]);
             }
@@ -544,37 +533,27 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
             });
         }
 
-        // Per-batch live accumulators that the dim-tail loops feed into. At
-        // unroll_dim=1 we just alias sum_aa[I] / sum_ab[I] / sum_bb[0]; at
-        // unroll_dim > 1 we tree-reduce the unroll_dim slots into a single value
-        // each. The constexpr keeps the unroll_dim=1 instantiation byte-equivalent
-        // to the pre-optimisation code.
-        __m512 acc_aa[batches];
-        __m512 acc_ab[batches];
-        __m512 acc_bb;
+        // After the main loop, fold the unroll_dim accumulators per stream back
+        // into sum_aa[I] / sum_ab[I] / sum_bb[0]. The constexpr branch is skipped
+        // at unroll_dim=1, where the main loop already wrote sum_*[I*1+0] = sum_*[I]
+        // and sum_bb[0] -- byte-equivalent to the pre-optimisation code.
         if constexpr (unroll_dim > 1) {
             apply_indexed<batches>([&](auto I) {
-                acc_aa[I] = tree_reduce<unroll_dim, __m512, _mm512_add_ps>(&sum_aa[I * unroll_dim]);
-                acc_ab[I] = tree_reduce<unroll_dim, __m512, _mm512_add_ps>(&sum_ab[I * unroll_dim]);
+                sum_aa[I] = tree_reduce<unroll_dim, __m512, _mm512_add_ps>(&sum_aa[I * unroll_dim]);
+                sum_ab[I] = tree_reduce<unroll_dim, __m512, _mm512_add_ps>(&sum_ab[I * unroll_dim]);
             });
-            acc_bb = tree_reduce<unroll_dim, __m512, _mm512_add_ps>(sum_bb);
+            sum_bb[0] = tree_reduce<unroll_dim, __m512, _mm512_add_ps>(sum_bb);
 
             // Dim-unroll-1 tail: full 32-element blocks not consumed by the main loop.
             for (; i + elements <= dims; i += elements) {
                 __m512bh qi = (__m512bh)_mm512_loadu_epi16(b + i);
-                acc_bb = _mm512_dpbf16_ps(acc_bb, qi, qi);
+                sum_bb[0] = _mm512_dpbf16_ps(sum_bb[0], qi, qi);
                 apply_indexed<batches>([&](auto I) {
                     __m512bh ai = (__m512bh)_mm512_loadu_epi16(current_vecs[I] + i);
-                    acc_aa[I] = _mm512_dpbf16_ps(acc_aa[I], ai, ai);
-                    acc_ab[I] = _mm512_dpbf16_ps(acc_ab[I], ai, qi);
+                    sum_aa[I] = _mm512_dpbf16_ps(sum_aa[I], ai, ai);
+                    sum_ab[I] = _mm512_dpbf16_ps(sum_ab[I], ai, qi);
                 });
             }
-        } else {
-            apply_indexed<batches>([&](auto I) {
-                acc_aa[I] = sum_aa[I];
-                acc_ab[I] = sum_ab[I];
-            });
-            acc_bb = sum_bb[0];
         }
 
         // Masked tail (< 32 BF16 left)
@@ -582,28 +561,28 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
             __mmask32 readMask = (__mmask32)((1UL << rem) - 1);
             __mmask16 dpMask = (__mmask16)((1U << (rem / 2)) - 1);
             __m512bh qi = (__m512bh)_mm512_maskz_loadu_epi16(readMask, b + i);
-            acc_bb = _mm512_mask_dpbf16_ps(acc_bb, dpMask, qi, qi);
+            sum_bb[0] = _mm512_mask_dpbf16_ps(sum_bb[0], dpMask, qi, qi);
             apply_indexed<batches>([&](auto I) {
                 __m512bh ai = (__m512bh)_mm512_maskz_loadu_epi16(readMask, current_vecs[I] + i);
-                acc_aa[I] = _mm512_mask_dpbf16_ps(acc_aa[I], dpMask, ai, ai);
-                acc_ab[I] = _mm512_mask_dpbf16_ps(acc_ab[I], dpMask, ai, qi);
+                sum_aa[I] = _mm512_mask_dpbf16_ps(sum_aa[I], dpMask, ai, ai);
+                sum_ab[I] = _mm512_mask_dpbf16_ps(sum_ab[I], dpMask, ai, qi);
             });
         }
 
-        f32_t bb = _mm512_reduce_add_ps(acc_bb);
+        f32_t bb = _mm512_reduce_add_ps(sum_bb[0]);
         if (odd_dims) {
             bb += dot_scalar(b[dims - 1], b[dims - 1]);
             apply_indexed<batches>([&](auto I) {
-                f32_t aa = _mm512_reduce_add_ps(acc_aa[I]);
-                f32_t ab = _mm512_reduce_add_ps(acc_ab[I]);
+                f32_t aa = _mm512_reduce_add_ps(sum_aa[I]);
+                f32_t ab = _mm512_reduce_add_ps(sum_ab[I]);
                 aa += dot_scalar(current_vecs[I][dims - 1], current_vecs[I][dims - 1]);
                 ab += dot_scalar(current_vecs[I][dims - 1], b[dims - 1]);
                 results[c + I] = aa + bb - 2.0f * ab;
             });
         } else {
             apply_indexed<batches>([&](auto I) {
-                f32_t aa = _mm512_reduce_add_ps(acc_aa[I]);
-                f32_t ab = _mm512_reduce_add_ps(acc_ab[I]);
+                f32_t aa = _mm512_reduce_add_ps(sum_aa[I]);
+                f32_t ab = _mm512_reduce_add_ps(sum_ab[I]);
                 results[c + I] = aa + bb - 2.0f * ab;
             });
         }

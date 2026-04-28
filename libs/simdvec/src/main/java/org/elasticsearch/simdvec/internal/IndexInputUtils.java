@@ -105,14 +105,16 @@ public final class IndexInputUtils {
      * resolver function to the action. The resolver maps an index
      * {@code [0..count)} to the corresponding segment.
      *
-     * <p> This method first tries {@link MemorySegmentAccessInput}: if a
-     * single contiguous segment covers the whole input, each slice is
-     * derived from it with no per-slice allocation. Next it tries
+     * <p> This method first tries {@link MemorySegmentAccessInput}, and checks
+     * if it can slice segments for each byte range. Next it tries
      * {@link DirectAccessInput#withByteBufferSlices}. As a last resort it
      * copies each range onto the heap.
      *
      * <p> The segments provided by the resolver are valid only for the
      * duration of the action. Callers must not retain references to them.
+     *
+     * <p> This function is deprecated; use {@link IndexInputUtils#withSliceAddresses}
+     * instead.
      *
      * @param in              the index input
      * @param offsets         file byte offsets for each range
@@ -122,6 +124,7 @@ public final class IndexInputUtils {
      * @param action          receives a function mapping index to MemorySegment
      * @return the result of applying {@code action}
      */
+    @Deprecated(forRemoval = true)
     public static <R> R withSlices(
         IndexInput in,
         long[] offsets,
@@ -132,9 +135,21 @@ public final class IndexInputUtils {
     ) throws IOException {
         checkInputType(in);
         if (in instanceof MemorySegmentAccessInput msai) {
-            MemorySegment full = msai.segmentSliceOrNull(0, in.length());
-            if (full != null) {
-                return action.apply(i -> full.asSlice(offsets[i], length));
+            boolean segmentsAvailable = true;
+            // Pre-compute all needed MemorySegments
+            MemorySegment[] segments = new MemorySegment[count];
+            for (int i = 0; i < count; i++) {
+                segments[i] = msai.segmentSliceOrNull(offsets[i], length);
+                if (segments[i] == null) {
+                    segmentsAvailable = false;
+                    break;
+                }
+            }
+            if (segmentsAvailable) {
+                return action.apply(i -> {
+                    assert i < segments.length;
+                    return segments[i];
+                });
             }
         }
         if (in instanceof DirectAccessInput dai) {
@@ -214,21 +229,25 @@ public final class IndexInputUtils {
         int count,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
-        MemorySegment full = msai.segmentSliceOrNull(0, ((IndexInput) msai).length());
-        if (full == null) {
-            return false;
-        }
-        assert validateNativeSegment(full, "mmap segment");
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment addrs = allocateAddrs(arena, count);
             for (int i = 0; i < count; i++) {
-                addrs.setAtIndex(ValueLayout.ADDRESS, i, full.asSlice(offsets[i], length));
+                var segment = msai.segmentSliceOrNull(offsets[i], length);
+                if (segment == null) {
+                    return false;
+                }
+                assert validateNativeSegment(segment, "mmap segment");
+                addrs.setAtIndex(ValueLayout.ADDRESS, i, segment);
             }
             assert validateAddresses(addrs, count);
             try {
                 action.accept(addrs);
             } finally {
-                Reference.reachabilityFence(full);
+                // We rely on the MSAI contract that segments returned by
+                // segmentSliceOrNull remain valid until the input is closed:
+                // keeping msai reachable across the native call keeps the
+                // backing memory alive.
+                Reference.reachabilityFence(msai);
             }
         }
         return true;

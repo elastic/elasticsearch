@@ -29,7 +29,6 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOSupplier;
-import org.apache.lucene.util.SparseFixedBitSet;
 
 import java.io.IOException;
 import java.util.List;
@@ -102,27 +101,14 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
     }
 
-    private static BitSet sliceBitSet(BitSet bitSet, SliceAcceptDocs slice, int maxDoc) {
-        if (slice == null) {
-            return bitSet;
+    private static BitSet sliceBitSet(BitSet bitSet, SliceAcceptDocs slice) {
+        if (slice != null) {
+            int startDoc = Math.max(0, slice.startDoc());
+            int endDoc = Math.min(bitSet.length() - 1, slice.endDoc());
+            bitSet.clear(0, startDoc);
+            bitSet.clear(endDoc + 1, bitSet.length());
         }
-        int startDoc = Math.max(0, slice.startDoc());
-        int endDoc = Math.min(maxDoc - 1, slice.endDoc());
-        if (startDoc == 0 && endDoc >= maxDoc - 1) {
-            return bitSet;
-        }
-        int threshold = maxDoc >> 7; // same as BitSet#of
-        if ((endDoc + startDoc + 1) >= threshold) {
-            FixedBitSet sliced = new FixedBitSet(maxDoc);
-            sliced.set(startDoc, endDoc + 1);
-            return sliced;
-        } else {
-            SparseFixedBitSet sliced = new SparseFixedBitSet(maxDoc);
-            for (int doc = bitSet.nextSetBit(startDoc); doc != NO_MORE_DOCS && doc <= endDoc; doc = bitSet.nextSetBit(doc + 1)) {
-                sliced.set(doc);
-            }
-            return sliced;
-        }
+        return bitSet;
     }
 
     public record SliceAcceptDocs(int startDoc, int endDoc) {
@@ -355,7 +341,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             if (acceptBitSet == null) {
                 DocIdSetIterator iterator = scorerSupplier.get(NO_MORE_DOCS).iterator();
                 if (liveDocs == null && iterator instanceof BitSetIterator) {
-                    acceptBitSet = sliceBitSet(createBitSet(iterator, liveDocs, maxDoc), slice, maxDoc);
+                    acceptBitSet = sliceBitSet(createBitSet(iterator, liveDocs, maxDoc), slice);
                 } else {
                     iterator = sliceIterator(iterator, slice);
                     acceptBitSet = createBitSet(iterator, liveDocs, maxDoc);

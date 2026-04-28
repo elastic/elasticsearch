@@ -156,18 +156,18 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     @Override
     public void runUpdate(ClusterState latestState) {
         // roll over legacy ml anomalies indices if necessary
-        ElasticsearchStatusException rolloverFailure = null;
+        Exception rolloverFailure = null;
         try {
             runRolloverLoop(latestState);
-        } catch (ElasticsearchStatusException e) {
+        } catch (Exception e) {
             rolloverFailure = e;
         }
 
         // heal reindexed-v7 ml anomalies indices if necessary
-        ElasticsearchStatusException healFailure = null;
+        Exception healFailure = null;
         try {
             healReindexedV7Anomalies(latestState);
-        } catch (ElasticsearchStatusException e) {
+        } catch (Exception e) {
             healFailure = e;
         }
 
@@ -408,6 +408,15 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     /**
      * Creates a new target index under {@code targetBase} with the next free 6-digit suffix.
      * Retries up to {@link #MAX_SUFFIX_RETRIES} times on {@link ResourceAlreadyExistsException}.
+     * <p>
+     * {@code existingFamily} comes from the cluster-state at the start of {@link #runUpdate}.
+     * If another node creates a conflicting index before this method runs, we increment
+     * the suffix and retry. {@code MAX_SUFFIX_RETRIES = 5} covers all likely cases,
+     * since (a) {@code targetByBase} allows just one create per base per run, and
+     * (b) outside creation of {@code .ml-anomalies-*} indices is extremely rare.
+     * If all retries fail, the heal is skipped for this candidate; no data is lost,
+     * and the next {@link #runUpdate} will work once state is up to date.
+
      */
     private String createNewTargetIndex(String targetBase, String[] existingFamily) {
         int firstSuffix = MlIndexAndAlias.nextSuffix(existingFamily);
@@ -506,23 +515,22 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      */
     private void emitAdvisoryNotifications(String badIndex, String targetIndex) {
         String clusterMessage = Strings.format(
-            "Anomaly detection historical results are stranded in index [%s] after an Elasticsearch upgrade "
-                + "(affected versions: pre-8.18.8, pre-8.19.5, pre-9.0.8, pre-9.1.5, pre-9.2.0) "
-                + "fixed a broken dynamic job_id mapping. "
+            "Anomaly detection historical results are stranded in index [%s] because an Elasticsearch upgrade "
+                + "on one of the affected versions (pre-8.18.8, pre-8.19.5, pre-9.0.8, pre-9.1.5, pre-9.2.0) "
+                + "produced a broken dynamic job_id mapping. "
                 + "New results are now written to [%s] with the correct mappings and will appear in the UI again. "
                 + "To recover the historical results, ensure your user has read and write on .ml-anomalies-* "
                 + "(or manage_ml / superuser) and run: "
                 + "POST _reindex?wait_for_completion=false "
-                + "{\"source\":{\"index\":\"%s\"},\"dest\":{\"index\":\"%s\",\"op_type\":\"create\"}}. "        
+                + "{\"source\":{\"index\":\"%s\"},\"dest\":{\"index\":\"%s\",\"op_type\":\"create\"}}. "
+                + "Using op_type:create avoids overwriting documents that were already renormalized in the destination. "
                 + "After verifying documents arrived, [%s] may be deleted. "
                 + "KB: https://support.elastic.dev/knowledge/view/d699924c",
-            badIndex,
-            targetIndex,
-            badIndex,
-            targetIndex,
-            targetIndex,
-            badIndex,
-            badIndex
+            badIndex,    // 1 stranded in index
+            targetIndex, // 2 new results written to
+            badIndex,    // 3 reindex source
+            targetIndex, // 4 reindex dest
+            badIndex     // 5 may be deleted
         );
 
         try {

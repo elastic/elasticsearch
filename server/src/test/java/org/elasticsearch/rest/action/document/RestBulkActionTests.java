@@ -293,37 +293,28 @@ public class RestBulkActionTests extends ESTestCase {
         }
     }
 
-    public void testBulkTopLevelSliceProvenanceNotSetWhenItemRoutingOverrides() throws Exception {
+    public void testBulkTopLevelSliceRejectsItemRoutingOverride() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        AtomicBoolean bulkCalled = new AtomicBoolean(false);
         try (var threadPool = createThreadPool()) {
-            final var verifyingClient = new NoOpNodeClient(threadPool) {
-                @Override
-                public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
-                    bulkCalled.set(true);
-                    assertThat(request.requests(), hasSize(1));
-                    IndexRequest first = (IndexRequest) request.requests().get(0);
-                    assertThat(first.routing(), equalTo("r1"));
-                    assertThat(first.isRoutingFromSlice(), equalTo(false));
-                }
-            };
+            final var client = new NoOpNodeClient(threadPool);
+            FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                .withParams(Map.of("_slice", "s1"))
+                .withContent(new BytesArray("""
+                    {"index":{"_id":"1","routing":"r1"}}
+                    {"field1":"val1"}
+                    """), XContentType.JSON)
+                .withMethod(RestRequest.Method.POST)
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, true);
             new RestBulkAction(
                 settings(IndexVersion.current()).build(),
                 ClusterSettings.createBuiltInClusterSettings(),
                 new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
-            ).handleRequest(
-                new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                    .withParams(Map.of("_slice", "s1"))
-                    .withContent(new BytesArray("""
-                        {"index":{"_id":"1","routing":"r1"}}
-                        {"field1":"val1"}
-                        """), XContentType.JSON)
-                    .withMethod(RestRequest.Method.POST)
-                    .build(),
-                mock(RestChannel.class),
-                verifyingClient
-            );
-            assertThat(bulkCalled.get(), equalTo(true));
+            ).handleRequest(request, channel, client);
+            try (var response = channel.capturedResponse()) {
+                assertThat(response.status().getStatus(), equalTo(400));
+                assertThat(response.content().utf8ToString(), containsString("contains both [routing] and [_slice]"));
+            }
         }
     }
 

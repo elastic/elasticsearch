@@ -395,7 +395,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> rewriteAndFetch(knnQuery, queryRewriteContext));
-        assertThat(e.getMessage(), equalTo("[inference_id] must be specified."));
+        assertThat(e.getMessage(), equalTo("[inference_id] must be specified"));
     }
 
     public void testRewriteSearchRequestOnNonInferenceField() throws Exception {

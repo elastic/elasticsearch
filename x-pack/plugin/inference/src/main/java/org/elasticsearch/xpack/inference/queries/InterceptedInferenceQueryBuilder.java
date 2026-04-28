@@ -153,7 +153,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * @return The query input, or {@code null} if the query input is a plain text string or not available
      */
     @Nullable
-    protected InferenceStringGroup getQueryInput() {
+    protected InferenceStringGroup getQueryInferenceGroup() {
         return null;
     }
 
@@ -377,7 +377,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         InferenceQueryUtils.InferenceInfoRequest inferenceInfoRequest = new InferenceQueryUtils.InferenceInfoRequest(
             getFields(),
             getQuery(),
-            getQueryInput(),
+            getQueryInferenceGroup(),
             inferenceResultsMap,
             resolveWildcards(),
             useDefaultFields(),

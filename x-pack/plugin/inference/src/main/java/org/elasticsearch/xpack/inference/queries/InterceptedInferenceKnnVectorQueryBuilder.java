@@ -131,11 +131,6 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             query = textEmbeddingQueryVectorBuilder.getModelText();
         } else if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
             if (eqvb.getInferenceId() == null) {
-                if (eqvb.getInput().containsMultipleInferenceStrings()) {
-                    throw new IllegalArgumentException(
-                        "[inference_id] must be specified when using multiple inputs in an embedding query vector builder"
-                    );
-                }
                 if (eqvb.getInput().containsNonTextEntry() == false) {
                     // Otherwise, getQueryInput() will retrieve the data
                     query = eqvb.getInput().textValue();
@@ -150,7 +145,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
 
     @Override
     @Nullable
-    protected InferenceStringGroup getQueryInput() {
+    protected InferenceStringGroup getQueryInferenceGroup() {
         QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
         if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
             if (eqvb.getInferenceId() == null

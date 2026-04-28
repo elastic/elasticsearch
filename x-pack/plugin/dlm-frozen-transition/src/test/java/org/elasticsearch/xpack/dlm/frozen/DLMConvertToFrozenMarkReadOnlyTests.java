@@ -463,10 +463,6 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         converter.checkIfEligibleForConvertToFrozen();
     }
 
-    /**
-     * Creates a ProjectState with the target index, a default repository setting on the cluster metadata,
-     * and optionally registers a matching repository in the project's RepositoriesMetadata.
-     */
     public void testThrowsWhenYellowStatusTimeoutBreached() {
         createProjectState();
         ClusterHealthResponse timedOut = new ClusterHealthResponse();
@@ -489,6 +485,10 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         assertThat(capturedRequest.get(), is(nullValue()));
     }
 
+    /**
+     * Creates a ProjectState with the target index, a default repository setting on the cluster metadata,
+     * and optionally registers a matching repository in the project's RepositoriesMetadata.
+     */
     private void createProjectStateWithRepo(String repoName, boolean registerRepo) {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(

@@ -690,6 +690,27 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     // --- maybeTakeSnapshot tests ---
 
+    public void testMaybeTakeSnapshotThrowsWhenYellowStatusTimeoutBreached() {
+        // Set up cluster state with no in-progress snapshot
+        ProjectState projectState = createProjectState();
+        setState(clusterService, projectState.cluster());
+
+        // No existing snapshot — flow will reach createSnapshot -> waitForIndexYellowStatus
+        mockGetSnapshotsResponse.set(emptyGetSnapshotsResponse());
+
+        ClusterHealthResponse timedOut = new ClusterHealthResponse();
+        timedOut.setTimedOut(true);
+        mockHealthResponse.set(timedOut);
+
+        DLMConvertToFrozen converter = createConverter();
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeTakeSnapshot(indexName));
+        assertThat(exception.getMessage(), containsString("timed out"));
+        assertThat(exception.getMessage(), containsString(indexName));
+        // GetSnapshots was issued but CreateSnapshot was not
+        assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
+        assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
+    }
+
     public void testMaybeTakeSnapshot_noInProgress_noExisting_createsNew() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);

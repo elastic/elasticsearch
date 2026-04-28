@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.RerankRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 
 import java.net.URI;
@@ -23,7 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class GoogleVertexAiRerankRequest implements GoogleVertexAiRequest {
+public class GoogleVertexAiRerankRequest implements RerankRequest {
 
     private final GoogleVertexAiRerankModel model;
 
@@ -74,7 +75,7 @@ public class GoogleVertexAiRerankRequest implements GoogleVertexAiRequest {
     }
 
     public void decorateWithAuth(HttpPost httpPost) {
-        GoogleVertexAiRequest.decorateWithBearerToken(httpPost, model.getSecretSettings());
+        GoogleVertexAiRequestUtils.decorateWithBearerToken(httpPost, model.getSecretSettings());
     }
 
     public GoogleVertexAiRerankModel model() {

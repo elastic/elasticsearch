@@ -11,6 +11,8 @@ configurations {
   orcFixtureGenerator
   // Separate classpath for ParquetFixtureGenerator to avoid jar hell with repository-azure.
   parquetFixtureGenerator
+  // NdJsonFixtureGenerator: x-content JSON output + CSV parsing only (no Hadoop).
+  ndjsonFixtureGenerator
 }
 
 sourceSets {
@@ -19,6 +21,9 @@ sourceSets {
   }
   parquetFixtureGenerator {
     compileClasspath += configurations.parquetFixtureGenerator
+  }
+  ndjsonFixtureGenerator {
+    compileClasspath += configurations.ndjsonFixtureGenerator
   }
 }
 
@@ -73,4 +78,7 @@ dependencies {
   parquetFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
   parquetFixtureGenerator project(':libs:core')
   parquetFixtureGenerator project(xpackModule('esql-datasource-csv'))
+
+  ndjsonFixtureGenerator project(':libs:x-content')
+  ndjsonFixtureGenerator project(xpackModule('esql-datasource-csv'))
 }

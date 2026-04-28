@@ -24,10 +24,12 @@ public class S3DataSourceValidatorTests extends ESTestCase {
 
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
-        assertEquals("AKIA123", result.get("access_key").value());
         assertTrue(result.get("access_key").secret());
+        try (var s = result.get("access_key").secretValue()) {
+            assertEquals("AKIA123", s.toString());
+        }
         assertTrue(result.get("secret_key").secret());
-        assertEquals("us-east-1", result.get("region").value());
+        assertEquals("us-east-1", result.get("region").nonSecretValue());
         assertFalse(result.get("region").secret());
     }
 
@@ -45,7 +47,7 @@ public class S3DataSourceValidatorTests extends ESTestCase {
 
     public void testValidateDatasourceAuthCaseInsensitive() {
         var result = validator.validateDatasource(Map.of("auth", "NONE"));
-        assertEquals("none", result.get("auth").value());  // case-insensitive fields normalized to lowercase
+        assertEquals("none", result.get("auth").nonSecretValue());  // case-insensitive fields normalized to lowercase
         assertFalse(result.get("auth").secret());
     }
 
@@ -73,13 +75,13 @@ public class S3DataSourceValidatorTests extends ESTestCase {
         settings.put("region", "us-east-1");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);
-        assertEquals("us-east-1", result.get("region").value());
+        assertEquals("us-east-1", result.get("region").nonSecretValue());
         assertNull(result.get("endpoint"));
     }
 
-    // Dataset settings return plain values, not DataSourceStoredSetting — datasets never contain secrets.
+    // Dataset settings return plain values, not DataSourceSetting — datasets never contain secrets.
     // Credentials are inherited from the parent datasource at query time. The return type enforces this
-    // at compile time: validateDataset() returns Map<String, Object>, not Map<String, DataSourceStoredSetting>.
+    // at compile time: validateDataset() returns Map<String, Object>, not Map<String, DataSourceSetting>.
     public void testValidateDatasetValid() {
         Map<String, Object> result = validator.validateDataset(
             Map.of(),
@@ -226,6 +228,8 @@ public class S3DataSourceValidatorTests extends ESTestCase {
         assertTrue(result.get("access_key").secret());
         assertTrue(result.get("secret_key").secret());
         assertFalse(result.get("region").secret());
-        assertEquals("AKIA", result.get("access_key").value());
+        try (var s = result.get("access_key").secretValue()) {
+            assertEquals("AKIA", s.toString());
+        }
     }
 }

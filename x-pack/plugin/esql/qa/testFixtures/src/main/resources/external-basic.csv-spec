@@ -779,6 +779,7 @@ War and Peace: A Novel (6 Volumes) | WAR AND PEACE: A NOVEL (6 VOLUMES)
 externalRerankBooks
 required_capability: external_command
 required_capability: rerank
+required_capability: datasource_file_readers_no_text_type
 
 EXTERNAL "{{books}}"
 | WHERE book_no IN ("5327", "9032", "4536", "2776")
@@ -830,6 +831,7 @@ emp_no:integer |d:double
 topSnippetsFunction
 required_capability: external_command
 required_capability: top_snippets_function
+required_capability: datasource_file_readers_no_text_type
 
 EXTERNAL "{{books}}"
 | EVAL snippets = TOP_SNIPPETS(description, "Tolkien")
@@ -845,6 +847,7 @@ scoreFunction
 required_capability: external_command
 required_capability: top_snippets_function
 required_capability: score_function
+required_capability: datasource_file_readers_no_text_type
 
 EXTERNAL "{{books}}"
 | EVAL score = SCORE(TOP_SNIPPETS(description, "Tolkien"))

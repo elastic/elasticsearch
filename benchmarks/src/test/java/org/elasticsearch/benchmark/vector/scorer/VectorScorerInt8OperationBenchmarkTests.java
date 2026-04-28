@@ -11,19 +11,13 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.nativeaccess.jdk.ScalarOperations;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.AssumptionViolatedException;
-import org.junit.BeforeClass;
-
-import java.util.Arrays;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
-public class VectorScorerInt8OperationBenchmarkTests extends ESTestCase {
+public class VectorScorerInt8OperationBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final double delta;
@@ -33,11 +27,6 @@ public class VectorScorerInt8OperationBenchmarkTests extends ESTestCase {
         this.function = function;
         this.size = size;
         delta = 1e-3 * size;
-    }
-
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
     public void test() {
@@ -66,12 +55,10 @@ public class VectorScorerInt8OperationBenchmarkTests extends ESTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        String[] size = Utils.possibleValues(VectorScorerInt8OperationBenchmark.class, "size").toArray(new String[0]);
-        String[] functions = Utils.possibleValues(VectorScorerInt8OperationBenchmark.class, "function").toArray(new String[0]);
-        return () -> Arrays.stream(size)
-            .map(Integer::parseInt)
-            .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
-            .iterator();
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerInt8OperationBenchmark.class.getField("function"),
+            VectorScorerInt8OperationBenchmark.class.getField("size")
+        );
     }
 }

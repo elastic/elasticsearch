@@ -28,6 +28,8 @@ public @interface Param {
 
     boolean optional() default false;
 
+    String applies_to() default "";
+
     // version since which the parameter is available
     String since() default "";
 

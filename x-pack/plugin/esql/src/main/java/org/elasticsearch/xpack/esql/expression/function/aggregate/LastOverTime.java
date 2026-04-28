@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -52,13 +53,19 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(LastOverTime.class)
         .ternary(LastOverTime::new)
         .name("last_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeries(LastOverTime::new)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Returns the most recent value of each time series in the specified time range.")
+        .example("last_over_time(http_requests_total[1h])")
+        .name("last_over_time");
 
     private final Expression timestamp;
 
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        returnType = { "long", "integer", "double", "_tsid", "exponential_histogram", "tdigest" },
+        returnType = { "long", "integer", "double", "_tsid", "exponential_histogram", "tdigest", "date", "date_nanos", "ip", "keyword" },
         description = "Calculates the latest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
@@ -78,7 +85,12 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
                 "double",
                 "_tsid",
                 "exponential_histogram",
-                "tdigest" },
+                "tdigest",
+                "date",
+                "date_nanos",
+                "ip",
+                "keyword",
+                "text", },
             description = "the metric field to calculate the latest value for"
         ) Expression field,
         @Param(
@@ -129,7 +141,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
 
     @Override
     public DataType dataType() {
-        return field().dataType().noCounter();
+        return field().dataType().noCounter().noText();
     }
 
     @Override
@@ -139,7 +151,12 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
             dt -> (dt.noCounter().isNumeric() && dt != DataType.UNSIGNED_LONG)
                 || dt == DataType.TSID_DATA_TYPE
                 || dt == DataType.EXPONENTIAL_HISTOGRAM
-                || dt == DataType.TDIGEST,
+                || dt == DataType.TDIGEST
+                || dt == DataType.DATETIME
+                || dt == DataType.DATE_NANOS
+                || dt == DataType.KEYWORD
+                || dt == DataType.TEXT
+                || dt == DataType.IP,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long"
@@ -154,11 +171,11 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         // we can read the first encountered value for each group of `_tsid` and time bucket.
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG, COUNTER_LONG -> new LastLongByTimestampAggregatorFunctionSupplier();
+            case LONG, COUNTER_LONG, DATETIME, DATE_NANOS -> new LastLongByTimestampAggregatorFunctionSupplier();
             case INTEGER, COUNTER_INTEGER -> new LastIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE, COUNTER_DOUBLE -> new LastDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new LastFloatByTimestampAggregatorFunctionSupplier();
-            case TSID_DATA_TYPE -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
+            case TSID_DATA_TYPE, IP, KEYWORD, TEXT -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
             case EXPONENTIAL_HISTOGRAM -> new LastExponentialHistogramByTimestampAggregatorFunctionSupplier();
             case TDIGEST -> new LastTDigestByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);

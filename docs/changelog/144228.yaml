@@ -1,0 +1,8 @@
+area: ES|QL
+issues:
+ - 145206
+ - 141994
+pr: 144228
+summary: "Make unmapped_fields=\"load\" automatically trigger for partially mapped\
+  \ KEYWORD fields, and allow projecting partially mapped non-KEYWORD fields"
+type: bug

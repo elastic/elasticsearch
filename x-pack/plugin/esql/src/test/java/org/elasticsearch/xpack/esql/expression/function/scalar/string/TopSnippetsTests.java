@@ -101,9 +101,9 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(new BytesRef(text), fieldDataType, "field"),
                     new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query").forceLiteral()
                 ),
-                "TopSnippetsEvaluator[field=Attribute[channel=0], query=LiteralsEvaluator[lit="
+                "TopSnippetsEvaluator[field=Attribute[channel=0], queryString="
                     + query
-                    + "], "
+                    + ", "
                     + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
                     + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
                 DataType.KEYWORD,
@@ -151,9 +151,9 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     values,
-                    "TopSnippetsEvaluator[field=Attribute[channel=0], query=LiteralsEvaluator[lit="
+                    "TopSnippetsEvaluator[field=Attribute[channel=0], queryString="
                         + query
-                        + "], "
+                        + ", "
                         + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}, "
                         + "scorer=MemoryIndexChunkScorer, numSnippets=3]",
                     DataType.KEYWORD,
@@ -165,6 +165,17 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     }
 
     private static MapExpression createOptions(Integer numSnippets, Integer numWords) {
+        return createOptions(numSnippets, numWords, null, null, null, null);
+    }
+
+    private static MapExpression createOptions(
+        Integer numSnippets,
+        Integer numWords,
+        Boolean highlight,
+        String preTag,
+        String postTag,
+        String encoder
+    ) {
         List<Expression> optionsMap = new ArrayList<>();
 
         if (Objects.nonNull(numSnippets)) {
@@ -175,6 +186,26 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         if (Objects.nonNull(numWords)) {
             optionsMap.add(Literal.keyword(Source.EMPTY, "num_words"));
             optionsMap.add(new Literal(Source.EMPTY, numWords, DataType.INTEGER));
+        }
+
+        if (Objects.nonNull(highlight)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "highlight"));
+            optionsMap.add(new Literal(Source.EMPTY, highlight, DataType.BOOLEAN));
+        }
+
+        if (Objects.nonNull(preTag)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "pre_tag"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, preTag));
+        }
+
+        if (Objects.nonNull(postTag)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "post_tag"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, postTag));
+        }
+
+        if (Objects.nonNull(encoder)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "encoder"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, encoder));
         }
 
         return optionsMap.isEmpty() ? null : new MapExpression(Source.EMPTY, optionsMap);
@@ -273,8 +304,90 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         assertThat(result, equalTo(expected));
     }
 
+    public void testHighlightDefaultTags() {
+        String text = "The Adirondack Park is a beautiful wilderness area.";
+        List<String> result = processWithHighlight(text, "park", 5, 300, true, null, null, null);
+        assertThat(result, equalTo(List.of("The Adirondack <em>Park</em> is a beautiful wilderness area.")));
+    }
+
+    public void testHighlightCustomTags() {
+        String text = "The Adirondack Park is a beautiful wilderness area.";
+        List<String> result = processWithHighlight(text, "park", 5, 300, true, "<b>", "</b>", null);
+        assertThat(result, equalTo(List.of("The Adirondack <b>Park</b> is a beautiful wilderness area.")));
+    }
+
+    public void testHighlightMultipleTerms() {
+        String text = "Elasticsearch is a search engine. Lucene powers Elasticsearch.";
+        List<String> result = processWithHighlight(text, "elasticsearch lucene", 5, 300, true, null, null, null);
+        assertThat(result, equalTo(List.of("<em>Elasticsearch</em> is a search engine. <em>Lucene</em> powers <em>Elasticsearch</em>.")));
+    }
+
+    public void testHighlightFalseReturnsPlainText() {
+        String text = "The Adirondack Park is a beautiful wilderness area.";
+        List<String> withHighlight = processWithHighlight(text, "park", 5, 300, true, null, null, null);
+        List<String> withoutHighlight = processWithHighlight(text, "park", 5, 300, false, null, null, null);
+        List<String> noHighlightOption = process(text, "park", 5, 300);
+
+        assertThat(withHighlight, equalTo(List.of("The Adirondack <em>Park</em> is a beautiful wilderness area.")));
+        assertThat(withoutHighlight, equalTo(List.of("The Adirondack Park is a beautiful wilderness area.")));
+        assertThat(noHighlightOption, equalTo(List.of("The Adirondack Park is a beautiful wilderness area.")));
+    }
+
+    public void testHighlightHtmlEncoder() {
+        String text = "Use <b>bold</b> & special chars with the Ring.";
+        List<String> result = processWithHighlight(text, "ring", 5, 300, true, null, null, "html");
+        assertThat(result, equalTo(List.of("Use &lt;b&gt;bold&lt;&#x2F;b&gt; &amp; special chars with the <em>Ring</em>.")));
+    }
+
+    /**
+     * TOP_SNIPPETS uses StandardAnalyzer (no stemming), so query "return" matches only the exact token "return",
+     * not "returns". The search highlight API instead uses the field's index analyzer from the mapping
+     * (see DefaultHighlighter.buildHighlighter / getIndexAnalyzer), so when a field is mapped with e.g. the
+     * english analyzer, the highlight API will highlight "returns" for query "return". Parity would require
+     * passing the field's analyzer when the input is from an indexed field.
+     */
+    public void testHighlightNoStemmingUsesExactTermOnly() {
+        String text = "The API returns results. Use the return value to continue.";
+        List<String> result = processWithHighlight(text, "return", 5, 300, true, null, null, null);
+        assertThat(result, equalTo(List.of("The API returns results. Use the <em>return</em> value to continue.")));
+    }
+
+    public void testHighlightPreservesWholeChunk() {
+        // A long chunk with many matching terms — highlighting must return the entire chunk as-is
+        // (with markup), not split it into smaller passages.
+        String text = "Elasticsearch is a search engine built on Lucene. "
+            + "Elasticsearch supports distributed search across many nodes. "
+            + "Elasticsearch provides near real-time search capabilities. "
+            + "Elasticsearch scales horizontally for large search workloads.";
+        List<String> result = processWithHighlight(text, "elasticsearch search", 1, 300, true, null, null, null);
+        assertThat(
+            result,
+            equalTo(
+                List.of(
+                    "<em>Elasticsearch</em> is a <em>search</em> engine built on Lucene. "
+                        + "<em>Elasticsearch</em> supports distributed <em>search</em> across many nodes. "
+                        + "<em>Elasticsearch</em> provides near real-time <em>search</em> capabilities. "
+                        + "<em>Elasticsearch</em> scales horizontally for large <em>search</em> workloads."
+                )
+            )
+        );
+    }
+
     private List<String> process(String str, String query, int numSnippets, int numWords) {
-        MapExpression optionsMap = createOptions(numSnippets, numWords);
+        return processWithHighlight(str, query, numSnippets, numWords, null, null, null, null);
+    }
+
+    private List<String> processWithHighlight(
+        String str,
+        String query,
+        int numSnippets,
+        int numWords,
+        Boolean highlight,
+        String preTag,
+        String postTag,
+        String encoder
+    ) {
+        MapExpression optionsMap = createOptions(numSnippets, numWords, highlight, preTag, postTag, encoder);
 
         try (
             ExpressionEvaluator eval = evaluator(

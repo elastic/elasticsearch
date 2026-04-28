@@ -285,7 +285,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
     }
 
     /**
-     * We use this class to fake the auth implementation to avoid static mocking of {@link GoogleVertexAiRequest}
+     * We use this class to fake the auth implementation to avoid static mocking of {@link GoogleVertexAiRequestUtils}
      */
     private static class GoogleVertexAiEmbeddingsWithoutAuthRequest extends GoogleVertexAiEmbeddingsRequest {
 

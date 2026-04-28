@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.Split
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -51,6 +52,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class FileSplitProviderTests extends ESTestCase {
 
@@ -640,7 +648,7 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
-    public void testRangeAwareFallbackForSingleRowGroup() {
+    public void testRangeAwareFallbackForEmptyRanges() {
         RangeAwareFormatReader mockReader = createMockRangeReader(List.<SplitRange>of());
 
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
@@ -663,11 +671,133 @@ public class FileSplitProviderTests extends ESTestCase {
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
 
-        assertEquals("Single row group should produce single split", 1, splits.size());
+        assertEquals("Empty ranges should produce single whole-file split", 1, splits.size());
         FileSplit fs = (FileSplit) splits.get(0);
         assertEquals(0, fs.offset());
         assertEquals(500, fs.length());
-        assertNull("Single split should not have RANGE_SPLIT_KEY", fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
+        assertNull("Whole-file split should not have RANGE_SPLIT_KEY", fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
+    }
+
+    public void testRangeAwareSingleRowGroupReturnsOneRangeWithStats() {
+        SplitRange singleRange = new SplitRange(4, 496, Map.of("_stats.row_count", 1000L, "_stats.columns.id.null_count", 0L));
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(singleRange));
+
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.byName("parquet");
+
+        StorageProviderRegistry storageRegistry = createMockStorageRegistry();
+
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            new DecompressionCodecRegistry(),
+            storageRegistry,
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/one_rg.parquet"), 500, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertEquals("Single range should produce one split", 1, splits.size());
+        FileSplit fs = (FileSplit) splits.get(0);
+        assertEquals(4, fs.offset());
+        assertEquals(496, fs.length());
+        assertEquals("true", fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
+        assertNotNull("Split stats should be populated", fs.statistics());
+        assertEquals(1000L, fs.statistics().get("_stats.row_count"));
+        assertEquals(0L, fs.statistics().get("_stats.columns.id.null_count"));
+    }
+
+    public void testMultiFileEachSingleRowGroupProducesSplitsWithStats() {
+        SplitRange range1 = new SplitRange(4, 496, Map.of("_stats.row_count", 500L));
+        SplitRange range2 = new SplitRange(4, 296, Map.of("_stats.row_count", 300L));
+        SplitRange range3 = new SplitRange(4, 196, Map.of("_stats.row_count", 200L));
+
+        RangeAwareFormatReader mockReader = new RangeAwareFormatReader() {
+            private int callCount = 0;
+            private final List<List<SplitRange>> perFileRanges = List.of(List.of(range1), List.of(range2), List.of(range3));
+
+            @Override
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                return perFileRanges.get(callCount++);
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(
+                StorageObject object,
+                List<String> projectedColumns,
+                int batchSize,
+                long rangeStart,
+                long rangeEnd,
+                List<Attribute> resolvedAttributes,
+                ErrorPolicy errorPolicy
+            ) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet");
+            }
+
+            @Override
+            public void close() {}
+        };
+
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.byName("parquet");
+
+        StorageProviderRegistry storageRegistry = createMockStorageRegistry();
+
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            new DecompressionCodecRegistry(),
+            storageRegistry,
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://b/file1.parquet"), 500, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://b/file2.parquet"), 300, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://b/file3.parquet"), 200, Instant.EPOCH)
+            ),
+            "s3://b/*.parquet"
+        );
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertEquals("Each file should produce one split", 3, splits.size());
+        long totalRowCount = 0;
+        for (ExternalSplit split : splits) {
+            FileSplit fs = (FileSplit) split;
+            assertNotNull("Each split should have stats", fs.statistics());
+            assertNotNull("Each split should have row count", fs.statistics().get("_stats.row_count"));
+            totalRowCount += ((Number) fs.statistics().get("_stats.row_count")).longValue();
+        }
+        assertEquals("Total row count across splits should be sum of all files", 1000L, totalRowCount);
     }
 
     private static RangeAwareFormatReader createMockRangeReader(List<SplitRange> ranges) {
@@ -1138,6 +1268,189 @@ public class FileSplitProviderTests extends ESTestCase {
 
         assertEquals("Only pathA should survive partition + filter-column pruning", 1, splits.size());
         assertEquals(pathA, ((FileSplit) splits.get(0)).path());
+    }
+
+    public void testStorageObjectForSplit_wholeFileUsesRangeWrapper() {
+        StoragePath path = StoragePath.of("file:///tmp/x.ndjson.gz");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path)).thenReturn(delegate);
+        FileSplit split = new FileSplit("file", path, 0, 42L, ".gz", Map.of(), Map.of());
+        StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
+        assertThat(got, instanceOf(RangeStorageObject.class));
+        RangeStorageObject range = (RangeStorageObject) got;
+        assertEquals(0, range.offset());
+        assertEquals(42L, range.length());
+        verify(storage).newObject(path);
+        verify(storage, never()).newObject(eq(path), eq(42L));
+    }
+
+    public void testStorageObjectForSplit_firstMacroSegmentUsesRangeWrapper() {
+        StoragePath path = StoragePath.of("file:///tmp/x.ndjson.bz2");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path)).thenReturn(delegate);
+        Map<String, Object> cfg = Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true");
+        FileSplit split = new FileSplit("file", path, 0, 10L, ".bz2", cfg, Map.of());
+        StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
+        assertThat(got, instanceOf(RangeStorageObject.class));
+        verify(storage).newObject(path);
+        verify(storage, never()).newObject(eq(path), eq(10L));
+    }
+
+    public void testStorageObjectForSplit_positiveOffsetUsesRangeWrapper() {
+        StoragePath path = StoragePath.of("file:///tmp/x.ndjson");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path)).thenReturn(delegate);
+        FileSplit split = new FileSplit("file", path, 7, 10L, ".ndjson", Map.of(), Map.of());
+        StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
+        assertThat(got, instanceOf(RangeStorageObject.class));
+        verify(storage).newObject(path);
+    }
+
+    /**
+     * Multi-group grouping must place each boundary into exactly one macro-split, and groups must
+     * cover all boundaries in order without gaps.
+     */
+    public void testGroupBoundariesProducesContiguousGroups() {
+        long[] boundaries = { 0, 10, 20, 35, 55, 80, 110 };
+        long fileLength = 150;
+        // target = 30: first group 0..2 (span to index 3 = 35 >= 30), then 3..4 (span to idx 5 = 45 >= 30), then last 5..6
+        int[][] groups = FileSplitProvider.groupBoundaries(boundaries, fileLength, 30);
+        assertTrue("At least two groups expected", groups.length >= 2);
+
+        assertEquals("First group starts at block 0", 0, groups[0][0]);
+        for (int i = 1; i < groups.length; i++) {
+            assertEquals("Group " + i + " must start where previous ended + 1", groups[i - 1][1] + 1, groups[i][0]);
+        }
+        assertEquals("Last group ends at the last block index", boundaries.length - 1, groups[groups.length - 1][1]);
+    }
+
+    /**
+     * End-to-end check for the macro-split disjointness invariant: for a file with a splittable
+     * codec, the generated splits must satisfy {@code split[m+1].offset == split[m].offset + split[m].length},
+     * never overlap, and collectively cover the full file. Overlaps here would cause record duplication
+     * at the NDJSON reader level (regression guard).
+     */
+    public void testBlockAlignedMacroSplitsAreDisjoint() {
+        long fileLength = 1_000_000_000L;
+        // Spaced ~5 MB per block for 200 blocks; macro target (32 MB) groups ~7 blocks per macro-split.
+        long[] boundaries = new long[200];
+        for (int i = 0; i < boundaries.length; i++) {
+            boundaries[i] = (long) i * 5_000_000L;
+        }
+
+        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        codecRegistry.register(new FakeSplittableCodec(boundaries));
+
+        StorageProviderRegistry storageRegistry = createMockStorageRegistry();
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecRegistry);
+
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            storageRegistry,
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/huge.ndjson.bz2"), fileLength, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson.bz2");
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertTrue("Expected multiple macro-splits", splits.size() >= 3);
+
+        FileSplit first = (FileSplit) splits.get(0);
+        assertEquals("First split starts at block 0 boundary (== 0)", 0L, first.offset());
+        assertEquals("First split is marked first", "true", first.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+
+        for (int i = 1; i < splits.size(); i++) {
+            FileSplit prev = (FileSplit) splits.get(i - 1);
+            FileSplit cur = (FileSplit) splits.get(i);
+            assertEquals(
+                "Split " + i + " must start exactly where split " + (i - 1) + " ends (disjoint, no overlap, no gap)",
+                prev.offset() + prev.length(),
+                cur.offset()
+            );
+            assertNull("Only the first split may carry the first-split marker", cur.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+        }
+
+        FileSplit last = (FileSplit) splits.get(splits.size() - 1);
+        assertEquals("Last split must cover up to file length", fileLength, last.offset() + last.length());
+        assertEquals("Last split is marked last", "true", last.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+    }
+
+    /**
+     * Small-file fast path: when the block boundaries fit inside a single macro-split target, the
+     * splitter must emit exactly one {@link FileSplit} that covers the whole file and carries
+     * both the first- and last-split markers. Exercises the {@code isLastMacroSplit && m == 0}
+     * branch of {@code tryBlockAlignedSplits}.
+     */
+    public void testBlockAlignedSingleMacroSplit() {
+        long fileLength = 1_000_000L; // well under DEFAULT_MACRO_SPLIT_TARGET (32 MB)
+        long[] boundaries = { 0L, 200_000L, 500_000L, 800_000L };
+
+        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        codecRegistry.register(new FakeSplittableCodec(boundaries));
+
+        StorageProviderRegistry storageRegistry = createMockStorageRegistry();
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecRegistry);
+
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            storageRegistry,
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/small.ndjson.bz2"), fileLength, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson.bz2");
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertEquals("Small file must produce a single macro-split", 1, splits.size());
+        FileSplit only = (FileSplit) splits.get(0);
+        assertEquals("Single split must start at offset 0", 0L, only.offset());
+        assertEquals("Single split must cover the full file", fileLength, only.length());
+        assertEquals("Single split must carry the first-split marker", "true", only.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+        assertEquals("Single split must carry the last-split marker", "true", only.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+    }
+
+    /** Fake SplittableDecompressionCodec returning canned block boundaries, for unit-testing split logic. */
+    private static final class FakeSplittableCodec implements SplittableDecompressionCodec {
+        private final long[] boundaries;
+
+        FakeSplittableCodec(long[] boundaries) {
+            this.boundaries = boundaries;
+        }
+
+        @Override
+        public String name() {
+            return "fake-bz2";
+        }
+
+        @Override
+        public List<String> extensions() {
+            return List.of(".bz2");
+        }
+
+        @Override
+        public InputStream decompress(InputStream raw) {
+            return raw;
+        }
+
+        @Override
+        public long[] findBlockBoundaries(StorageObject object, long start, long end) {
+            return boundaries.clone();
+        }
+
+        @Override
+        public InputStream decompressRange(StorageObject object, long blockStart, long nextBlockStart) {
+            return new ByteArrayInputStream(new byte[0]);
+        }
     }
 
     // -- helpers --

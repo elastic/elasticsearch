@@ -198,21 +198,21 @@ null                      | null
 null                      | null
 ;
 
-keepWithPattern
+simpleUnmappedNullify
 required_capability: optional_fields_nullify_tech_preview
 
 // tag::unmapped-nullify-simple-keep[]
 SET unmapped_fields="nullify"\;
-FROM employees
-| KEEP emp_*, foo
-| SORT emp_no
+FROM partial_mapping_sample_data
+| KEEP event_duration, unmapped_message
+| SORT event_duration
 | LIMIT 1
 // end::unmapped-nullify-simple-keep[]
 ;
 
 // tag::unmapped-nullify-simple-keep-result[]
-emp_no:integer | foo:null
-10001          | null
+event_duration:long | unmapped_message:null
+725447              | null
 // end::unmapped-nullify-simple-keep-result[]
 ;
 
@@ -1058,14 +1058,14 @@ required_capability: sample_v3
 SET unmapped_fields="nullify"\;
 FROM alerts
 | KEEP kibana.alert.risk_score
-| FORK (WHERE true | MV_EXPAND kibana.alert.risk_score) (WHERE true | SAMPLE 0.5) 
+| FORK (WHERE true | MV_EXPAND kibana.alert.risk_score) (WHERE true | SAMPLE 0.5)
 | STATS kibana.alert.risk_score = COUNT(*)
 | EVAL x = LEAST(kibana.alert.risk_score, 52, 60)
 | KEEP kibana.alert.risk_score
 ;
 
 kibana.alert.risk_score:long
-10..20                           
+10..20
 ;
 
 
@@ -1082,6 +1082,23 @@ ROW a = 12::long
 
 _fork:keyword  | x:long
 fork1          | 12
+;
+
+// Reproducer for https://github.com/elastic/elasticsearch/issues/142616
+flattenedSubfieldNullified
+required_capability: optional_fields_fix_nullify_flattened_subfield
+
+SET unmapped_fields="nullify"\;
+FROM flattened_otel_logs
+| KEEP @timestamp, resource.attributes.host.name
+| SORT @timestamp ASC
+| LIMIT 3
+;
+
+@timestamp:date          | resource.attributes.host.name:null
+2020-01-01T00:02:48.461Z | null
+2020-01-01T00:07:43.000Z | null
+2020-01-01T00:31:18.303Z | null
 ;
 
 propagateNullableOrDisjunctionUnmappedField

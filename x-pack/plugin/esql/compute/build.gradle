@@ -621,14 +621,26 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/IrateLongAggregator.java"
   }
   template {
-    it.properties = floatProperties
-    it.inputFile = irateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/IrateFloatAggregator.java"
-  }
-  template {
     it.properties = doubleProperties
     it.inputFile = irateAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/IrateDoubleAggregator.java"
+  }
+
+  File ideltaAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-IdeltaAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = ideltaAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IdeltaIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = ideltaAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IdeltaLongAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = ideltaAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IdeltaDoubleAggregator.java"
   }
 
   File deltaAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-DeltaAggregator.java.st")
@@ -1203,6 +1215,9 @@ tasks.named('stringTemplates').configure {
               v1.forEach { k, v -> properties["v1_" + k] = v }
             }
             v2.forEach { k, v -> properties["v2_" + k] = v }
+            if (prefix != "") {
+              properties["v1_TailArray"] = properties["v1_boolean"] ? "ByteArray" : properties["v1_Array"]
+            }
 
             template {
               it.properties = addOccurrence(properties, Occurrence) + [Prefix: prefix]

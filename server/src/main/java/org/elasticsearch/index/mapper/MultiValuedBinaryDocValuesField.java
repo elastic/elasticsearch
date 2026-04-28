@@ -114,6 +114,45 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     }
 
     /**
+     * Utility method to add all ignored source values to their respective lucene document.
+     * <p>
+     * This method optimizes for non nested use case. For nested case, it will delegate to
+     * {@link #addToBinaryFieldInDoc(LuceneDocument, String, BytesRef, ValueOrdering)}, given that each ignored source value needs to be
+     * added to each respetive lucene document.
+     */
+    public static void addIgnoredSourceValues(
+        Collection<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
+        String fieldName,
+        ValueOrdering ordering,
+        IndexVersion indexVersion,
+        boolean hasNestedDocs
+    ) {
+        assert ignoredFieldValues.isEmpty() == false;
+        if (hasNestedDocs) {
+            for (var nameValue : ignoredFieldValues) {
+                var encodedValue = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(nameValue);
+                addToBinaryFieldInDoc(nameValue.doc(), fieldName, encodedValue, ordering, indexVersion);
+            }
+        } else {
+            // In the non-nested case all ignored source values only need to be added to one Lucene document,
+            // and then we can avoid the usage of LuceneDocument#addWithKey(...), which results in redundant hash map interaction.
+            final boolean useSeparateCount = indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+            var ignoredSourceField = useSeparateCount ? new SeparateCount(fieldName, ordering) : new IntegratedCount(fieldName, ordering);
+            var luceneDocument = ignoredFieldValues.iterator().next().doc();
+            for (var value : ignoredFieldValues) {
+                assert value.doc() == luceneDocument;
+                ignoredSourceField.add(IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(value));
+            }
+            luceneDocument.add(ignoredSourceField);
+            if (useSeparateCount) {
+                String countFieldName = fieldName + SeparateCount.COUNT_FIELD_SUFFIX;
+                var countField = NumericDocValuesField.indexedField(countFieldName, ignoredSourceField.count());
+                luceneDocument.add(countField);
+            }
+        }
+    }
+
+    /**
      * Format that integrates the value count into the binary payload itself.
      * <p>
      * Encoding: {@code [count][len1][val1][len2][val2]...}

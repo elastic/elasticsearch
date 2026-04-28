@@ -401,6 +401,8 @@ allprojects {
         splitForCI(project, "Part4")
       } else if (project.path.contains(":esql-datasource") || project.path.contains(":esql-core")) {
         splitForCI(project, "Part5")
+      } else if (project.path.contains(":esql:qa") && project.path.contains("multi-node")) {
+        splitForCI(project, "Part5")
       } else if (project.path.contains(":esql:qa")) {
         splitForCI(project, "Part3")
       } else if (project.path.contains(":eql") || project.path.contains(":sql") || project.path.contains(":transform") ||
@@ -408,13 +410,15 @@ allprojects {
         splitForCI(project, "Part5")
       } else if (project.path.contains("ql")) {
         splitForCI(project, "Part3")
+      } else if (project.path == ":x-pack:plugin") {
+        splitForCI(project, "Part1")
       } else {
         splitForCI(project, "Part2")
       }
     } else if (project.path.startsWith(":qa:") || project.path.startsWith(":test:")) {
       splitForCI(project, "Part6")
     } else if (project.path.startsWith(":libs:")) {
-      splitForCI(project, "Part3")
+      splitForCI(project, "Part6")
     } else {
       splitForCI(project, "Part1")
     }

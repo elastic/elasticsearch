@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,6 +34,11 @@ public class Abs extends UnaryScalarFunction {
             // Produce a {@code warning} and {@code null} when you run {@code ABS} on {@code Long.MIN_VALUE}.
             "min_warning"
         )
+        .name("abs");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation(Abs::new)
+        .description("Returns the input vector with all sample values converted to their absolute value.")
+        .example("abs(rate(http_requests_total[5m]))")
         .name("abs");
 
     @FunctionInfo(

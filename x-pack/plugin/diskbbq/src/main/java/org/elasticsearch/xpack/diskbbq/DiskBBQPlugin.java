@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.diskbbq;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -36,7 +37,11 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
         License.OperationMode.ENTERPRISE
     );
 
-    public DiskBBQPlugin(Settings settings) {}
+    private final boolean statelessNode;
+
+    public DiskBBQPlugin(Settings settings) {
+        this.statelessNode = DiscoveryNode.isStateless(settings);
+    }
 
     protected XPackLicenseState getLicenseState() {
         return XPackPlugin.getSharedLicenseState();
@@ -49,7 +54,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
             public boolean isVectorIndexTypeAllowed(IndexVersion indexVersionCreated, DenseVectorFieldMapper.VectorIndexType indexType) {
                 return indexType != DenseVectorFieldMapper.VectorIndexType.BBQ_DISK
                     || indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT) == false
-                    || DISK_BBQ_FEATURE.check(getLicenseState());
+                    || (statelessNode && DISK_BBQ_FEATURE.check(getLicenseState()));
             }
 
             @Override
@@ -81,7 +86,8 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             maxMergingWorkers,
                             doPrecondition,
                             ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                            flatIndexThreshold
+                            flatIndexThreshold,
+                            null
                         );
                     }
                     return new ES940DiskBBQVectorsFormat(

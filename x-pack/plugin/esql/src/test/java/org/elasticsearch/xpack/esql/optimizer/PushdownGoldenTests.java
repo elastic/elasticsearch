@@ -91,6 +91,96 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runUnmappedTests(query);
     }
 
+    public void testStartsWithOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE starts_with(_index, "sample")
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testEndsWithOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE ends_with(_index, "data")
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testLikeOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index LIKE "sample*"
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testLikeSingleCharOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index LIKE "sample_dat?"
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testLikeListOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index LIKE ("sample*", "no_match*")
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testRlikeOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index RLIKE "sample_.*"
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testRlikeListOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index RLIKE ("sample_.*", "no_match.*")
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testStartsWithOnDashedIndex() {
+        String query = """
+            FROM k8s-downsampled METADATA _index
+            | WHERE starts_with(_index, "k8s-")
+            | KEEP cluster
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testEndsWithOnDashedIndex() {
+        String query = """
+            FROM k8s-downsampled METADATA _index
+            | WHERE ends_with(_index, "-downsampled")
+            | KEEP cluster
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testLikeOnDashedIndex() {
+        String query = """
+            FROM k8s-downsampled METADATA _index
+            | WHERE _index LIKE "k8s-*"
+            | KEEP cluster
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
     private void runUnmappedTests(String query) {
         runTestsNullifyAndLoad(query, STAGES);
     }

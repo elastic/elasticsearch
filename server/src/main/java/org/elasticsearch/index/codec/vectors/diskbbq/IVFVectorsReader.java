@@ -140,6 +140,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         float visitRatio
     ) throws IOException;
 
+    /** Get the number of vectors to search, which is typically the total number of vectors in the segment or the
+     *  number of vectors in a slice if the segment is sliced.*/
+    protected int getNumberOfVectors(E entry, FloatVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
+        throws IOException {
+        return values.size();
+    }
+
     protected static IndexInput openDataInput(
         SegmentReadState state,
         int versionMeta,
@@ -213,7 +220,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         final long centroidLength = input.readLong();
         final float[] globalCentroid = new float[info.getVectorDimension()];
         long postingListOffset = -1;
-        long postingListLength = -1;
+        long postingListLength = 0;
         float globalCentroidDp = 0;
         if (centroidLength > 0) {
             postingListOffset = input.readLong();
@@ -296,8 +303,15 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
+        if (fieldInfo == null || fieldInfo.getVectorDimension() == 0) {
+            return;
+        }
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) == false) {
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
+            return;
+        }
+        final E entry = fields.get(fieldInfo.number);
+        if (hasNoVectors(fieldInfo, entry)) {
             return;
         }
         if (fieldInfo.getVectorDimension() != target.length) {
@@ -314,9 +328,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         }
 
         final FloatVectorValues values = getFloatVectorValues(field);
-        final int numVectors = values.size();
+        final IndexInput centroids = entry.centroidSlice(ivfCentroids);
+        final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
+        if (numVectors == 0) {
+            return; // nothing more to do if there are no vectors in this segment / slice
+        }
         final float approximateCost;
-        if (esAcceptDocs == ESAcceptDocs.ESAcceptDocsAll.INSTANCE) {
+        if (esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
             approximateCost = numVectors;
         } else {
             approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();
@@ -332,7 +350,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             k = ivfSearchStrategy.getK();
         }
 
-        FieldEntry entry = fields.get(fieldInfo.number);
         if (visitRatio == dynamicVisitRatio) {
             visitRatio = Math.min(computeDynamicVisitRatio(numCands, k), computeSegmentSizeCap(numVectors));
         }
@@ -342,7 +359,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
             entry.numCentroids,
-            entry.centroidSlice(ivfCentroids),
+            centroids,
             target,
             postListSlice,
             acceptDocs,
@@ -353,11 +370,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         Bits acceptDocsBits = acceptDocs.bits();
         PostingVisitor scorer = getPostingVisitor(
             fieldInfo,
-            numVectors,
+            values,
             postListSlice,
             target,
             acceptDocsBits,
-            entry.centroidSlice(ivfCentroids)
+            entry.centroidSlice(ivfCentroids),
+            esAcceptDocs
         );
         long expectedDocs = 0;
         long actualDocs = 0;
@@ -388,6 +406,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                 }
             }
         }
+    }
+
+    private static boolean hasNoVectors(FieldInfo fieldInfo, FieldEntry fieldEntry) {
+        return fieldInfo.getVectorDimension() == 0
+            || fieldEntry == null
+            || (fieldEntry.numCentroids() == 0 && fieldEntry.postingListLength == 0L && fieldEntry.centroidLength == 0L);
     }
 
     /**
@@ -544,11 +568,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     public abstract PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
-        int numVectors,
+        FloatVectorValues values,
         IndexInput postingsLists,
         float[] target,
         Bits needsScoring,
-        IndexInput centroidSlice
+        IndexInput centroidSlice,
+        ESAcceptDocs acceptDocs
     ) throws IOException;
 
     public interface PostingVisitor {

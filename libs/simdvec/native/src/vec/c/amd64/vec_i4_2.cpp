@@ -36,7 +36,6 @@ static inline int32_t doti4_inner_avx512(const int8_t* query, const int8_t* doc,
         __m512i acc_high16 = _mm512_setzero_si512();
         __m512i acc_low16 = _mm512_setzero_si512();
         const int end_raw = i + chunk;
-        // TODO: replace with std::min when we solve the gcc #pragma target inline bug
         const int end = end_raw < blk ? end_raw : blk;
 
         for (; i < end; i += stride) {
@@ -56,8 +55,6 @@ static inline int32_t doti4_inner_avx512(const int8_t* query, const int8_t* doc,
         acc = _mm512_add_epi32(acc, _mm512_madd_epi16(ones, acc_low16));
     }
 
-    int32_t total = _mm512_reduce_add_epi32(acc);
-
     // Masked tail: handle remaining bytes that don't fill a full 512-bit register.
     // Masked-off lanes load as zero, contributing nothing to the dot product.
     const int rem = packed_len - blk;
@@ -71,14 +68,14 @@ static inline int32_t doti4_inner_avx512(const int8_t* query, const int8_t* doc,
         __m512i query_high = _mm512_maskz_loadu_epi8(mask, query + blk);
         __m512i query_low = _mm512_maskz_loadu_epi8(mask, query + blk + packed_len);
 
-        __m512i wide = _mm512_add_epi32(
-            _mm512_madd_epi16(ones, _mm512_maddubs_epi16(doc_high, query_high)),
-            _mm512_madd_epi16(ones, _mm512_maddubs_epi16(doc_low, query_low))
-        );
-        total += _mm512_reduce_add_epi32(wide);
+        acc = _mm512_add_epi32(acc,
+            _mm512_add_epi32(
+                _mm512_madd_epi16(ones, _mm512_maddubs_epi16(doc_high, query_high)),
+                _mm512_madd_epi16(ones, _mm512_maddubs_epi16(doc_low, query_low))
+            ));
     }
 
-    return total;
+    return _mm512_reduce_add_epi32(acc);
 }
 
 EXPORT int32_t vec_doti4_2(const int8_t* query, const int8_t* doc, int32_t packed_len) {
@@ -161,11 +158,6 @@ static inline void doti4_bulk_impl_avx512(
             });
         }
 
-        int32_t res[batches];
-        apply_indexed<batches>([&](auto I) {
-            res[I] = _mm512_reduce_add_epi32(acc32[I]);
-        });
-
         if (tail_mask) {
             __m512i query_high = _mm512_maskz_loadu_epi8(tail_mask, query + blk);
             __m512i query_low = _mm512_maskz_loadu_epi8(tail_mask, query + blk + packed_len);
@@ -175,18 +167,18 @@ static inline void doti4_bulk_impl_avx512(
                 __m512i doc_high = _mm512_and_si512(_mm512_srli_epi16(doc_bytes, 4), mask_half_byte);
                 __m512i doc_low = _mm512_and_si512(doc_bytes, mask_half_byte);
 
-                __m512i wide = _mm512_add_epi32(
-                    _mm512_madd_epi16(ones, _mm512_maddubs_epi16(doc_high, query_high)),
-                    _mm512_madd_epi16(ones, _mm512_maddubs_epi16(doc_low, query_low))
-                );
-                res[I] += _mm512_reduce_add_epi32(wide);
+                acc32[I] = _mm512_add_epi32(acc32[I],
+                    _mm512_add_epi32(
+                        _mm512_madd_epi16(ones, _mm512_maddubs_epi16(doc_high, query_high)),
+                        _mm512_madd_epi16(ones, _mm512_maddubs_epi16(doc_low, query_low))
+                    ));
             });
         }
 
-        // TODO: consider replacing with std::copy_n when we solve the gcc #pragma target inline bug
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)res[I];
+            results[c + I] = (f32_t)_mm512_reduce_add_epi32(acc32[I]);
         });
+
         if (has_next) {
             apply_indexed<batches>([&](auto I) {
                 current_doc_ptrs[I] = next_doc_ptrs[I];

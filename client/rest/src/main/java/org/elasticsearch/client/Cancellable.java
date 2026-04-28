@@ -73,7 +73,7 @@ public abstract class Cancellable {
         }
 
         /**
-         * Executes some arbitrary code if the on-going request has not been cancelled, otherwise throws {@link CancellationException}.
+         * Executes some arbitrary code iff the on-going request has not been cancelled, otherwise throws {@link CancellationException}.
          * This is needed to guarantee that cancelling a request works correctly even in case {@link #cancel()} is called between different
          * attempts of the same request. The low-level client reuses the same instance of the {@link AbstractExecutionAwareRequest} by
          * calling {@link AbstractExecutionAwareRequest#reset()} between subsequent retries. The {@link #cancel()} method can be called at

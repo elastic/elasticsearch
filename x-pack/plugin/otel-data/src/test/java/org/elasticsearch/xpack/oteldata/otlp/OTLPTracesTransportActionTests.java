@@ -71,7 +71,9 @@ public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionT
             new OTLPActionRequest(
                 new BytesArray(
                     OtlpTraceUtils.createTracesRequest(
-                        List.of(OtlpTraceUtils.createSpan("test-span", List.of(OtlpUtils.keyValue("elasticsearch.document_id", "trace-doc-id"))))
+                        List.of(
+                            OtlpTraceUtils.createSpan("test-span", List.of(OtlpUtils.keyValue("elasticsearch.document_id", "trace-doc-id")))
+                        )
                     ).toByteArray()
                 )
             ),

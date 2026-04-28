@@ -45,9 +45,9 @@ public class SpanDocumentBuilderTests extends ESTestCase {
     private final SpanDocumentBuilder documentBuilder = new SpanDocumentBuilder(new BufferedByteStringAccessor());
 
     public void testBuildSpanDocument() throws IOException {
-        ByteString traceId = byteString(16, 0x00);
-        ByteString spanId = byteString(8, 0x10);
-        ByteString parentSpanId = byteString(8, 0x20);
+        ByteString traceId = randomHexByteString(16);
+        ByteString spanId = randomHexByteString(8);
+        ByteString parentSpanId = randomHexByteString(8);
         byte[] linkPayload = randomByteArrayOfLength(8);
 
         Resource resource = Resource.newBuilder()
@@ -77,8 +77,8 @@ public class SpanDocumentBuilderTests extends ESTestCase {
             .addAttributes(keyValue("http.status_code", 404L))
             .addLinks(
                 Span.Link.newBuilder()
-                    .setTraceId(byteString(16, 0x30))
-                    .setSpanId(byteString(8, 0x40))
+                    .setTraceId(randomHexByteString(16))
+                    .setSpanId(randomHexByteString(8))
                     .setTraceState("linked=true")
                     .setDroppedAttributesCount(1)
                     .addAttributes(
@@ -143,6 +143,26 @@ public class SpanDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("links"), nullValue());
     }
 
+    public void testStatusMessageWithoutCodeIsIgnored() throws IOException {
+        Span span = Span.newBuilder()
+            .setStartTimeUnixNano(2_000_000_000L)
+            .setStatus(Status.newBuilder().setMessage("status message without code").build())
+            .build();
+
+        ObjectPath doc = buildDocument(Resource.getDefaultInstance(), InstrumentationScope.getDefaultInstance(), span);
+
+        assertThat(doc.evaluate("status"), nullValue());
+    }
+
+    public void testSpanWithoutTimestampsUsesEpoch() throws IOException {
+        Span span = Span.newBuilder().setName("span-without-timestamp").build();
+
+        ObjectPath doc = buildDocument(Resource.getDefaultInstance(), InstrumentationScope.getDefaultInstance(), span);
+
+        assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(0L));
+        assertThat(doc.evaluate("duration"), nullValue());
+    }
+
     private ObjectPath buildDocument(Resource resource, InstrumentationScope scope, Span span) throws IOException {
         TargetIndex targetIndex = TargetIndex.evaluate(
             "traces",
@@ -156,11 +176,7 @@ public class SpanDocumentBuilderTests extends ESTestCase {
         return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
     }
 
-    private static ByteString byteString(int length, int start) {
-        byte[] bytes = new byte[length];
-        for (int i = 0; i < length; i++) {
-            bytes[i] = (byte) (start + i);
-        }
-        return ByteString.copyFrom(bytes);
+    private static ByteString randomHexByteString(int length) {
+        return ByteString.copyFrom(randomByteArrayOfLength(length));
     }
 }

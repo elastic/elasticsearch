@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.resource.v1.Resource;
 import io.opentelemetry.proto.trace.v1.Span;
+import io.opentelemetry.proto.trace.v1.Status;
 import io.opentelemetry.proto.trace.v1.Status.StatusCode;
 
 import com.google.protobuf.ByteString;
@@ -45,6 +46,8 @@ public class SpanDocumentBuilder extends OTelDocumentBuilder {
         if (timestamp == 0) {
             timestamp = span.getEndTimeUnixNano();
         }
+        // OTLP semantically requires span timestamps, but proto3 can still carry zeroes.
+        // If both are zero, keep the malformed span indexable and let @timestamp remain epoch.
         builder.field("@timestamp", TimeUnit.NANOSECONDS.toMillis(timestamp));
         addHexFieldIfNotEmpty(builder, "trace_id", span.getTraceId());
         addHexFieldIfNotEmpty(builder, "span_id", span.getSpanId());
@@ -90,16 +93,15 @@ public class SpanDocumentBuilder extends OTelDocumentBuilder {
     }
 
     private void buildStatus(XContentBuilder builder, Span span) throws IOException {
-        boolean hasCode = span.getStatus().getCode() != StatusCode.STATUS_CODE_UNSET;
-        boolean hasMessage = span.getStatus().getMessageBytes().isEmpty() == false;
-        if (hasCode == false && hasMessage == false) {
+        Status status = span.getStatus();
+        boolean hasCode = status.getCode() != StatusCode.STATUS_CODE_UNSET;
+        if (hasCode == false) {
+            // OTel status messages are only meaningful with an error code, so skip message-only unset statuses.
             return;
         }
         builder.startObject("status");
-        if (hasCode) {
-            builder.field("code", normalizeStatusCode(span.getStatus().getCode()));
-        }
-        addFieldIfNotEmpty(builder, "message", span.getStatus().getMessageBytes());
+        builder.field("code", normalizeStatusCode(status.getCode()));
+        addFieldIfNotEmpty(builder, "message", status.getMessageBytes());
         builder.endObject();
     }
 

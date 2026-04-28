@@ -32,8 +32,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
-import org.elasticsearch.xpack.oteldata.otlp.docbuilder.SpanEventDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.SpanDocumentBuilder;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.SpanEventDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
@@ -102,9 +102,7 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                             indexRequest.id(documentId);
                         }
                         bulkRequestBuilder.add(
-                            indexRequest.opType(DocWriteRequest.OpType.CREATE)
-                                .setRequireDataStream(true)
-                                .source(xContentBuilder)
+                            indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
                         );
                     }
                     List<Span.Event> eventsList = span.getEventsList();
@@ -134,9 +132,7 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                                 eventRequest.id(eventDocumentId);
                             }
                             bulkRequestBuilder.add(
-                                eventRequest.opType(DocWriteRequest.OpType.CREATE)
-                                    .setRequireDataStream(true)
-                                    .source(xContentBuilder)
+                                eventRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
                             );
                         }
                     }

@@ -314,10 +314,27 @@ static inline void bf16Qf32_bulk_avx512(
  * Loads query once per dimension step, applies to all vectors in the batch.
  * See bf16Qf32_bulk_avx512 for L1D cache set aliasing considerations on `batches`.
  */
+/*
+ * `unroll_k` is the number of consecutive K-blocks unrolled inside the inner loop,
+ * each with its own accumulator. SPR's vdpbf16ps has latency 4-5 cycles and 0.5-cycle
+ * throughput (ports 0+5), so a single accumulator is dependency-bound at ~20% of peak.
+ *
+ * Sequential paths benefit most from unroll_k > 1 because batches=1 (single load
+ * stream — no L1D set aliasing) means only one accumulator without unrolling, which
+ * is severely latency-bound. Offsets/sparse already use batches=4 which gives four
+ * concurrent accumulators; further K-unrolling there increased reduction overhead
+ * without consistently winning, so they stay at unroll_k=1.
+ *
+ * Picks (Sapphire Rapids, validated 2026-04-27):
+ *   sequential dot: batches=1, unroll_k=8  -> 8 accumulators
+ *   sequential sqr: batches=1, unroll_k=4  -> 12 accumulators (4 aa + 4 ab + 4 qq)
+ *   offsets/sparse: batches=4, unroll_k=1  -> identical to pre-optimization code
+ */
 template <
     typename TData,
     const bf16_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int batches = 4
+    int batches = 4,
+    int unroll_k = 1
 >
 static inline void dotDbf16Qbf16_bulk_avx512(
     const TData* a,
@@ -330,6 +347,7 @@ static inline void dotDbf16Qbf16_bulk_avx512(
 ) {
     int c = 0;
     constexpr int elements = sizeof(__m512bh) / sizeof(bf16_t);
+    constexpr int kStride = elements * unroll_k;
     const int lines_to_fetch = dims * sizeof(bf16_t) / CACHE_LINE_SIZE + 1;
 
     const bf16_t* current_vecs[batches];
@@ -345,21 +363,51 @@ static inline void dotDbf16Qbf16_bulk_avx512(
             });
         }
 
-        __m512 sums[batches];
-        apply_indexed<batches>([&](auto I) {
+        __m512 sums[batches * unroll_k];
+        apply_indexed<batches * unroll_k>([&](auto I) {
             sums[I] = _mm512_setzero_ps();
         });
 
+        // Main loop: K-stride = unroll_k * elements. Each iteration issues
+        // unroll_k * batches independent dpbf16ps's into distinct accumulators.
         int i = 0;
-        for (; i + elements <= dims; i += elements) {
-            __m512bh qi = (__m512bh)_mm512_loadu_epi16(b + i);
-            apply_indexed<batches>([&](auto I) {
-                sums[I] = _mm512_dpbf16_ps(sums[I],
-                    (__m512bh)_mm512_loadu_epi16(current_vecs[I] + i), qi);
+        for (; i + kStride <= dims; i += kStride) {
+            apply_indexed<unroll_k>([&](auto K) {
+                __m512bh qi = (__m512bh)_mm512_loadu_epi16(b + i + K * elements);
+                apply_indexed<batches>([&](auto I) {
+                    sums[K * batches + I] = _mm512_dpbf16_ps(sums[K * batches + I],
+                        (__m512bh)_mm512_loadu_epi16(current_vecs[I] + i + K * elements), qi);
+                });
             });
         }
 
-        // Masked tail
+        // Reduce + K-tail-1 only emit when the K-unroll is > 1. At unroll_k=1
+        // the main loop already exits exactly when (i + 32 > dims), and the
+        // K-tail-1 condition is the same — guarding with constexpr keeps the
+        // unroll_k=1 instantiation byte-equivalent to the pre-optimization code.
+        if constexpr (unroll_k > 1) {
+            // Tree-reduce across unroll_k accumulators per batch member, leaving
+            // sums[0..batches-1] holding the per-vector partial that the tail
+            // loops feed into.
+            apply_indexed<batches>([&](auto I) {
+                __m512 acc = sums[I];
+                for (int u = 1; u < unroll_k; u++) {
+                    acc = _mm512_add_ps(acc, sums[u * batches + I]);
+                }
+                sums[I] = acc;
+            });
+
+            // K-unroll-1 tail (full 32-element blocks not consumed by main loop).
+            for (; i + elements <= dims; i += elements) {
+                __m512bh qi = (__m512bh)_mm512_loadu_epi16(b + i);
+                apply_indexed<batches>([&](auto I) {
+                    sums[I] = _mm512_dpbf16_ps(sums[I],
+                        (__m512bh)_mm512_loadu_epi16(current_vecs[I] + i), qi);
+                });
+            }
+        }
+
+        // Masked tail (< 32 BF16 elements left).
         const int rem = dims - i;
         if (rem > 0) {
             __mmask32 readMask = (__mmask32)((1UL << rem) - 1);
@@ -392,14 +440,16 @@ static inline void dotDbf16Qbf16_bulk_avx512(
 
 /*
  * Bulk squared distance for bf16×bf16 using dpbf16 via ||a-b||² = a·a - 2·a·b + b·b.
- * Loads query once per dimension step. Computes q·q once (shared across all vectors
- * in the batch), then per vector accumulates a·a and a·q.
- * See bf16Qf32_bulk_avx512 for L1D cache set aliasing considerations on `batches`.
+ * q·q is invariant across batches and is computed once before the batch loop, freeing
+ * register pressure inside the inner loop. Per-batch we carry only `aa` and `ab`
+ * streams. unroll_k applies to both — see `dotDbf16Qbf16_bulk_avx512` for the
+ * latency / aliasing rationale.
  */
 template <
     typename TData,
     const bf16_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int batches = 4
+    int batches = 4,
+    int unroll_k = 1
 >
 static inline void sqrDbf16Qbf16_bulk_avx512(
     const TData* a,
@@ -412,6 +462,7 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
 ) {
     int c = 0;
     constexpr int elements = sizeof(__m512bh) / sizeof(bf16_t);
+    constexpr int kStride = elements * unroll_k;
     const int rem = dims % elements;
     const bool odd_dims = (rem & 1) != 0;
     const int lines_to_fetch = dims * sizeof(bf16_t) / CACHE_LINE_SIZE + 1;
@@ -419,8 +470,6 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
     const bf16_t* current_vecs[batches];
     init_pointers<batches, TData, bf16_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
 
-    // Compute squared distance (|a - b|^2) as its expansion (a dot a + b dot b - 2(a dot b)),
-    // using 3x dpbf16 operations, accumulating them in sum_aa, sum_qq, sum_ab
     for (; c + batches - 1 < count; c += batches) {
         const bf16_t* next_vecs[batches];
         const bool has_next = c + 2 * batches - 1 < count;
@@ -431,31 +480,68 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
             });
         }
 
-        __m512 sum_aa[batches];
-        __m512 sum_ab[batches];
-        apply_indexed<batches>([&](auto I) {
+        __m512 sum_aa[batches * unroll_k];
+        __m512 sum_ab[batches * unroll_k];
+        __m512 sum_qq[unroll_k];
+        apply_indexed<batches * unroll_k>([&](auto I) {
             sum_aa[I] = _mm512_setzero_ps();
             sum_ab[I] = _mm512_setzero_ps();
         });
-        __m512 sum_qq = _mm512_setzero_ps();
+        apply_indexed<unroll_k>([&](auto K) {
+            sum_qq[K] = _mm512_setzero_ps();
+        });
 
+        // Main loop with K-stride = unroll_k * elements.
         int i = 0;
-        for (; i + elements <= dims; i += elements) {
-            __m512bh qi = (__m512bh)_mm512_loadu_epi16(b + i);
-            sum_qq = _mm512_dpbf16_ps(sum_qq, qi, qi);
-            apply_indexed<batches>([&](auto I) {
-                __m512bh ai = (__m512bh)_mm512_loadu_epi16(current_vecs[I] + i);
-                sum_aa[I] = _mm512_dpbf16_ps(sum_aa[I], ai, ai);
-                sum_ab[I] = _mm512_dpbf16_ps(sum_ab[I], ai, qi);
+        for (; i + kStride <= dims; i += kStride) {
+            apply_indexed<unroll_k>([&](auto K) {
+                __m512bh qi = (__m512bh)_mm512_loadu_epi16(b + i + K * elements);
+                sum_qq[K] = _mm512_dpbf16_ps(sum_qq[K], qi, qi);
+                apply_indexed<batches>([&](auto I) {
+                    __m512bh ai = (__m512bh)_mm512_loadu_epi16(current_vecs[I] + i + K * elements);
+                    sum_aa[K * batches + I] = _mm512_dpbf16_ps(sum_aa[K * batches + I], ai, ai);
+                    sum_ab[K * batches + I] = _mm512_dpbf16_ps(sum_ab[K * batches + I], ai, qi);
+                });
             });
         }
 
-        // Masked tail
+        // Reduce + K-tail-1 only emit for unroll_k > 1 (see dot variant for the
+        // rationale). At unroll_k=1 the main loop already covers all full
+        // 32-element blocks; the constexpr keeps the unroll_k=1 instantiation
+        // byte-equivalent to the pre-optimization code.
+        if constexpr (unroll_k > 1) {
+            apply_indexed<batches>([&](auto I) {
+                __m512 acc_aa = sum_aa[I];
+                __m512 acc_ab = sum_ab[I];
+                for (int u = 1; u < unroll_k; u++) {
+                    acc_aa = _mm512_add_ps(acc_aa, sum_aa[u * batches + I]);
+                    acc_ab = _mm512_add_ps(acc_ab, sum_ab[u * batches + I]);
+                }
+                sum_aa[I] = acc_aa;
+                sum_ab[I] = acc_ab;
+            });
+            for (int u = 1; u < unroll_k; u++) {
+                sum_qq[0] = _mm512_add_ps(sum_qq[0], sum_qq[u]);
+            }
+
+            // K-unroll-1 tail (full 32-element blocks).
+            for (; i + elements <= dims; i += elements) {
+                __m512bh qi = (__m512bh)_mm512_loadu_epi16(b + i);
+                sum_qq[0] = _mm512_dpbf16_ps(sum_qq[0], qi, qi);
+                apply_indexed<batches>([&](auto I) {
+                    __m512bh ai = (__m512bh)_mm512_loadu_epi16(current_vecs[I] + i);
+                    sum_aa[I] = _mm512_dpbf16_ps(sum_aa[I], ai, ai);
+                    sum_ab[I] = _mm512_dpbf16_ps(sum_ab[I], ai, qi);
+                });
+            }
+        }
+
+        // Masked tail (< 32 BF16 left)
         if (rem > 0) {
             __mmask32 readMask = (__mmask32)((1UL << rem) - 1);
             __mmask16 dpMask = (__mmask16)((1U << (rem / 2)) - 1);
             __m512bh qi = (__m512bh)_mm512_maskz_loadu_epi16(readMask, b + i);
-            sum_qq = _mm512_mask_dpbf16_ps(sum_qq, dpMask, qi, qi);
+            sum_qq[0] = _mm512_mask_dpbf16_ps(sum_qq[0], dpMask, qi, qi);
             apply_indexed<batches>([&](auto I) {
                 __m512bh ai = (__m512bh)_mm512_maskz_loadu_epi16(readMask, current_vecs[I] + i);
                 sum_aa[I] = _mm512_mask_dpbf16_ps(sum_aa[I], dpMask, ai, ai);
@@ -463,8 +549,7 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
             });
         }
 
-        f32_t qq = _mm512_reduce_add_ps(sum_qq);
-        // dpbf16 is a pair-wise instruction, so we may need to consider a lone un-paired element
+        f32_t qq = _mm512_reduce_add_ps(sum_qq[0]);
         if (odd_dims) {
             qq += dot_scalar(b[dims - 1], b[dims - 1]);
             apply_indexed<batches>([&](auto I) {
@@ -511,7 +596,7 @@ EXPORT void vec_dotDbf16Qbf16_bulk_3(
     const int32_t count,
     f32_t* results
 ) {
-    dotDbf16Qbf16_bulk_avx512<bf16_t, sequential_mapper, 1>(a, b, dims, dims, NULL, count, results);
+    dotDbf16Qbf16_bulk_avx512<bf16_t, sequential_mapper, 1, 8>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqrDbf16Qf32_bulk_3(
@@ -532,7 +617,7 @@ EXPORT void vec_sqrDbf16Qbf16_bulk_3(
     const int32_t count,
     f32_t* results
 ) {
-    sqrDbf16Qbf16_bulk_avx512<bf16_t, sequential_mapper, 1>(a, b, dims, dims, NULL, count, results);
+    sqrDbf16Qbf16_bulk_avx512<bf16_t, sequential_mapper, 1, 4>(a, b, dims, dims, NULL, count, results);
 }
 
 
@@ -554,7 +639,7 @@ EXPORT void vec_dotDbf16Qbf16_bulk_sparse_3(
     const int32_t count,
     f32_t* results
 ) {
-    dotDbf16Qbf16_bulk_avx512<const bf16_t*, sparse_mapper>(
+    dotDbf16Qbf16_bulk_avx512<const bf16_t*, sparse_mapper, 4, 1>(
         (const bf16_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
@@ -576,7 +661,7 @@ EXPORT void vec_sqrDbf16Qbf16_bulk_sparse_3(
     const int32_t count,
     f32_t* results
 ) {
-    sqrDbf16Qbf16_bulk_avx512<const bf16_t*, sparse_mapper>(
+    sqrDbf16Qbf16_bulk_avx512<const bf16_t*, sparse_mapper, 4, 1>(
         (const bf16_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
@@ -602,7 +687,7 @@ EXPORT void vec_dotDbf16Qbf16_bulk_offsets_3(
     const int32_t count,
     f32_t* results
 ) {
-    dotDbf16Qbf16_bulk_avx512<bf16_t, offsets_mapper>(a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
+    dotDbf16Qbf16_bulk_avx512<bf16_t, offsets_mapper, 4, 1>(a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }
 
 EXPORT void vec_sqrDbf16Qf32_bulk_offsets_3(
@@ -627,5 +712,5 @@ EXPORT void vec_sqrDbf16Qbf16_bulk_offsets_3(
     const int32_t count,
     f32_t* results
 ) {
-    sqrDbf16Qbf16_bulk_avx512<bf16_t, offsets_mapper>(a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
+    sqrDbf16Qbf16_bulk_avx512<bf16_t, offsets_mapper, 4, 1>(a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }

@@ -110,8 +110,8 @@ dependencies {
   es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
   es500 'org.elasticsearch.distribution.zip:elasticsearch:5.0.0@zip'
   es62 'org.elasticsearch.distribution.zip:elasticsearch:6.2.4@zip'
-  // 6.3.x full distributions are no longer hosted on Maven Central; OSS zip still resolves and is sufficient for reindex-from-remote API coverage.
-  es63 'org.elasticsearch.distribution.oss-zip:elasticsearch-oss:6.3.1@zip'
+  // 6.3.x default artifact is gone from Central; OSS zip remains. Published POM uses group org.elasticsearch.distribution.zip (not .oss-zip) for artifact elasticsearch-oss.
+  es63 'org.elasticsearch.distribution.zip:elasticsearch-oss:6.3.1@zip'
 }
 
 jdks {

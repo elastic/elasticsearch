@@ -10,8 +10,8 @@
          <trust group="beats" name="metricbeat-fips"/>
          <trust group="elasticsearch-distribution" name="elasticsearch"/>
          <trust group="org.elasticsearch"/>
-         <trust group="org.elasticsearch.distribution.oss-zip" name="elasticsearch-oss"/>
          <trust group="org.elasticsearch.distribution.zip" name="elasticsearch"/>
+         <trust group="org.elasticsearch.distribution.zip" name="elasticsearch-oss"/>
          <trust group="org.elasticsearch.ml"/>
          <trust group="org.elasticsearch.plugin"/>
          <trust file=".*-javadoc[.]jar" regex="true"/>

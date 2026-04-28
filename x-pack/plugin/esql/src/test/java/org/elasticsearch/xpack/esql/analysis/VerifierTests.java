@@ -3827,6 +3827,10 @@ public class VerifierTests extends ESTestCase {
                     + "cannot cast [true] to [integer]"
             )
         );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"order\": \"invalid\"})",
+            equalTo("1:29: 'order' option must be 'score' or 'none', found [invalid]")
+        );
     }
 
     public void testTimeSeriesWithUnsupportedDataType() {

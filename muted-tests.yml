@@ -397,6 +397,9 @@ tests:
 - class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
   method: testDoExecuteReleasesRegistrationOnLastChunkDeserializationFailure
   issue: https://github.com/elastic/elasticsearch/issues/147693
+- class: org.elasticsearch.xpack.transform.transforms.TransformIndexerStateTests
+  method: testStopAtCheckpointForThrottledTransform
+  issue: https://github.com/elastic/elasticsearch/issues/147716
 
 # Examples:
 #

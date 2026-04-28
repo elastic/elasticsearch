@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -43,7 +42,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.inference.telemetry.InferenceStats.responseAttributes;
 
 /**
  * Base class for transport actions that handle inference requests.
@@ -110,7 +108,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             try {
                 validateRequest(request, model);
             } catch (Exception e) {
-                recordRequestDurationMetrics(model, timer, e);
+                inferenceStats.inferenceDuration().withModel(model).withThrowable(unwrapCause(e)).record(timer.elapsedMillis());
                 listener.onFailure(e);
                 return;
             }
@@ -132,12 +130,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             inferOnServiceWithMetrics(model, request, service, timer, listener);
 
         }, e -> {
-            try {
-                inferenceStats.inferenceDuration()
-                    .record(timer.elapsedMillis(), inferenceStats.withConstantAttributes(responseAttributes(e)));
-            } catch (Exception metricsException) {
-                log.atDebug().withThrowable(metricsException).log("Failed to record metrics when the model is missing, dropping metrics");
-            }
+            inferenceStats.inferenceDuration().withThrowable(e).record(timer.elapsedMillis());
             listener.onFailure(e);
         });
 
@@ -163,11 +156,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         }
     }
 
-    private void recordRequestDurationMetrics(Model model, InferenceTimer timer, @Nullable Throwable t) {
-        inferenceStats.inferenceDuration()
-            .record(timer.elapsedMillis(), inferenceStats.serviceAndResponseAttributes(model, unwrapCause(t)));
-    }
-
     private void inferOnServiceWithMetrics(
         Model model,
         Request request,
@@ -190,11 +178,11 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
                 listener.onResponse(new InferenceAction.Response(inferenceResults, streamErrorHandler));
             } else {
-                recordRequestDurationMetrics(model, timer, null);
+                inferenceStats.inferenceDuration().withModel(model).record(timer.elapsedMillis());
                 listener.onResponse(new InferenceAction.Response(inferenceResults));
             }
         }, e -> {
-            recordRequestDurationMetrics(model, timer, e);
+            inferenceStats.inferenceDuration().withModel(model).withThrowable(unwrapCause(e)).record(timer.elapsedMillis());
             listener.onFailure(e);
         }));
     }
@@ -212,7 +200,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
                         @Override
                         public void cancel() {
-                            recordRequestDurationMetrics(model, timer, null);
+                            inferenceStats.inferenceDuration().withModel(model).record(timer.elapsedMillis());
                             subscription.cancel();
                         }
                     });
@@ -225,13 +213,13 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
                 @Override
                 public void onError(Throwable throwable) {
-                    recordRequestDurationMetrics(model, timer, throwable);
+                    inferenceStats.inferenceDuration().withModel(model).withThrowable(unwrapCause(throwable)).record(timer.elapsedMillis());
                     downstream.onError(throwable);
                 }
 
                 @Override
                 public void onComplete() {
-                    recordRequestDurationMetrics(model, timer, null);
+                    inferenceStats.inferenceDuration().withModel(model).record(timer.elapsedMillis());
                     downstream.onComplete();
                 }
             });
@@ -243,7 +231,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private void recordRequestCountMetrics(Model model) {
-        inferenceStats.requestCount().incrementBy(1, inferenceStats.serviceAttributes(model));
+        inferenceStats.requestCount().withModel(model).incrementBy(1);
     }
 
     private void inferOnService(Model model, Request request, InferenceService service, ActionListener<InferenceServiceResults> listener) {

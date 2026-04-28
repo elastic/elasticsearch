@@ -9,8 +9,9 @@
 
 package org.elasticsearch.inference.telemetry;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -20,25 +21,36 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public record InferenceStats(
-    LongCounter requestCount,
-    LongHistogram inferenceDuration,
-    LongHistogram deploymentDuration,
-    Map<String, Object> constantAttributes
-) {
+/**
+ * OpenTelemetry-backed inference metrics.
+ */
+public class InferenceStats {
 
-    static final String STACK_VERSION_ATTRIBUTE = "stack_version";
-    static final String IS_PRODUCTION_RELEASE_ATTRIBUTE = "is_production_release";
+    static final String STACK_VERSION_ATTRIBUTE = "es_stack_version";
+    static final String PRODUCTION_RELEASE_ATTRIBUTE = "es_production_release";
     static final String SERVICE_ATTRIBUTE = "service";
     static final String TASK_TYPE_ATTRIBUTE = "task_type";
     static final String STATUS_CODE_ATTRIBUTE = "status_code";
     static final String ERROR_TYPE_ATTRIBUTE = "error_type";
 
-    public InferenceStats {
-        Objects.requireNonNull(requestCount);
-        Objects.requireNonNull(inferenceDuration);
-        Objects.requireNonNull(deploymentDuration);
-        Objects.requireNonNull(constantAttributes);
+    private static final Logger logger = LogManager.getLogger(InferenceStats.class);
+
+    private final LongCounter requestCountInstrument;
+    private final LongHistogram inferenceDurationInstrument;
+    private final LongHistogram deploymentDurationInstrument;
+    private final Map<String, Object> constantAttributes;
+
+    // This should be an internal constructor. It's public to enable testing
+    public InferenceStats(
+        LongCounter requestCountInstrument,
+        LongHistogram inferenceDurationInstrument,
+        LongHistogram deploymentDurationInstrument,
+        Map<String, Object> constantAttributes
+    ) {
+        this.requestCountInstrument = Objects.requireNonNull(requestCountInstrument);
+        this.inferenceDurationInstrument = Objects.requireNonNull(inferenceDurationInstrument);
+        this.deploymentDurationInstrument = Objects.requireNonNull(deploymentDurationInstrument);
+        this.constantAttributes = Objects.requireNonNull(constantAttributes);
     }
 
     public static InferenceStats create(MeterRegistry meterRegistry, String stackVersion, boolean isProductionRelease) {
@@ -58,45 +70,121 @@ public record InferenceStats(
                 "Inference API time spent waiting for Trained Model Deployments",
                 "ms"
             ),
-            Map.of(STACK_VERSION_ATTRIBUTE, stackVersion, IS_PRODUCTION_RELEASE_ATTRIBUTE, isProductionRelease)
+            Map.of(STACK_VERSION_ATTRIBUTE, stackVersion, PRODUCTION_RELEASE_ATTRIBUTE, isProductionRelease)
         );
     }
 
     /**
-     * Merges the cluster-level constant attributes (e.g. stack version, production release flag)
-     * into the provided per-request attribute map and returns the combined map.
-     * Use this only when no {@link Model} is available (e.g. model-not-found errors).
-     * Prefer {@link #serviceAttributes} or {@link #serviceAndResponseAttributes} otherwise.
+     * Returns a fluent counter recording. The terminal {@link CounterBuilder#incrementBy} applies default HTTP success attributes
+     * when no error was set.
      */
-    public Map<String, Object> withConstantAttributes(Map<String, Object> attributes) {
-        var result = new HashMap<>(attributes);
-        result.putAll(constantAttributes);
-        return result;
+    public CounterBuilder requestCount() {
+        return new CounterBuilder(requestCountInstrument, constantAttributes);
     }
 
-    public Map<String, Object> serviceAttributes(Model model) {
-        var result = new HashMap<String, Object>();
-        result.put(SERVICE_ATTRIBUTE, model.getConfigurations().getService());
-        result.put(TASK_TYPE_ATTRIBUTE, model.getTaskType().toString());
-        result.putAll(constantAttributes);
-        return result;
+    /**
+     * Returns a fluent histogram for inference request latency.
+     */
+    public DurationBuilder inferenceDuration() {
+        return new DurationBuilder(inferenceDurationInstrument, constantAttributes);
     }
 
-    public static Map<String, Object> responseAttributes(@Nullable Throwable throwable) {
-        if (Objects.isNull(throwable)) {
-            return Map.of(STATUS_CODE_ATTRIBUTE, 200);
+    /**
+     * Returns a fluent histogram for trained model deployment wait time.
+     */
+    public DurationBuilder deploymentDuration() {
+        return new DurationBuilder(deploymentDurationInstrument, constantAttributes);
+    }
+
+    /**
+     * Builder for {@link LongCounter} metrics. {@link #withThrowable(Throwable)} is optional; omit it to indicate success.
+     */
+    public static class CounterBuilder {
+        private final LongCounter counter;
+        private final Map<String, Object> attributes;
+        private boolean responseSet = false;
+
+        CounterBuilder(LongCounter counter, Map<String, Object> constantAttributes) {
+            this.counter = counter;
+            this.attributes = new HashMap<>(constantAttributes);
         }
+
+        public CounterBuilder withModel(Model model) {
+            attributes.put(SERVICE_ATTRIBUTE, model.getConfigurations().getService());
+            attributes.put(TASK_TYPE_ATTRIBUTE, model.getTaskType().toString());
+            return this;
+        }
+
+        public CounterBuilder withThrowable(Throwable t) {
+            applyThrowable(t, attributes);
+            responseSet = true;
+            return this;
+        }
+
+        public CounterBuilder withAttribute(String key, Object value) {
+            attributes.put(key, value);
+            return this;
+        }
+
+        public void incrementBy(long value) {
+            if (responseSet == false) {
+                attributes.put(STATUS_CODE_ATTRIBUTE, 200);
+            }
+
+            try {
+                counter.incrementBy(value, attributes);
+            } catch (Exception e) {
+                logger.atDebug().withThrowable(e).log("Failed to record inference counter metric for [{}]", counter.getName());
+            }
+        }
+    }
+
+    /**
+     * Builder for {@link LongHistogram} metrics. {@link #withThrowable(Throwable)} is optional; omit it for success.
+     */
+    public static class DurationBuilder {
+        private final LongHistogram histogram;
+        private final Map<String, Object> attributes;
+        private boolean responseSet = false;
+
+        DurationBuilder(LongHistogram histogram, Map<String, Object> constantAttributes) {
+            this.histogram = histogram;
+            this.attributes = new HashMap<>(constantAttributes);
+        }
+
+        public DurationBuilder withModel(Model model) {
+            attributes.put(SERVICE_ATTRIBUTE, model.getConfigurations().getService());
+            attributes.put(TASK_TYPE_ATTRIBUTE, model.getTaskType().toString());
+            return this;
+        }
+
+        public DurationBuilder withThrowable(Throwable t) {
+            applyThrowable(t, attributes);
+            responseSet = true;
+            return this;
+        }
+
+        public void record(long durationMs) {
+            if (responseSet == false) {
+                attributes.put(STATUS_CODE_ATTRIBUTE, 200);
+            }
+
+            try {
+                histogram.record(durationMs, attributes);
+            } catch (Exception e) {
+                logger.atDebug().withThrowable(e).log("Failed to record inference duration metric for [{}]", histogram.getName());
+            }
+        }
+    }
+
+    private static void applyThrowable(Throwable throwable, Map<String, Object> attributes) {
+        Objects.requireNonNull(throwable);
 
         if (throwable instanceof ElasticsearchStatusException ese) {
-            return Map.of(STATUS_CODE_ATTRIBUTE, ese.status().getStatus(), ERROR_TYPE_ATTRIBUTE, String.valueOf(ese.status().getStatus()));
+            attributes.put(STATUS_CODE_ATTRIBUTE, ese.status().getStatus());
+            attributes.put(ERROR_TYPE_ATTRIBUTE, String.valueOf(ese.status().getStatus()));
+        } else {
+            attributes.put(ERROR_TYPE_ATTRIBUTE, throwable.getClass().getSimpleName());
         }
-
-        return Map.of(ERROR_TYPE_ATTRIBUTE, throwable.getClass().getSimpleName());
-    }
-
-    public Map<String, Object> serviceAndResponseAttributes(Model model, @Nullable Throwable throwable) {
-        var result = serviceAttributes(model);
-        result.putAll(responseAttributes(throwable));
-        return result;
     }
 }

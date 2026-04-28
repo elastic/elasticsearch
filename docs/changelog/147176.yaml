@@ -1,5 +1,5 @@
 area: Security
 issues: []
 pr: 147176
-summary: Implicit Roles SPI
+summary: Implicit Index Privileges SPI
 type: enhancement

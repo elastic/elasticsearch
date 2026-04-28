@@ -2367,7 +2367,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(e -> {
                 if (e instanceof ConvertFunction convert) {
-                    return resolveConvertFunction(convert, unionFieldAttributes, context);
+                    return resolveConvertFunction(convert, unionFieldAttributes, context.unmappedResolution() == UnmappedResolution.LOAD);
                 }
                 return e;
             });
@@ -2423,7 +2423,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private Expression resolveConvertFunction(
             ConvertFunction convert,
             List<Attribute.IdIgnoringWrapper> unionFieldAttributes,
-            AnalyzerContext context
+            boolean loadUnmappedFields
         ) {
             Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
@@ -2444,14 +2444,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         typeResolutions(fa, convert, type, imf, typeResolutions);
                     }
                 });
-                Expression potentiallyUnmappedConversion = imf.isPotentiallyUnmapped()
-                    ? ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, imf)
-                    : null;
+
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved MultiTypeEsField
                 if (typeResolutions.size() == imf.getTypesToIndices().size()) {
-                    if (skipMultiTypeForPotentiallyUnmappedKeyword(context, imf, supportedTypes)) {
+                    if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, imf, supportedTypes)) {
                         return convertExpression;
                     }
+                    
+                    Expression potentiallyUnmappedConversion = imf.isPotentiallyUnmapped()
+                        ? ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, imf)
+                        : null;
                     var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions, potentiallyUnmappedConversion);
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
@@ -2499,18 +2501,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
                     return convertExpression.replaceChildren(
-                        Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, context))
+                        Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, loadUnmappedFields))
                     );
                 }
             return convertExpression;
         }
 
         private static boolean skipMultiTypeForPotentiallyUnmappedKeyword(
-            AnalyzerContext context,
+            boolean loadUnmappedFields,
             InvalidMappedField imf,
             Set<DataType> supportedTypes
         ) {
-            return context.unmappedResolution() == UnmappedResolution.LOAD
+            return loadUnmappedFields
                 && imf.isPotentiallyUnmapped()
                 && supportedTypes.contains(KEYWORD) == false;
         }

@@ -1,4 +1,4 @@
-area: "ES|QL, Geo"
+area: "Geo"
 issues: []
 pr: 147615
 summary: Support `BufferParameters` in ST_BUFFER

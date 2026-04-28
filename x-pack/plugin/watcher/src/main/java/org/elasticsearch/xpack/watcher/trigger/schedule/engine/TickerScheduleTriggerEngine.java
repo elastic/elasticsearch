@@ -38,6 +38,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
 
@@ -64,7 +65,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     @Override
-    public synchronized void start(Collection<Watch> jobs) {
+    public synchronized void start(Collection<Watch> jobs, Predicate<String> belongsToThisNode) {
         long startTime = clock.millis();
         logger.info("Starting watcher engine at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(startTime));
         schedules.clear();
@@ -73,6 +74,11 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
                 schedules.put(job.id(), createSchedule(job, trigger, startTime));
             }
         }
+        // Re-validate watches accumulated while the engine was paused. The shard allocation may have changed since
+        // postIndex put them here, so an entry that was correctly added then may no longer belong on this node.
+        // Without this filter, both the primary and the replica node can end up scheduling the same watch,
+        // which causes duplicate executions and misleading throttle results.
+        recentlyAddedSchedules.keySet().removeIf(watchId -> belongsToThisNode.test(watchId) == false);
         schedules.putAll(recentlyAddedSchedules);
         recentlyAddedSchedules.clear();
         isRunning.set(true);

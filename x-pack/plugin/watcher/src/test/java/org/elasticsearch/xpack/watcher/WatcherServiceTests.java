@@ -233,7 +233,7 @@ public class WatcherServiceTests extends ESTestCase {
         service.start(clusterState, () -> {}, exception -> {});
 
         ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
-        verify(triggerService).start(captor.capture());
+        verify(triggerService).start(captor.capture(), any());
         List<Watch> watches = captor.getValue();
         watches.forEach(watch -> assertThat(watch.status().state().isActive(), is(true)));
         assertThat(watches, hasSize(activeWatchCount));
@@ -368,7 +368,7 @@ public class WatcherServiceTests extends ESTestCase {
 
         service.reload(csBuilder.metadata(metadata).build(), "whatever", exception -> {});
         verify(triggerService).pauseExecution();
-        verify(triggerService, never()).start(any());
+        verify(triggerService, never()).start(any(), any());
     }
 
     private static DiscoveryNode newNode() {

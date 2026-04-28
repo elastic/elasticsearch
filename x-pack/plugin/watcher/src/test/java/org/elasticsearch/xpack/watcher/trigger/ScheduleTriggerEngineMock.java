@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 /**
  * A mock scheduler to help with unit testing. Provide {@link ScheduleTriggerEngineMock#trigger} method to manually trigger
@@ -47,7 +48,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public synchronized void start(Collection<Watch> jobs) {
+    public synchronized void start(Collection<Watch> jobs, Predicate<String> belongsToThisNode) {
         logger.info("starting scheduler");
         jobs.forEach((watch) -> watches.get().put(watch.id(), watch));
         paused.set(false);

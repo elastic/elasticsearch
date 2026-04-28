@@ -28,6 +28,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -67,6 +68,13 @@ public class TickerScheduleEngineTests extends ESTestCase {
         clock.setTime(newCurrentDateTime);
     }
 
+    /**
+     * Convenience overload that accepts every watch id; the predicate behavior is exercised in dedicated tests.
+     */
+    private void startEngine(Collection<Watch> watches) {
+        engine.start(watches, id -> true);
+    }
+
     @After
     public void cleanup() {
         engine.stop();
@@ -96,7 +104,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             }
         });
 
-        engine.start(watches);
+        startEngine(watches);
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
         if (firstLatch.await(3L * count, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
@@ -115,7 +123,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
      */
     public void testStartsShouldCleanUpPreviousWatches() {
         final List<Watch> initialWatches = createRandomWatches(2);
-        engine.start(initialWatches);
+        startEngine(initialWatches);
         assertThat(
             "Assumed initial watches added",
             engine.getSchedules().keySet(),
@@ -124,7 +132,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
         final List<Watch> newWatches = createRandomWatches(3);
 
-        engine.start(newWatches);
+        startEngine(newWatches);
         assertThat(
             "Only new watches should be visible after engine restart",
             engine.getSchedules().keySet(),
@@ -138,16 +146,39 @@ public class TickerScheduleEngineTests extends ESTestCase {
      * call even if loadWatches() returns an empty set due to the race.
      */
     public void testWatchesAddedWhilePausedSurviveStart() {
-        engine.start(List.of());
+        startEngine(List.of());
         engine.pauseExecution();
 
         Watch watch = createWatch("concurrently_indexed", interval("1s"));
         engine.add(watch);
 
         // start() with empty list simulates loadWatches() finding nothing due to the race
-        engine.start(List.of());
+        startEngine(List.of());
 
         assertThat("Watch added while paused should be present after start", engine.getSchedules(), hasKey("concurrently_indexed"));
+    }
+
+    /**
+     * Watches that {@code WatcherIndexingListener.postIndex} put into the recently-added queue must be discarded if the
+     * shard allocation has shifted since they were enqueued. Otherwise the same watch can end up scheduled on both the
+     * primary and the replica node, leading to duplicate executions and spurious throttle results.
+     */
+    public void testRecentlyAddedWatchesAreFilteredByAssignmentPredicate() {
+        engine.start(List.of(), id -> true);
+        engine.pauseExecution();
+
+        Watch staleWatch = createWatch("foreign_watch", interval("1s"));
+        Watch localWatch = createWatch("local_watch", interval("1s"));
+        engine.add(staleWatch);
+        engine.add(localWatch);
+
+        // Predicate simulates the current allocation deciding only "local_watch" belongs on this node.
+        engine.start(List.of(), id -> "local_watch".equals(id));
+
+        var schedules = engine.getSchedules();
+        assertThat("Foreign watch must be dropped during start", schedules, not(hasKey("foreign_watch")));
+        assertThat("Local watch must survive start", schedules, hasKey("local_watch"));
+        assertThat(schedules, aMapWithSize(1));
     }
 
     /**
@@ -156,14 +187,14 @@ public class TickerScheduleEngineTests extends ESTestCase {
      */
     public void testConcurrentlyAddedTakesPrecedenceOverLoadedWatch() {
         final String watchName = "watch_name";
-        engine.start(List.of());
+        startEngine(List.of());
         engine.pauseExecution();
 
         Watch addedWatch = createWatch(watchName, interval("1s"));
         engine.add(addedWatch);
 
         Watch loadedWatch = createWatch(watchName, interval("5s"));
-        engine.start(List.of(loadedWatch));
+        startEngine(List.of(loadedWatch));
 
         var schedules = engine.getSchedules();
         assertThat("Loaded watch should be present", schedules, hasKey(watchName));
@@ -178,7 +209,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
     public void testAddHourly() throws Exception {
         final String name = "job_name";
         final CountDownLatch latch = new CountDownLatch(1);
-        engine.start(List.of());
+        startEngine(List.of());
         engine.register(events -> {
             for (TriggerEvent event : events) {
                 assertThat(event.jobName(), is(name));
@@ -205,7 +236,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
     public void testAddDaily() throws Exception {
         final String name = "job_name";
         final CountDownLatch latch = new CountDownLatch(1);
-        engine.start(List.of());
+        startEngine(List.of());
 
         engine.register(events -> {
             for (TriggerEvent event : events) {
@@ -235,7 +266,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
     public void testAddWeekly() throws Exception {
         final String name = "job_name";
         final CountDownLatch latch = new CountDownLatch(1);
-        engine.start(List.of());
+        startEngine(List.of());
         engine.register(events -> {
             for (TriggerEvent event : events) {
                 assertThat(event.jobName(), is(name));
@@ -279,7 +310,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     public void testAddSameJobSeveralTimesAndExecutedOnce() throws InterruptedException {
-        engine.start(List.of());
+        startEngine(List.of());
 
         final CountDownLatch firstLatch = new CountDownLatch(1);
         final CountDownLatch secondLatch = new CountDownLatch(1);
@@ -312,7 +343,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     public void testAddOnlyWithNewSchedule() {
-        engine.start(List.of());
+        startEngine(List.of());
 
         // add watch with schedule
         Watch oncePerSecondWatch = createWatch("_id", interval("1s"));
@@ -365,7 +396,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             }
         });
 
-        engine.start(watches);
+        startEngine(watches);
         advanceClockIfNeeded(clock.instant().plusMillis(510).atZone(ZoneOffset.UTC));
         if (firstLatch.await(3, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
@@ -425,7 +456,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             }
         });
 
-        engine.start(watches);
+        startEngine(watches);
         advanceClockIfNeeded(clock.instant().plusMillis(510).atZone(ZoneOffset.UTC));
         if (firstLatch.await(3, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
@@ -475,7 +506,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             }
         });
 
-        engine.start(List.of());
+        startEngine(List.of());
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
         engine.add(watch);
 
@@ -536,7 +567,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             }
         });
 
-        engine.start(List.of());
+        startEngine(List.of());
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
         engine.add(watch);
 

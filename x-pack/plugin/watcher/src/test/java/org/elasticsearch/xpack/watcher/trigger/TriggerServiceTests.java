@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -122,13 +121,13 @@ public class TriggerServiceTests extends ESTestCase {
 
     public void testCountOnStart() {
         assertThat(service.count(), is(0L));
-        service.start(Arrays.asList(watch1, watch2));
+        service.start(List.of(watch1, watch2), id -> true);
         assertThat(service.count(), is(2L));
     }
 
     public void testCountOnStop() {
         assertThat(service.count(), is(0L));
-        service.start(Arrays.asList(watch1, watch2));
+        service.start(List.of(watch1, watch2), id -> true);
         assertThat(service.count(), is(2L));
         service.stop();
         assertThat(service.count(), is(0L));

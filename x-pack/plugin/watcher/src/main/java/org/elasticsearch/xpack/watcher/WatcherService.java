@@ -19,17 +19,17 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -54,12 +54,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -281,7 +280,7 @@ public class WatcherService {
         // that existing executions finish, but no new ones are executed
         if (processedClusterStateVersion.get() == state.getVersion()) {
             executionService.unPause();
-            triggerService.start(watches);
+            triggerService.start(watches, buildAssignmentPredicate(state));
             if (triggeredWatches.isEmpty() == false) {
                 executionService.executeTriggeredWatches(triggeredWatches);
             }
@@ -332,9 +331,12 @@ public class WatcherService {
             }
             List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
 
-            // find out all allocation ids
+            // Reuse the routing logic from WatcherIndexingListener so the assignment used here matches the assignment
+            // used by postIndex and by buildAssignmentPredicate during start().
             @NotMultiProjectCapable(description = "Watcher is not available in serverless")
-            List<ShardRouting> watchIndexShardRoutings = clusterState.routingTable(ProjectId.DEFAULT).allShards(watchIndexName);
+            IndexRoutingTable indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(watchIndexName);
+            Map<ShardId, WatcherIndexingListener.ShardAllocationConfiguration> shardConfigs = WatcherIndexingListener
+                .getLocalShardAllocationIds(localShards, indexRoutingTable);
 
             SearchRequest searchRequest = new SearchRequest(INDEX).scroll(scrollTimeout)
                 .preference(Preference.ONLY_LOCAL.toString())
@@ -349,39 +351,13 @@ public class WatcherService {
                 return Collections.emptyList();
             }
 
-            Map<Integer, List<String>> sortedShards = Maps.newMapWithExpectedSize(localShards.size());
-            for (ShardRouting localShardRouting : localShards) {
-                List<String> sortedAllocationIds = watchIndexShardRoutings.stream()
-                    .filter(sr -> localShardRouting.getId() == sr.getId())
-                    .map(ShardRouting::allocationId)
-                    .filter(Objects::nonNull)
-                    .map(AllocationId::getId)
-                    .filter(Objects::nonNull)
-                    .sorted()
-                    .toList();
-
-                sortedShards.put(localShardRouting.getId(), sortedAllocationIds);
-            }
-
             while (response.getHits().getHits().length != 0) {
                 for (SearchHit hit : response.getHits()) {
-                    // find out if this hit should be processed locally
-                    Optional<ShardRouting> correspondingShardOptional = localShards.stream()
-                        .filter(sr -> sr.shardId().equals(hit.getShard().getShardId()))
-                        .findFirst();
-                    if (correspondingShardOptional.isPresent() == false) {
+                    WatcherIndexingListener.ShardAllocationConfiguration shardConfig = shardConfigs.get(hit.getShard().getShardId());
+                    if (shardConfig == null || shardConfig.shouldBeTriggered(hit.getId()) == false) {
                         continue;
                     }
-                    ShardRouting correspondingShard = correspondingShardOptional.get();
-                    List<String> shardAllocationIds = sortedShards.get(hit.getShard().getShardId().id());
-                    // based on the shard allocation ids, get the bucket of the shard, this hit was in
-                    int bucket = shardAllocationIds.indexOf(correspondingShard.allocationId().getId());
                     String id = hit.getId();
-
-                    if (parseWatchOnThisNode(hit.getId(), shardAllocationIds.size(), bucket) == false) {
-                        continue;
-                    }
-
                     try {
                         Watch watch = parser.parse(id, true, hit.getSourceRef(), XContentType.JSON, hit.getSeqNo(), hit.getPrimaryTerm());
                         if (watch.status().state().isActive()) {
@@ -422,17 +398,46 @@ public class WatcherService {
     }
 
     /**
-     * Find out if the watch with this id, should be parsed and triggered on this node
-     *
-     * @param id              The id of the watch
-     * @param totalShardCount The count of all primary shards of the current watches index
-     * @param index           The index of the local shard
-     * @return true if the we should parse the watch on this node, false otherwise
+     * Build a predicate that, given a watch id, decides whether this watch belongs on the local node according to the
+     * given cluster state. This delegates to {@link WatcherIndexingListener#getLocalShardAllocationIds} and
+     * {@link WatcherIndexingListener.ShardAllocationConfiguration#shouldBeTriggered} so the assignment stays consistent
+     * with the routing applied in {@link WatcherIndexingListener#postIndex} and in {@link #loadWatches}. The predicate
+     * is used to re-validate any pending watches that {@code postIndex} accumulated while the trigger engine was paused,
+     * so entries whose allocation has shifted since they were enqueued are not blindly merged back in.
      */
-    private static boolean parseWatchOnThisNode(String id, int totalShardCount, int index) {
-        int hash = Murmur3HashFunction.hash(id);
-        int shardIndex = Math.floorMod(hash, totalShardCount);
-        return shardIndex == index;
+    static Predicate<String> buildAssignmentPredicate(ClusterState state) {
+        IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, state.metadata());
+        if (indexMetadata == null) {
+            return id -> false;
+        }
+        String watchIndexName = indexMetadata.getIndex().getName();
+        RoutingNode routingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
+        if (routingNode == null) {
+            return id -> false;
+        }
+        List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
+        if (localShards.isEmpty()) {
+            return id -> false;
+        }
+
+        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+        IndexRoutingTable indexRoutingTable = state.routingTable(ProjectId.DEFAULT).index(watchIndexName);
+        Map<ShardId, WatcherIndexingListener.ShardAllocationConfiguration> shardConfigs = WatcherIndexingListener
+            .getLocalShardAllocationIds(localShards, indexRoutingTable);
+        if (shardConfigs.isEmpty()) {
+            return id -> false;
+        }
+
+        int numShards = indexMetadata.getNumberOfShards();
+        return id -> {
+            int shardIdNum = Math.floorMod(Murmur3HashFunction.hash(id), numShards);
+            for (Map.Entry<ShardId, WatcherIndexingListener.ShardAllocationConfiguration> entry : shardConfigs.entrySet()) {
+                if (entry.getKey().getId() == shardIdNum) {
+                    return entry.getValue().shouldBeTriggered(id);
+                }
+            }
+            return false;
+        };
     }
 
     /**

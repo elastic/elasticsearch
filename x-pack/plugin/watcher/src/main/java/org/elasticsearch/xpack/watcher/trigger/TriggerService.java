@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
@@ -42,9 +43,9 @@ public class TriggerService {
         this.engines = unmodifiableMap(builder);
     }
 
-    public synchronized void start(Collection<Watch> watches) {
+    public synchronized void start(Collection<Watch> watches, Predicate<String> belongsToThisNode) {
         for (TriggerEngine<?, ?> engine : engines.values()) {
-            engine.start(watches);
+            engine.start(watches, belongsToThisNode);
         }
         watches.forEach(this::addToStats);
     }

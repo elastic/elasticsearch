@@ -1,0 +1,45 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the "Elastic License
+# 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+# Public License v 1"; you may not use this file except in compliance with, at
+# your election, the "Elastic License 2.0", the "GNU Affero General Public
+# License v3.0 only", or the "Server Side Public License, v 1".
+#
+
+# Cross-compilation toolchain image for es-parquet-rs.
+# Contains Rust stable with targets for Darwin aarch64 (via rust-lld),
+# Linux aarch64, and Linux x64 (via GCC cross-compilers).
+#
+# To build locally:
+#   ./build_rust_toolchain_image.sh --local
+#
+# To use:
+#   docker run --rm -v $(pwd):/workspace -w /workspace <image> make all
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        make \
+        lld \
+        gcc \
+        libc-dev \
+        gcc-aarch64-linux-gnu \
+        libc6-dev-arm64-cross \
+        gcc-x86-64-linux-gnu \
+        libc6-dev-amd64-cross \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --default-toolchain stable --profile minimal \
+    && rustup target add \
+        aarch64-apple-darwin \
+        aarch64-unknown-linux-gnu \
+        x86_64-unknown-linux-gnu \
+    && rm -rf /usr/local/cargo/registry /usr/local/cargo/git

@@ -239,8 +239,12 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
                 return;
             }
             if (request instanceof SearchRequest) {
-                SearchHits hits = SearchHits.empty(new TotalHits(ruleCount, TotalHits.Relation.EQUAL_TO), Float.NaN);
-                ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, SearchResponseUtils.successfulResponse(hits));
+                ActionListener.respondAndRelease(
+                    (ActionListener<SearchResponse>) listener,
+                    SearchResponseUtils.successfulResponse(
+                        SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(ruleCount, TotalHits.Relation.EQUAL_TO), Float.NaN)
+                    )
+                );
                 return;
             }
             if (request instanceof IndexRequest) {

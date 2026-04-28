@@ -50,55 +50,34 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndexBalanceMetricsComputerTests extends ESTestCase {
 
     /**
-     * Distributes assigned shards perfectly balanced across nodes (round-robin), then adds
-     * extra unassigned shards. Asserts that the unassigned shards do not affect the imbalance
-     * ratio -- both primary and replica histograms should report perfect balance.
+     * Two assigned shards perfectly balanced across two index/search nodes, plus one unassigned shard.
+     * If the unassigned shard were counted, the imbalance ratio would be non-zero; instead both
+     * histograms must report perfect balance (bucket 0).
      */
     public void testUnassignedShardsSkipped() {
-        final var indexName = randomIndexName();
-        final var index = new Index(indexName, "_na_");
-        final int numIndexNodes = between(2, 5);
-        final int numSearchNodes = between(2, 5);
-        final int shardsPerNode = between(1, 4);
-        // Total assigned shard IDs; each gets one primary (on index node) and one replica (on search node).
-        // Round-robin assignment ensures perfect balance across each node group.
-        final int numAssignedShardIds = numIndexNodes * numSearchNodes * shardsPerNode;
-        final int numUnassignedShardIds = between(1, 5);
-        final int totalShardIds = numAssignedShardIds + numUnassignedShardIds;
+        final var index = new Index("test-index", "_na_");
+        final var nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("index_0").roles(Set.of(INDEX_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("index_1").roles(Set.of(INDEX_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("search_0").roles(Set.of(SEARCH_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("search_1").roles(Set.of(SEARCH_ROLE)).build());
 
-        final var nodesBuilder = DiscoveryNodes.builder();
-        for (int i = 0; i < numIndexNodes; i++) {
-            nodesBuilder.add(DiscoveryNodeUtils.builder("index_" + i).roles(Set.of(INDEX_ROLE)).build());
-        }
-        for (int i = 0; i < numSearchNodes; i++) {
-            nodesBuilder.add(DiscoveryNodeUtils.builder("search_" + i).roles(Set.of(SEARCH_ROLE)).build());
-        }
-
-        final var routingBuilder = IndexRoutingTable.builder(index);
-        for (int i = 0; i < numAssignedShardIds; i++) {
-            routingBuilder.addShard(
-                newShardRouting(new ShardId(index, i), "index_" + (i % numIndexNodes), true, ShardRoutingState.STARTED)
-            );
-            routingBuilder.addShard(
-                newShardRouting(new ShardId(index, i), "search_" + (i % numSearchNodes), false, ShardRoutingState.STARTED)
-            );
-        }
-        for (int i = numAssignedShardIds; i < totalShardIds; i++) {
-            routingBuilder.addShard(newShardRouting(new ShardId(index, i), null, true, ShardRoutingState.UNASSIGNED));
-            routingBuilder.addShard(newShardRouting(new ShardId(index, i), null, false, ShardRoutingState.UNASSIGNED));
-        }
+        final var routing = IndexRoutingTable.builder(index)
+            .addShard(newShardRouting(new ShardId(index, 0), "index_0", true, ShardRoutingState.STARTED))
+            .addShard(newShardRouting(new ShardId(index, 0), "search_0", false, ShardRoutingState.STARTED))
+            .addShard(newShardRouting(new ShardId(index, 1), "index_1", true, ShardRoutingState.STARTED))
+            .addShard(newShardRouting(new ShardId(index, 1), "search_1", false, ShardRoutingState.STARTED))
+            .addShard(newShardRouting(new ShardId(index, 2), null, true, ShardRoutingState.UNASSIGNED))
+            .addShard(newShardRouting(new ShardId(index, 2), null, false, ShardRoutingState.UNASSIGNED));
 
         final var state = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(nodesBuilder)
-            .metadata(
-                Metadata.builder().put(IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), totalShardIds, 1)))
-            )
-            .routingTable(RoutingTable.builder().add(routingBuilder))
+            .nodes(nodes)
+            .metadata(Metadata.builder().put(IndexMetadata.builder(index.getName()).settings(indexSettings(IndexVersion.current(), 3, 1))))
+            .routingTable(RoutingTable.builder().add(routing))
             .build();
 
         final var result = IndexBalanceMetricsComputer.compute(state);
 
-        // If unassigned shards were counted, the ratio would be non-zero and these assertions would fail
         assertThat("primary shards should yield perfect balance", result.primaryBalanceHistogram()[0], equalTo(1));
         assertThat("replica shards should yield perfect balance", result.replicaBalanceHistogram()[0], equalTo(1));
     }
@@ -207,18 +186,16 @@ public class IndexBalanceMetricsComputerTests extends ESTestCase {
         final int numLight = between(1, numNodes - 1);
         final int avgShards = between(1, 40);
         final int totalShards = numNodes * avgShards;
-        final var ratio = between(0, 19) * 0.05;
+        // Cap the ratio so that the light nodes can absorb all `offBalance` deductions without going negative.
+        final double maxRatio = Math.min(0.95, (double) numLight / numNodes);
+        final var ratio = between(0, (int) Math.floor(maxRatio / 0.05)) * 0.05;
         final int offBalance = (int) Math.floor(ratio * totalShards);
-        assumeTrue("light nodes must cover offBalance", offBalance <= numLight * avgShards);
 
         final var map = buildBalancedMap(numNodes, avgShards);
         subtractFromLightNodes(map, numLight, offBalance, avgShards);
         addToHeavyNodes(map, numLight, numNodes, offBalance);
 
-        assertThat(
-            IndexBalanceMetricsComputer.shardsImbalanceRatio(map),
-            closeTo(totalShards > 0 ? (double) offBalance / totalShards : 0.0, 1e-9)
-        );
+        assertThat(IndexBalanceMetricsComputer.shardsImbalanceRatio(map), closeTo((double) offBalance / totalShards, 1e-9));
     }
 
     public void testBucketIndex() {
@@ -256,6 +233,11 @@ public class IndexBalanceMetricsComputerTests extends ESTestCase {
         return map;
     }
 
+    /**
+     * Removes {@code offBalance} shards from "light" nodes (indices {@code [0, numLight)}).
+     * Each non-last light node gives up a random portion of the remaining deficit (capped at {@code avgShards}
+     * so counts stay non-negative); the last light node absorbs whatever is left.
+     */
     private static void subtractFromLightNodes(ObjectIntHashMap<String> map, int numLight, int offBalance, int avgShards) {
         int remaining = offBalance;
         for (int i = 0; i < numLight; i++) {
@@ -266,11 +248,16 @@ public class IndexBalanceMetricsComputerTests extends ESTestCase {
         }
     }
 
-    private static void addToHeavyNodes(ObjectIntHashMap<String> map, int numHeavy, int totalNodes, int offBalance) {
+    /**
+     * Adds {@code offBalance} shards to "heavy" nodes (indices {@code [numLight, numNodes)}).
+     * Each non-last heavy node receives a random portion of the remaining surplus;
+     * the last heavy node absorbs whatever is left.
+     */
+    private static void addToHeavyNodes(ObjectIntHashMap<String> map, int numLight, int numNodes, int offBalance) {
         int remaining = offBalance;
-        for (int i = numHeavy; i < totalNodes; i++) {
+        for (int i = numLight; i < numNodes; i++) {
             final var key = "node_" + i;
-            final int give = (i < totalNodes - 1) ? between(0, remaining) : remaining;
+            final int give = (i < numNodes - 1) ? between(0, remaining) : remaining;
             map.addTo(key, give);
             remaining -= give;
         }

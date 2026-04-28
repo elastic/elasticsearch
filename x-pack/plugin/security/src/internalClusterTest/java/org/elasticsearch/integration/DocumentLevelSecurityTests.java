@@ -1631,9 +1631,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setProfile(true).setQuery(new FuzzyQueryBuilder("other_field", "valeu")),
             response -> {
-                assertThat(response.getProfileShardResults().size(), equalTo(1));
-                SearchProfileShardResult shardResult = response.getProfileShardResults()
-                    .get(response.getProfileShardResults().keySet().toArray()[0]);
+                assertThat(response.getProfileResults().size(), equalTo(1));
+                SearchProfileShardResult shardResult = response.getProfileResults()
+                    .get(response.getProfileResults().keySet().toArray()[0]);
                 assertThat(shardResult.getQueryProfileResults().size(), equalTo(1));
                 QueryProfileShardResult queryProfileShardResult = shardResult.getQueryProfileResults().get(0);
                 assertThat(queryProfileShardResult.getQueryResults().size(), equalTo(1));

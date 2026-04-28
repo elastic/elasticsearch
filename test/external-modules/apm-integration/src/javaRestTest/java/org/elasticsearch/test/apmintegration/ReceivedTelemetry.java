@@ -58,6 +58,21 @@ public sealed interface ReceivedTelemetry {
     }
 
     /**
+     * Protocol-neutral representation of the resource (telemetry source) that emitted spans.
+     * Populated from the APM intake {@code metadata} NDJSON event (service/agent/system/process/labels)
+     * and — once the OTel SDK path lands in PR 2 — from {@code ExportTraceServiceRequest.resource_spans[].resource}.
+     * <p>
+     * Attribute keys use raw OTel Semantic Convention names (e.g. {@code service.name},
+     * {@code telemetry.sdk.name}, {@code host.arch}) so that both export paths satisfy the same
+     * resource-level assertions without a prefix-translation step.
+     */
+    record ReceivedResource(Map<String, Object> attributes) implements ReceivedTelemetry {
+        public ReceivedResource {
+            attributes = Map.copyOf(requireNonNull(attributes));
+        }
+    }
+
+    /**
      * Value of a single metric sample: either a scalar or histogram counts.
      */
     sealed interface ReceivedMetricValue {}

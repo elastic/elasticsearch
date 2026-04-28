@@ -44,6 +44,10 @@ public final class OtlpTracesParser {
         ExportTraceServiceRequest request = ExportTraceServiceRequest.parseFrom(input);
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceSpans resourceSpans : request.getResourceSpansList()) {
+            // TODO(ES-14041): also emit a ReceivedTelemetry.ReceivedResource built from
+            // resourceSpans.getResource().getAttributesList() so the OTel SDK exporter satisfies
+            // AbstractTracesIT#REQUIRED_RESOURCE_KEYS. To be added alongside the OTel SDK
+            // trace-export PR.
             for (ScopeSpans scopeSpans : resourceSpans.getScopeSpansList()) {
                 for (Span span : scopeSpans.getSpansList()) {
                     String traceId = toHex(span.getTraceId().toByteArray());

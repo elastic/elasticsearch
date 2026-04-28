@@ -27,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 @SuppressForbidden(reason = "Uses an HTTP server for testing")
@@ -34,6 +35,14 @@ public class RecordingApmServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(RecordingApmServer.class);
 
     final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
+
+    /**
+     * First {@link ReceivedTelemetry.ReceivedResource} observed in this server's lifetime.
+     * Resource is per-JVM, not per-span; the APM agent sends it as line 1 of every intake request,
+     * so first-write-wins is safe. Routed via this setter rather than the {@link #received} queue to
+     * keep tests from racing on arrival order with transactions.
+     */
+    private final AtomicReference<ReceivedTelemetry.ReceivedResource> resource = new AtomicReference<>();
 
     private static HttpServer server;
     private final Thread messageConsumerThread = consumerThread();
@@ -99,7 +108,13 @@ public class RecordingApmServer extends ExternalResource {
                                 for (String line : lines) {
                                     ApmIntakeMessageParser.parseLine(line).ifPresent(msg -> {
                                         logger.debug("APM telemetry received: {}", msg);
-                                        received.add(msg);
+                                        if (msg instanceof ReceivedTelemetry.ReceivedResource r) {
+                                            // Resource is per-JVM; first-write-wins. Not queued so tests don't
+                                            // race between metadata and transactions from the same intake request.
+                                            resource.compareAndSet(null, r);
+                                        } else {
+                                            received.add(msg);
+                                        }
                                     });
                                 }
                             }
@@ -144,6 +159,14 @@ public class RecordingApmServer extends ExternalResource {
 
     public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {
         this.consumer = messageConsumer;
+    }
+
+    /**
+     * @return the first {@link ReceivedTelemetry.ReceivedResource} observed in this server's
+     *         lifetime, or {@code null} if no metadata event has arrived yet
+     */
+    public ReceivedTelemetry.ReceivedResource resource() {
+        return resource.get();
     }
 
 }

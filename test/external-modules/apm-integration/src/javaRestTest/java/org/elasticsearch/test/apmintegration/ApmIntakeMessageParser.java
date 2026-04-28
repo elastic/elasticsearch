@@ -29,10 +29,36 @@ import java.util.Set;
  */
 public final class ApmIntakeMessageParser {
 
-    static final Set<String> IGNORED_EVENT_NAMES = Set.of("metadata", "error");
+    static final Set<String> IGNORED_EVENT_NAMES = Set.of("error");
 
     private static final Set<String> TRANSACTION_DECODED_KEYS = Set.of("name", "trace_id", "id", "parent_id");
     private static final Set<String> SPAN_DECODED_KEYS = Set.of("name", "trace_id", "id", "parent_id", "transaction_id");
+
+    /**
+     * APM intake metadata → OTel Semantic Convention renames. Keys match the flattened dot-notation
+     * the metadata block produces after {@link #flattenAttributes}. Any metadata key not in this
+     * map is preserved verbatim (e.g. {@code system.platform}). This is the one place that closes
+     * the intake-side leg of the cross-path contract; the OTLP parser produces OTel keys natively.
+     */
+    private static final Map<String, String> APM_METADATA_TO_OTEL_KEY = Map.of(
+        "service.name",
+        "service.name",
+        "service.version",
+        "service.version",
+        "service.agent.name",
+        "telemetry.sdk.name",
+        "service.agent.version",
+        "telemetry.sdk.version",
+        "service.language.name",
+        "telemetry.sdk.language",
+        "service.runtime.name",
+        "process.runtime.name",
+        "service.runtime.version",
+        "process.runtime.version"
+    );
+
+    /** Top-level {@code labels} map on metadata is flattened with a {@code labels.} prefix. */
+    private static final String LABELS_TOP_KEY = "labels";
 
     private ApmIntakeMessageParser() {}
 
@@ -54,8 +80,10 @@ public final class ApmIntakeMessageParser {
                 return Optional.of(parseTransaction(map));
             } else if (map.containsKey("span")) {
                 return Optional.of(parseSpan(map));
+            } else if (map.containsKey("metadata")) {
+                return Optional.of(parseMetadata(map));
             } else if (IGNORED_EVENT_NAMES.containsAll(map.keySet())) {
-                // All keys in the event are known-but-unneeded types (e.g. "metadata", "error") — skip silently.
+                // All keys in the event are known-but-unneeded types (e.g. "error") — skip silently.
                 return Optional.empty();
             } else {
                 throw new IOException("Unexpected event type: " + map.keySet());
@@ -119,6 +147,38 @@ public final class ApmIntakeMessageParser {
             throw new IOException("metric sample counts is not a list");
         }
         throw new IOException("metric sample has no value or counts");
+    }
+
+    /**
+     * Parse an APM intake {@code metadata} event into a {@link ReceivedTelemetry.ReceivedResource}.
+     * <p>
+     * Produces a flat map of attributes keyed by OTel Semantic Convention names where a
+     * well-defined rename exists (see {@link #APM_METADATA_TO_OTEL_KEY}); otherwise the flattened
+     * APM path is preserved verbatim. The {@code labels} sub-map is flattened with a
+     * {@code labels.} prefix (e.g. {@code labels.env=staging}).
+     */
+    @SuppressWarnings("unchecked")
+    private static ReceivedTelemetry parseMetadata(Map<String, Object> root) throws IOException {
+        Object metadataObj = root.get("metadata");
+        if ((metadataObj instanceof Map<?, ?>) == false) {
+            throw new IOException("metadata missing or not an object");
+        }
+        Map<String, Object> metadata = (Map<String, Object>) metadataObj;
+        // labels is conceptually a separate flat map; flatten with a labels. prefix.
+        Object labelsObj = metadata.remove(LABELS_TOP_KEY);
+        Map<String, Object> flat = new LinkedHashMap<>(flattenAttributes(metadata, Set.of()));
+        if (labelsObj instanceof Map<?, ?> labelsMap) {
+            for (Map.Entry<?, ?> entry : labelsMap.entrySet()) {
+                flattenInto(LABELS_TOP_KEY + "." + entry.getKey(), entry.getValue(), flat);
+            }
+        }
+        Map<String, Object> renamed = new LinkedHashMap<>(flat.size());
+        for (Map.Entry<String, Object> entry : flat.entrySet()) {
+            String mapped = APM_METADATA_TO_OTEL_KEY.getOrDefault(entry.getKey(), entry.getKey());
+            // If two source keys collide after rename, keep the first-seen deterministic value.
+            renamed.putIfAbsent(mapped, entry.getValue());
+        }
+        return new ReceivedTelemetry.ReceivedResource(Collections.unmodifiableMap(renamed));
     }
 
     @SuppressWarnings("unchecked")

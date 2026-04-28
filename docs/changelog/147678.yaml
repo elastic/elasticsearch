@@ -1,0 +1,5 @@
+area: Watcher
+issues: []
+pr: 147678
+summary: Fix race in `TickerScheduleTriggerEngine` by checking watcher to node allocation
+type: bug

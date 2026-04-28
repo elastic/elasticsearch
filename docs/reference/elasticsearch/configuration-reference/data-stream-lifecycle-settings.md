@@ -52,7 +52,32 @@ $$$data-streams-lifecycle-target-floor-segment$$$
 $$$data-streams-lifecycle-signalling-error-retry-interval$$$
 
 `data_streams.lifecycle.signalling.error_retry_interval`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Represents the number of retries data stream lifecycle has to perform for an index in an error step in order to signal that the index is not progressing (i.e. it’s stuck in an error step). The current signalling mechanism is a log statement at the `error` level however, the signalling mechanism can be extended in the future. Defaults to 10 retries.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Represents the number of retries data stream lifecycle has to perform for an index in an error step to signal that the index is not progressing (For instance, it’s stuck in an error step). The current signalling mechanism is a log statement at the `error` level however, the signalling mechanism can be extended in the future. Defaults to 10 retries.
+
+
+## Frozen tier transition settings [_frozen_tier_transition_settings]
+
+The following settings control the behavior of the [frozen tier transition](/reference/elasticsearch/rest-apis/data-stream-lifecycle-frozen-transition.md), which automatically converts data stream backing indices to [searchable snapshots](docs-content://deploy-manage/tools/snapshot-and-restore/searchable-snapshots.md) on the frozen tier.
+
+$$$dlm-frozen-transition-poll-interval$$$
+
+`dlm.frozen_transition.poll_interval`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node checks for data stream backing indices that are ready to be converted to the frozen tier. Must be at least `1m`. Defaults to `5m`.
+
+$$$dlm-frozen-transition-max-concurrency$$$
+
+`dlm.frozen_transition.max_concurrency`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The maximum number of backing indices that the frozen transition service converts concurrently. Must be between `1` and `100`. Defaults to `10`.
+
+$$$dlm-frozen-transition-max-queue-size$$$
+
+`dlm.frozen_transition.max_queue_size`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The maximum number of backing indices that can be queued for frozen conversion at any given time. Indices submitted beyond this limit are skipped until the next poll cycle. Must be between `1` and `10000`. Defaults to `500`.
+
+$$$dlm-frozen-cleanup-poll-interval$$$
+
+`dlm.frozen_cleanup.poll_interval`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node scans for and deletes orphaned artifacts (clone indices and snapshots) left behind by interrupted frozen conversions. Must be at least `1h`. Defaults to `1d`.
 
 
 ## Index level settings [_index_level_settings]
@@ -71,6 +96,11 @@ $$$index-data-stream-lifecycle-origination-date$$$
 
 `index.lifecycle.origination_date` {applies_to}`serverless: all`
 :   ([Dynamic](../index-settings/index.md#index-modules-settings-description), long) If specified, this is the timestamp used to calculate the backing index generation age after this backing index has been [rolled over](docs-content://manage-data/lifecycle/index-lifecycle-management/rollover.md). The generation age is used to determine data retention, consequently, you can use this setting if you create a backing index that contains older data and want to ensure that the retention period or other parts of the lifecycle will be applied based on the data’s original timestamp and not the timestamp they got indexed. Specified as a Unix epoch value in milliseconds.
+
+$$$index-dlm-frozen-created$$$
+
+`index.dlm.frozen.created`
+:   ([Static](../index-settings/index.md#index-modules-settings-description), boolean) An internal marker set on indices created by the data stream lifecycle during [frozen tier conversion](/reference/elasticsearch/rest-apis/data-stream-lifecycle-frozen-transition.md) (clone indices and mounted searchable snapshots). This setting is not user-configurable. It is surfaced here for diagnostics and tooling purposes only.
 
 ## Reindex settings [reindex-data-stream-settings]
 

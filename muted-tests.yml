@@ -357,18 +357,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/147613
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testDoExecuteSetsCoordinatorNodeAndTaskIdOnRequest
-  issue: https://github.com/elastic/elasticsearch/issues/147622
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testAllocationExplainRebalancingNotPreferred
   issue: https://github.com/elastic/elasticsearch/issues/147627
 - class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
   method: testMatches
   issue: https://github.com/elastic/elasticsearch/issues/147630
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testDoExecuteWithHeaders
-  issue: https://github.com/elastic/elasticsearch/issues/147634
 - class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
   method: testVisit
   issue: https://github.com/elastic/elasticsearch/issues/147643
@@ -388,9 +382,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
   method: testUpdateTransformWithProjectRouting
   issue: https://github.com/elastic/elasticsearch/issues/147655
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testDoExecuteReleasesRegistrationOnLastChunkDeserializationFailure
-  issue: https://github.com/elastic/elasticsearch/issues/147693
 - class: org.elasticsearch.xpack.transform.transforms.TransformIndexerStateTests
   method: testStopAtCheckpointForThrottledTransform
   issue: https://github.com/elastic/elasticsearch/issues/147716
@@ -412,6 +403,12 @@ tests:
 - class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
   method: testToString
   issue: https://github.com/elastic/elasticsearch/issues/147739
+- class: org.elasticsearch.search.runtime.StringScriptFieldTermQueryTests
+  method: testEqualsAndHashCode
+  issue: https://github.com/elastic/elasticsearch/issues/147743
+- class: org.elasticsearch.search.suggest.completion.CategoryQueryContextTests
+  method: testNullCategoryIsIllegal
+  issue: https://github.com/elastic/elasticsearch/issues/147762
 
 # Examples:
 #

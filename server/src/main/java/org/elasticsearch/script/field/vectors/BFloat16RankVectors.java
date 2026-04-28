@@ -11,13 +11,13 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.MultiFloatVectorsSource;
+import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 
 import java.util.Iterator;
 
 import static org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder.getMultiMagnitudes;
 
-public class FloatRankVectors implements RankVectors, MultiFloatVectorsSource {
+public class BFloat16RankVectors implements RankVectors, MultiBFloat16VectorsSource {
 
     private final BytesRef magnitudes;
     private float[] magnitudesArray = null;
@@ -27,11 +27,13 @@ public class FloatRankVectors implements RankVectors, MultiFloatVectorsSource {
     private final BytesRef vectorBytes;
     private float[] scoresScratch = new float[0];
 
-    public FloatRankVectors(VectorIterator<float[]> decodedDocVector, BytesRef magnitudes, int numVectors, int dims) {
-        this(decodedDocVector, magnitudes, numVectors, dims, null);
-    }
-
-    public FloatRankVectors(VectorIterator<float[]> decodedDocVector, BytesRef magnitudes, int numVectors, int dims, BytesRef vectorBytes) {
+    public BFloat16RankVectors(
+        VectorIterator<float[]> decodedDocVector,
+        BytesRef magnitudes,
+        int numVectors,
+        int dims,
+        BytesRef vectorBytes
+    ) {
         assert magnitudes.length == numVectors * Float.BYTES;
         this.vectorValues = decodedDocVector;
         this.magnitudes = magnitudes;
@@ -53,7 +55,7 @@ public class FloatRankVectors implements RankVectors, MultiFloatVectorsSource {
 
     @Override
     public float maxSimInvHamming(byte[][] query) {
-        throw new UnsupportedOperationException("hamming distance is not supported for float vectors");
+        throw new UnsupportedOperationException("hamming distance is not supported for bfloat16 vectors");
     }
 
     @Override
@@ -101,7 +103,7 @@ public class FloatRankVectors implements RankVectors, MultiFloatVectorsSource {
 
     @Override
     public int vectorByteSize() {
-        return dims * Float.BYTES;
+        return dims * Short.BYTES;
     }
 
     @Override
@@ -115,5 +117,4 @@ public class FloatRankVectors implements RankVectors, MultiFloatVectorsSource {
         }
         return scoresScratch;
     }
-
 }

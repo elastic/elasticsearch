@@ -230,7 +230,7 @@ public class TargetIndexTests extends ESTestCase {
         );
     }
 
-    public void testEvaluateIgnoresInvalidReceiverAndConnectorRoutingNames() {
+    public void testEvaluateIgnoresComponentRoutingNamesWithoutRequiredSuffix() {
         TargetIndex receiverIndex = evaluateWithScope(
             "logs",
             List.of(),
@@ -255,6 +255,14 @@ public class TargetIndexTests extends ESTestCase {
             InstrumentationScope.newBuilder().setName("/connector/bar").build(),
             List.of()
         );
+
+        assertThat(receiverIndex.index(), equalTo("logs-generic.otel-default"));
+        assertThat(connectorIndex.index(), equalTo("logs-generic.otel-default"));
+        assertThat(shortReceiverIndex.index(), equalTo("logs-generic.otel-default"));
+        assertThat(shortConnectorIndex.index(), equalTo("logs-generic.otel-default"));
+    }
+
+    public void testEvaluateUsesComponentRoutingWithRequiredSuffix() {
         TargetIndex hyphenatedReceiverIndex = evaluateWithScope(
             "logs",
             List.of(),
@@ -262,11 +270,7 @@ public class TargetIndexTests extends ESTestCase {
             List.of()
         );
 
-        assertThat(receiverIndex.index(), equalTo("logs-generic.otel-default"));
-        assertThat(connectorIndex.index(), equalTo("logs-generic.otel-default"));
-        assertThat(shortReceiverIndex.index(), equalTo("logs-generic.otel-default"));
-        assertThat(shortConnectorIndex.index(), equalTo("logs-generic.otel-default"));
-        assertThat(hyphenatedReceiverIndex.index(), equalTo("logs-generic.otel-default"));
+        assertThat(hyphenatedReceiverIndex.index(), equalTo("logs-host_metricsreceiver.otel-default"));
     }
 
     public void testEvaluateIgnoresEmptyEncodingFormat() {

@@ -152,13 +152,6 @@ public final class TargetIndex {
         if (component.length() <= requiredSuffix.length() || component.endsWith(requiredSuffix) == false) {
             return null;
         }
-        for (int i = 0; i < component.length(); i++) {
-            char c = component.charAt(i);
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') {
-                continue;
-            }
-            return null;
-        }
         return component;
     }
 

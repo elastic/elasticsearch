@@ -28,6 +28,9 @@ import java.util.List;
  */
 public abstract class OTelDocumentBuilder {
 
+    private static final String DATA_STREAM_TYPE = "data_stream.type";
+    private static final String ELASTIC_MAPPING_MODE = "elastic.mapping.mode";
+    private static final String ELASTICSEARCH_DOCUMENT_ID = "elasticsearch.document_id";
     private static final HexFormat HEX = HexFormat.of();
     private final BufferedByteStringAccessor byteStringAccessor;
 
@@ -88,13 +91,17 @@ public abstract class OTelDocumentBuilder {
     /**
      * Checks if the given attribute key is an ignored attribute.
      * Ignored attributes are well-known Elastic-specific attributes
-     * that influence how the documents are indexed but are not stored themselves.
+     * that control routing, mapping, or document metadata but are not stored themselves.
      *
      * @param attributeKey the attribute key to check
      * @return true if the attribute is ignored, false otherwise
      */
     public static boolean isIgnoredAttribute(String attributeKey) {
-        return TargetIndex.isTargetIndexAttribute(attributeKey) || MappingHints.isMappingHintsAttribute(attributeKey);
+        return TargetIndex.isTargetIndexAttribute(attributeKey)
+            || MappingHints.isMappingHintsAttribute(attributeKey)
+            || DATA_STREAM_TYPE.equals(attributeKey)
+            || ELASTIC_MAPPING_MODE.equals(attributeKey)
+            || ELASTICSEARCH_DOCUMENT_ID.equals(attributeKey);
     }
 
     protected void buildAnyValue(XContentBuilder builder, AnyValue value) throws IOException {

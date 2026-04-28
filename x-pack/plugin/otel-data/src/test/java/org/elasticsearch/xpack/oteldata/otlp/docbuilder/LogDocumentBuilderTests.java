@@ -58,7 +58,7 @@ public class LogDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("observed_timestamp"), equalTo("2000.0"));
         assertThat(doc.evaluate("severity_text"), equalTo("INFO"));
         assertThat(doc.evaluate("severity_number"), equalTo(SeverityNumber.SEVERITY_NUMBER_INFO.getNumber()));
-        assertThat(doc.evaluate("attributes"), nullValue());
+        assertThat(doc.evaluate("attributes"), equalTo(Map.of()));
     }
 
     public void testKvlistBody() throws IOException {
@@ -336,7 +336,7 @@ public class LogDocumentBuilderTests extends ESTestCase {
         ObjectPath doc = buildDocument(logRecord);
 
         assertThat(doc.evaluate("body"), nullValue());
-        assertThat(doc.evaluate("attributes"), nullValue());
+        assertThat(doc.evaluate("attributes"), equalTo(Map.of()));
     }
 
     public void testControlAttributesAreFiltered() throws IOException {
@@ -347,7 +347,6 @@ public class LogDocumentBuilderTests extends ESTestCase {
         InstrumentationScope scope = InstrumentationScope.newBuilder()
             .setName("test-scope")
             .addAttributes(keyValue("scope.keep", "value"))
-            .addAttributes(keyValue("elasticsearch.ingest_pipeline", "logs-pipeline"))
             .build();
         LogRecord logRecord = LogRecord.newBuilder()
             .setTimeUnixNano(1_000_000_000L)
@@ -363,17 +362,13 @@ public class LogDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("attributes.data_stream\\.type"), nullValue());
         assertThat(doc.evaluate("attributes.elasticsearch\\.document_id"), nullValue());
         assertThat(doc.evaluate("scope.attributes.scope\\.keep"), equalTo("value"));
-        assertThat(doc.evaluate("scope.attributes.elasticsearch\\.ingest_pipeline"), nullValue());
         assertThat(doc.evaluate("resource.attributes.service\\.name"), equalTo("test-service"));
         assertThat(doc.evaluate("resource.attributes.elastic\\.mapping\\.mode"), nullValue());
     }
 
-    public void testFilteredControlAttributesDoNotCreateEmptyAttributesObject() throws IOException {
+    public void testFilteredControlAttributesCreateEmptyAttributesObject() throws IOException {
         Resource resource = Resource.newBuilder().addAttributes(keyValue("elastic.mapping.mode", "otel")).build();
-        InstrumentationScope scope = InstrumentationScope.newBuilder()
-            .setName("test-scope")
-            .addAttributes(keyValue("elasticsearch.ingest_pipeline", "logs-pipeline"))
-            .build();
+        InstrumentationScope scope = InstrumentationScope.newBuilder().setName("test-scope").build();
         LogRecord logRecord = LogRecord.newBuilder()
             .setTimeUnixNano(1_000_000_000L)
             .setBody(AnyValue.newBuilder().setStringValue("msg").build())
@@ -383,9 +378,9 @@ public class LogDocumentBuilderTests extends ESTestCase {
 
         ObjectPath doc = buildDocument(resource, scope, logRecord);
 
-        assertThat(doc.evaluate("attributes"), nullValue());
-        assertThat(doc.evaluate("scope.attributes"), nullValue());
-        assertThat(doc.evaluate("resource.attributes"), nullValue());
+        assertThat(doc.evaluate("attributes"), equalTo(Map.of()));
+        assertThat(doc.evaluate("scope.attributes"), equalTo(Map.of()));
+        assertThat(doc.evaluate("resource.attributes"), equalTo(Map.of()));
     }
 
     private ObjectPath buildDocument(LogRecord logRecord) throws IOException {

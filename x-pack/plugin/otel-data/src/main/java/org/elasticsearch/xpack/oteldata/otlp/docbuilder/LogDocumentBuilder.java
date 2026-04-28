@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -68,10 +67,10 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
         }
         addSpanId(builder, logRecord.getSpanId().toByteArray());
         addTraceId(builder, logRecord.getTraceId().toByteArray());
-        buildLogResource(resource, resourceSchemaUrl, builder);
+        buildResource(resource, resourceSchemaUrl, builder);
         buildDataStream(builder, targetIndex);
-        buildLogScope(builder, scope, scopeSchemaUrl);
-        buildLogAttributes(builder, logRecord.getAttributesList(), logRecord.getDroppedAttributesCount());
+        buildScope(builder, scope, scopeSchemaUrl);
+        buildAttributes(builder, logRecord.getAttributesList(), logRecord.getDroppedAttributesCount());
         buildBody(builder, logRecord);
         builder.endObject();
     }
@@ -80,52 +79,6 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
         long millis = TimeUnit.NANOSECONDS.toMillis(unixNanos);
         long nanosRemainder = unixNanos - TimeUnit.MILLISECONDS.toNanos(millis);
         builder.field(fieldName, nanosRemainder == 0 ? millis + ".0" : Strings.format("%d.%06d", millis, nanosRemainder));
-    }
-
-    private void buildLogResource(Resource resource, ByteString schemaUrl, XContentBuilder builder) throws IOException {
-        builder.startObject("resource");
-        addFieldIfNotEmpty(builder, "schema_url", schemaUrl);
-        buildLogAttributes(builder, resource.getAttributesList(), resource.getDroppedAttributesCount());
-        builder.endObject();
-    }
-
-    private void buildLogScope(XContentBuilder builder, InstrumentationScope scope, ByteString schemaUrl) throws IOException {
-        builder.startObject("scope");
-        addFieldIfNotEmpty(builder, "schema_url", schemaUrl);
-        addFieldIfNotEmpty(builder, "name", scope.getNameBytes());
-        addFieldIfNotEmpty(builder, "version", scope.getVersionBytes());
-        buildLogAttributes(builder, scope.getAttributesList(), scope.getDroppedAttributesCount());
-        builder.endObject();
-    }
-
-    private void buildLogAttributes(XContentBuilder builder, List<KeyValue> attributes, int droppedAttributesCount) throws IOException {
-        if (droppedAttributesCount > 0) {
-            builder.field("dropped_attributes_count", droppedAttributesCount);
-        }
-        boolean startedAttributes = false;
-        for (int i = 0, size = attributes.size(); i < size; i++) {
-            KeyValue attribute = attributes.get(i);
-            if (isIgnoredLogAttribute(attribute.getKey())) {
-                continue;
-            }
-            if (startedAttributes == false) {
-                builder.startObject("attributes");
-                startedAttributes = true;
-            }
-            builder.field(attribute.getKey());
-            buildAnyValue(builder, attribute.getValue());
-        }
-        if (startedAttributes) {
-            builder.endObject();
-        }
-    }
-
-    private static boolean isIgnoredLogAttribute(String attributeKey) {
-        return isIgnoredAttribute(attributeKey)
-            || "data_stream.type".equals(attributeKey)
-            || "elastic.mapping.mode".equals(attributeKey)
-            || "elasticsearch.document_id".equals(attributeKey)
-            || "elasticsearch.ingest_pipeline".equals(attributeKey);
     }
 
     private void buildBody(XContentBuilder builder, LogRecord logRecord) throws IOException {

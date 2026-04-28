@@ -86,12 +86,7 @@ public interface FormatReader extends Closeable {
 
     /**
      * Convenience overload that delegates to {@link #read(StorageObject, FormatReadContext)}.
-     * Keeps test code and simple call sites working without constructing a context.echo 'alias claude="$HOME/.local/share/claude/versions/2.1.119/claude"' >> ~/.zshrc
-     * echo 'export DISABLE_AUTOUPDATER=1' >> ~/.zshrc
-     *
-     *
-     * echo 'alias claude="$HOME/.local/share/claude/versions/2.1.119/claude"' >> ~/.zshrc
-     * echo 'export DISABLE_AUTOUPDATER=1' >> ~/.zshrc
+     * Keeps test code and simple call sites working without constructing a context.
      */
     default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
         return read(object, FormatReadContext.of(projectedColumns, batchSize));

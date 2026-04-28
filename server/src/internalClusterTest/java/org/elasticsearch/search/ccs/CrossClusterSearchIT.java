@@ -787,6 +787,39 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         });
     }
 
+    public void testDoubleClusterPrefix() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
+
+        SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":test:index");
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+        if (randomBoolean()) {
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        }
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
+
+        if (skipUnavailable) {
+            assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+                assertNotNull(response);
+                Clusters clusters = response.getClusters();
+                assertNotNull(clusters);
+                Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+                assertNotNull(remoteClusterSearchInfo);
+                assertThat(remoteClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SKIPPED));
+                var failure = remoteClusterSearchInfo.getFailures().getFirst();
+                assertThat(failure.reason(), containsString("Cross-cluster calls are not supported in this context"));
+                assertThat(failure.getCause(), instanceOf(IllegalArgumentException.class));
+            });
+        } else {
+            Exception ex = assertThrows(ExecutionException.class, () -> client(LOCAL_CLUSTER).search(searchRequest).get());
+            Throwable cause = ExceptionsHelper.unwrap(ex, IllegalArgumentException.class);
+            assertNotNull(cause);
+            assertThat(cause.getMessage(), containsString("Cross-cluster calls are not supported in this context"));
+        }
+    }
+
     private static void assertOneFailedShard(Cluster cluster, int totalShards) {
         assertNotNull(cluster);
         assertThat(cluster.getStatus(), equalTo(Cluster.Status.PARTIAL));

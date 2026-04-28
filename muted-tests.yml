@@ -298,9 +298,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/250_high_cardinality_keyword/Test avg length}
   issue: https://github.com/elastic/elasticsearch/issues/147380
-- class: org.elasticsearch.search.fetch.ChunkedFetchPhaseCircuitBreakerTrippingIT
-  method: testCircuitBreakerTripsWithConcurrentSearches
-  issue: https://github.com/elastic/elasticsearch/issues/147391
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/147449
@@ -398,6 +395,9 @@ tests:
 - class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
   method: testDoExecuteReleasesRegistrationOnLastChunkDeserializationFailure
   issue: https://github.com/elastic/elasticsearch/issues/147693
+- class: org.elasticsearch.xpack.transform.transforms.TransformIndexerStateTests
+  method: testStopAtCheckpointForThrottledTransform
+  issue: https://github.com/elastic/elasticsearch/issues/147716
 
 # Examples:
 #

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -40,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.drainPagesAsync;
 
@@ -93,6 +96,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int parsingParallelism;
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
+    private final Closeable onClose;
+    private final AtomicInteger operatorRefCount = new AtomicInteger(0);
 
     private AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -110,7 +115,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ErrorPolicy errorPolicy,
         int parsingParallelism,
         @Nullable List<Expression> pushedExpressions,
-        @Nullable FilterPushdownSupport pushdownSupport
+        @Nullable FilterPushdownSupport pushdownSupport,
+        @Nullable Closeable onClose
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -150,6 +156,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.parsingParallelism = Math.max(1, parsingParallelism);
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
         this.pushdownSupport = pushdownSupport;
+        this.onClose = onClose;
     }
 
     public static Builder builder(
@@ -189,6 +196,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private int parsingParallelism = 1;
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
+        private Closeable onClose;
 
         private Builder(
             StorageProvider storageProvider,
@@ -253,6 +261,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /**
+         * @param onClose lifecycle callback owned by this factory, invoked exactly once when the last
+         *                operator created by {@link AsyncExternalSourceOperatorFactory#get} completes
+         *                (ref count drops to zero). Used by the per-source concurrency budget to
+         *                deregister from the allocator. May be {@code null} when no per-source cleanup
+         *                is needed. Callers must ensure that {@code get()} is called at least once;
+         *                otherwise the callback never fires and the resource it guards leaks.
+         */
+        public Builder onClose(@Nullable Closeable onClose) {
+            this.onClose = onClose;
+            return this;
+        }
+
         public AsyncExternalSourceOperatorFactory build() {
             return new AsyncExternalSourceOperatorFactory(
                 storageProvider,
@@ -270,35 +291,42 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 errorPolicy,
                 parsingParallelism,
                 pushedExpressions,
-                pushdownSupport
+                pushdownSupport,
+                onClose
             );
         }
     }
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
-        long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
-        driverContext.addAsyncAction();
+        operatorRefCount.incrementAndGet();
+        try {
+            long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
+            AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+            driverContext.addAsyncAction();
 
-        if (sliceQueue != null) {
-            startSliceQueueRead(buffer, driverContext);
-        } else if (fileList != null && fileList.isResolved()) {
-            VirtualColumnInjector injector = buildInjector(driverContext);
-            List<String> projectedColumns = projectedColumns(injector);
-            startMultiFileRead(projectedColumns, buffer, driverContext, injector);
-        } else {
-            VirtualColumnInjector injector = buildInjector(driverContext);
-            List<String> projectedColumns = projectedColumns(injector);
-            StorageObject storageObject = storageProvider.newObject(path);
-            if (formatReader.supportsNativeAsync()) {
-                startNativeAsyncRead(storageObject, projectedColumns, buffer, driverContext, injector);
+            if (sliceQueue != null) {
+                startSliceQueueRead(buffer, driverContext);
+            } else if (fileList != null && fileList.isResolved()) {
+                VirtualColumnInjector injector = buildInjector(driverContext);
+                List<String> projectedColumns = projectedColumns(injector);
+                startMultiFileRead(projectedColumns, buffer, driverContext, injector);
             } else {
-                startSyncWrapperRead(storageObject, projectedColumns, buffer, driverContext, injector);
+                VirtualColumnInjector injector = buildInjector(driverContext);
+                List<String> projectedColumns = projectedColumns(injector);
+                StorageObject storageObject = storageProvider.newObject(path);
+                if (formatReader.supportsNativeAsync()) {
+                    startNativeAsyncRead(storageObject, projectedColumns, buffer, driverContext, injector);
+                } else {
+                    startSyncWrapperRead(storageObject, projectedColumns, buffer, driverContext, injector);
+                }
             }
-        }
 
-        return new AsyncExternalSourceOperator(buffer);
+            return new AsyncExternalSourceOperator(buffer);
+        } catch (Exception e) {
+            releaseOperator();
+            throw e;
+        }
     }
 
     private VirtualColumnInjector buildInjector(DriverContext driverContext) {
@@ -389,9 +417,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ActionListener<Void> completionListener = ActionListener.assertOnce(ActionListener.wrap(v -> {
             buffer.finish(false);
             driverContext.removeAsyncAction();
+            releaseOperator();
         }, e -> {
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
+            releaseOperator();
         }));
         ProducerState state = new ProducerState(sliceQueue, null, null, null, buffer, driverContext, rowLimit);
         try {
@@ -416,9 +446,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ActionListener<Void> completionListener = ActionListener.assertOnce(ActionListener.wrap(v -> {
             buffer.finish(false);
             driverContext.removeAsyncAction();
+            releaseOperator();
         }, e -> {
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
+            releaseOperator();
         }));
         ProducerState state = new ProducerState(null, fileList, projectedColumns, injector, buffer, driverContext, rowLimit);
         state.schemaInfo = schemaInfo;
@@ -746,6 +778,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }, e -> {
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
+            releaseOperator();
         }));
     }
 
@@ -792,6 +825,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), e -> buffer.onFailure(e)), () -> {
                     closeQuietly(wrapped);
                     driverContext.removeAsyncAction();
+                    releaseOperator();
                 })
             );
         }));
@@ -807,6 +841,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             closeQuietly(pages);
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
+            releaseOperator();
         });
         executor.execute(ActionRunnable.run(failureListener, () -> {
             CloseableIterator<Page> wrapped = wrapWithInjector(pages, injector);
@@ -817,6 +852,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), e -> buffer.onFailure(e)), () -> {
                     closeQuietly(wrapped);
                     driverContext.removeAsyncAction();
+                    releaseOperator();
                 })
             );
         }));
@@ -888,13 +924,21 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         });
     }
 
+    private void releaseOperator() {
+        if (operatorRefCount.decrementAndGet() == 0 && onClose != null) {
+            closeQuietly(onClose);
+        }
+    }
+
+    private static void closeQuietly(Closeable closeable) {
+        if (closeable != null) {
+            IOUtils.closeWhileHandlingException(closeable);
+        }
+    }
+
     private static void closeQuietly(CloseableIterator<?> iterator) {
         if (iterator != null) {
-            try {
-                iterator.close();
-            } catch (Exception e) {
-                // Ignore - closeExpectNoException semantics
-            }
+            IOUtils.closeWhileHandlingException(iterator);
         }
     }
 

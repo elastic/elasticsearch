@@ -76,7 +76,7 @@ public interface CuVSResourceManager {
             case INT, UINT -> Integer.BYTES;
             case BYTE -> Byte.BYTES;
         };
-        return (long) (GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * elementTypeBytes);
+        return (long) (GPU_COMPUTATION_MEMORY_FACTOR * (long) numVectors * dims * elementTypeBytes);
     }
 
     /** Returns the system-wide pooling manager. */

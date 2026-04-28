@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.cloud;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -25,12 +24,12 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
  * In a non-serverless environment, the {@link Default} no-op implementation is used instead.
  */
 public interface InternalCloudApiKeyService {
-    record CloudGrantApiKeyResult(SecureString credential, Authentication authentication) {}
+    record CloudGrantApiKeyResult(CloudCredential credential, Authentication authentication) {}
 
     @Nullable
-    SecureString extractCloudManagedCredential(ThreadContext threadContext);
+    CloudCredential extractCloudManagedCredential(ThreadContext threadContext);
 
-    void injectCloudManagedCredential(ThreadContext context, SecureString storedCredential);
+    void injectCloudManagedCredential(ThreadContext context, CloudCredential storedCredential);
 
     /**
      * Grants a dedicated UIAM Cloud API key for an ML job, using the caller's credential to authenticate
@@ -43,7 +42,7 @@ public interface InternalCloudApiKeyService {
      */
     void grantCloudAuthentication(
         ThreadContext threadContext,
-        SecureString cloudManagedCredential,
+        CloudCredential cloudManagedCredential,
         String description,
         ActionListener<CloudGrantApiKeyResult> listener
     );
@@ -61,19 +60,19 @@ public interface InternalCloudApiKeyService {
 
     class Default implements InternalCloudApiKeyService {
         @Override
-        public SecureString extractCloudManagedCredential(ThreadContext threadContext) {
+        public CloudCredential extractCloudManagedCredential(ThreadContext threadContext) {
             return null;
         }
 
         @Override
-        public void injectCloudManagedCredential(ThreadContext context, SecureString storedCredential) {
+        public void injectCloudManagedCredential(ThreadContext context, CloudCredential storedCredential) {
 
         }
 
         @Override
         public void grantCloudAuthentication(
             ThreadContext threadContext,
-            SecureString cloudManagedCredential,
+            CloudCredential cloudManagedCredential,
             String description,
             ActionListener<CloudGrantApiKeyResult> listener
         ) {

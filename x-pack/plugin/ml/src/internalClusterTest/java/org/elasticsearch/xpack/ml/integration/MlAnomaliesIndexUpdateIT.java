@@ -159,9 +159,7 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
     private void createBadIndex(String name, String mappingSource, List<String> jobIds) {
         client().admin().indices().create(new CreateIndexRequest(name).mapping(mappingSource)).actionGet();
 
-        var aliasesReq = client().admin()
-            .indices()
-            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        var aliasesReq = client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         for (String jobId : jobIds) {
             aliasesReq.addAliasAction(
                 IndicesAliasesRequest.AliasActions.add()

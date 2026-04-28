@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -129,7 +128,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         verify(client).settings();
         verify(client, times(7)).threadPool();
         verify(client).projectResolver();
-        verify(client, times(2)).execute(same(TransportIndicesAliasesAction.TYPE), any(), any()); // create rollover alias and update 
+        verify(client, times(2)).execute(same(TransportIndicesAliasesAction.TYPE), any(), any()); // create rollover alias and update
         verify(client).execute(same(RolloverAction.INSTANCE), any(), any());
         verifyNoMoreInteractions(client);
     }
@@ -251,7 +250,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         verify(client, never()).execute(same(TransportIndicesAliasesAction.TYPE), any(), any());
         verify(auditor, never()).warning(any(), any());
     }
-    
+
     private record AliasActionMatcher(String aliasName, String index, IndicesAliasesRequest.AliasActions.Type actionType) {
         boolean matches(IndicesAliasesRequest.AliasActions aliasAction) {
             return aliasAction.actionType() == actionType

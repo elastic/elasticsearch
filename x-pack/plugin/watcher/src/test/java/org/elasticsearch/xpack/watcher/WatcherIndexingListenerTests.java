@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.Configuration;
-import org.elasticsearch.xpack.watcher.WatcherIndexingListener.ShardAllocationConfiguration;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
@@ -61,7 +60,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.xpack.watcher.WatcherIndexingListener.INACTIVE;
@@ -183,8 +181,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(parser.parseWithSecrets(any(), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         for (int idx = 0; idx < totalShardCount; idx++) {
-            final Map<ShardId, ShardAllocationConfiguration> localShards = new HashMap<>();
-            localShards.put(shardId, new ShardAllocationConfiguration(idx, totalShardCount, Collections.emptyList()));
+            final var localShards = Map.of(shardId, new ShardAllocationConfiguration(idx, totalShardCount, List.of()));
             Configuration configuration = new Configuration(Watch.INDEX, localShards);
             listener.setConfiguration(configuration);
             listener.postIndex(shardId, operation, result);
@@ -307,9 +304,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     public void testClusterChangedNoWatchIndex() throws Exception {
-        Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
-        map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
-        Configuration randomConfiguration = new Configuration(randomAlphaOfLength(10), map);
+        final var localShards = Map.of(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
+        Configuration randomConfiguration = new Configuration(randomAlphaOfLength(10), localShards);
         listener.setConfiguration(randomConfiguration);
 
         ClusterState clusterState = mockClusterState(null);
@@ -401,8 +397,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         );
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
-            asList(shardRouting),
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = ShardAllocationConfiguration.forLocalShards(
+            List.of(shardRouting),
             indexRoutingTable
         );
 
@@ -417,8 +413,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "other", true, STARTED);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
-            Collections.emptyList(),
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = ShardAllocationConfiguration.forLocalShards(
+            List.of(),
             indexRoutingTable
         );
         assertThat(allocationIds.size(), is(0));
@@ -441,7 +437,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             .addShard(TestShardRouting.newShardRouting(secondShardId, "node2", false, STARTED))
             .build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = ShardAllocationConfiguration.forLocalShards(
             localShards,
             indexRoutingTable
         );

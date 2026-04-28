@@ -335,8 +335,10 @@ public class WatcherService {
             // used by postIndex and by buildAssignmentPredicate during start().
             @NotMultiProjectCapable(description = "Watcher is not available in serverless")
             IndexRoutingTable indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(watchIndexName);
-            Map<ShardId, WatcherIndexingListener.ShardAllocationConfiguration> shardConfigs = WatcherIndexingListener
-                .getLocalShardAllocationIds(localShards, indexRoutingTable);
+            Map<ShardId, ShardAllocationConfiguration> shardConfigs = ShardAllocationConfiguration.forLocalShards(
+                localShards,
+                indexRoutingTable
+            );
 
             SearchRequest searchRequest = new SearchRequest(INDEX).scroll(scrollTimeout)
                 .preference(Preference.ONLY_LOCAL.toString())
@@ -353,7 +355,7 @@ public class WatcherService {
 
             while (response.getHits().getHits().length != 0) {
                 for (SearchHit hit : response.getHits()) {
-                    WatcherIndexingListener.ShardAllocationConfiguration shardConfig = shardConfigs.get(hit.getShard().getShardId());
+                    ShardAllocationConfiguration shardConfig = shardConfigs.get(hit.getShard().getShardId());
                     if (shardConfig == null || shardConfig.shouldBeTriggered(hit.getId()) == false) {
                         continue;
                     }
@@ -399,8 +401,8 @@ public class WatcherService {
 
     /**
      * Build a predicate that, given a watch id, decides whether this watch belongs on the local node according to the
-     * given cluster state. This delegates to {@link WatcherIndexingListener#getLocalShardAllocationIds} and
-     * {@link WatcherIndexingListener.ShardAllocationConfiguration#shouldBeTriggered} so the assignment stays consistent
+     * given cluster state. This delegates to {@link ShardAllocationConfiguration#forLocalShards} and
+     * {@link ShardAllocationConfiguration#shouldBeTriggered} so the assignment stays consistent
      * with the routing applied in {@link WatcherIndexingListener#postIndex} and in {@link #loadWatches}. The predicate
      * is used to re-validate any pending watches that {@code postIndex} accumulated while the trigger engine was paused,
      * so entries whose allocation has shifted since they were enqueued are not blindly merged back in.
@@ -422,8 +424,10 @@ public class WatcherService {
 
         @NotMultiProjectCapable(description = "Watcher is not available in serverless")
         IndexRoutingTable indexRoutingTable = state.routingTable(ProjectId.DEFAULT).index(watchIndexName);
-        Map<ShardId, WatcherIndexingListener.ShardAllocationConfiguration> shardConfigs = WatcherIndexingListener
-            .getLocalShardAllocationIds(localShards, indexRoutingTable);
+        Map<ShardId, ShardAllocationConfiguration> shardConfigs = ShardAllocationConfiguration.forLocalShards(
+            localShards,
+            indexRoutingTable
+        );
         if (shardConfigs.isEmpty()) {
             return id -> false;
         }
@@ -431,7 +435,7 @@ public class WatcherService {
         int numShards = indexMetadata.getNumberOfShards();
         return id -> {
             int shardIdNum = Math.floorMod(Murmur3HashFunction.hash(id), numShards);
-            for (Map.Entry<ShardId, WatcherIndexingListener.ShardAllocationConfiguration> entry : shardConfigs.entrySet()) {
+            for (Map.Entry<ShardId, ShardAllocationConfiguration> entry : shardConfigs.entrySet()) {
                 if (entry.getKey().getId() == shardIdNum) {
                     return entry.getValue().shouldBeTriggered(id);
                 }

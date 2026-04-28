@@ -15,13 +15,10 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.engine.Engine;
@@ -259,7 +256,10 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         boolean isAliasChanged = watchIndex.equals(configuration.index) == false;
         if (isAliasChanged || hasShardAllocationIdChanged(projectId, watchIndex, event.state())) {
             IndexRoutingTable watchIndexRoutingTable = event.state().routingTable(projectId).index(watchIndex);
-            Map<ShardId, ShardAllocationConfiguration> ids = getLocalShardAllocationIds(localShardRouting, watchIndexRoutingTable);
+            Map<ShardId, ShardAllocationConfiguration> ids = ShardAllocationConfiguration.forLocalShards(
+                localShardRouting,
+                watchIndexRoutingTable
+            );
             configuration = new Configuration(watchIndex, ids);
         }
     }
@@ -320,47 +320,6 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     }
 
     /**
-     * This returns a mapping of the shard it to the index of the shard allocation ids in that
-     * list. The idea here is to have a basis for consistent hashing in order to decide if a
-     * watch needs to be triggered locally or on another system, when it is being indexed
-     * as a single watch action.
-     *
-     * Example:
-     * - ShardId(".watch", 0)
-     * - all allocation ids sorted (in the cluster): [ "a", "b", "c", "d"]
-     * - local allocation id: b (index position 1)
-     * - then store the size of the allocation ids and the index position
-     *   data.put(ShardId(".watch", 0), new Tuple(1, 4))
-     */
-    static Map<ShardId, ShardAllocationConfiguration> getLocalShardAllocationIds(
-        List<ShardRouting> localShards,
-        IndexRoutingTable routingTable
-    ) {
-        Map<ShardId, ShardAllocationConfiguration> data = Maps.newMapWithExpectedSize(localShards.size());
-
-        for (ShardRouting shardRouting : localShards) {
-            ShardId shardId = shardRouting.shardId();
-
-            // find all allocation ids for this shard id in the cluster state
-            List<String> allocationIds = routingTable.shard(shardId.getId())
-                .activeShards()
-                .stream()
-                .map(ShardRouting::allocationId)
-                .map(AllocationId::getId)
-                .sorted()
-                .toList();
-
-            // sort the list so it is stable
-
-            String allocationId = shardRouting.allocationId().getId();
-            int idx = allocationIds.indexOf(allocationId);
-            data.put(shardId, new ShardAllocationConfiguration(idx, allocationIds.size(), allocationIds));
-        }
-
-        return data;
-    }
-
-    /**
      * A helper class, that contains shard configuration per shard id
      */
     static final class Configuration {
@@ -384,24 +343,6 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
          */
         public boolean isIndexAndActive(String index) {
             return active && index.equals(this.index);
-        }
-    }
-
-    static final class ShardAllocationConfiguration {
-        final int index;
-        final int shardCount;
-        final List<String> allocationIds;
-
-        ShardAllocationConfiguration(int index, int shardCount, List<String> allocationIds) {
-            this.index = index;
-            this.shardCount = shardCount;
-            this.allocationIds = allocationIds;
-        }
-
-        public boolean shouldBeTriggered(String id) {
-            int hash = Murmur3HashFunction.hash(id);
-            int shardIndex = Math.floorMod(hash, shardCount);
-            return shardIndex == index;
         }
     }
 }

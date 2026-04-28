@@ -34,4 +34,16 @@ TS exp_histo_sample
 | --- |
 | 6.7862 |
 
+`MAX` can also operate on `tdigest` and casted `histogram` fields, returning the maximum of the values which were used to construct the digests.
+
+```esql
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS maximum = ROUND(MAX(responseTime::tdigest), 4)
+```
+
+| maximum:double |
+| --- |
+| 6.7862 |
+
 

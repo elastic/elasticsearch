@@ -137,12 +137,7 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
         ZeroBucket zeroBucket = histogram.zeroBucket();
         BytesStreamOutput encodedBytes = new BytesStreamOutput();
         try {
-            CompressedExponentialHistogram.writeHistogramBytes(
-                encodedBytes,
-                histogram.scale(),
-                histogram.negativeBuckets().iterator(),
-                histogram.positiveBuckets().iterator()
-            );
+            CompressedExponentialHistogram.writeHistogramBytes(encodedBytes, histogram);
         } catch (IOException e) {
             throw new RuntimeException("Failed to encode histogram", e);
         }

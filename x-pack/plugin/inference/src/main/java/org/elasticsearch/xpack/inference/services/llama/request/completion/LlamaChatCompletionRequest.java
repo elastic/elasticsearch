@@ -12,8 +12,10 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
@@ -30,7 +32,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * This class is responsible for creating a request to the Llama chat completion model.
  * It constructs an HTTP POST request with the necessary headers and body content.
  */
-public class LlamaChatCompletionRequest implements Request {
+public class LlamaChatCompletionRequest implements ChatCompletionRequest {
 
     private final LlamaChatCompletionModel model;
     private final UnifiedChatInput chatInput;
@@ -89,5 +91,10 @@ public class LlamaChatCompletionRequest implements Request {
     @Override
     public boolean isStreaming() {
         return chatInput.stream();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

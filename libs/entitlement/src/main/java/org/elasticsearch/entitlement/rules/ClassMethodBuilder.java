@@ -48,6 +48,14 @@ import java.util.List;
  *   <li>Non-public constructors via {@code protectedCtor()} methods</li>
  * </ul>
  * <p>
+ * Instance method rules are automatically inherited by subtypes: any class that extends or
+ * implements the target class will have the same rules applied to its methods.
+ * A method reference is resolved to its declaring class in the type hierarchy, so
+ * {@code .on(Concrete.class).calling(Interface::method)} attributes the rule to the
+ * interface or superclass that actually declares the method, enabling correct inheritance.
+ * Defining a rule on a method that already has a rule on an ancestor or descendant type is
+ * forbidden. Constructor rules ({@code protectedCtor()}) are not inherited.
+ * <p>
  * Methods are identified using method references, which are resolved at build time to
  * determine the actual method signatures. Type parameters can be specified using either
  * {@link Class} objects or {@link TypeToken} instances for generic types.
@@ -1184,19 +1192,8 @@ public class ClassMethodBuilder<T> {
         if ("<init>".equals(methodName)) {
             return clazz;
         }
-
         Class<?>[] resolvedArgs = Arrays.stream(args).map(TypeUtils::toPrimitive).toArray(Class[]::new);
-        Class<?> current = clazz;
-        while (current != null) {
-            try {
-                current.getDeclaredMethod(methodName, resolvedArgs);
-                return current;
-            } catch (NoSuchMethodException e) {
-                current = current.getSuperclass();
-            }
-        }
-
-        throw new NoSuchMethodException("Method " + methodName + " not found on class hierarchy of " + clazz.getName());
+        return clazz.getMethod(methodName, resolvedArgs).getDeclaringClass();
     }
 
     @SuppressForbidden(reason = "relies on reflection")

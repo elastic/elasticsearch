@@ -34,32 +34,69 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
         this.values = values;
     }
 
-    public static MultiValuedSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
+    /**
+     * Reads binary doc values written in the ({@link SeparateCounts} or {@link PlainBinary}) formats (as of April 2026).
+     * <ul>
+     *   <li>{@code .counts} present &rarr; {@link SeparateCounts} (multi-valued)</li>
+     *   <li>{@code .counts} absent &rarr; {@link PlainBinary} (single-valued)</li>
+     * </ul>
+     * For indices created before {@code DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}, use {@link #fromMultiValued(LeafReader, String)}
+     * instead, which also handles the deprecated {@link IntegratedCounts} format.
+     */
+    public static SortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
         BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
-
-        // Obtain counts directly from leafReader so that null is returned rather than an empty doc values.
-        // Whether counts is null allows us to determine which multivalued format was used.
-        return from(leafReader, valuesFieldName, values);
+        String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
+        if (counts != null) {
+            return buildSeparateCounts(leafReader, countsFieldName, values, counts);
+        }
+        return new PlainBinary(values);
     }
 
-    public static MultiValuedSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName, BinaryDocValues values)
+    /**
+     * Reader for callers that read inherently multi-valued fields (ex. {@code _ignored_source}). These fields always use either the
+     * {@link SeparateCounts} or {@link IntegratedCounts} format, so the single-valued fast path in {@link #from(LeafReader, String)} does
+     * not apply.
+     * <ul>
+     *   <li>{@code .counts} present &rarr; {@link SeparateCounts}</li>
+     *   <li>{@code .counts} absent &rarr; {@link IntegratedCounts}</li>
+     * </ul>
+     */
+    public static MultiValuedSortedBinaryDocValues fromMultiValued(LeafReader leafReader, String valuesFieldName) throws IOException {
+        BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
+        return fromMultiValued(leafReader, valuesFieldName, values);
+    }
+
+    /**
+     * Variant of {@link #fromMultiValued(LeafReader, String)} that accepts pre-loaded {@link BinaryDocValues}.
+     */
+    public static MultiValuedSortedBinaryDocValues fromMultiValued(LeafReader leafReader, String valuesFieldName, BinaryDocValues values)
         throws IOException {
         String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
         if (counts == null) {
             return new IntegratedCounts(values);
         } else {
-            Sparsity sparsity = Sparsity.UNKNOWN;
-            ValueMode valueMode = ValueMode.UNKNOWN;
-
-            DocValuesSkipper countsSkipper = leafReader.getDocValuesSkipper(countsFieldName);
-            if (countsSkipper != null) {
-                sparsity = countsSkipper.docCount() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE;
-                valueMode = countsSkipper.maxValue() == 1 ? ValueMode.SINGLE_VALUED : ValueMode.MULTI_VALUED;
-            }
-
-            return new SeparateCounts(values, counts, sparsity, valueMode);
+            return buildSeparateCounts(leafReader, countsFieldName, values, counts);
         }
+    }
+
+    private static SeparateCounts buildSeparateCounts(
+        LeafReader leafReader,
+        String countsFieldName,
+        BinaryDocValues values,
+        NumericDocValues counts
+    ) throws IOException {
+        Sparsity sparsity = Sparsity.UNKNOWN;
+        ValueMode valueMode = ValueMode.UNKNOWN;
+
+        DocValuesSkipper countsSkipper = leafReader.getDocValuesSkipper(countsFieldName);
+        if (countsSkipper != null) {
+            sparsity = countsSkipper.docCount() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE;
+            valueMode = countsSkipper.maxValue() == 1 ? ValueMode.SINGLE_VALUED : ValueMode.MULTI_VALUED;
+        }
+
+        return new SeparateCounts(values, counts, sparsity, valueMode);
     }
 
     @Override
@@ -166,6 +203,37 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
         @Override
         public ValueMode getValueMode() {
             return valueMode;
+        }
+    }
+
+    /**
+     * Single-valued binary doc values written as a plain {@link org.apache.lucene.document.BinaryDocValuesField}.
+     * No companion {@code .counts} field exists; each document has at most one value.
+     */
+    private static class PlainBinary extends MultiValuedSortedBinaryDocValues {
+        PlainBinary(BinaryDocValues values) {
+            super(values);
+        }
+
+        @Override
+        public boolean advanceExact(int doc) throws IOException {
+            if (values.advanceExact(doc)) {
+                count = 1;
+                return true;
+            } else {
+                count = 0;
+                return false;
+            }
+        }
+
+        @Override
+        public BytesRef nextValue() throws IOException {
+            return values.binaryValue();
+        }
+
+        @Override
+        public ValueMode getValueMode() {
+            return ValueMode.SINGLE_VALUED;
         }
     }
 }

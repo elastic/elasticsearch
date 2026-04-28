@@ -347,6 +347,7 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
+import org.elasticsearch.xpack.security.crypto.PrimaryEncryptionKeyService;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
@@ -1132,20 +1133,20 @@ public class Security extends Plugin
         systemIndices.getMainIndexManager().addStateListener(authcService.get()::onSecurityIndexStateChange);
         dlsFlsEnabled.set(XPackSettings.DLS_FLS_ENABLED.get(settings));
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
-            new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService, dlsFlsEnabled.get()),
-            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService, dlsFlsEnabled.get())
+            new ResizeRequestInterceptor(threadPool, auditTrailService, dlsFlsEnabled.get()),
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), auditTrailService, dlsFlsEnabled.get())
         );
 
         if (dlsFlsEnabled.get()) {
             requestInterceptors.addAll(
                 Arrays.asList(
-                    new SearchRequestInterceptor(threadPool, getLicenseState()),
-                    new ShardSearchRequestInterceptor(threadPool, getLicenseState()),
-                    new UpdateRequestInterceptor(threadPool, getLicenseState()),
-                    new BulkShardRequestInterceptor(threadPool, getLicenseState()),
+                    new SearchRequestInterceptor(threadPool),
+                    new ShardSearchRequestInterceptor(threadPool),
+                    new UpdateRequestInterceptor(threadPool),
+                    new BulkShardRequestInterceptor(threadPool),
                     new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
-                    new SearchRequestCacheDisablingInterceptor(threadPool, getLicenseState()),
-                    new ValidateRequestInterceptor(threadPool, getLicenseState()),
+                    new SearchRequestCacheDisablingInterceptor(threadPool),
+                    new ValidateRequestInterceptor(threadPool),
                     new ViewDlsFlsRequestInterceptor(
                         threadPool.getThreadContext(),
                         () -> projectResolver.getProjectMetadata(clusterService.state())
@@ -1271,6 +1272,10 @@ public class Security extends Plugin
         }
 
         cacheInvalidatorRegistry.validate();
+
+        if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
+            components.add(PrimaryEncryptionKeyService.create(clusterService, projectResolver, featureService));
+        }
 
         setClosableAndReloadableComponents(components);
         return components;

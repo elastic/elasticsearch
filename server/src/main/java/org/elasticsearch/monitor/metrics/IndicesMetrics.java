@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getTotalUserIndices;
+import static org.elasticsearch.common.component.Lifecycle.State.STARTED;
 
 /**
  * {@link IndicesMetrics} monitors index statistics on an Elasticsearch node and exposes them as metrics
@@ -188,11 +189,15 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
             );
         }
         metrics.add(registry.registerLongGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", () -> {
-            if (clusterService.state().clusterRecovered() == false || clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
+            if (clusterService.lifecycleState() != STARTED) {
+                return null;
+            }
+            final var clusterState = clusterService.state();
+            if (clusterState.clusterRecovered() == false || clusterState.nodes().isLocalNodeElectedMaster() == false) {
                 return null;
             }
             return new LongWithAttributes(
-                getTotalUserIndices(systemIndices, clusterService.state().getMetadata().projects().values().iterator().next())
+                getTotalUserIndices(systemIndices, clusterState.getMetadata().projects().values().iterator().next())
             );
         }));
         assert metrics.size() == TOTAL_METRICS : "total number of metrics has changed";

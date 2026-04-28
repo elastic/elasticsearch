@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
@@ -76,9 +78,24 @@ public final class GlobExpander {
         boolean hivePartitioning,
         StoragePath storagePath
     ) throws IOException {
+        return expandAndCompact(path, provider, hints, hivePartitioning, storagePath, Integer.MAX_VALUE, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Expands a glob/comma pattern and compresses the result, with safety caps on discovery.
+     */
+    public static FileList expandAndCompact(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion
+    ) throws IOException {
         FileList expanded = path.indexOf(',') >= 0
-            ? doExpandCommaSeparated(path, provider, hints, hivePartitioning, null, null)
-            : doExpandGlob(path, provider, hints, hivePartitioning, null, null);
+            ? doExpandCommaSeparated(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion)
+            : doExpandGlob(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
             return expanded;
         }
@@ -131,7 +148,7 @@ public final class GlobExpander {
         @Nullable PartitionConfig partitionConfig,
         @Nullable Map<String, Object> config
     ) throws IOException {
-        return doExpandGlob(pattern, provider, hints, hivePartitioning, partitionConfig, config);
+        return doExpandGlob(pattern, provider, hints, hivePartitioning, partitionConfig, config, Integer.MAX_VALUE, Integer.MAX_VALUE);
     }
 
     public static FileList expandGlob(
@@ -140,23 +157,32 @@ public final class GlobExpander {
         @Nullable List<PartitionFilterHint> hints,
         boolean hivePartitioning
     ) throws IOException {
-        return doExpandGlob(pattern, provider, hints, hivePartitioning, null, null);
+        return doExpandGlob(pattern, provider, hints, hivePartitioning, null, null, Integer.MAX_VALUE, Integer.MAX_VALUE);
     }
 
-    private static FileList doExpandGlob(
+    public static FileList expandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion
+    ) throws IOException {
+        return doExpandGlob(pattern, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
+    }
+
+    static FileList doExpandGlob(
         String pattern,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
         boolean hivePartitioning,
         @Nullable PartitionConfig partitionConfig,
-        @Nullable Map<String, Object> config
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion
     ) throws IOException {
-        if (pattern == null) {
-            throw new IllegalArgumentException("pattern cannot be null");
-        }
-        if (provider == null) {
-            throw new IllegalArgumentException("provider cannot be null");
-        }
+        Check.notNull(pattern, "pattern cannot be null");
+        Check.notNull(provider, "provider cannot be null");
 
         String effectivePattern = pattern;
         if (hints != null && hints.isEmpty() == false && hivePartitioning) {
@@ -166,11 +192,46 @@ public final class GlobExpander {
         StoragePath storagePath = StoragePath.of(effectivePattern);
 
         if (storagePath.isPattern() == false) {
-            return FileList.UNRESOLVED;
+            if (effectivePattern.equals(pattern)) {
+                return FileList.UNRESOLVED;
+            }
+            // Hints resolved all wildcards to a concrete path — resolve via exists()
+            if (provider.exists(storagePath)) {
+                var obj = provider.newObject(storagePath);
+                StorageEntry entry = new StorageEntry(storagePath, obj.length(), obj.lastModified());
+                PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), hivePartitioning, partitionConfig, config);
+                return new GenericFileList(List.of(entry), pattern, partitionMetadata);
+            }
+            return FileList.EMPTY;
         }
 
         StoragePath prefix = storagePath.patternPrefix();
         String glob = storagePath.globPart();
+
+        // Brace-only fast path: use exists()+newObject() instead of listing
+        if (BraceExpander.isBraceOnly(glob)) {
+            List<String> candidates = BraceExpander.expand(glob, maxGlobExpansion);
+            if (candidates != null) {
+                List<StorageEntry> matched = new ArrayList<>();
+                String prefixStr = prefix.toString();
+                for (String candidate : candidates) {
+                    StoragePath fullPath = StoragePath.of(prefixStr + candidate);
+                    if (provider.exists(fullPath)) {
+                        var obj = provider.newObject(fullPath);
+                        matched.add(new StorageEntry(fullPath, obj.length(), obj.lastModified()));
+                    }
+                    checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+                }
+                if (matched.isEmpty()) {
+                    return FileList.EMPTY;
+                }
+                matched.sort(Comparator.comparing(e -> e.path().toString()));
+                PartitionMetadata partitionMetadata = detectPartitions(matched, hivePartitioning, partitionConfig, config);
+                return new GenericFileList(matched, pattern, partitionMetadata);
+            }
+            // candidates == null means expansion exceeded cap; fall through to listing
+        }
+
         GlobMatcher matcher = new GlobMatcher(glob);
         boolean recursive = matcher.needsRecursion();
 
@@ -189,6 +250,7 @@ public final class GlobExpander {
                 }
                 if (matcher.matches(relativePath)) {
                     matched.add(entry);
+                    checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
                 }
             }
         }
@@ -233,6 +295,18 @@ public final class GlobExpander {
         return result;
     }
 
+    private static void checkDiscoveredFilesLimit(int discoveredCount, int maxDiscoveredFiles) {
+        if (discoveredCount > maxDiscoveredFiles) {
+            throw new QlIllegalArgumentException(
+                "Glob pattern discovered too many files ({}, limit {}). "
+                    + "Narrow your glob pattern, add partition filters, "
+                    + "or increase the [esql.external.max_discovered_files] cluster setting.",
+                discoveredCount,
+                maxDiscoveredFiles
+            );
+        }
+    }
+
     public static FileList expandCommaSeparated(String pathList, StorageProvider provider) throws IOException {
         return expandCommaSeparated(pathList, provider, null, true);
     }
@@ -243,7 +317,18 @@ public final class GlobExpander {
         @Nullable List<PartitionFilterHint> hints,
         boolean hivePartitioning
     ) throws IOException {
-        return doExpandCommaSeparated(pathList, provider, hints, hivePartitioning, null, null);
+        return doExpandCommaSeparated(pathList, provider, hints, hivePartitioning, null, null, Integer.MAX_VALUE, Integer.MAX_VALUE);
+    }
+
+    public static FileList expandCommaSeparated(
+        String pathList,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion
+    ) throws IOException {
+        return doExpandCommaSeparated(pathList, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
     }
 
     private static FileList doExpandCommaSeparated(
@@ -252,14 +337,12 @@ public final class GlobExpander {
         @Nullable List<PartitionFilterHint> hints,
         boolean hivePartitioning,
         @Nullable PartitionConfig partitionConfig,
-        @Nullable Map<String, Object> config
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion
     ) throws IOException {
-        if (pathList == null) {
-            throw new IllegalArgumentException("pathList cannot be null");
-        }
-        if (provider == null) {
-            throw new IllegalArgumentException("provider cannot be null");
-        }
+        Check.notNull(pathList, "pathList cannot be null");
+        Check.notNull(provider, "provider cannot be null");
 
         String[] segments = pathList.split(",");
         List<StorageEntry> allEntries = new ArrayList<>();
@@ -272,7 +355,17 @@ public final class GlobExpander {
 
             StoragePath segmentPath = StoragePath.of(trimmed);
             if (segmentPath.isPattern()) {
-                FileList expanded = doExpandGlob(trimmed, provider, hints, hivePartitioning, partitionConfig, config);
+                int remainingBudget = maxDiscoveredFiles - allEntries.size();
+                FileList expanded = doExpandGlob(
+                    trimmed,
+                    provider,
+                    hints,
+                    hivePartitioning,
+                    partitionConfig,
+                    config,
+                    remainingBudget,
+                    maxGlobExpansion
+                );
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {
                     allEntries.addAll(g.files());
                 }
@@ -280,6 +373,7 @@ public final class GlobExpander {
                 if (provider.exists(segmentPath)) {
                     var obj = provider.newObject(segmentPath);
                     allEntries.add(new StorageEntry(segmentPath, obj.length(), obj.lastModified()));
+                    checkDiscoveredFilesLimit(allEntries.size(), maxDiscoveredFiles);
                 }
             }
         }

@@ -18,30 +18,36 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.mistral.MistralConstants;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingModelTests;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
+import static org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity.NUMBER_OF_RETURNED_CHOICES_FIELD;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,7 +56,12 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class MistralActionCreatorTests extends ESTestCase {
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String TEST_API_KEY = "secret";
+    private static final String TEST_EMBEDDING_MODEL_ID = "mistral-embed";
+    private static final String TEST_COMPLETION_MODEL_ID = "model";
+    private static final String TEST_EMBEDDING_INPUT = "abc";
+    private static final String TEST_CHAT_COMPLETION_INPUT = "Hello";
+
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -67,6 +78,57 @@ public class MistralActionCreatorTests extends ESTestCase {
         clientManager.close();
         terminate(threadPool);
         webServer.close();
+    }
+
+    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingAction() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.startSynchronously();
+
+            String responseJson = """
+                {
+                  "object": "list",
+                  "data": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.0123,
+                              -0.0123
+                          ]
+                      }
+                  ],
+                  "model": "mistral-embed",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = MistralEmbeddingModelTests.createModel(getUrl(webServer), "id", TEST_EMBEDDING_MODEL_ID, TEST_API_KEY);
+            var actionCreator = new MistralActionCreator(sender, createWithEmptySettings(threadPool));
+            var action = actionCreator.create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new EmbeddingsInput(List.of(TEST_EMBEDDING_INPUT), InputTypeTests.randomWithNull()), null, listener);
+
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer " + TEST_API_KEY));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.get(MistralConstants.INPUT_FIELD), is(List.of(TEST_EMBEDDING_INPUT)));
+            assertThat(requestMap.get(MistralConstants.MODEL_FIELD), is(TEST_EMBEDDING_MODEL_ID));
+            assertThat(requestMap.get(MistralConstants.ENCODING_FORMAT_FIELD), is("float"));
+        }
     }
 
     public void testExecute_ReturnsSuccessfulResponse_ForChatCompletionAction() throws IOException {
@@ -104,7 +166,7 @@ public class MistralActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = createChatCompletionFuture(sender, createWithEmptySettings(threadPool));
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationCompletion(List.of("Hello there, how may I assist you today?"))));
 
@@ -135,7 +197,7 @@ public class MistralActionCreatorTests extends ESTestCase {
                 new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
             );
 
-            var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
                 is("Failed to send Mistral completion request from inference entity id " + "[id]. Cause: Required [choices]")
@@ -145,14 +207,14 @@ public class MistralActionCreatorTests extends ESTestCase {
         }
     }
 
-    private PlainActionFuture<InferenceServiceResults> createChatCompletionFuture(Sender sender, ServiceComponents threadPool) {
-        var model = MistralChatCompletionModelTests.createCompletionModel("secret", "model");
+    private PlainActionFuture<InferenceServiceResults> createChatCompletionFuture(Sender sender, ServiceComponents serviceComponents) {
+        var model = MistralChatCompletionModelTests.createCompletionModel(TEST_API_KEY, TEST_COMPLETION_MODEL_ID);
         model.setURI(getUrl(webServer));
-        var actionCreator = new MistralActionCreator(sender, threadPool);
+        var actionCreator = new MistralActionCreator(sender, serviceComponents);
         var action = actionCreator.create(model);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("Hello"), false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of(TEST_CHAT_COMPLETION_INPUT), false), null, listener);
         return listener;
     }
 
@@ -163,13 +225,13 @@ public class MistralActionCreatorTests extends ESTestCase {
             webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
             equalTo(XContentType.JSON.mediaTypeWithoutParameters())
         );
-        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer " + TEST_API_KEY));
 
         var requestMap = entityAsMap(webServer.requests().get(0).getBody());
         assertThat(requestMap.size(), is(4));
-        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "Hello"))));
-        assertThat(requestMap.get("model"), is("model"));
-        assertThat(requestMap.get("n"), is(1));
-        assertThat(requestMap.get("stream"), is(false));
+        assertThat(requestMap.get(MESSAGES_FIELD), is(List.of(Map.of("role", "user", "content", TEST_CHAT_COMPLETION_INPUT))));
+        assertThat(requestMap.get(MistralConstants.MODEL_FIELD), is(TEST_COMPLETION_MODEL_ID));
+        assertThat(requestMap.get(NUMBER_OF_RETURNED_CHOICES_FIELD), is(1));
+        assertThat(requestMap.get(UnifiedChatCompletionRequestEntity.STREAM_FIELD), is(false));
     }
 }

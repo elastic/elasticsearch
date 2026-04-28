@@ -143,7 +143,7 @@ public abstract class IgnoreMalformedStoredValues {
      */
     public static IgnoreMalformedStoredValues forSyntheticSource(String fieldName, IndexVersion indexVersion) {
         if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
-            return new DocValues(fieldName);
+            return new DocValues(fieldName, indexVersion);
         } else {
             return new Stored(fieldName);
         }
@@ -239,8 +239,8 @@ public abstract class IgnoreMalformedStoredValues {
 
         private final BinaryDocValuesSyntheticFieldLoaderLayer delegate;
 
-        DocValues(String fieldName) {
-            this.delegate = new BinaryDocValuesSyntheticFieldLoaderLayer(name(fieldName)) {
+        DocValues(String fieldName, IndexVersion indexVersion) {
+            this.delegate = new BinaryDocValuesSyntheticFieldLoaderLayer(name(fieldName), indexVersion) {
                 @Override
                 protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
                     XContentDataHelper.decodeAndWrite(b, value);

@@ -121,15 +121,19 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         });
         // BLOB_BATCH
         blobStore.deleteBlobs(purpose, List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator());
+        // COPY_BLOB
+        blobStore.copyBlob(purpose, blobName, blobStore, randomIdentifier());
 
         Map<String, BlobStoreActionStats> stats = blobStore.stats();
         String statsMapString = stats.toString();
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOB)).operations());
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.LIST_BLOBS)).operations());
-        assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES)).operations());
+        // Copy polls blob properties for completion
+        assertEquals(statsMapString, 2L, stats.get(statsKey(purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES)).operations());
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOCK)).operations());
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOCK_LIST)).operations());
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.BLOB_BATCH)).operations());
+        assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.COPY_BLOB)).operations());
     }
 
     public void testOperationPurposeIsNotReflectedInBlobStoreStatsWhenNotServerless() throws IOException {
@@ -156,16 +160,20 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
             });
             // BLOB_BATCH
             blobStore.deleteBlobs(purpose, List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator());
+            // COPY_BLOB
+            blobStore.copyBlob(purpose, blobName, blobStore, randomIdentifier());
         }
 
         Map<String, BlobStoreActionStats> stats = blobStore.stats();
         String statsMapString = stats.toString();
         assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.PUT_BLOB.getKey()).operations());
         assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.LIST_BLOBS.getKey()).operations());
-        assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.GET_BLOB_PROPERTIES.getKey()).operations());
+        // Copy polls blob properties for completion
+        assertEquals(statsMapString, 2 * repeatTimes, stats.get(AzureBlobStore.Operation.GET_BLOB_PROPERTIES.getKey()).operations());
         assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.PUT_BLOCK.getKey()).operations());
         assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.PUT_BLOCK_LIST.getKey()).operations());
         assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.BLOB_BATCH.getKey()).operations());
+        assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.COPY_BLOB.getKey()).operations());
     }
 
     private static String statsKey(OperationPurpose purpose, AzureBlobStore.Operation operation) {

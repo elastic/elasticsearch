@@ -51,7 +51,9 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             ),
             mode,
             List.of(aggregatorFunction().groupingAggregatorFactory(mode, channels(mode))),
-            Integer.MAX_VALUE  // TODO window functions don't support chunking https://github.com/elastic/elasticsearch/issues/138705
+            Integer.MAX_VALUE,  // TODO window functions don't support chunking https://github.com/elastic/elasticsearch/issues/138705
+            null,
+            false
         );
     }
 
@@ -219,7 +221,8 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
                 )
             ),
             10_000,
-            fiveMinBucket
+            fiveMinBucket,
+            false
         );
 
         var driverCtx = driverContext();
@@ -311,7 +314,8 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
                 )
             ),
             10_000,
-            fiveMinBucket
+            fiveMinBucket,
+            false
         );
 
         var driverCtx = driverContext();

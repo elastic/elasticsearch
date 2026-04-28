@@ -43,6 +43,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -103,9 +104,9 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
     @Override
     protected void doExecute(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        ActionListener<GetTaskResponse> relocationAwareListener = listener.delegateFailureAndWrap(
-            (l, response) -> followReindexRelocationIfNeeded(request, response, l)
-        );
+        ActionListener<GetTaskResponse> relocationAwareListener = request.getFollowRelocations()
+            ? listener.delegateFailureAndWrap((l, response) -> followReindexRelocationIfNeeded(request, response, l))
+            : listener;
         if (clusterService.localNode().getId().equals(request.getTaskId().getNodeId())) {
             getRunningTaskFromNode(thisTask, request, relocationAwareListener);
         } else {
@@ -120,30 +121,51 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      */
     private void runOnNodeWithTaskIfPossible(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
         DiscoveryNode node = clusterService.state().nodes().get(request.getTaskId().getNodeId());
+        ActionListener<GetTaskResponse> finishedTaskListener = ActionListener.wrap(listener::onResponse, e -> {
+            if (e instanceof ResourceNotFoundException) {
+                e = new ResourceNotFoundException(
+                    "task ["
+                        + request.getTaskId()
+                        + "] belongs to the node ["
+                        + request.getTaskId().getNodeId()
+                        + "] which isn't part of the cluster and there is no record of the task",
+                    e
+                );
+            }
+            listener.onFailure(e);
+        });
         if (node == null) {
             // Node is no longer part of the cluster! Try and look the task up from the results index.
-            getFinishedTaskFromIndex(thisTask, request, ActionListener.wrap(listener::onResponse, e -> {
-                if (e instanceof ResourceNotFoundException) {
-                    e = new ResourceNotFoundException(
-                        "task ["
-                            + request.getTaskId()
-                            + "] belongs to the node ["
-                            + request.getTaskId().getNodeId()
-                            + "] which isn't part of the cluster and there is no record of the task",
-                        e
-                    );
-                }
-                listener.onFailure(e);
-            }));
+            getFinishedTaskFromIndex(thisTask, request, finishedTaskListener);
             return;
         }
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
+        ActionListener<GetTaskResponse> getTaskListener = ActionListener.wrap(listener::onResponse, e -> {
+            if (ExceptionsHelper.unwrap(e, ConnectTransportException.class) != null) {
+                // The node is still in the cluster state but disconnected (e.g. shutting down during relocation).
+                // Fall back to the .tasks index where the completed task result should be stored.
+                logger.debug("failed to contact node [{}] for task [{}], falling back to .tasks index", node.getId(), request.getTaskId());
+                getFinishedTaskFromIndex(thisTask, request, finishedTaskListener);
+            } else {
+                listener.onFailure(e);
+            }
+        });
         transportService.sendRequest(
             node,
             TYPE.name(),
             nodeRequest,
-            TransportRequestOptions.timeout(request.getTimeout()),
-            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(
+                ActionListener.addTimeout(
+                    request.getTimeout(),
+                    threadPool,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    getTaskListener,
+                    () -> { /* TODO cancel the remote tasks? */}
+                ),
+                GetTaskResponse::new,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            )
         );
     }
 
@@ -335,7 +357,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     }
 
     /**
-     * Merges the original (pre-relocation) task's identity and timing with the relocated task's current state.
+     * Merges the original (pre-relocation) task's timing with the relocated task's current state.
      */
     static GetTaskResponse mergeRelocatedTask(TaskResult original, GetTaskResponse relocatedResponse) {
         TaskResult relocated = relocatedResponse.getTask();
@@ -347,18 +369,22 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         );
 
         TaskInfo mergedInfo = new TaskInfo(
-            originalInfo.taskId(),
+            relocatedInfo.taskId(),
             relocatedInfo.type(),
             relocatedInfo.node(),
             relocatedInfo.action(),
-            originalInfo.description(),
+            relocatedInfo.description(),
             relocatedInfo.status(),
+            // startTime and runningTime reflect the full duration of the original task, so that the task appears to have been running
+            // continuously since it was originally started
             originalInfo.startTime(),
             adjustedRunningTimeNanos,
             relocatedInfo.cancellable(),
             relocatedInfo.cancelled(),
             relocatedInfo.parentTaskId(),
-            relocatedInfo.headers()
+            relocatedInfo.headers(),
+            relocatedInfo.originalTaskId(),
+            relocatedInfo.originalStartTimeMillis()
         );
 
         return new GetTaskResponse(new TaskResult(relocated.isCompleted(), mergedInfo, relocated.getError(), relocated.getResponse()));

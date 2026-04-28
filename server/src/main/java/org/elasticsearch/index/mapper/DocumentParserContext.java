@@ -49,12 +49,20 @@ public abstract class DocumentParserContext {
      */
     private static class Wrapper extends DocumentParserContext {
         private final DocumentParserContext in;
-        private final boolean isWithinCopyTo; // cached to avoid method chain overhead and dynamic dispatch
+
+        // cached to avoid method chain overhead and dynamic dispatch
+        private final boolean isWithinCopyTo;
+        private final ContentPath path;
+        private final XContentParser parser;
+        private final LuceneDocument doc;
 
         private Wrapper(ObjectMapper parent, DocumentParserContext in) {
             super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
             this.in = in;
             this.isWithinCopyTo = in.isWithinCopyTo();
+            this.path = in.path();
+            this.parser = in.parser();
+            this.doc = in.doc();
         }
 
         // Used to create a copy_to context.
@@ -63,6 +71,9 @@ public abstract class DocumentParserContext {
             super(root, ObjectMapper.Dynamic.getRootDynamic(in.mappingLookup()), in);
             this.in = in;
             this.isWithinCopyTo = in.isWithinCopyTo();
+            this.path = in.path();
+            this.parser = in.parser();
+            this.doc = in.doc();
         }
 
         @Override
@@ -77,12 +88,12 @@ public abstract class DocumentParserContext {
 
         @Override
         public ContentPath path() {
-            return in.path();
+            return path;
         }
 
         @Override
         public XContentParser parser() {
-            return in.parser();
+            return parser;
         }
 
         @Override
@@ -92,7 +103,7 @@ public abstract class DocumentParserContext {
 
         @Override
         public LuceneDocument doc() {
-            return in.doc();
+            return doc;
         }
 
         @Override
@@ -165,6 +176,7 @@ public abstract class DocumentParserContext {
 
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
+    private final Set<String> singleValuedFields;
     private Scope currentScope;
 
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
@@ -217,13 +229,15 @@ public abstract class DocumentParserContext {
         Set<String> mappingCopyToFields,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
-        boolean recordedSource
+        boolean recordedSource,
+        Set<String> singleValuedFields
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
+        this.singleValuedFields = singleValuedFields;
         this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
@@ -266,7 +280,8 @@ public abstract class DocumentParserContext {
             in.mappingCopyToFields,
             in.copyToFields,
             in.dynamicMappersSize,
-            in.recordedSource
+            in.recordedSource,
+            in.singleValuedFields
         );
     }
 
@@ -298,7 +313,8 @@ public abstract class DocumentParserContext {
             mappingLookup.fieldTypesLookup().getCopyToDestinationFields(),
             new HashSet<>(),
             new DynamicMapperSize(),
-            false
+            false,
+            new HashSet<>()
         );
     }
 
@@ -343,6 +359,19 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Enforces that a field configured with {@code multi_value=no} receives at most one value per document. The first call for a given
+     * field name succeeds; a subsequent call for the same name throws {@link IllegalArgumentException}. Shared across all child contexts
+     * so the constraint is respected regardless of which context sub-tree the duplicate value comes from.
+     */
+    public final void enforceSingleValue(String fieldName) {
+        if (singleValuedFields.add(fieldName) == false) {
+            throw new IllegalArgumentException(
+                "Field [" + fieldName + "] is configured with [multi_value=no] but encountered multiple values in the same document"
+            );
+        }
+    }
+
+    /**
      * Add the given {@code field} to the set of ignored fields.
      */
     public final void addIgnoredField(String field) {
@@ -375,12 +404,12 @@ public abstract class DocumentParserContext {
 
     /**
      * Adds an ignored field from the parser context, capturing an object or an array.
-     *
+     * <p>
      * In case of nested arrays, i.e. capturing an array within an array, elements tracked as ignored fields may interfere with
      * the rest, as ignored source contents take precedence over regular field contents with the same leaf name. To prevent
      * missing array elements from synthetic source, all array elements get recorded in ignored source. Otherwise, just the value in
      * the current parsing context gets captured.
-     *
+     * <p>
      * In both cases, a new parser sub-context gets created from the current {@link DocumentParserContext} and returned, indicating
      * that the source for the sub-context has been captured, to avoid double-storing parts of its contents to ignored source.
      */
@@ -414,7 +443,7 @@ public abstract class DocumentParserContext {
      * Clones the current context to mark it as an array, if it's not already marked, or restore it if it's within a nested object.
      * Applies to synthetic source only.
      */
-    public final DocumentParserContext maybeCloneForArray(Mapper mapper) throws IOException {
+    public final DocumentParserContext maybeCloneForArray(Mapper mapper) {
         if (canAddIgnoredField()
             && mapper instanceof ObjectMapper
             && mapper instanceof NestedObjectMapper == false
@@ -428,7 +457,7 @@ public abstract class DocumentParserContext {
 
     /**
      * Add the given {@code field} to the _field_names field
-     *
+     * <p>
      * Use this if an exists query run against the field cannot use docvalues
      * or norms.
      */
@@ -1046,7 +1075,7 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public Token nextToken() throws IOException {
+        public Token nextToken() {
             if (state == State.FIELD) {
                 state = State.VALUE;
                 return delegate().currentToken();
@@ -1063,7 +1092,7 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public String currentName() throws IOException {
+        public String currentName() {
             return field;
         }
     }

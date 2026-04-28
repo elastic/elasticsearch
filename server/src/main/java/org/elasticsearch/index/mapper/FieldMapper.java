@@ -196,6 +196,9 @@ public abstract class FieldMapper extends Mapper {
             if (builderParams.hasScript) {
                 throwIndexingWithScriptParam();
             }
+            if (isSingleValueEnforced()) {
+                context.enforceSingleValue(fullPath());
+            }
 
             parseCreateField(context);
         } catch (Exception e) {
@@ -265,6 +268,14 @@ public abstract class FieldMapper extends Mapper {
      * current failing token
      */
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
+
+    /**
+     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=no}). When {@code true}, a second value for the same
+     * document throws. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
+     */
+    protected boolean isSingleValueEnforced() {
+        return false;
+    }
 
     /**
      * @return whether this field mapper uses a script to generate its values
@@ -1473,6 +1484,14 @@ public abstract class FieldMapper extends Mapper {
                 SORTED,
                 SORTED_SET,
                 ARRAYS;
+
+                /**
+                 * Whether this mode restricts the field to a single value per document. Callers use this to branch between single-valued
+                 * and multi-valued code paths (e.g. Lucene field selection, block loaders, doc-values-fallback queries).
+                 */
+                public boolean isSingleValued() {
+                    return this == NO;
+                }
 
                 @Override
                 public String toString() {

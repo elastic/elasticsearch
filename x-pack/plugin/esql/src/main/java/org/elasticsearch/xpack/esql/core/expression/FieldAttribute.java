@@ -31,7 +31,7 @@ import java.util.Set;
  * Treat this as final - avoid creating new subclasses. This is used extensively throughout the codebase, making new subclasses risky.
  * Consider using a new {@link EsField} subclass if needed.
  * <p>
- * Attribute for an ES field. May actually stand for a field with the same name across different indices (a union), e.g. when
+ * Attribute for an ES index field. May actually stand for a field with the same name across different indices (a union), e.g. when
  * index pattern were used in the query: {@code FROM logs-* | KEEP field}.
  * <p>
  * This class offers:
@@ -247,7 +247,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
      * converts this attribute into an {@link UnsupportedAttribute} with a descriptive error message
      * so the analyzer can surface a clear user-facing error.
      */
-    public Attribute checkUnresolved() {
+    public Attribute flagTypeConflicts() {
         if (field instanceof InvalidMappedField imf) {
             // Field has conflicting types across indices — build a user-facing error message.
             String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + imf.errorMessage();

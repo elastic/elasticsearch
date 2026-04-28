@@ -57,7 +57,7 @@ public class RateTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Rate(source, args.get(0), Literal.TRUE, args.get(1), Rate.NO_WINDOW);
+        return new Rate(source, args.get(0), Literal.TRUE, Rate.NO_WINDOW, args.get(1), args.get(2));
     }
 
     @Override
@@ -86,78 +86,89 @@ public class RateTests extends AbstractAggregationTestCase {
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         DataType type = counterType(fieldSupplier.type());
-        return new TestCaseSupplier(fieldSupplier.name(), List.of(type, DataType.DATETIME, DataType.INTEGER, DataType.LONG), () -> {
-            TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
-            List<Object> dataRows = fieldTypedData.multiRowData();
-            if (randomBoolean()) {
-                List<Object> withNulls = new ArrayList<>(dataRows.size());
-                for (Object dataRow : dataRows) {
-                    if (randomBoolean()) {
-                        withNulls.add(null);
-                    } else {
-                        withNulls.add(dataRow);
+        return new TestCaseSupplier(
+            fieldSupplier.name(),
+            List.of(type, DataType.DATETIME, DataType.KEYWORD, DataType.INTEGER, DataType.LONG),
+            () -> {
+                TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
+                List<Object> dataRows = fieldTypedData.multiRowData();
+                if (randomBoolean()) {
+                    List<Object> withNulls = new ArrayList<>(dataRows.size());
+                    for (Object dataRow : dataRows) {
+                        if (randomBoolean()) {
+                            withNulls.add(null);
+                        } else {
+                            withNulls.add(dataRow);
+                        }
                     }
+                    dataRows = withNulls;
                 }
-                dataRows = withNulls;
+                fieldTypedData = TestCaseSupplier.TypedData.multiRow(dataRows, type, fieldTypedData.name());
+                List<Long> timestamps = new ArrayList<>();
+                List<Object> temporalities = new ArrayList<>();
+                List<Integer> slices = new ArrayList<>();
+                List<Long> maxTimestamps = new ArrayList<>();
+                long lastTimestamp = randomLongBetween(0, 1_000_000);
+                for (int row = 0; row < dataRows.size(); row++) {
+                    lastTimestamp += randomLongBetween(1, 10_000);
+                    timestamps.add(lastTimestamp);
+                    temporalities.add(null);
+                    slices.add(0);
+                    maxTimestamps.add(Long.MAX_VALUE);
+                }
+                TestCaseSupplier.TypedData timestampsField = TestCaseSupplier.TypedData.multiRow(
+                    timestamps.reversed(),
+                    DataType.DATETIME,
+                    "timestamps"
+                );
+                TestCaseSupplier.TypedData temporalityType = TestCaseSupplier.TypedData.multiRow(
+                    temporalities,
+                    DataType.KEYWORD,
+                    "_temporality"
+                );
+                TestCaseSupplier.TypedData sliceIndexType = TestCaseSupplier.TypedData.multiRow(slices, DataType.INTEGER, "_slice_index");
+                TestCaseSupplier.TypedData nextTimestampType = TestCaseSupplier.TypedData.multiRow(
+                    maxTimestamps,
+                    DataType.LONG,
+                    "_max_timestamp"
+                );
+                dataRows = dataRows.stream().filter(Objects::nonNull).toList();
+                final Matcher<?> matcher;
+                if (dataRows.size() < 2) {
+                    matcher = Matchers.nullValue();
+                } else {
+                    var maxrate = switch (fieldTypedData.type().widenSmallNumeric()) {
+                        case INTEGER, COUNTER_INTEGER -> dataRows.stream().mapToInt(v -> (Integer) v).max().orElse(0);
+                        case LONG, COUNTER_LONG -> dataRows.stream().mapToLong(v -> (Long) v).max().orElse(0L);
+                        case DOUBLE, COUNTER_DOUBLE -> dataRows.stream().mapToDouble(v -> (Double) v).max().orElse(0.0);
+                        default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
+                    };
+                    var minrate = switch (fieldTypedData.type().widenSmallNumeric()) {
+                        case INTEGER, COUNTER_INTEGER -> dataRows.stream().mapToInt(v -> (Integer) v).min().orElse(0);
+                        case LONG, COUNTER_LONG -> dataRows.stream().mapToLong(v -> (Long) v).min().orElse(0L);
+                        case DOUBLE, COUNTER_DOUBLE -> dataRows.stream().mapToDouble(v -> (Double) v).min().orElse(0.0);
+                        default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
+                    };
+                    minrate = Math.min(minrate, 0);
+                    maxrate = Math.max(maxrate, maxrate - minrate);
+                    matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(minrate), Matchers.lessThanOrEqualTo(maxrate));
+                }
+                return new TestCaseSupplier.TestCase(
+                    List.of(fieldTypedData, timestampsField, temporalityType, sliceIndexType, nextTimestampType),
+                    standardAggregatorName("Rate", fieldTypedData.type()),
+                    DataType.DOUBLE,
+                    matcher
+                );
             }
-            fieldTypedData = TestCaseSupplier.TypedData.multiRow(dataRows, type, fieldTypedData.name());
-            List<Long> timestamps = new ArrayList<>();
-            List<Integer> slices = new ArrayList<>();
-            List<Long> maxTimestamps = new ArrayList<>();
-            long lastTimestamp = randomLongBetween(0, 1_000_000);
-            for (int row = 0; row < dataRows.size(); row++) {
-                lastTimestamp += randomLongBetween(1, 10_000);
-                timestamps.add(lastTimestamp);
-                slices.add(0);
-                maxTimestamps.add(Long.MAX_VALUE);
-            }
-            TestCaseSupplier.TypedData timestampsField = TestCaseSupplier.TypedData.multiRow(
-                timestamps.reversed(),
-                DataType.DATETIME,
-                "timestamps"
-            );
-            TestCaseSupplier.TypedData sliceIndexType = TestCaseSupplier.TypedData.multiRow(slices, DataType.INTEGER, "_slice_index");
-            TestCaseSupplier.TypedData nextTimestampType = TestCaseSupplier.TypedData.multiRow(
-                maxTimestamps,
-                DataType.LONG,
-                "_max_timestamp"
-            );
-            dataRows = dataRows.stream().filter(Objects::nonNull).toList();
-            final Matcher<?> matcher;
-            if (dataRows.size() < 2) {
-                matcher = Matchers.nullValue();
-            } else {
-                var maxrate = switch (fieldTypedData.type().widenSmallNumeric()) {
-                    case INTEGER, COUNTER_INTEGER -> dataRows.stream().mapToInt(v -> (Integer) v).max().orElse(0);
-                    case LONG, COUNTER_LONG -> dataRows.stream().mapToLong(v -> (Long) v).max().orElse(0L);
-                    case DOUBLE, COUNTER_DOUBLE -> dataRows.stream().mapToDouble(v -> (Double) v).max().orElse(0.0);
-                    default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
-                };
-                var minrate = switch (fieldTypedData.type().widenSmallNumeric()) {
-                    case INTEGER, COUNTER_INTEGER -> dataRows.stream().mapToInt(v -> (Integer) v).min().orElse(0);
-                    case LONG, COUNTER_LONG -> dataRows.stream().mapToLong(v -> (Long) v).min().orElse(0L);
-                    case DOUBLE, COUNTER_DOUBLE -> dataRows.stream().mapToDouble(v -> (Double) v).min().orElse(0.0);
-                    default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
-                };
-                // If the minrate is greater than 0, we need to adjust the maxrate accordingly
-                minrate = Math.min(minrate, 0);
-                maxrate = Math.max(maxrate, maxrate - minrate);
-                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(minrate), Matchers.lessThanOrEqualTo(maxrate));
-            }
-            return new TestCaseSupplier.TestCase(
-                List.of(fieldTypedData, timestampsField, sliceIndexType, nextTimestampType),
-                standardAggregatorName("Rate", fieldTypedData.type()),
-                DataType.DOUBLE,
-                matcher
-            );
-        });
+        );
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
-        assertThat(params, hasSize(4));
+        assertThat(params, hasSize(5));
         assertThat(params.get(1).dataType(), equalTo(DataType.DATETIME));
-        assertThat(params.get(2).dataType(), equalTo(DataType.INTEGER));
-        assertThat(params.get(3).dataType(), equalTo(DataType.LONG));
+        assertThat(params.get(2).dataType(), equalTo(DataType.KEYWORD));
+        assertThat(params.get(3).dataType(), equalTo(DataType.INTEGER));
+        assertThat(params.get(4).dataType(), equalTo(DataType.LONG));
         var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
         return List.of(params.get(0), window);

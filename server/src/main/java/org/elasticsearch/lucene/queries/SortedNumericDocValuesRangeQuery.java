@@ -120,105 +120,6 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                     }
                 }
 
-                if (skipper != null && singleton instanceof BlockLoader.NumericRangeReader rangeReader) {
-                    return new ScorerSupplier() {
-                        @Override
-                        public Scorer get(long leadCost) throws IOException {
-                            return null;
-                        }
-
-                        @Override
-                        public long cost() {
-                            return singleton.cost();
-                        }
-
-                        @Override
-                        public BulkScorer bulkScorer() throws IOException {
-                            final float constantScore = score();
-                            return new BulkScorer() {
-
-                                @Override
-                                public int score(LeafCollector collector, Bits acceptDocs, int min, int maxExclusive) throws IOException {
-                                    collector.setScorer(new Scorable() {
-                                        @Override
-                                        public float score() {
-                                            return constantScore;
-                                        }
-                                    });
-                                    int max = maxExclusive - 1;
-                                    int currBlockStart = min;
-                                    while (currBlockStart <= max) {
-                                        // Also advances at beginning when value is -1
-                                        if (skipper.maxDocID(0) < currBlockStart) {
-                                            skipper.advance(currBlockStart);
-                                            if (skipper.maxDocID(0) == NO_MORE_DOCS) {
-                                                return NO_MORE_DOCS;
-                                            }
-                                        }
-
-                                        int minDoc = skipper.minDocID(0);
-                                        int maxDoc = skipper.maxDocID(0);
-                                        int minDocInBlock = Math.max(min, minDoc);
-                                        int maxDocInBlock = Math.min(maxDoc, max);
-
-                                        long minVal = skipper.minValue(0);
-                                        long maxVal = skipper.maxValue(0);
-
-                                        if (lowerValue <= minVal && maxVal <= upperValue) {
-                                            // Skipper range is entirely contained within query range
-                                            // Collect all accepted Doc
-                                            if (acceptDocs == null) {
-                                                collector.collectRange(minDocInBlock, maxDocInBlock + 1); // exclusive upper bound
-                                            } else {
-                                                for (int doc = minDocInBlock; doc <= maxDocInBlock; doc++) {
-                                                    if (acceptDocs.get(doc)) {
-                                                        collector.collect(doc);
-                                                    }
-                                                }
-                                            }
-
-                                        } else if (minVal <= upperValue && lowerValue <= maxVal) {
-                                            // Skipper range overlaps with query range
-                                            // Collect accepted docs within [lowerValue, upperValue]
-                                            LeafCollector acceptedCollector = acceptDocs == null ? collector : new LeafCollector() {
-
-                                                @Override
-                                                public void setScorer(Scorable scorer) throws IOException {
-
-                                                }
-
-                                                @Override
-                                                public void collect(int doc) throws IOException {
-                                                    if (acceptDocs.get(doc)) {
-                                                        collector.collect(doc);
-                                                    }
-                                                }
-                                            };
-
-                                            rangeReader.collectMatches(
-                                                acceptedCollector,
-                                                minDocInBlock,
-                                                maxDocInBlock,
-                                                lowerValue,
-                                                upperValue
-                                            );
-                                        }
-                                        // Else: Skipper block does not intersect range
-
-                                        currBlockStart = maxDocInBlock + 1;
-                                    }
-                                    return maxExclusive;
-                                }
-
-                                @Override
-                                public long cost() {
-                                    return singleton.cost();
-                                }
-                            };
-                        }
-                    };
-                }
-
                 if (skipper != null) {
                     // Use SkipBlockRangeIterator as the approximation: block-level skip
                     // filtering with no DV decoding. This exposes block skips to
@@ -337,7 +238,103 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                         }
                     };
                 }
-                return ConstantScoreScorerSupplier.fromIterator(TwoPhaseIterator.asDocIdSetIterator(iterator), score(), scoreMode, maxDoc);
+                final ScorerSupplier supplier = ConstantScoreScorerSupplier.fromIterator(
+                    TwoPhaseIterator.asDocIdSetIterator(iterator),
+                    score(),
+                    scoreMode,
+                    maxDoc
+                );
+                if (skipper != null && singleton instanceof BlockLoader.NumericRangeReader rangeReader) {
+                    final float constantScore = score();
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            return supplier.get(leadCost);
+                        }
+
+                        @Override
+                        public long cost() {
+                            return supplier.cost();
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() throws IOException {
+                            return new BulkScorer() {
+                                @Override
+                                public int score(LeafCollector collector, Bits acceptDocs, int min, int maxExclusive) throws IOException {
+                                    collector.setScorer(new Scorable() {
+                                        @Override
+                                        public float score() {
+                                            return constantScore;
+                                        }
+                                    });
+                                    int max = maxExclusive - 1;
+                                    int currBlockStart = min;
+                                    while (currBlockStart <= max) {
+                                        // Also advances at beginning when value is -1
+                                        if (skipper.maxDocID(0) < currBlockStart) {
+                                            skipper.advance(currBlockStart);
+                                            if (skipper.maxDocID(0) == NO_MORE_DOCS) {
+                                                return NO_MORE_DOCS;
+                                            }
+                                        }
+
+                                        int minDoc = skipper.minDocID(0);
+                                        int maxDoc = skipper.maxDocID(0);
+                                        int minDocInBlock = Math.max(min, minDoc);
+                                        int maxDocInBlock = Math.min(maxDoc, max);
+
+                                        long minVal = skipper.minValue(0);
+                                        long maxVal = skipper.maxValue(0);
+
+                                        if (lowerValue <= minVal && maxVal <= upperValue) {
+                                            // Skipper block is entirely within the query range: collect all
+                                            if (acceptDocs == null) {
+                                                collector.collectRange(minDocInBlock, maxDocInBlock + 1);
+                                            } else {
+                                                for (int doc = minDocInBlock; doc <= maxDocInBlock; doc++) {
+                                                    if (acceptDocs.get(doc)) {
+                                                        collector.collect(doc);
+                                                    }
+                                                }
+                                            }
+                                        } else if (minVal <= upperValue && lowerValue <= maxVal) {
+                                            // Skipper block overlaps the query range: decode and check values
+                                            LeafCollector acceptedCollector = acceptDocs == null ? collector : new LeafCollector() {
+                                                @Override
+                                                public void setScorer(Scorable scorer) throws IOException {}
+
+                                                @Override
+                                                public void collect(int doc) throws IOException {
+                                                    if (acceptDocs.get(doc)) {
+                                                        collector.collect(doc);
+                                                    }
+                                                }
+                                            };
+                                            rangeReader.collectMatches(
+                                                acceptedCollector,
+                                                minDocInBlock,
+                                                maxDocInBlock,
+                                                lowerValue,
+                                                upperValue
+                                            );
+                                        }
+                                        // Else: skipper block does not intersect the query range, skip it
+
+                                        currBlockStart = maxDocInBlock + 1;
+                                    }
+                                    return maxExclusive;
+                                }
+
+                                @Override
+                                public long cost() {
+                                    return singleton.cost();
+                                }
+                            };
+                        }
+                    };
+                }
+                return supplier;
             }
 
             @Override

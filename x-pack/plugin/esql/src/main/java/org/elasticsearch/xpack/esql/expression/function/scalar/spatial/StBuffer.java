@@ -148,30 +148,35 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         @MapParam(
             name = "options",
             description = "(Optional) ST_BUFFER additional options as <<esql-function-named-params,function named parameters>>.",
+            applies_to = "stack: preview 9.5.0",
             params = {
                 @MapParam.MapParamEntry(
                     name = QUAD_SEGS_OPTION,
                     type = "integer",
                     valueHint = { "8" },
-                    description = "Number of line segments used to approximate a quarter circle. Defaults to 8."
+                    description = "Number of line segments used to approximate a quarter circle. Defaults to 8.",
+                    applies_to = "stack: preview 9.5.0"
                 ),
                 @MapParam.MapParamEntry(
                     name = ENDCAP_OPTION,
                     type = "keyword",
                     valueHint = { "round", "flat", "square" },
-                    description = "End cap style for buffering linear geometries. Defaults to round."
+                    description = "End cap style for buffering linear geometries. Defaults to round.",
+                    applies_to = "stack: preview 9.5.0"
                 ),
                 @MapParam.MapParamEntry(
                     name = JOIN_OPTION,
                     type = "keyword",
                     valueHint = { "round", "mitre", "bevel" },
-                    description = "Join style for buffering. Defaults to round."
+                    description = "Join style for buffering. Defaults to round.",
+                    applies_to = "stack: preview 9.5.0"
                 ),
                 @MapParam.MapParamEntry(
                     name = MITRE_LIMIT_OPTION,
                     type = "double",
                     valueHint = { "5.0" },
-                    description = "Mitre ratio limit, only meaningful when join=mitre. Defaults to 5.0."
+                    description = "Mitre ratio limit, only meaningful when join=mitre. Defaults to 5.0.",
+                    applies_to = "stack: preview 9.5.0"
                 ) },
             optional = true
         ) Expression options

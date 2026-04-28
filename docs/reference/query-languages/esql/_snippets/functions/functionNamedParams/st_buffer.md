@@ -2,15 +2,15 @@
 
 ### Supported function named parameters
 
-`quad_segs`
+`quad_segs` {applies_to}`stack: preview 9.5.0`
 :   (integer) Number of line segments used to approximate a quarter circle. Defaults to 8.
 
-`endcap`
+`endcap` {applies_to}`stack: preview 9.5.0`
 :   (keyword) End cap style for buffering linear geometries. Defaults to round.
 
-`join`
+`join` {applies_to}`stack: preview 9.5.0`
 :   (keyword) Join style for buffering. Defaults to round.
 
-`mitre_limit`
+`mitre_limit` {applies_to}`stack: preview 9.5.0`
 :   (double) Mitre ratio limit, only meaningful when join=mitre. Defaults to 5.0.
 

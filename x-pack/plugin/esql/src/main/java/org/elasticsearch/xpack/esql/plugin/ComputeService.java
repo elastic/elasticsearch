@@ -283,7 +283,14 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, mainPlan, planTimeProfile, localListener.acquireCompute());
+                runCompute(
+                    rootTask,
+                    computeContext,
+                    mainPlan,
+                    LocalPhysicalOptimization.ENABLED,
+                    planTimeProfile,
+                    localListener.acquireCompute()
+                );
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -386,7 +393,14 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, planTimeProfile, computeListener.acquireCompute());
+                runCompute(
+                    rootTask,
+                    computeContext,
+                    coordinatorPlan,
+                    LocalPhysicalOptimization.ENABLED,
+                    planTimeProfile,
+                    computeListener.acquireCompute()
+                );
                 return;
             }
         } else {
@@ -467,6 +481,7 @@ public class ComputeService {
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
+                        LocalPhysicalOptimization.ENABLED,
                         planTimeProfile,
                         localListener.acquireCompute()
                     );
@@ -640,6 +655,7 @@ public class ComputeService {
         CancellableTask task,
         ComputeContext context,
         PhysicalPlan plan,
+        LocalPhysicalOptimization localPhysicalOptimization,
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
@@ -670,15 +686,17 @@ public class ComputeService {
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
 
-            var localPlan = PlannerUtils.localPlan(
-                plannerSettings,
-                context.flags(),
-                new ArrayList<>(context.searchExecutionContexts().collection()),
-                context.configuration(),
-                context.foldCtx(),
-                plan,
-                planTimeProfile
-            );
+            var localPlan = localPhysicalOptimization == LocalPhysicalOptimization.ENABLED
+                ? PlannerUtils.localPlan(
+                    plannerSettings,
+                    context.flags(),
+                    new ArrayList<>(context.searchExecutionContexts().collection()),
+                    context.configuration(),
+                    context.foldCtx(),
+                    plan,
+                    planTimeProfile
+                )
+                : plan;
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }

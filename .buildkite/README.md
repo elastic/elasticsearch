@@ -1,6 +1,6 @@
 # Elasticsearch CI Pipelines
 
-This directory contains pipeline definitions and scripts for running Elasticsearch CI on Buildkite.
+This directory contains pipeline definitions and scripts for running Elasticsearch CI on [Buildkite](https://buildkite.com/elastic).
 
 ## Directory Structure
 

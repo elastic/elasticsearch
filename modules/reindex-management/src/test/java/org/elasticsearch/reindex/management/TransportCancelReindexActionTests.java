@@ -38,7 +38,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.reindex.management.TransportCancelReindexAction.notFoundException;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -135,7 +135,7 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         assertEquals(notFoundException(taskId).getMessage(), failureRef.get().getMessage());
     }
 
-    public void testNodeFailureWithIllegalArgumentCauseTreatedAsNotFound() {
+    public void testNodeFailureWithFilterMismatchIaeTreatedAsNotFound() {
         // This is the path for a sub-task targeted with parent_task_only=true: cancel-tasks throws IAE("doesn't support this operation").
         FailedNodeException nodeFailure = new FailedNodeException(
             taskId.getNodeId(),
@@ -149,6 +149,34 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         assertNull(responseRef.get());
         assertThat(failureRef.get(), instanceOf(ResourceNotFoundException.class));
         assertEquals(notFoundException(taskId).getMessage(), failureRef.get().getMessage());
+    }
+
+    public void testNodeFailureWithNonCancellableIaeTreatedAsNotFound() {
+        // The other IAE message processTasks emits: target exists but isn't CancellableTask.
+        FailedNodeException nodeFailure = new FailedNodeException(
+            taskId.getNodeId(),
+            "node failed",
+            new IllegalArgumentException("task [" + taskId + "] doesn't support cancellation")
+        );
+        mockCancelTasks(new ListTasksResponse(List.of(), List.of(), List.of(nodeFailure)));
+
+        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
+
+        assertNull(responseRef.get());
+        assertThat(failureRef.get(), instanceOf(ResourceNotFoundException.class));
+        assertEquals(notFoundException(taskId).getMessage(), failureRef.get().getMessage());
+    }
+
+    public void testNodeFailureWithUnrelatedIaePropagated() {
+        // An IllegalArgumentException whose message isn't one of the two strings processTasks throws should not be silently mapped to 404.
+        IllegalArgumentException iae = new IllegalArgumentException("something else entirely");
+        FailedNodeException nodeFailure = new FailedNodeException(taskId.getNodeId(), "node failed", iae);
+        mockCancelTasks(new ListTasksResponse(List.of(), List.of(), List.of(nodeFailure)));
+
+        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
+
+        assertNull(responseRef.get());
+        assertSame("unrelated IAE must surface, not be masked as not-found", nodeFailure, failureRef.get());
     }
 
     public void testNonValidationNodeFailurePropagated() {
@@ -170,7 +198,6 @@ public class TransportCancelReindexActionTests extends ESTestCase {
     }
 
     public void testTaskFailurePropagatedAsConflict() {
-        // 409 from the relocation gate comes back as a TaskOperationFailure; it must be surfaced.
         ElasticsearchStatusException conflict = new ElasticsearchStatusException(
             "cannot cancel task [" + taskId.getId() + "] because it is being relocated",
             RestStatus.CONFLICT
@@ -182,8 +209,41 @@ public class TransportCancelReindexActionTests extends ESTestCase {
 
         assertNull(responseRef.get());
         assertNotNull(failureRef.get());
-        assertThat(failureRef.get().getMessage(), containsString("cancel_reindex of"));
-        assertThat(failureRef.get().getCause(), is(conflict));
+        assertSame("cause is rethrown directly", conflict, failureRef.get());
+    }
+
+    public void testValidationNodeFailureDroppedWhenMixedWithRealFailure() {
+        FailedNodeException validation = new FailedNodeException(
+            "some-other-node",
+            "Failed node [some-other-node]",
+            new ResourceNotFoundException("task [{}] is not found", taskId)
+        );
+        ElasticsearchStatusException conflict = new ElasticsearchStatusException("being relocated", RestStatus.CONFLICT);
+        TaskOperationFailure taskFailure = new TaskOperationFailure(taskId.getNodeId(), taskId.getId(), conflict);
+        mockCancelTasks(new ListTasksResponse(List.of(), List.of(taskFailure), List.of(validation)));
+
+        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
+
+        assertNull(responseRef.get());
+        assertSame("real task failure surfaces, validation noise is dropped", conflict, failureRef.get());
+        assertEquals("validation node failure is not attached as suppressed", 0, failureRef.get().getSuppressed().length);
+    }
+
+    public void testMultipleFailuresAttachedAsSuppressed() {
+        // If cancel-tasks ever fans out and returns more than one failure, we want all of them visible — the head determines the surfaced
+        // status (and message), the rest hang off via getSuppressed() so they don't get silently dropped.
+        FailedNodeException nodeFailure = new FailedNodeException(taskId.getNodeId(), "node failed", new RuntimeException("transport"));
+        ElasticsearchStatusException conflict = new ElasticsearchStatusException("being relocated", RestStatus.CONFLICT);
+        TaskOperationFailure taskFailure = new TaskOperationFailure(taskId.getNodeId(), taskId.getId(), conflict);
+        mockCancelTasks(new ListTasksResponse(List.of(), List.of(taskFailure), List.of(nodeFailure)));
+
+        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
+
+        assertNull(responseRef.get());
+        assertNotNull(failureRef.get());
+        // Node failures come first in the response model, so they're the head.
+        assertSame(nodeFailure, failureRef.get());
+        assertThat(failureRef.get().getSuppressed(), arrayContaining((Throwable) conflict));
     }
 
     public void testGetReindexFailurePropagated() {

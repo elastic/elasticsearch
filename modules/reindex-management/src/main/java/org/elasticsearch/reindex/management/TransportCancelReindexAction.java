@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex.management;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -68,16 +69,19 @@ public class TransportCancelReindexAction extends HandledTransportAction<CancelR
         cancelTasksRequest.setWaitForCompletion(false);
 
         client.execute(TransportCancelTasksAction.TYPE, cancelTasksRequest, listener.delegateFailureAndWrap((l, cancelResponse) -> {
-            // Maps validation and resource not found failures to reindex specific message
-            if (taskNotFoundFailures(cancelResponse)) {
+            // Maps validation and resource not found failures to reindex specific error
+            if (shouldTreatAsNotFound(cancelResponse)) {
                 logger.debug("cancel-tasks rejected task [{}]; reporting as reindex not found", taskId);
                 l.onFailure(notFoundException(taskId));
                 return;
             }
-            // Surfaces real failures (e.g. 409 CONFLICT from a relocation handoff, transport-level node failures).
-            cancelResponse.rethrowFailures("cancel_reindex");
-
-            // No failure was reported but no task was matched either: treat as not found.
+            // Surface other failures as-is
+            final Exception cancelFailure = cancelFailureFrom(cancelResponse);
+            if (cancelFailure != null) {
+                l.onFailure(cancelFailure);
+                return;
+            }
+            // No failure was reported but no task was matched either
             if (cancelResponse.getTasks().isEmpty()) {
                 l.onFailure(notFoundException(taskId));
                 return;
@@ -103,14 +107,33 @@ public class TransportCancelReindexAction extends HandledTransportAction<CancelR
     }
 
     /**
-     * Returns {@code true} when the cancel-tasks response indicates the target reindex task could not be located or did not qualify
-     * (non-reindex action, sub-task, non-cancellable). All such failures are thrown by
-     * {@link TransportCancelTasksAction#processTasks} and surface as node failures whose cause unwraps to either
-     * {@link ResourceNotFoundException} or {@link IllegalArgumentException}. We additionally require that no task failures are present,
-     * because a task failure (e.g. the relocation-aware {@code 409 CONFLICT} from {@code ensureCancellable}) signals a real cancel failure
-     * that must be surfaced to the caller rather than masked as not-found.
+     * Returns the real failure to surface from a cancel-tasks response, with any additional real failures attached as suppressed
+     * exceptions, or {@code null} when there are none. Validation-style node failures (handled separately by
+     * {@link #shouldTreatAsNotFound}) are skipped.
      */
-    private static boolean taskNotFoundFailures(final ListTasksResponse response) {
+    private static Exception cancelFailureFrom(final ListTasksResponse response) {
+        Exception head = null;
+        for (var nodeFailure : response.getNodeFailures()) {
+            if (isTaskValidationFailure(nodeFailure)) {
+                continue;
+            }
+            head = ExceptionsHelper.useOrSuppress(head, nodeFailure);
+        }
+        for (var taskFailure : response.getTaskFailures()) {
+            head = ExceptionsHelper.useOrSuppress(head, taskFailure.getCause());
+        }
+        return head;
+    }
+
+    /**
+     * Returns {@code true} when the cancel-tasks response indicates the target reindex task could not be located or did not qualify
+     * (non-reindex action, sub-task, non-cancellable). Such failures arrive as node failures whose cause is
+     * {@link ResourceNotFoundException} or {@link IllegalArgumentException} thrown by {@link TransportCancelTasksAction}.
+     * <p>
+     * We also require that no task failures are present, because a task failure signals a real cancel failure that must be surfaced
+     * to the caller.
+     */
+    private static boolean shouldTreatAsNotFound(final ListTasksResponse response) {
         if (response.getTaskFailures().isEmpty() == false) {
             return false;
         }
@@ -118,11 +141,27 @@ public class TransportCancelReindexAction extends HandledTransportAction<CancelR
             return false;
         }
         for (var failure : response.getNodeFailures()) {
-            if (ExceptionsHelper.unwrap(failure, ResourceNotFoundException.class, IllegalArgumentException.class) == null) {
+            if (isTaskValidationFailure(failure) == false) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * True iff the given node failure unwraps to one of the validation-style exceptions
+     * {@link TransportCancelTasksAction#processTasks} throws when the request targets a single task that doesn't qualify.
+     */
+    private static boolean isTaskValidationFailure(final ElasticsearchException failure) {
+        if (ExceptionsHelper.unwrap(failure, ResourceNotFoundException.class) != null) {
+            return true;
+        }
+        final IllegalArgumentException iae = (IllegalArgumentException) ExceptionsHelper.unwrap(failure, IllegalArgumentException.class);
+        if (iae == null) {
+            return false;
+        }
+        final String message = iae.getMessage();
+        return message != null && (message.contains("doesn't support this operation") || message.contains("doesn't support cancellation"));
     }
 
     static ResourceNotFoundException notFoundException(final TaskId taskId) {

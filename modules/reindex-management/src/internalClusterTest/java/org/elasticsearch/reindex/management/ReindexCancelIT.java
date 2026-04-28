@@ -36,6 +36,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.hamcrest.Matchers.allOf;
@@ -230,6 +232,106 @@ public class ReindexCancelIT extends ESIntegTestCase {
             () -> cancelReindexAsynchronously(nonExistingTaskOnExistingNode)
         );
         assertThat(asynchronousException.getMessage(), is(expectedExceptionMessage));
+    }
+
+    /**
+     * Cancelling a reindex sub-task (slice worker) by its task id must be rejected with a reindex 404
+     */
+    public void testCancellingChildTaskRejected() throws Exception {
+        assumeTrue("PIT-based reindex path", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final TaskId parentTaskId = startAsyncThrottledReindex();
+        try {
+            // Slice workers register after the leader opens PIT; wait for them to appear so we can grab one.
+            assertBusy(() -> {
+                final TaskGroup group = findTaskGroup(parentTaskId).orElse(null);
+                assertNotNull("parent group should exist", group);
+                assertThat("slice workers should be registered", group.childTasks().size(), equalTo(NUM_OF_SLICES));
+            });
+            final TaskId childTaskId = findTaskGroup(parentTaskId).orElseThrow().childTasks().getFirst().task().taskId();
+
+            final String expected = Strings.format("reindex task [%s] either not found or completed", childTaskId);
+            assertThat(
+                expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(childTaskId)).getMessage(),
+                is(expected)
+            );
+            assertThat(
+                expectThrows(ResourceNotFoundException.class, () -> cancelReindexAsynchronously(childTaskId)).getMessage(),
+                is(expected)
+            );
+        } finally {
+            // Clean up the parent reindex via the real cancel API so the test's @After teardown isn't slow.
+            cancelReindexAsynchronously(parentTaskId);
+        }
+    }
+
+    /**
+     * Cancelling a task whose action isn't the reindex action must be rejected with a reindex 404.
+     */
+    public void testCancellingNonReindexTaskRejected() throws Exception {
+        final TaskId reindexTaskId = startAsyncThrottledReindex();
+
+        // Held list-tasks call: blocks until reindex tasks complete, so it stays alive for our cancel attempt.
+        final var heldListTasks = clusterAdmin().prepareListTasks()
+            .setActions(ReindexAction.NAME)
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueMinutes(2))
+            .execute();
+        try {
+            final TaskId nonReindexTaskId = awaitParentTaskWithActionPrefix("cluster:monitor/tasks/lists");
+
+            final String expected = Strings.format("reindex task [%s] either not found or completed", nonReindexTaskId);
+            assertThat(
+                expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(nonReindexTaskId)).getMessage(),
+                is(expected)
+            );
+        } finally {
+            // Cancelling the reindex unblocks the held list-tasks; both then unwind cleanly.
+            cancelReindexAsynchronously(reindexTaskId);
+            try {
+                heldListTasks.actionGet(TimeValue.timeValueSeconds(30));
+            } catch (Exception ignored) {
+                // best-effort teardown
+            }
+        }
+    }
+
+    /**
+     * Cancelling a task whose target node doesn't match any node currently in the cluster.
+     */
+    public void testCancellingTaskOnNonExistingNode() {
+        final TaskId taskOnNonExistingNode = new TaskId("not-a-node-in-the-cluster", randomNonNegativeLong());
+
+        final String expectedExceptionMessage = Strings.format("reindex task [%s] either not found or completed", taskOnNonExistingNode);
+        final var synchronousException = expectThrows(
+            ResourceNotFoundException.class,
+            () -> cancelReindexSynchronously(taskOnNonExistingNode)
+        );
+        assertThat(synchronousException.getMessage(), is(expectedExceptionMessage));
+
+        final var asynchronousException = expectThrows(
+            ResourceNotFoundException.class,
+            () -> cancelReindexAsynchronously(taskOnNonExistingNode)
+        );
+        assertThat(asynchronousException.getMessage(), is(expectedExceptionMessage));
+    }
+
+    /** Polls the live task list until a cancellable parent task with the given action prefix appears, and returns its id. */
+    private TaskId awaitParentTaskWithActionPrefix(final String actionPrefix) throws Exception {
+        final AtomicReference<TaskId> found = new AtomicReference<>();
+        assertBusy(() -> {
+            final var match = clusterAdmin().prepareListTasks()
+                .get()
+                .getTasks()
+                .stream()
+                .filter(t -> t.action().startsWith(actionPrefix))
+                .filter(TaskInfo::cancellable)
+                .filter(t -> t.parentTaskId().isSet() == false)
+                .findFirst();
+            assertTrue("no cancellable parent task with action prefix [" + actionPrefix + "] yet", match.isPresent());
+            found.set(match.get().taskId());
+        }, 30, TimeUnit.SECONDS);
+        return found.get();
     }
 
     private TaskId startAsyncThrottledReindex() throws Exception {

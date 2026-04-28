@@ -11,7 +11,6 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.ElasticsearchDistribution
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.transform.UnzipTransform
 
@@ -96,6 +95,9 @@ configurations {
   es2
   es1
   es090
+  es500
+  es62
+  es63
 }
 
 dependencies {
@@ -106,6 +108,9 @@ dependencies {
   es2 'org.elasticsearch.distribution.zip:elasticsearch:2.4.5@zip'
   es1 'org.elasticsearch:elasticsearch:1.7.6@zip'
   es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
+  es500 'org.elasticsearch.distribution.zip:elasticsearch:5.0.0@zip'
+  es62 'org.elasticsearch.distribution.zip:elasticsearch:6.2.4@zip'
+  es63 'org.elasticsearch.distribution.zip:elasticsearch:6.3.2@zip'
 }
 
 jdks {
@@ -126,17 +131,29 @@ if (OS.current() == OS.WINDOWS) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
   tasks.named("javaRestTest").configure {
     systemProperty "tests.fromOld", "false"
+    systemProperty "tests.fromRemoteEs500", "false"
+    systemProperty "tests.fromRemoteEs62", "false"
+    systemProperty "tests.fromRemoteEs63", "false"
     systemProperty "tests.fromRemote7x", "false"
     systemProperty "tests.fromRemote7xEs79", "false"
     systemProperty "tests.fromRemote7xEs710", "false"
+    systemProperty "tests.fromRemoteEs812", "false"
+    systemProperty "tests.fromRemoteEs816", "false"
+    systemProperty "tests.fromRemoteEs93", "false"
   }
 } else if (rootProject.rootDir.toString().contains(" ")) {
   logger.warn("Disabling reindex-from-old tests because Elasticsearch 1.7 won't start with spaces in the path")
   tasks.named("javaRestTest").configure {
     systemProperty "tests.fromOld", "false"
+    systemProperty "tests.fromRemoteEs500", "false"
+    systemProperty "tests.fromRemoteEs62", "false"
+    systemProperty "tests.fromRemoteEs63", "false"
     systemProperty "tests.fromRemote7x", "false"
     systemProperty "tests.fromRemote7xEs79", "false"
     systemProperty "tests.fromRemote7xEs710", "false"
+    systemProperty "tests.fromRemoteEs812", "false"
+    systemProperty "tests.fromRemoteEs816", "false"
+    systemProperty "tests.fromRemoteEs93", "false"
   }
 } else {
   /* Register a gradle artifact transformation to unpack resolved elasticsearch distributions. We only resolve
@@ -150,11 +167,13 @@ if (OS.current() == OS.WINDOWS) {
     transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
   });
 
-  def versions = ['2', '1', '090']
+  def oldesFixtureConfiguration = project.configurations.oldesFixture
+
+  def versions = ['2', '1', '090', '500', '62', '63']
   if (OS.current() == OS.MAC) {
     // 0.90 fails sometimes on mac, given that it is so old, let us disable it
     // see: https://github.com/elastic/elasticsearch/issues/51202
-    versions = ['2', '1']
+    versions = ['2', '1', '500', '62', '63']
   }
   versions.each { version ->
     def oldEsDependency = configurations['es' + version]
@@ -162,7 +181,6 @@ if (OS.current() == OS.WINDOWS) {
     TaskProvider<AntFixture> fixture = tasks.register("oldEs${version}Fixture", AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy, oldEsDependency
       executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
-      def oldesFixtureConfiguration = project.configurations.oldesFixture
       env 'CLASSPATH', "${-> oldesFixtureConfiguration.asPath}"
       // old versions of Elasticsearch need JAVA_HOME
       env 'JAVA_HOME', jdks.legacy.javaHomePath
@@ -174,6 +192,9 @@ if (OS.current() == OS.WINDOWS) {
         baseDir,
         "${ -> oldEsDependency.singleFile.getPath()}",
         version == '090'
+      if ((version == '62' || version == '63') && Architecture.current() == Architecture.AARCH64) {
+        args 'xpack.ml.enabled: false'
+      }
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service
         // is ready, so we can just wait for the file to exist
@@ -183,7 +204,15 @@ if (OS.current() == OS.WINDOWS) {
 
     tasks.named("javaRestTest").configure {
       dependsOn fixture
-      systemProperty "tests.fromOld", "true"
+      if (version == '500') {
+        systemProperty "tests.fromRemoteEs500", "true"
+      } else if (version == '62') {
+        systemProperty "tests.fromRemoteEs62", "true"
+      } else if (version == '63') {
+        systemProperty "tests.fromRemoteEs63", "true"
+      } else {
+        systemProperty "tests.fromOld", "true"
+      }
       /* Use a closure on the string to delay evaluation until right before we
        * run the integration tests so that we can be sure that the file is
        * ready. */
@@ -195,36 +224,12 @@ if (OS.current() == OS.WINDOWS) {
    * coordinate stops at 6.8.x). Use the same ElasticsearchDistribution resolution as BWC tests (Elastic
    * download service / InternalDistributionDownloadPlugin).
    *
-   * Classifiers use the host OS (e.g. darwin-aarch64). Elasticsearch 7.9.x / 7.10.0 were not shipped for
-   * darwin-aarch64; skip those fixtures on macOS ARM. Remote PIT uses 7.10.0 (smallest &gt;= 7.10.0); if
-   * resolution fails on another platform, revert to 7.17.28 in remote_reindex_es710. */
+   * 8.x / 9.x run on all host OSes.
+   */
   def distributions = DistributionDownloadPlugin.getContainer(project)
   boolean macOsAarch64 = OS.current() == OS.MAC && Architecture.current() == Architecture.AARCH64
 
-  ElasticsearchDistribution remoteEs79Dist = null
-  TaskProvider<AntFixture> remoteEs79Fixture = null
-  ElasticsearchDistribution remoteEs710Dist = null
-  TaskProvider<AntFixture> remoteEs710Fixture = null
-  if (macOsAarch64 == false) {
-    remoteEs79Dist = distributions.findByName("remote_reindex_es79")
-    if (remoteEs79Dist == null) {
-      remoteEs79Dist = distributions.create("remote_reindex_es79") { ElasticsearchDistribution d ->
-        d.version = "7.9.3"
-        d.architecture = Architecture.current()
-      }
-    }
-    remoteEs710Dist = distributions.findByName("remote_reindex_es710")
-    if (remoteEs710Dist == null) {
-      remoteEs710Dist = distributions.create("remote_reindex_es710") { ElasticsearchDistribution d ->
-        d.version = "7.10.0"
-        d.architecture = Architecture.current()
-      }
-    }
-  }
-
-  def oldesFixtureConfiguration = project.configurations.oldesFixture
-
-  def registerRemoteReindex7xFixture = { String taskName, ElasticsearchDistribution dist ->
+  def registerRemoteReindexDistFixture = { String taskName, ElasticsearchDistribution dist ->
     tasks.register(taskName, AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy, dist
       executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
@@ -249,30 +254,38 @@ if (OS.current() == OS.WINDOWS) {
     }
   }
 
-  if (remoteEs79Dist != null) {
-    remoteEs79Fixture = registerRemoteReindex7xFixture("remoteEs79Fixture", remoteEs79Dist)
+  def registerDownloadedRemote = { String version, String distributionName, String taskName, String portPrefix, String enableProperty ->
+    ElasticsearchDistribution dist = distributions.findByName(distributionName)
+    if (dist == null) {
+      dist = distributions.create(distributionName) { ElasticsearchDistribution d ->
+        d.version = version
+        d.architecture = Architecture.current()
+      }
+    }
+    TaskProvider<AntFixture> fx = registerRemoteReindexDistFixture(taskName, dist)
+    tasks.named("javaRestTest").configure {
+      dependsOn fx
+      systemProperty enableProperty, "true"
+      nonInputProperties.systemProperty "${portPrefix}.port", fx.map(f -> f.addressAndPort)
+    }
   }
 
-  if (remoteEs710Dist != null) {
-    remoteEs710Fixture = registerRemoteReindex7xFixture("remoteEs710Fixture", remoteEs710Dist)
+  if (macOsAarch64 == false) {
+    registerDownloadedRemote('7.9.3', 'remote_reindex_es79', 'remoteEs79Fixture', 'es79', 'tests.fromRemote7xEs79')
+    registerDownloadedRemote('7.10.0', 'remote_reindex_es710', 'remoteEs710Fixture', 'es710', 'tests.fromRemote7xEs710')
+  } else {
+    tasks.named("javaRestTest").configure {
+      systemProperty "tests.fromRemote7xEs79", "false"
+      systemProperty "tests.fromRemote7xEs710", "false"
+    }
   }
+
+  registerDownloadedRemote('8.12.2', 'remote_reindex_es812', 'remoteEs812Fixture', 'es812', 'tests.fromRemoteEs812')
+  registerDownloadedRemote('8.16.4', 'remote_reindex_es816', 'remoteEs816Fixture', 'es816', 'tests.fromRemoteEs816')
+  registerDownloadedRemote('9.3.0', 'remote_reindex_es93', 'remoteEs93Fixture', 'es93', 'tests.fromRemoteEs93')
 
   tasks.named("javaRestTest").configure {
-    if (remoteEs710Fixture != null) {
-      dependsOn remoteEs710Fixture
-    }
-    if (remoteEs79Fixture != null) {
-      dependsOn remoteEs79Fixture
-    }
     systemProperty "tests.fromRemote7x", "true"
-    systemProperty "tests.fromRemote7xEs79", macOsAarch64 ? "false" : "true"
-    systemProperty "tests.fromRemote7xEs710", macOsAarch64 ? "false" : "true"
-    if (remoteEs79Fixture != null) {
-      nonInputProperties.systemProperty "es79.port", remoteEs79Fixture.map(f -> f.addressAndPort)
-    }
-    if (remoteEs710Fixture != null) {
-      nonInputProperties.systemProperty "es710.port", remoteEs710Fixture.map(f -> f.addressAndPort)
-    }
   }
 }
 

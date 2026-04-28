@@ -34,22 +34,6 @@ public final class ApmIntakeMessageParser {
     private static final Set<String> TRANSACTION_DECODED_KEYS = Set.of("name", "trace_id", "id", "parent_id");
     private static final Set<String> SPAN_DECODED_KEYS = Set.of("name", "trace_id", "id", "parent_id", "transaction_id");
 
-    /**
-     * APM intake metadata → OTel Semantic Convention renames. Keys match the flattened dot-notation
-     * the metadata block produces after {@link #flattenAttributes}. Any metadata key not in this
-     * map is preserved verbatim (e.g. {@code system.platform}). This is the one place that closes
-     * the intake-side leg of the cross-path contract; the OTLP parser produces OTel keys natively.
-     */
-    private static final Map<String, String> APM_METADATA_TO_OTEL_KEY = Map.ofEntries(
-        Map.entry("service.name", "service.name"),
-        Map.entry("service.version", "service.version"),
-        Map.entry("service.agent.name", "telemetry.sdk.name"),
-        Map.entry("service.agent.version", "telemetry.sdk.version"),
-        Map.entry("service.language.name", "telemetry.sdk.language"),
-        Map.entry("service.runtime.name", "process.runtime.name"),
-        Map.entry("service.runtime.version", "process.runtime.version")
-    );
-
     /** Top-level {@code labels} map on metadata is flattened with a {@code labels.} prefix. */
     private static final String LABELS_TOP_KEY = "labels";
 
@@ -145,10 +129,12 @@ public final class ApmIntakeMessageParser {
     /**
      * Parse an APM intake {@code metadata} event into a {@link ReceivedTelemetry.ReceivedResource}.
      * <p>
-     * Produces a flat map of attributes keyed by OTel Semantic Convention names where a
-     * well-defined rename exists (see {@link #APM_METADATA_TO_OTEL_KEY}); otherwise the flattened
-     * APM path is preserved verbatim. The {@code labels} sub-map is flattened with a
-     * {@code labels.} prefix (e.g. {@code labels.env=staging}).
+     * Produces a flat map keyed by the APM intake's own dot-notation paths
+     * (e.g. {@code service.agent.name}, {@code system.platform}). Keys are passed through
+     * verbatim — no translation to OTel Semantic Convention names — so the cross-path contract
+     * locks the keys downstream consumers actually observe today, and any future exporter that
+     * drops one of those keys will fail the assertion. The {@code labels} sub-map is flattened
+     * with a {@code labels.} prefix (e.g. {@code labels.env=staging}).
      */
     @SuppressWarnings("unchecked")
     private static ReceivedTelemetry parseMetadata(Map<String, Object> root) throws IOException {
@@ -166,17 +152,7 @@ public final class ApmIntakeMessageParser {
                 flattenInto(LABELS_TOP_KEY + "." + entry.getKey(), entry.getValue(), flat);
             }
         }
-        Map<String, Object> renamed = new LinkedHashMap<>(flat.size());
-        for (Map.Entry<String, Object> entry : flat.entrySet()) {
-            String mapped = APM_METADATA_TO_OTEL_KEY.getOrDefault(entry.getKey(), entry.getKey());
-            // A collision after rename means two source keys map to the same OTel key — that's a
-            // contract bug in APM_METADATA_TO_OTEL_KEY (or in the intake event), not a value choice
-            // the test should silently make. Fail fast so the editor sees it immediately.
-            if (renamed.put(mapped, entry.getValue()) != null) {
-                throw new IOException("metadata rename collision on key [" + mapped + "] from source [" + entry.getKey() + "]");
-            }
-        }
-        return new ReceivedTelemetry.ReceivedResource(Collections.unmodifiableMap(renamed));
+        return new ReceivedTelemetry.ReceivedResource(flat);
     }
 
     @SuppressWarnings("unchecked")

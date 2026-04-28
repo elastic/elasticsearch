@@ -37,15 +37,8 @@ public class RecordingApmServer extends ExternalResource {
     final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
 
     /**
-     * First {@link ReceivedTelemetry.ReceivedResource} observed in this server's lifetime.
-     * Resource is per-JVM, not per-span; the APM agent sends it as line 1 of every intake request
-     * and OTLP carries it on every {@code ResourceSpans} batch, so first-write-wins is safe.
-     * Routed via this setter rather than the {@link #received} queue to keep tests from racing on
-     * arrival order with spans/transactions.
-     * <p>
-     * <b>Known limitation:</b> first-write-wins pins the resource for the lifetime of this server
-     * instance. Tests asserting on resource <em>values</em> (rather than just key presence) across
-     * differing JVM configurations must use a fresh {@link RecordingApmServer} per scenario.
+     * The "Resource" (telemetry source identity) observed by this server. The test JVM emits
+     * a single Resource, so we record the first one and ignore the rest.
      */
     private final AtomicReference<ReceivedTelemetry.ReceivedResource> resource = new AtomicReference<>();
 
@@ -133,9 +126,9 @@ public class RecordingApmServer extends ExternalResource {
     }
 
     /**
-     * Route a parsed event: {@link ReceivedTelemetry.ReceivedResource} goes to the per-JVM
-     * {@link #resource} reference (first-write-wins, not queued so tests don't race on arrival
-     * order with spans/transactions); everything else is queued for consumers.
+     * Route a parsed event: {@link ReceivedTelemetry.ReceivedResource} goes to the
+     * {@link #resource} reference (we just need one since the test JVM emits a single
+     * Resource); everything else is queued for consumers.
      */
     private void route(ReceivedTelemetry msg) {
         logger.debug("telemetry received: {}", msg);

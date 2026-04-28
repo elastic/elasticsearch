@@ -62,9 +62,10 @@ public sealed interface ReceivedTelemetry {
      * Populated from the APM intake {@code metadata} NDJSON event (service/agent/system/process/labels)
      * and from {@code ExportTraceServiceRequest.resource_spans[].resource} on the OTLP path.
      * <p>
-     * Attribute keys use raw OTel Semantic Convention names (e.g. {@code service.name},
-     * {@code telemetry.sdk.name}, {@code host.arch}) so that both export paths satisfy the same
-     * resource-level assertions without a prefix-translation step.
+     * Attribute keys are passed through verbatim from each protocol — no translation. The
+     * cross-path contract therefore asserts on the keys downstream consumers actually observe,
+     * so an exporter that drops a legacy APM key (or fails to emit an OTel-side counterpart)
+     * fails the assertion rather than being silently normalised away.
      */
     record ReceivedResource(Map<String, Object> attributes) implements ReceivedTelemetry {
         public ReceivedResource {

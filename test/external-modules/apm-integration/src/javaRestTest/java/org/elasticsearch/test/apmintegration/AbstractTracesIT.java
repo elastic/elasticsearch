@@ -88,16 +88,17 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
     static final Set<String> FORBIDDEN_SPAN_KEYS = Set.of("otel.attributes.http.request.body", "otel.attributes.http.response.body");
 
     /**
-     * Resource attribute keys every exporter implementation must produce. These are baseline
-     * OTel Resource attributes that any OTel SDK populates automatically; the APM agent path
-     * also produces them via its {@code metadata} intake event (see {@link ApmIntakeMessageParser}).
+     * Resource attribute keys every exporter implementation must produce. These are the legacy
+     * APM-agent metadata keys that downstream consumers depend on today; the OTel SDK swap is
+     * meant to be a drop-in replacement, so any future exporter must continue producing them or
+     * fail this assertion.
      */
     static final Set<String> REQUIRED_RESOURCE_KEYS = Set.of(
         "service.name",
         "service.version",
-        "telemetry.sdk.language",
-        "telemetry.sdk.name",
-        "telemetry.sdk.version"
+        "service.language.name",
+        "service.agent.name",
+        "service.agent.version"
     );
 
     protected static RecordingApmServer recordingApmServer = new RecordingApmServer();

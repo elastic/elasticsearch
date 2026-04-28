@@ -39,7 +39,7 @@ public class CompactMultiTypeEsField extends EsField implements UnionTypeEsField
     // FIXME(gal, NOCOMMIT) rename
     public static final TransportVersion ESQL_MULTI_TYPE_ES_FIELD_2 = TransportVersion.fromName("esql_multi_type_es_field_2");
 
-    private final Map<String, Expression> typeToConversionExpressions;
+    private final Map<DataType, Expression> typeToConversionExpressions;
 
     /**
      * If this is not {@code null}, then this expression should be used to convert the field value in case the field is not mapped in an
@@ -52,7 +52,7 @@ public class CompactMultiTypeEsField extends EsField implements UnionTypeEsField
         String name,
         DataType dataType,
         boolean aggregatable,
-        Map<String, Expression> typeToConversionExpressions,
+        Map<DataType, Expression> typeToConversionExpressions,
         TimeSeriesFieldType timeSeriesFieldType,
         @Nullable Expression unmappedConversionExpression
     ) {
@@ -66,7 +66,7 @@ public class CompactMultiTypeEsField extends EsField implements UnionTypeEsField
             ((PlanStreamInput) in).readCachedString(),
             DataType.readFrom(in),
             in.readBoolean(),
-            in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)),
+            in.readImmutableMap(DataType::readFrom, i -> i.readNamedWriteable(Expression.class)),
             readTimeSeriesFieldType(in),
             in.readOptionalNamedWriteable(Expression.class)
         );
@@ -77,7 +77,7 @@ public class CompactMultiTypeEsField extends EsField implements UnionTypeEsField
         ((PlanStreamOutput) out).writeCachedString(getName());
         getDataType().writeTo(out);
         out.writeBoolean(isAggregatable());
-        out.writeMap(typeToConversionExpressions, (o, v) -> out.writeNamedWriteable(v));
+        out.writeMap(typeToConversionExpressions, (o, k) -> k.writeTo(o), (o, v) -> o.writeNamedWriteable(v));
         writeTimeSeriesFieldType(out);
         out.writeOptionalNamedWriteable(unmappedConversionExpression);
     }
@@ -92,7 +92,7 @@ public class CompactMultiTypeEsField extends EsField implements UnionTypeEsField
         return "CompactMultiTypeEsField";
     }
 
-    public Map<String, Expression> getTypeToConversionExpressions() {
+    public Map<DataType, Expression> getTypeToConversionExpressions() {
         return typeToConversionExpressions;
     }
 
@@ -102,7 +102,7 @@ public class CompactMultiTypeEsField extends EsField implements UnionTypeEsField
      * {@link #getUnmappedConversionExpression()} when the field is unmapped in the local index.
      */
     public @Nullable Expression getConversionExpressionForType(DataType type) {
-        return typeToConversionExpressions.get(type.typeName());
+        return typeToConversionExpressions.get(type);
     }
 
     @Override
@@ -122,7 +122,7 @@ public class CompactMultiTypeEsField extends EsField implements UnionTypeEsField
     ) {
         Map<String, Set<String>> typesToIndices = imf.getTypesToIndices();
         DataType resolvedDataType = DataType.UNSUPPORTED;
-        Map<String, Expression> filtered = new HashMap<>();
+        Map<DataType, Expression> filtered = new HashMap<>();
         for (String typeName : typesToIndices.keySet()) {
             Expression convertExpr = typesToConversionExpressions.get(typeName);
             if (convertExpr == null) {
@@ -133,7 +133,7 @@ public class CompactMultiTypeEsField extends EsField implements UnionTypeEsField
             } else if (resolvedDataType != convertExpr.dataType()) {
                 throw new IllegalArgumentException("Resolved data type mismatch: " + resolvedDataType + " != " + convertExpr.dataType());
             }
-            filtered.put(typeName, convertExpr);
+            filtered.put(DataType.fromTypeName(typeName), convertExpr);
         }
         if (resolvedDataType == DataType.UNSUPPORTED && unmappedConversionExpression != null) {
             resolvedDataType = unmappedConversionExpression.dataType();

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.type.CompactInvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
@@ -25,7 +25,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CompactInvalidMappedFieldTests extends ESTestCase {
+/**
+ * Tests for {@link InvalidMappedField#compact} and {@link InvalidMappedField#compactPotentiallyUnmapped}, which truncate per-type index
+ * lists for memory-frugal analysis on the coordinator.
+ */
+public class InvalidMappedFieldCompactTests extends ESTestCase {
     public void testKeepsAllIndicesWhenAtOrBelowLimit() {
         Map<String, Set<String>> input = Map.of(
             DataType.KEYWORD.typeName(),
@@ -34,7 +38,7 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
             new LinkedHashSet<>(Set.of("idx_c", "idx_d", "idx_e"))
         );
 
-        CompactInvalidMappedField field = new CompactInvalidMappedField("f", input);
+        InvalidMappedField field = InvalidMappedField.compact("f", input);
 
         assertMap(
             field.getTypesToIndices(),
@@ -45,27 +49,26 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
 
     public void testTruncatesAboveLimitAndAddsEllipsisSentinel() {
         Set<String> manyIndices = IntStream.range(0, 5_000)
-            .mapToObj(i -> String.format("idx_%05d", i))
+            .mapToObj(i -> Strings.format("idx_%05d", i))
             .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<String, Set<String>> input = Map.of(DataType.KEYWORD.typeName(), manyIndices);
 
-        CompactInvalidMappedField field = new CompactInvalidMappedField("f", input);
+        InvalidMappedField field = InvalidMappedField.compact("f", input);
 
         assertMap(
             field.getTypesToIndices(),
-            matchesMap().entry(DataType.KEYWORD.typeName(), Set.of("idx_00000", "idx_00001", "idx_00002", CompactInvalidMappedField.ELLIPSIS))
+            matchesMap().entry(DataType.KEYWORD.typeName(), Set.of("idx_00000", "idx_00001", "idx_00002", "..."))
         );
     }
 
     public void testErrorMessageReflectsFullInputCountEvenAfterTruncation() {
         Set<String> manyIndices = IntStream.range(0, 5_000)
-            .mapToObj(i -> String.format("idx_%05d", i))
+            .mapToObj(i -> Strings.format("idx_%05d", i))
             .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<String, Set<String>> input = new TreeMap<>(Map.of(DataType.KEYWORD.typeName(), manyIndices));
 
-        String message = new CompactInvalidMappedField("f", input).errorMessage();
+        String message = InvalidMappedField.compact("f", input).errorMessage();
 
-        // FIXME(gal, NOCOMMIT) Can we have a less testing of the string contents? Maybe using a TreeMap?
         assertThat(message, containsString("[1] incompatible types"));
         assertThat(message, containsString("[idx_00000, idx_00001, idx_00002]"));
         assertThat(message, containsString("[" + (5_000 - 3) + "] other indices"));
@@ -81,13 +84,13 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
             )
         );
 
-        assertThat(new CompactInvalidMappedField("f", input).errorMessage(), equalTo(new InvalidMappedField("f", input).errorMessage()));
+        assertThat(InvalidMappedField.compact("f", input).errorMessage(), equalTo(new InvalidMappedField("f", input).errorMessage()));
     }
 
     public void testPotentiallyUnmappedFlagAndMessageInsistOnKeyword() {
         Map<String, Set<String>> input = new TreeMap<>(Map.of(DataType.LONG.typeName(), new LinkedHashSet<>(Set.of("idx_a"))));
 
-        CompactInvalidMappedField field = CompactInvalidMappedField.potentiallyUnmapped("f", input);
+        InvalidMappedField field = InvalidMappedField.compactPotentiallyUnmapped("f", input);
 
         assertThat(field.isPotentiallyUnmapped(), equalTo(true));
         assertThat(field.errorMessage(), containsString("[keyword] due to loading from _source"));
@@ -104,7 +107,6 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
             )
         );
 
-        assertThat(new CompactInvalidMappedField("f", input).types(), containsInAnyOrder(DataType.KEYWORD, DataType.LONG));
+        assertThat(InvalidMappedField.compact("f", input).types(), containsInAnyOrder(DataType.KEYWORD, DataType.LONG));
     }
-
 }

@@ -61,7 +61,7 @@ public class CompactMultiTypeEsFieldTests extends AbstractEsFieldTypeTests<Compa
         boolean toString = randomBoolean();
         DataType dataType = randomFrom(types());
         DataType toType = toString ? DataType.KEYWORD : dataType;
-        Map<String, Expression> typeToConvertExpressions = randomConvertExpressions(name, toString, dataType);
+        Map<DataType, Expression> typeToConvertExpressions = randomConvertExpressions(name, toString, dataType);
         Expression unmappedConversionExpression = randomBoolean() ? null : createToString(name, dataType);
 
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
@@ -73,7 +73,7 @@ public class CompactMultiTypeEsFieldTests extends AbstractEsFieldTypeTests<Compa
     protected CompactMultiTypeEsField mutateInstance(CompactMultiTypeEsField instance) throws IOException {
         String name = instance.getName();
         DataType dataType = instance.getDataType();
-        Map<String, Expression> typeToConvertExpressions = instance.getTypeToConversionExpressions();
+        Map<DataType, Expression> typeToConvertExpressions = instance.getTypeToConversionExpressions();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
         Expression unmappedConversionExpression = instance.getUnmappedConversionExpression();
         switch (between(0, 4)) {
@@ -95,25 +95,25 @@ public class CompactMultiTypeEsFieldTests extends AbstractEsFieldTypeTests<Compa
     }
 
     /**
-     * Random map keyed by {@link DataType#typeName()}, so it can be used as the source-type map of
+     * Random map keyed by source {@link DataType}, so it can be used as the source-type map of
      * {@link CompactMultiTypeEsField}.
      */
-    private Map<String, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {
-        Map<String, Expression> typeToConvertExpressions = new HashMap<>();
+    private Map<DataType, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {
+        Map<DataType, Expression> typeToConvertExpressions = new HashMap<>();
         if (toString) {
-            typeToConvertExpressions.put(DataType.KEYWORD.typeName(), createToString(name, DataType.KEYWORD));
-            typeToConvertExpressions.put(dataType.typeName(), createToString(name, dataType));
+            typeToConvertExpressions.put(DataType.KEYWORD, createToString(name, DataType.KEYWORD));
+            typeToConvertExpressions.put(dataType, createToString(name, dataType));
         } else {
-            typeToConvertExpressions.put(DataType.KEYWORD.typeName(), testConvertExpression(name, DataType.KEYWORD, dataType));
-            typeToConvertExpressions.put(dataType.typeName(), testConvertExpression(name, dataType, dataType));
+            typeToConvertExpressions.put(DataType.KEYWORD, testConvertExpression(name, DataType.KEYWORD, dataType));
+            typeToConvertExpressions.put(dataType, testConvertExpression(name, dataType, dataType));
         }
         return typeToConvertExpressions;
     }
 
-    private Map<String, Expression> mutateConvertExpressions(
+    private Map<DataType, Expression> mutateConvertExpressions(
         String name,
         DataType toType,
-        Map<String, Expression> typeToConvertExpressions
+        Map<DataType, Expression> typeToConvertExpressions
     ) {
         return randomValueOtherThan(
             typeToConvertExpressions,

@@ -2509,8 +2509,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             } else {
                 CompactMultiTypeEsField mtf = (CompactMultiTypeEsField) fa.field();
-                Map<String, Expression> typeToConversionExpressions = new HashMap<>();
-                for (Map.Entry<String, Expression> entry : mtf.getTypeToConversionExpressions().entrySet()) {
+                Map<DataType, Expression> typeToConversionExpressions = new HashMap<>();
+                for (Map.Entry<DataType, Expression> entry : mtf.getTypeToConversionExpressions().entrySet()) {
                     typeToConversionExpressions.put(entry.getKey(), wrapWith(convertExpression, entry.getValue()));
                 }
                 return new CompactMultiTypeEsField(
@@ -2577,11 +2577,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean canConvertOriginalTypes(EsField multiTypeEsField, Set<DataType> supportedTypes) {
-            Map<String, Expression> conversionExpressions = multiTypeEsField instanceof MultiTypeEsField legacy
-                ? legacy.getIndexToConversionExpressions()
-                : ((CompactMultiTypeEsField) multiTypeEsField).getTypeToConversionExpressions();
-            return conversionExpressions.values()
-                .stream()
+            Collection<Expression> conversionExpressions = multiTypeEsField instanceof MultiTypeEsField legacy
+                ? legacy.getIndexToConversionExpressions().values()
+                : ((CompactMultiTypeEsField) multiTypeEsField).getTypeToConversionExpressions().values();
+            return conversionExpressions.stream()
                 .allMatch(
                     e -> e instanceof AbstractConvertFunction convertFunction
                         && supportedTypes.contains(convertFunction.field().dataType().widenSmallNumeric())

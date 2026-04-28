@@ -11,7 +11,6 @@ import org.apache.lucene.tests.util.RamUsageTester;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.esql.core.type.CompactInvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -35,8 +34,8 @@ import static org.hamcrest.Matchers.lessThan;
 
 /**
  * End-to-end check that an analyzed plan over many union-typed fields, each conflicting across thousands of indices, retains substantially
- * less memory under {@link CompactMultiTypeEsField} (paired with {@link CompactInvalidMappedField}'s truncated index lists) than under the legacy
- * {@link org.elasticsearch.xpack.esql.core.type.MultiTypeEsField} (keyed per-index) paired with a full {@link InvalidMappedField}.
+ * less memory under {@link CompactMultiTypeEsField} (paired with {@link InvalidMappedField#compact}'s truncated index lists) than under
+ * the legacy {@link org.elasticsearch.xpack.esql.core.type.MultiTypeEsField} (keyed per-index) paired with a full {@link InvalidMappedField}.
  *
  * <p>The cost we're targeting is {@code O(num_fields * num_indices)}: each conflicting field expands into its own per-index conversion
  * map under legacy, and per-type under v2. With many fields the constant overhead from {@link EsIndex#indexNameWithModes} becomes a
@@ -93,7 +92,7 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
     /**
      * Build a fake "idx*" pattern with {@code numIndices} concrete indices and {@code numConflictingFields} fields {@code id_0..id_<n>},
      * each with type {@code keyword} in half of the indices and {@code integer} in the other half. When {@code compact} is true the
-     * conflicting fields are built from {@link CompactInvalidMappedField} (truncated index lists), matching what a v2-capable coordinator
+     * conflicting fields are built from {@link InvalidMappedField#compact} (truncated index lists), matching what a v2-capable coordinator
      * produces; otherwise the full {@link InvalidMappedField} is used.
      */
     private static IndexResolution unionTypedIndex(boolean compact) {
@@ -113,7 +112,7 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
             mapping.put(
                 fieldName,
                 compact
-                    ? new CompactInvalidMappedField(fieldName, perFieldTypesToIndices)
+                    ? InvalidMappedField.compact(fieldName, perFieldTypesToIndices)
                     : new InvalidMappedField(fieldName, perFieldTypesToIndices)
             );
         }

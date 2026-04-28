@@ -127,9 +127,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/145377
-- class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
-  method: testOverflowInGroupingProducesNullAndWarning
-  issue: https://github.com/elastic/elasticsearch/issues/145438
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/145655
@@ -139,9 +136,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testAverageWriteLoadMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/145855
-- class: org.elasticsearch.xpack.esql.spatial.SpatialCentroidAggregationIT
-  method: testStCentroidAggregationWithShapes
-  issue: https://github.com/elastic/elasticsearch/issues/145883
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryAllCombinationsSkipUnavailableIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145884
@@ -370,21 +364,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testBulkOperations {useLegacyFormat=false useSyntheticSource=false}
   issue: https://github.com/elastic/elasticsearch/issues/147130
-- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
-  method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
-  issue: https://github.com/elastic/elasticsearch/issues/147133
 - class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
   method: testApproximationDisabled
   issue: https://github.com/elastic/elasticsearch/issues/147144
-- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
-  method: testLicenseCheck
-  issue: https://github.com/elastic/elasticsearch/issues/147147
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/145901
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/145901
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec}
   issue: https://github.com/elastic/elasticsearch/issues/147164
@@ -409,8 +391,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/147298
-- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
-  issue: https://github.com/elastic/elasticsearch/issues/147361
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/145728
@@ -453,9 +433,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit}
   issue: https://github.com/elastic/elasticsearch/issues/147494
-- class: org.elasticsearch.compute.operator.topn.GroupedTopNOperatorTests
-  method: testSplitOnSize
-  issue: https://github.com/elastic/elasticsearch/issues/147533
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:external-basic.complexQuery}
   issue: https://github.com/elastic/elasticsearch/issues/147536
@@ -473,40 +450,88 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/147543
 - class: org.elasticsearch.xpack.esql.datasource.orc.OrcFormatReaderTests
   methods:
-    - testMetadataReturnsCorrectSourceType
-    - testReadDecimalColumnWithNulls
-    - testReadNullValuesInColumns
-    - testReadIntegerColumn
-    - testReadListTimestampColumn
-    - testReadDecimalHighPrecision
-    - testBinaryMapsToUnsupported
-    - testDiscoverSplitRanges_emptyFile
-    - testDiscoverSplitRanges_multiStripeFile
-    - testPreEpochTimestamp
-    - testTimestampTruncatesToMillisPrecision
-    - testReadListDecimalColumn
-    - testReadRepeatingVectors
-    - testProjectedColumnMissingFromFileReturnsNullBlock
-    - testReadWithPushedFilterMatchingNone
-    - testReadRange_readsOnlyAssignedStripes
-    - testReadRange_withPredicate
-    - testReadWithColumnProjection
-    - testReadTimestampColumn
-    - testReadDataFromSimpleOrc
-    - testReadDateColumn
-    - testReadWithBatching
-    - testReadWithPushedFilterMatchingAll
-    - testReadFloatColumn
-    - testReadTimestampColumnWithNulls
-    - testReadDecimalColumn
-    - testReadWithPushedFilterAndColumnProjection
-    - testIteratorCloseReleasesResourcesOnPartialRead
-    - testReadBooleanColumn
-    - testReadSchemaFromSimpleOrc
-    - testReadRange_withProjection
-    - testDiscoverSplitRanges_singleStripe
-    - testReadListColumnAsMultiValue
+  - testMetadataReturnsCorrectSourceType
+  - testReadDecimalColumnWithNulls
+  - testReadNullValuesInColumns
+  - testReadIntegerColumn
+  - testReadListTimestampColumn
+  - testReadDecimalHighPrecision
+  - testBinaryMapsToUnsupported
+  - testDiscoverSplitRanges_emptyFile
+  - testDiscoverSplitRanges_multiStripeFile
+  - testPreEpochTimestamp
+  - testTimestampTruncatesToMillisPrecision
+  - testReadListDecimalColumn
+  - testReadRepeatingVectors
+  - testProjectedColumnMissingFromFileReturnsNullBlock
+  - testReadWithPushedFilterMatchingNone
+  - testReadRange_readsOnlyAssignedStripes
+  - testReadRange_withPredicate
+  - testReadWithColumnProjection
+  - testReadTimestampColumn
+  - testReadDataFromSimpleOrc
+  - testReadDateColumn
+  - testReadWithBatching
+  - testReadWithPushedFilterMatchingAll
+  - testReadFloatColumn
+  - testReadTimestampColumnWithNulls
+  - testReadDecimalColumn
+  - testReadWithPushedFilterAndColumnProjection
+  - testIteratorCloseReleasesResourcesOnPartialRead
+  - testReadBooleanColumn
+  - testReadSchemaFromSimpleOrc
+  - testReadRange_withProjection
+  - testDiscoverSplitRanges_singleStripe
+  - testReadListColumnAsMultiValue
   issue: https://github.com/elastic/elasticsearch/issues/147545
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=reindex/10_basic/Response format for version conflict with conflicts=proceed}
+  issue: https://github.com/elastic/elasticsearch/issues/147594
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/147610
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
+  issue: https://github.com/elastic/elasticsearch/issues/147613
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testDoExecuteSetsCoordinatorNodeAndTaskIdOnRequest
+  issue: https://github.com/elastic/elasticsearch/issues/147622
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testAllocationExplainRebalancingNotPreferred
+  issue: https://github.com/elastic/elasticsearch/issues/147627
+- class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
+  method: testMatches
+  issue: https://github.com/elastic/elasticsearch/issues/147630
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testDoExecuteWithHeaders
+  issue: https://github.com/elastic/elasticsearch/issues/147634
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:ints.valuesLong}
+  issue: https://github.com/elastic/elasticsearch/issues/147637
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:match-phrase-function.testMatchPhraseInStatsWithOptions}
+  issue: https://github.com/elastic/elasticsearch/issues/147638
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:tdigest.timeseriesLastAndFirstOverTimeDirectTDigest}
+  issue: https://github.com/elastic/elasticsearch/issues/147639
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:inlinestats.docsInlinestatsWithWhere}
+  issue: https://github.com/elastic/elasticsearch/issues/147640
+- class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
+  method: testVisit
+  issue: https://github.com/elastic/elasticsearch/issues/147643
+- class: org.elasticsearch.rest.action.document.RestBulkActionTests
+  method: testBulkSliceAndRoutingParamsAreMutuallyExclusive
+  issue: https://github.com/elastic/elasticsearch/issues/147519
+- class: org.elasticsearch.action.bulk.BulkRequestParserTests
+  method: testIndexRequestRejectsRoutingAndSliceMetadataTogether
+  issue: https://github.com/elastic/elasticsearch/issues/147518
+- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
+  method: test {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
+  issue: https://github.com/elastic/elasticsearch/issues/147654
+- class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
+  method: testUpdateTransformWithProjectRouting
+  issue: https://github.com/elastic/elasticsearch/issues/147655
 
 # Examples:
 #

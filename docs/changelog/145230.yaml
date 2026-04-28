@@ -2,5 +2,5 @@ area: Search
 issues:
  - 143783
 pr: 145230
-summary: Include original target and query in profiled search results
+summary: Include target indices and query in profiled search results
 type: enhancement

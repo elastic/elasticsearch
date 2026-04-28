@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
@@ -495,12 +496,14 @@ public class IndexResolver {
                     try {
                         timeSeriesFieldType = timeSeriesFieldType.merge(next);
                     } catch (IllegalArgumentException e) {
-                        // Surface time series metadata conflicts (dimension vs metric) as an UnsupportedEsField directly: the analyzer
-                        // builds an UnsupportedAttribute from it via mappingAsAttributes, avoiding a roundtrip through
-                        // InvalidMappedField + UnionTypesCleanup.
-                        return new UnsupportedEsField(
+                        // Surface time series metadata conflicts (dimension vs metric) as an InvalidMappedTsField. Unlike
+                        // UnsupportedEsField, this type is not propagated to subfields by the mergedMappings hierarchy walk, so
+                        // subfields with non-conflicting, supported types remain accessible.
+                        return new InvalidMappedTsField(
                             name,
-                            List.of(timeSeriesFieldType.name().toLowerCase(Locale.ROOT), next.name().toLowerCase(Locale.ROOT))
+                            timeSeriesFieldType.name().toLowerCase(Locale.ROOT),
+                            next.name().toLowerCase(Locale.ROOT),
+                            new HashMap<>()
                         );
                     }
                 }

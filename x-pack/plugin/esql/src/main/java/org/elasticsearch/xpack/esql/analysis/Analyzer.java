@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -472,9 +473,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias(), t.getTimeSeriesFieldType());
                 }
 
-                FieldAttribute attribute = t instanceof UnsupportedEsField uef
-                    ? new UnsupportedAttribute(source, name, uef)
-                    : new FieldAttribute(source, parentName, null, name, t);
+                FieldAttribute attribute;
+                if (t instanceof UnsupportedEsField uef) {
+                    attribute = new UnsupportedAttribute(source, name, uef);
+                } else if (t instanceof InvalidMappedTsField imtf) {
+                    // Convert the TS role conflict directly to an UnsupportedAttribute with a meaningful message.
+                    // We create a synthetic UnsupportedEsField carrier so the attribute is serializable and carries the role names.
+                    var carrier = new UnsupportedEsField(imtf.getName(), imtf.getRoles(), null, imtf.getProperties());
+                    attribute = new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
+                } else {
+                    attribute = new FieldAttribute(source, parentName, null, name, t);
+                }
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);

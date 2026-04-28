@@ -27,39 +27,40 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.JINA_AI_EMBEDDING_REFACTOR;
 
-public class JinaAIServiceSettings extends FilteredXContentObject implements ServiceSettings, JinaAIRateLimitServiceSettings {
+public class JinaAICommonServiceSettings extends FilteredXContentObject implements ServiceSettings, JinaAIRateLimitServiceSettings {
 
     public static final String NAME = "jinaai_service_settings";
     // See https://jina.ai/contact-sales/#rate-limit
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
 
-    public static JinaAIServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+    @Nullable
+    public static JinaAICommonServiceSettings fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
 
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            JinaAIService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, JinaAIService.NAME, context);
 
-        String modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        validationException.throwIfValidationErrorsExist();
-
-        return new JinaAIServiceSettings(modelId, rateLimitSettings);
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            // new validation error occurred
+            return null;
+        }
+        return new JinaAICommonServiceSettings(modelId, rateLimitSettings);
     }
 
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
 
-    public JinaAIServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+    public JinaAICommonServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    public JinaAIServiceSettings(StreamInput in) throws IOException {
+    public JinaAICommonServiceSettings(StreamInput in) throws IOException {
         if (in.getTransportVersion().supports(JINA_AI_EMBEDDING_REFACTOR) == false) {
             // URI is no longer part of service settings since it's only used for testing
             in.readOptionalString();
@@ -69,6 +70,28 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
             modelId = in.readString();
         }
         rateLimitSettings = new RateLimitSettings(in);
+    }
+
+    @Nullable
+    public JinaAICommonServiceSettings updateCommonServiceSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            JinaAIService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            // new validation error occurred
+            return null;
+        }
+
+        return new JinaAICommonServiceSettings(this.modelId, extractedRateLimitSettings);
     }
 
     @Override
@@ -130,7 +153,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        JinaAIServiceSettings that = (JinaAIServiceSettings) o;
+        JinaAICommonServiceSettings that = (JinaAICommonServiceSettings) o;
         return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 

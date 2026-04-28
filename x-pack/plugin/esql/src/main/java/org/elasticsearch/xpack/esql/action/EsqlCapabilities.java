@@ -2442,6 +2442,11 @@ public class EsqlCapabilities {
         TOP_SNIPPETS_HIGHLIGHT,
 
         /**
+         * Support for the {@code order} option in {@code TOP_SNIPPETS}.
+         */
+        TOP_SNIPPETS_ORDER,
+
+        /**
          * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
          * The feature will not work if we had SORT | LIMIT n BY
          */
@@ -2621,6 +2626,12 @@ public class EsqlCapabilities {
          * and the {@code TEXT_EMBEDDING} function.
          */
         INFERENCE_ACCEPT_TIMEOUT,
+
+        /**
+         * Fix for SET reporting wrong line/column number (-1:-1) in validation errors.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/145873">ES|QL: wrong line/column number #145873</a>
+         */
+        FIX_SET_WRONG_LINE_COLUMN,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

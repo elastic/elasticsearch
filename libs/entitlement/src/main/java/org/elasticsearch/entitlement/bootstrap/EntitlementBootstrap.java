@@ -36,7 +36,6 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -130,24 +129,24 @@ public class EntitlementBootstrap {
 
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
     static void loadAgent(String agentPath, String entitlementInitializationClassName) {
-        long startNanos = System.nanoTime();
+        long startMillis = System.currentTimeMillis();
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
-            long attachedNanos = System.nanoTime();
+            long attachedMillis = System.currentTimeMillis();
             try {
                 vm.loadAgent(agentPath, entitlementInitializationClassName);
             } finally {
                 vm.detach();
             }
-            long doneNanos = System.nanoTime();
+            long doneMillis = System.currentTimeMillis();
             logger.info(
                 "Entitlement agent attached in [{}ms] (attach=[{}ms], loadAgent+detach=[{}ms])",
-                TimeUnit.NANOSECONDS.toMillis(doneNanos - startNanos),
-                TimeUnit.NANOSECONDS.toMillis(attachedNanos - startNanos),
-                TimeUnit.NANOSECONDS.toMillis(doneNanos - attachedNanos)
+                doneMillis - startMillis,
+                attachedMillis - startMillis,
+                doneMillis - attachedMillis
             );
         } catch (AttachNotSupportedException | IOException | AgentLoadException | AgentInitializationException e) {
-            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            long elapsedMillis = System.currentTimeMillis() - startMillis;
             throw new IllegalStateException("Unable to attach entitlement agent [" + agentPath + "] after [" + elapsedMillis + "ms]", e);
         }
     }

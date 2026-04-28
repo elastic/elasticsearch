@@ -687,6 +687,11 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue().isSingleValued();
+    }
+
+    @Override
     public IpFieldType fieldType() {
         return (IpFieldType) super.fieldType();
     }

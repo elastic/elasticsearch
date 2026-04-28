@@ -995,14 +995,21 @@ public class TestBlock implements BlockLoader.Block {
             assert fromBlock.size() == toBlock.size();
             var values = new ArrayList<>(fromBlock.size());
             for (int i = 0; i < fromBlock.size(); i++) {
-                values.add(List.of(fromBlock.values.get(i), toBlock.values.get(i)));
+                Object f = fromBlock.values.get(i);
+                if (f == null) {
+                    values.add(null);
+                } else {
+                    values.add(List.of(f, toBlock.values.get(i)));
+                }
             }
             return new TestBlock(values);
         }
 
         @Override
         public BlockLoader.Builder appendNull() {
-            throw new UnsupportedOperationException();
+            from.appendNull();
+            to.appendNull();
+            return this;
         }
 
         @Override

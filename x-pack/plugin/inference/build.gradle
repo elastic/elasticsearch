@@ -571,8 +571,9 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("Uses the inference API")
   if (buildParams.snapshotBuild == false) {
-    // semantic field is not available in release builds
-    systemProperty 'tests.rest.blacklist', 'inference/120_semantic_field_mapping/*'
+    // semantic field is not available yet in release builds
+    def semanticFieldTests = ['inference/120_semantic_field_mapping/*', 'inference/130_semantic_field_query/*']
+    systemProperty 'tests.rest.blacklist', semanticFieldTests.join(',')
   }
 }
 

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
+package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -29,10 +29,10 @@ import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhi
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.is;
 
-public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<IbmWatsonxChatCompletionServiceSettings> {
+public class IbmWatsonxRerankServiceSettingsTests extends AbstractWireSerializingTestCase<IbmWatsonxRerankServiceSettings> {
 
-    private static final URI TEST_URI = URI.create("https://test.chat.example");
-    private static final URI INITIAL_TEST_URI = URI.create("https://initial.chat.example");
+    private static final URI TEST_URI = URI.create("https://test.rerank.example");
+    private static final URI INITIAL_TEST_URI = URI.create("https://initial.rerank.example");
 
     private static final String TEST_MODEL_ID = "test-model";
     private static final String INITIAL_TEST_MODEL_ID = "initial-model";
@@ -47,8 +47,8 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
     private static final int INITIAL_TEST_RATE_LIMIT = 250;
     private static final int DEFAULT_RATE_LIMIT = 120;
 
-    private static IbmWatsonxChatCompletionServiceSettings createRandom() {
-        return new IbmWatsonxChatCompletionServiceSettings(
+    private static IbmWatsonxRerankServiceSettings createRandom() {
+        return new IbmWatsonxRerankServiceSettings(
             createUri("https://" + randomAlphaOfLength(10) + ".example"),
             randomAlphaOfLength(8),
             randomAlphaOfLength(8),
@@ -58,7 +58,7 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
     }
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var originalServiceSettings = new IbmWatsonxChatCompletionServiceSettings(
+        var originalServiceSettings = new IbmWatsonxRerankServiceSettings(
             INITIAL_TEST_URI,
             INITIAL_TEST_API_VERSION,
             INITIAL_TEST_MODEL_ID,
@@ -72,7 +72,7 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
         assertThat(
             updatedServiceSettings,
             is(
-                new IbmWatsonxChatCompletionServiceSettings(
+                new IbmWatsonxRerankServiceSettings(
                     INITIAL_TEST_URI,
                     INITIAL_TEST_API_VERSION,
                     INITIAL_TEST_MODEL_ID,
@@ -84,7 +84,7 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
     }
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
-        var originalServiceSettings = new IbmWatsonxChatCompletionServiceSettings(
+        var originalServiceSettings = new IbmWatsonxRerankServiceSettings(
             INITIAL_TEST_URI,
             INITIAL_TEST_API_VERSION,
             INITIAL_TEST_MODEL_ID,
@@ -97,14 +97,14 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
     }
 
     public void testFromMap_AllFields_CreatesSettingsCorrectly() {
-        var serviceSettings = IbmWatsonxChatCompletionServiceSettings.fromMap(
+        var serviceSettings = IbmWatsonxRerankServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT),
             randomFrom(ConfigurationParseContext.values())
         );
         assertThat(
             serviceSettings,
             is(
-                new IbmWatsonxChatCompletionServiceSettings(
+                new IbmWatsonxRerankServiceSettings(
                     TEST_URI,
                     TEST_API_VERSION,
                     TEST_MODEL_ID,
@@ -116,14 +116,14 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
     }
 
     public void testFromMap_OnlyMandatoryFields_CreatesSettingsCorrectly() {
-        var serviceSettings = IbmWatsonxChatCompletionServiceSettings.fromMap(
+        var serviceSettings = IbmWatsonxRerankServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, null),
             randomFrom(ConfigurationParseContext.values())
         );
         assertThat(
             serviceSettings,
             is(
-                new IbmWatsonxChatCompletionServiceSettings(
+                new IbmWatsonxRerankServiceSettings(
                     TEST_URI,
                     TEST_API_VERSION,
                     TEST_MODEL_ID,
@@ -135,50 +135,67 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
     }
 
     public void testFromMap_NoUrl_ThrowsValidationError() {
-        assertFromMap_MissingRequiredField_ThrowsValidationError(
-            buildServiceSettingsMap(null, TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT),
-            ServiceFields.URL
-        );
-    }
-
-    public void testFromMap_NoApiVersion_ThrowsValidationError() {
-        assertFromMap_MissingRequiredField_ThrowsValidationError(
-            buildServiceSettingsMap(TEST_URI.toString(), null, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT),
-            IbmWatsonxServiceFields.API_VERSION
-        );
-    }
-
-    public void testFromMap_NoModelId_ThrowsValidationError() {
-        assertFromMap_MissingRequiredField_ThrowsValidationError(
-            buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, null, TEST_PROJECT_ID, TEST_RATE_LIMIT),
-            ServiceFields.MODEL_ID
-        );
-    }
-
-    public void testFromMap_NoProjectId_ThrowsValidationError() {
-        assertFromMap_MissingRequiredField_ThrowsValidationError(
-            buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, null, TEST_RATE_LIMIT),
-            IbmWatsonxServiceFields.PROJECT_ID
-        );
-    }
-
-    private static void assertFromMap_MissingRequiredField_ThrowsValidationError(
-        Map<String, Object> serviceSettingsMap,
-        String missingFieldName
-    ) {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> IbmWatsonxChatCompletionServiceSettings.fromMap(serviceSettingsMap, randomFrom(ConfigurationParseContext.values()))
+            () -> IbmWatsonxRerankServiceSettings.fromMap(
+                buildServiceSettingsMap(null, TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT),
+                randomFrom(ConfigurationParseContext.values())
+            )
         );
         assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
             thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", missingFieldName))
+            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.URL))
+        );
+    }
+
+    public void testFromMap_NoApiVersion_ThrowsValidationError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> IbmWatsonxRerankServiceSettings.fromMap(
+                buildServiceSettingsMap(TEST_URI.toString(), null, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT),
+                randomFrom(ConfigurationParseContext.values())
+            )
+        );
+        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] does not contain the required setting [%s]", IbmWatsonxServiceFields.API_VERSION))
+        );
+    }
+
+    public void testFromMap_NoModelId_ThrowsValidationError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> IbmWatsonxRerankServiceSettings.fromMap(
+                buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, null, TEST_PROJECT_ID, TEST_RATE_LIMIT),
+                randomFrom(ConfigurationParseContext.values())
+            )
+        );
+        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.MODEL_ID))
+        );
+    }
+
+    public void testFromMap_NoProjectId_ThrowsValidationError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> IbmWatsonxRerankServiceSettings.fromMap(
+                buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, null, TEST_RATE_LIMIT),
+                randomFrom(ConfigurationParseContext.values())
+            )
+        );
+        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] does not contain the required setting [%s]", IbmWatsonxServiceFields.PROJECT_ID))
         );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var entity = new IbmWatsonxChatCompletionServiceSettings(
+        var entity = new IbmWatsonxRerankServiceSettings(
             TEST_URI,
             TEST_API_VERSION,
             TEST_MODEL_ID,
@@ -204,24 +221,24 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
     }
 
     @Override
-    protected Writeable.Reader<IbmWatsonxChatCompletionServiceSettings> instanceReader() {
-        return IbmWatsonxChatCompletionServiceSettings::new;
+    protected Writeable.Reader<IbmWatsonxRerankServiceSettings> instanceReader() {
+        return IbmWatsonxRerankServiceSettings::new;
     }
 
     @Override
-    protected IbmWatsonxChatCompletionServiceSettings createTestInstance() {
+    protected IbmWatsonxRerankServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected IbmWatsonxChatCompletionServiceSettings mutateInstance(IbmWatsonxChatCompletionServiceSettings instance) throws IOException {
+    protected IbmWatsonxRerankServiceSettings mutateInstance(IbmWatsonxRerankServiceSettings instance) throws IOException {
         var uri = instance.uri();
         var apiVersion = instance.apiVersion();
         var modelId = instance.modelId();
         var projectId = instance.projectId();
         var rateLimitSettings = instance.rateLimitSettings();
         switch (randomInt(4)) {
-            case 0 -> uri = randomValueOtherThan(uri, () -> createUri("https://" + randomAlphaOfLength(10) + ".example"));
+            case 0 -> uri = randomValueOtherThan(uri, () -> createUri("https://" + randomAlphaOfLength(12) + ".example"));
             case 1 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomAlphaOfLength(8));
             case 2 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 3 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(8));
@@ -229,7 +246,7 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new IbmWatsonxChatCompletionServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
+        return new IbmWatsonxRerankServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
     }
 
     private static Map<String, Object> buildServiceSettingsMap(

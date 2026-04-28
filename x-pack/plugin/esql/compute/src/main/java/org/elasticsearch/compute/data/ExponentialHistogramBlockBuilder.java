@@ -211,6 +211,20 @@ public final class ExponentialHistogramBlockBuilder extends AbstractDelegatingCo
     }
 
     @Override
+    protected void copySubBlockPositions(AbstractDelegatingCompoundBlock<?> block, int startSubBlockPos, int endSubBlockPos) {
+        ((ExponentialHistogramArrayBlock) block).copySubBlockPositionsInto(
+            minimaBuilder,
+            maximaBuilder,
+            sumsBuilder,
+            valueCountsBuilder,
+            zeroThresholdsBuilder,
+            encodedHistogramsBuilder,
+            startSubBlockPos,
+            endSubBlockPos
+        );
+    }
+
+    @Override
     public ExponentialHistogramBlockBuilder appendNull() {
         assert isPositionEntryOpen() == false : "Can't append null to multi-valued entries";
         minimaBuilder.appendNull();
@@ -220,54 +234,6 @@ public final class ExponentialHistogramBlockBuilder extends AbstractDelegatingCo
         zeroThresholdsBuilder.appendNull();
         encodedHistogramsBuilder.appendNull();
         valueAppended();
-        return this;
-    }
-
-    @Override
-    public ExponentialHistogramBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
-        if (beginInclusive >= endExclusive) {
-            return this;
-        }
-        if (block.areAllValuesNull()) {
-            for (int i = beginInclusive; i < endExclusive; i++) {
-                appendNull();
-            }
-        } else {
-            ExponentialHistogramArrayBlock histoBlock = (ExponentialHistogramArrayBlock) block;
-            int startSubBlockPos = block.getFirstValueIndex(beginInclusive);
-            int endSubBlockPos;
-            if (endExclusive == block.getPositionCount()) {
-                endSubBlockPos = histoBlock.subBlockPositionCount();
-            } else {
-                endSubBlockPos = block.getFirstValueIndex(endExclusive);
-            }
-            histoBlock.copySubBlockPositionsInto(
-                minimaBuilder,
-                maximaBuilder,
-                sumsBuilder,
-                valueCountsBuilder,
-                zeroThresholdsBuilder,
-                encodedHistogramsBuilder,
-                startSubBlockPos,
-                endSubBlockPos
-            );
-            for (int pos = beginInclusive; pos < endExclusive; pos++) {
-                if (histoBlock.isNull(pos)) {
-                    valueAppended();
-                } else {
-                    int valueCount = histoBlock.getValueCount(pos);
-                    if (valueCount == 1) {
-                        valueAppended();
-                    } else {
-                        beginPositionEntry();
-                        for (int i = 0; i < valueCount; i++) {
-                            valueAppended();
-                        }
-                        endPositionEntry();
-                    }
-                }
-            }
-        }
         return this;
     }
 

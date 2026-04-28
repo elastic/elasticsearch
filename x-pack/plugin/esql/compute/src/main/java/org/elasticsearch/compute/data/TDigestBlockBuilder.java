@@ -52,6 +52,111 @@ public final class TDigestBlockBuilder extends AbstractDelegatingCompoundBlock.A
     }
 
     @Override
+    protected void copySubBlockPositions(AbstractDelegatingCompoundBlock<?> block, int startSubBlockPos, int endSubBlockPos) {
+        ((TDigestArrayBlock) block).copySubBlockPositionsInto(
+            encodedDigestsBuilder,
+            minimaBuilder,
+            maximaBuilder,
+            sumsBuilder,
+            valueCountsBuilder,
+            startSubBlockPos,
+            endSubBlockPos
+        );
+    }
+
+    @Override
+    public TDigestBlock.Builder copyFrom(TDigestBlock block, int position) {
+        copyFrom(block, position, position + 1);
+        return this;
+    }
+
+    @Override
+    public TDigestBlockBuilder appendNull() {
+        assert isPositionEntryOpen() == false : "Can't append null to multi-valued entries";
+        encodedDigestsBuilder.appendNull();
+        minimaBuilder.appendNull();
+        maximaBuilder.appendNull();
+        sumsBuilder.appendNull();
+        valueCountsBuilder.appendNull();
+        valueAppended();
+        return this;
+    }
+
+    @Override
+    public TDigestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+        assert mvOrdering == Block.MvOrdering.UNORDERED : "TDigests don't have a natural order, so it doesn't make sense to call this";
+        return this;
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return super.estimatedBytes() + encodedDigestsBuilder.estimatedBytes() + minimaBuilder.estimatedBytes() + maximaBuilder
+            .estimatedBytes() + sumsBuilder.estimatedBytes() + valueCountsBuilder.estimatedBytes();
+    }
+
+    @Override
+    public TDigestBlock doBuild(int positionCount, @Nullable int[] firstValueIndexes) {
+        DoubleBlock minima = null;
+        DoubleBlock maxima = null;
+        DoubleBlock sums = null;
+        LongBlock valueCounts = null;
+        BytesRefBlock encodedDigests = null;
+        boolean success = false;
+        try {
+            minima = minimaBuilder.build();
+            maxima = maximaBuilder.build();
+            sums = sumsBuilder.build();
+            valueCounts = valueCountsBuilder.build();
+            encodedDigests = encodedDigestsBuilder.build();
+            TDigestArrayBlock block = new TDigestArrayBlock(
+                encodedDigests,
+                minima,
+                maxima,
+                sums,
+                valueCounts,
+                positionCount,
+                firstValueIndexes
+            );
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.close(minima, maxima, sums, valueCounts, encodedDigests);
+            }
+        }
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder minima() {
+        return minimaBuilder;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder maxima() {
+        return maximaBuilder;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder sums() {
+        return sumsBuilder;
+    }
+
+    @Override
+    public BlockLoader.LongBuilder valueCounts() {
+        return valueCountsBuilder;
+    }
+
+    @Override
+    public BlockLoader.BytesRefBuilder encodedDigests() {
+        return encodedDigestsBuilder;
+    }
+
+    @Override
+    protected void extraClose() {
+        Releasables.close(encodedDigestsBuilder, minimaBuilder, maximaBuilder, sumsBuilder, valueCountsBuilder);
+    }
+
+    @Override
     public TDigestBlockBuilder appendTDigest(TDigestHolder val) {
         encodedDigestsBuilder.appendBytesRef(val.getEncodedDigest());
         if (Double.isNaN(val.getMin())) {
@@ -88,144 +193,5 @@ public final class TDigestBlockBuilder extends AbstractDelegatingCompoundBlock.A
         }
         encodedDigestsBuilder.appendBytesRef(input.readBytesRef(scratch));
         valueAppended();
-    }
-
-    @Override
-    public TDigestBlock doBuild(int positionCount, @Nullable int[] firstValueIndexes) {
-        DoubleBlock minima = null;
-        DoubleBlock maxima = null;
-        DoubleBlock sums = null;
-        LongBlock valueCounts = null;
-        BytesRefBlock encodedDigests = null;
-        boolean success = false;
-        try {
-            minima = minimaBuilder.build();
-            maxima = maximaBuilder.build();
-            sums = sumsBuilder.build();
-            valueCounts = valueCountsBuilder.build();
-            encodedDigests = encodedDigestsBuilder.build();
-            TDigestArrayBlock block = new TDigestArrayBlock(
-                encodedDigests,
-                minima,
-                maxima,
-                sums,
-                valueCounts,
-                positionCount,
-                firstValueIndexes
-            );
-            success = true;
-            return block;
-        } finally {
-            if (success == false) {
-                Releasables.close(minima, maxima, sums, valueCounts, encodedDigests);
-            }
-        }
-    }
-
-    @Override
-    public TDigestBlockBuilder appendNull() {
-        assert isPositionEntryOpen() == false : "Can't append null to multi-valued entries";
-        encodedDigestsBuilder.appendNull();
-        minimaBuilder.appendNull();
-        maximaBuilder.appendNull();
-        sumsBuilder.appendNull();
-        valueCountsBuilder.appendNull();
-        valueAppended();
-        return this;
-    }
-
-    @Override
-    public TDigestBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
-        if (beginInclusive >= endExclusive) {
-            return this;
-        }
-        if (block.areAllValuesNull()) {
-            for (int i = beginInclusive; i < endExclusive; i++) {
-                appendNull();
-            }
-        } else {
-            TDigestArrayBlock digestBlock = (TDigestArrayBlock) block;
-            int startSubBlockPos = block.getFirstValueIndex(beginInclusive);
-            int endSubBlockPos;
-            if (endExclusive == block.getPositionCount()) {
-                endSubBlockPos = digestBlock.subBlockPositionCount();
-            } else {
-                endSubBlockPos = block.getFirstValueIndex(endExclusive);
-            }
-            digestBlock.copySubBlockPositionsInto(
-                encodedDigestsBuilder,
-                minimaBuilder,
-                maximaBuilder,
-                sumsBuilder,
-                valueCountsBuilder,
-                startSubBlockPos,
-                endSubBlockPos
-            );
-            for (int pos = beginInclusive; pos < endExclusive; pos++) {
-                if (digestBlock.isNull(pos)) {
-                    valueAppended();
-                } else {
-                    int valueCount = digestBlock.getValueCount(pos);
-                    if (valueCount == 1) {
-                        valueAppended();
-                    } else {
-                        beginPositionEntry();
-                        for (int i = 0; i < valueCount; i++) {
-                            valueAppended();
-                        }
-                        endPositionEntry();
-                    }
-                }
-            }
-        }
-        return this;
-    }
-
-    @Override
-    public TDigestBlock.Builder copyFrom(TDigestBlock block, int position) {
-        copyFrom(block, position, position + 1);
-        return this;
-    }
-
-    @Override
-    public BlockLoader.DoubleBuilder minima() {
-        return minimaBuilder;
-    }
-
-    @Override
-    public BlockLoader.DoubleBuilder maxima() {
-        return maximaBuilder;
-    }
-
-    @Override
-    public BlockLoader.DoubleBuilder sums() {
-        return sumsBuilder;
-    }
-
-    @Override
-    public BlockLoader.LongBuilder valueCounts() {
-        return valueCountsBuilder;
-    }
-
-    @Override
-    public BlockLoader.BytesRefBuilder encodedDigests() {
-        return encodedDigestsBuilder;
-    }
-
-    @Override
-    public TDigestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
-        assert mvOrdering == Block.MvOrdering.UNORDERED : "TDigests don't have a natural order, so it doesn't make sense to call this";
-        return this;
-    }
-
-    @Override
-    public long estimatedBytes() {
-        return super.estimatedBytes() + encodedDigestsBuilder.estimatedBytes() + minimaBuilder.estimatedBytes() + maximaBuilder
-            .estimatedBytes() + sumsBuilder.estimatedBytes() + valueCountsBuilder.estimatedBytes();
-    }
-
-    @Override
-    protected void extraClose() {
-        Releasables.close(encodedDigestsBuilder, minimaBuilder, maximaBuilder, sumsBuilder, valueCountsBuilder);
     }
 }

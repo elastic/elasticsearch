@@ -14,6 +14,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -135,7 +136,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     /**
      * Returns the number of positions in the sub-blocks (the total number of individual values including nulls).
      */
-    protected final int subBlockPositionCount() {
+    final int subBlockPositionCount() {
         return firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount];
     }
 
@@ -152,7 +153,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
         if (that.firstValueIndexes == null) {
             return false;
         }
-        return java.util.Arrays.equals(firstValueIndexes, 0, positionCount + 1, that.firstValueIndexes, 0, positionCount + 1);
+        return Arrays.equals(firstValueIndexes, 0, positionCount + 1, that.firstValueIndexes, 0, positionCount + 1);
     }
 
     protected boolean assertInvariants() {
@@ -247,6 +248,8 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
             for (Block b : getSubBlocks()) {
                 newSubBlocks.add(operation.apply(b));
             }
+            assert newFirstValueIndexes == null || newPositionCount >= 0
+                : "If a multi-valued block is provided it should have a position count";
             int actualPositionCount = newFirstValueIndexes != null ? newPositionCount : newSubBlocks.getFirst().getPositionCount();
             T result = buildFromSubBlocks(newSubBlocks, actualPositionCount, newFirstValueIndexes);
             success = true;
@@ -259,7 +262,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     }
 
     /**
-     * Writes the multivalue metadata (positionCount, firstValueIndexes, mvOrdering) to a stream.
+     * Writes the multivalue metadata (positionCount, firstValueIndexes) to a stream.
      */
     protected void writeMultiValueMetadata(StreamOutput out) throws IOException {
         out.writeVInt(positionCount);
@@ -301,7 +304,6 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     }
 
     /**
-     * Helper class for building composite blocks that delegate null handling to sub-blocks.
      * Manages firstValueIndexes and positionCount for multi-value support.
      */
     protected abstract static class AbstractCompositeBlockBuilder<T extends Block> implements Block.Builder {
@@ -333,11 +335,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
         private void setFirstValue(int position, int value) {
             assert closed == false;
             assert built == false;
-            boolean initializationRequired = firstValueIndexes == null;
             ensureFirstValueIndexCapacity(position + 1);
-            if (initializationRequired) {
-                IntStream.range(0, positionCount).forEach(i -> firstValueIndexes[i] = i);
-            }
             firstValueIndexes[position] = value;
         }
 
@@ -352,6 +350,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
                     blockFactory.preAdjustBreakerForInt(-oldLength);
                 } else {
                     firstValueIndexes = new int[newLength];
+                    IntStream.range(0, positionCount).forEach(i -> firstValueIndexes[i] = i);
                 }
             }
         }
@@ -404,13 +403,56 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
                 setFirstValue(positionCount, valueCount);
             }
             T result = doBuild(positionCount, firstValueIndexes);
-            // the block now owns the memory
+            // the block now owns the memory and takes care of releasing it from the CB
             firstValueIndexes = null;
             built = true;
             return result;
         }
 
         protected abstract T doBuild(int positionCount, @Nullable int[] firstValueIndexes);
+
+        @Override
+        public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
+            assert closed == false;
+            assert built == false;
+            assert isPositionEntryOpen() == false;
+            if (block.areAllValuesNull()) {
+                for (int i = beginInclusive; i < endExclusive; i++) {
+                    appendNull();
+                }
+            } else {
+                AbstractDelegatingCompoundBlock<?> from = (AbstractDelegatingCompoundBlock<?>) block;
+                int numCopiedPositions = endExclusive - beginInclusive;
+                int startSubBlockPos = from.getFirstValueIndex(beginInclusive);
+                int endSubBlockPos = from.getFirstValueIndex(endExclusive);
+                int numCopiedValues = endSubBlockPos - startSubBlockPos;
+                boolean hasNoMultiValues = numCopiedValues == numCopiedPositions;
+                if (hasNoMultiValues) {
+                    if (firstValueIndexes != null) {
+                        ensureFirstValueIndexCapacity(positionCount + numCopiedPositions + 1);
+                        for (int i = 0; i < numCopiedPositions; i++) {
+                            firstValueIndexes[positionCount + i] = valueCount + i;
+                        }
+                    }
+                } else {
+                    assert from.firstValueIndexes != null : "Expected to be non-null for multi-valued block";
+                    ensureFirstValueIndexCapacity(positionCount + numCopiedPositions + 1);
+                    int offset = valueCount - from.firstValueIndexes[beginInclusive];
+                    for (int i = 0; i < numCopiedPositions; i++) {
+                        firstValueIndexes[positionCount + i] = from.firstValueIndexes[beginInclusive + i] + offset;
+                    }
+                }
+                copySubBlockPositions(from, startSubBlockPos, endSubBlockPos);
+                this.valueCount += numCopiedValues;
+                this.positionCount += numCopiedPositions;
+            }
+            return this;
+        }
+
+        /**
+         * Copy the range of sub-block positions from the provided block into this builder.
+         */
+        protected abstract void copySubBlockPositions(AbstractDelegatingCompoundBlock<?> block, int startSubBlockPos, int endSubBlockPos);
 
         @Override
         public long estimatedBytes() {

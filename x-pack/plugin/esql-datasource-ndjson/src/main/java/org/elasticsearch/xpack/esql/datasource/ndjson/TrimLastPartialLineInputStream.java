@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
-import java.util.Locale;
 
 /**
  * Wraps an NDJSON byte stream and exposes only bytes through the last {@code '\n'} in the stream,
@@ -72,15 +71,10 @@ final class TrimLastPartialLineInputStream extends InputStream {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.chunk = new byte[chunkSize];
         this.errorPolicy = errorPolicy;
-        this.skipWarnings = errorPolicy.isStrict()
-            ? null
-            : new SkipWarnings(
-                "NDJSON read from ["
-                    + sourceLocation
-                    + "] discarded oversized partial lines (policy: "
-                    + errorPolicy.mode().name().toLowerCase(Locale.ROOT)
-                    + ")"
-            );
+        this.skipWarnings = SkipWarnings.of(
+            errorPolicy,
+            "NDJSON read from [" + sourceLocation + "] discarded an oversized partial line (policy: " + errorPolicy.modeName() + ")"
+        );
     }
 
     @Override

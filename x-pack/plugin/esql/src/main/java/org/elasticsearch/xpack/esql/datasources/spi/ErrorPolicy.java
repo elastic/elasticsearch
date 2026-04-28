@@ -127,6 +127,15 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     }
 
     /**
+     * Lowercase, locale-insensitive name of {@link #mode()}, suitable for user-facing messages
+     * (e.g. {@code "skip_row"}, {@code "null_field"}). Matches the parser input accepted by
+     * {@link Mode#parse(String)}.
+     */
+    public String modeName() {
+        return mode.name().toLowerCase(Locale.ROOT);
+    }
+
+    /**
      * Checks whether the error budget has been exceeded given the current counts.
      * Always returns {@code false} for {@link Mode#FAIL_FAST} (which never reaches
      * this check — it throws immediately in the caller).

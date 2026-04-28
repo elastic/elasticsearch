@@ -64,6 +64,9 @@ public class CsvFormatReaderTests extends ESTestCase {
     @After
     public void clearWarningHeaders() {
         if (threadContext != null) {
+            // Swap in a fresh empty context (we deliberately do not restore() - the parent
+            // ESTestCase provides a fresh threadContext for the next test, so the stashed one
+            // can be discarded).
             threadContext.stashContext();
         }
     }
@@ -2231,7 +2234,6 @@ public class CsvFormatReaderTests extends ESTestCase {
             while (iterator.hasNext()) {
                 iterator.next();
             }
-            assertEquals(2, CsvFormatReader.emittedWarnings(iterator));
         }
         // 1 summary + 2 details
         List<String> warnings = drainWarnings();
@@ -2262,7 +2264,6 @@ public class CsvFormatReaderTests extends ESTestCase {
             while (iterator.hasNext()) {
                 iterator.next();
             }
-            assertEquals(2, CsvFormatReader.emittedWarnings(iterator));
         }
         // 1 summary + 2 details
         List<String> warnings = drainWarnings();
@@ -2289,7 +2290,6 @@ public class CsvFormatReaderTests extends ESTestCase {
             while (iterator.hasNext()) {
                 iterator.next();
             }
-            assertEquals(20, CsvFormatReader.emittedWarnings(iterator));
         }
         // 1 summary + 20 details + 1 overflow
         List<String> warnings = drainWarnings();

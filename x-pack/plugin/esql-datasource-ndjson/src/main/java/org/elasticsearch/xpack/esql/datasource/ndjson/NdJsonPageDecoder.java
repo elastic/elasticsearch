@@ -43,7 +43,6 @@ import java.io.InputStream;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -97,15 +96,14 @@ public class NdJsonPageDecoder implements Closeable {
         this.input = input;
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.errorPolicy = errorPolicy;
-        this.skipWarnings = errorPolicy.isStrict()
-            ? null
-            : new SkipWarnings(
-                "NDJSON read from ["
-                    + sourceLocation
-                    + "] produced recoverable errors (policy: "
-                    + errorPolicy.mode().name().toLowerCase(Locale.ROOT)
-                    + "); affected rows are listed below"
-            );
+        this.skipWarnings = SkipWarnings.of(
+            errorPolicy,
+            "NDJSON read from ["
+                + sourceLocation
+                + "] encountered parse errors handled per policy (policy: "
+                + errorPolicy.modeName()
+                + "); affected rows are listed below"
+        );
 
         List<Attribute> fullSchema = attributes;
         var projectedAttributes = attributes;

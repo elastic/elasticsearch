@@ -93,6 +93,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
     @After
     public void clearWarningHeaders() {
         if (threadContext != null) {
+            // Swap in a fresh empty context (we deliberately do not restore() - the parent
+            // ESTestCase provides a fresh threadContext for the next test, so the stashed one
+            // can be discarded).
             threadContext.stashContext();
         }
     }

@@ -18,7 +18,6 @@ public class SkipWarningsTests extends ESTestCase {
         SkipWarnings warnings = new SkipWarnings("the summary");
         warnings.add("first detail");
         warnings.add("second detail");
-        assertEquals(2, warnings.added());
 
         List<String> emitted = drain();
         assertEquals(3, emitted.size());
@@ -38,7 +37,6 @@ public class SkipWarningsTests extends ESTestCase {
         for (int i = 0; i < total; i++) {
             warnings.add("detail " + i);
         }
-        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS, warnings.added());
 
         List<String> emitted = drain();
         // 1 summary + MAX_ADDED_WARNINGS details + 1 overflow notice
@@ -60,6 +58,39 @@ public class SkipWarningsTests extends ESTestCase {
         List<String> emitted = drain();
         long overflowCount = emitted.stream().filter(s -> s.contains("further warnings suppressed")).count();
         assertEquals(1, overflowCount);
+    }
+
+    public void testNoopDropsEverything() {
+        SkipWarnings.NOOP.add("first");
+        SkipWarnings.NOOP.add("second");
+        assertNull(threadContext.getResponseHeaders().get("Warning"));
+    }
+
+    public void testOfStrictPolicyReturnsNoop() {
+        assertSame(SkipWarnings.NOOP, SkipWarnings.of(ErrorPolicy.STRICT, "summary ignored"));
+    }
+
+    public void testOfLenientPolicyReturnsLiveCollector() {
+        SkipWarnings warnings = SkipWarnings.of(ErrorPolicy.LENIENT, "live summary");
+        assertNotSame(SkipWarnings.NOOP, warnings);
+        warnings.add("a detail");
+        List<String> emitted = drain();
+        assertEquals(2, emitted.size());
+        assertEquals("live summary", emitted.get(0));
+        assertEquals("a detail", emitted.get(1));
+    }
+
+    /**
+     * Pin {@link SkipWarnings#MAX_ADDED_WARNINGS} to the same value used by
+     * {@code compute.operator.Warnings#MAX_ADDED_WARNINGS} (package-private, not importable here).
+     * Keep the literal below in sync if the compute-side cap ever changes.
+     */
+    public void testMaxAddedWarningsMatchesComputeOperatorWarningsCap() {
+        assertEquals(
+            "SkipWarnings.MAX_ADDED_WARNINGS must stay in sync with compute.operator.Warnings.MAX_ADDED_WARNINGS",
+            20,
+            SkipWarnings.MAX_ADDED_WARNINGS
+        );
     }
 
     private List<String> drain() {

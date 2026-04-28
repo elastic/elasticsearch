@@ -587,17 +587,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         };
     }
 
-    /**
-     * Returns the number of skip/null-fill detail warnings emitted on the response for this iterator.
-     * Used by tests; the warnings themselves are only observable via the thread context response headers.
-     */
-    static int emittedWarnings(CloseableIterator<Page> iterator) {
-        if (iterator instanceof CsvBatchIterator cbi && cbi.skipWarnings != null) {
-            return cbi.skipWarnings.added();
-        }
-        return 0;
-    }
-
     private class CsvBatchIterator implements CloseableIterator<Page> {
         private final BufferedReader reader;
         private final InputStream stream;
@@ -652,15 +641,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
-            this.skipWarnings = errorPolicy.isStrict()
-                ? null
-                : new SkipWarnings(
-                    "CSV read from ["
-                        + sourceLocation
-                        + "] produced recoverable errors (policy: "
-                        + errorPolicy.mode().name().toLowerCase(Locale.ROOT)
-                        + "); affected rows/fields are listed below"
-                );
+            this.skipWarnings = SkipWarnings.of(
+                errorPolicy,
+                "CSV read from ["
+                    + sourceLocation
+                    + "] encountered parse errors handled per policy (policy: "
+                    + errorPolicy.modeName()
+                    + "); affected rows/fields are listed below"
+            );
         }
 
         @Override

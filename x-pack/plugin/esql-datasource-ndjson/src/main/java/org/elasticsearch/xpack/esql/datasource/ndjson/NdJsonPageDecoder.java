@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -42,6 +43,7 @@ import java.io.InputStream;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -66,6 +68,7 @@ public class NdJsonPageDecoder implements Closeable {
     // the number of positions that were added.
     private final BitSet blockTracker;
     private final ErrorPolicy errorPolicy;
+    private final SkipWarnings skipWarnings;
     private long totalRowCount;
     private long errorCount;
 
@@ -88,11 +91,21 @@ public class NdJsonPageDecoder implements Closeable {
         List<String> projectedColumns,
         int batchSize,
         BlockFactory blockFactory,
-        ErrorPolicy errorPolicy
+        ErrorPolicy errorPolicy,
+        String sourceLocation
     ) throws IOException {
         this.input = input;
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.errorPolicy = errorPolicy;
+        this.skipWarnings = errorPolicy.isStrict()
+            ? null
+            : new SkipWarnings(
+                "NDJSON read from ["
+                    + sourceLocation
+                    + "] produced recoverable errors (policy: "
+                    + errorPolicy.mode().name().toLowerCase(Locale.ROOT)
+                    + "); affected rows are listed below"
+            );
 
         List<Attribute> fullSchema = attributes;
         var projectedAttributes = attributes;
@@ -131,7 +144,28 @@ public class NdJsonPageDecoder implements Closeable {
             throw new EsqlIllegalArgumentException(e, "Malformed NDJSON [{}]: {}", phaseLabel, e.getOriginalMessage());
         }
         errorCount++;
+        skipWarnings.add(
+            (e instanceof JsonEOFException ? "Truncated" : "Malformed")
+                + " NDJSON at logical row ["
+                + logicalRowIndex
+                + "] ("
+                + phaseLabel
+                + "): "
+                + e.getOriginalMessage()
+        );
         if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
+            // Surface the budget-exceeded condition as a warning so clients see exactly what tripped it.
+            skipWarnings.add(
+                "NDJSON error budget exceeded at row ["
+                    + totalRowCount
+                    + "]: ["
+                    + errorCount
+                    + "] errors, maximum ["
+                    + errorPolicy.maxErrors()
+                    + "] or ratio ["
+                    + errorPolicy.maxErrorRatio()
+                    + "]"
+            );
             throw new EsqlIllegalArgumentException(
                 "NDJSON error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
                 errorCount,

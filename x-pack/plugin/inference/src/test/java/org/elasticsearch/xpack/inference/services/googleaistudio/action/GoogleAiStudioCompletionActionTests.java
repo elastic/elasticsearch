@@ -78,8 +78,6 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "candidates": [
@@ -203,8 +201,6 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "candidates": [

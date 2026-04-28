@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.IOUtils;
@@ -106,11 +105,13 @@ public abstract class SenderService<M extends Model> implements InferenceService
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((inferListener) -> {
+        try {
             var resolvedInferenceTimeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
             var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
-            doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, inferListener);
-        }).addListener(listener);
+            doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     public M parsePersistedConfig(UnparsedModel unparsedModel) {
@@ -195,12 +196,14 @@ public abstract class SenderService<M extends Model> implements InferenceService
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((completionInferListener) -> {
+        try {
             if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
                 throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
-            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, completionInferListener);
-        }).addListener(listener);
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     protected boolean supportsChatCompletionReasoning() {
@@ -209,13 +212,13 @@ public abstract class SenderService<M extends Model> implements InferenceService
 
     @Override
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((embeddingInferListener) -> {
+        try {
             if (supportsMultipleItemsPerContent()) {
-                doEmbeddingInfer(model, request, timeout, embeddingInferListener);
+                doEmbeddingInfer(model, request, timeout, listener);
             } else {
                 var index = indexContainingMultipleInferenceStrings(request.inputs());
                 if (index == null) {
-                    doEmbeddingInfer(model, request, timeout, embeddingInferListener);
+                    doEmbeddingInfer(model, request, timeout, listener);
                 } else {
                     listener.onFailure(
                         new ElasticsearchStatusException(
@@ -232,7 +235,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
                     );
                 }
             }
-        }).addListener(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -253,23 +258,25 @@ public abstract class SenderService<M extends Model> implements InferenceService
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        SubscribableListener.newForked(this::init).<List<ChunkedInference>>andThen((chunkedInferListener) -> {
+        try {
             ValidationException validationException = new ValidationException();
             validateInputType(inputType, model, validationException);
             validationException.throwIfValidationErrorsExist();
             if (supportsChunkedInfer()) {
                 if (input.isEmpty()) {
-                    chunkedInferListener.onResponse(List.of());
+                    listener.onResponse(List.of());
                 } else {
                     // a non-null query is not supported and is dropped by all providers
-                    doChunkedInfer(model, input, taskSettings, inputType, timeout, chunkedInferListener);
+                    doChunkedInfer(model, input, taskSettings, inputType, timeout, listener);
                 }
             } else {
-                chunkedInferListener.onFailure(
+                listener.onFailure(
                     new UnsupportedOperationException(Strings.format("%s service does not support chunked inference", name()))
                 );
             }
-        }).addListener(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     protected abstract void doInfer(
@@ -313,23 +320,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
         return true;
     }
 
-    public void start(Model model, ActionListener<Boolean> listener) {
-        SubscribableListener.newForked(this::init)
-            .<Boolean>andThen((doStartListener) -> doStart(model, doStartListener))
-            .addListener(listener);
-    }
-
     @Override
-    public void start(Model model, @Nullable TimeValue unused, ActionListener<Boolean> listener) {
-        start(model, listener);
-    }
-
-    protected void doStart(Model model, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
-    }
-
-    private void init(ActionListener<Void> listener) {
-        sender.startAsynchronously(listener);
+    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
+        listener.onResponse(Boolean.TRUE);
     }
 
     @Override

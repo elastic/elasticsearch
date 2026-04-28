@@ -1644,6 +1644,14 @@ public class VerifierTests extends ESTestCase {
             "from test | mv_expand id | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
         );
+        fullText().stripErrorPrefix(false)
+            .error(
+                "from test | mv_expand " + fieldName + " | where " + functionInvocation,
+                allOf(
+                    containsString("Found 1 problem"),
+                    containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
+                )
+            );
     }
 
     // These should pass eventually once we lift some restrictions on match function

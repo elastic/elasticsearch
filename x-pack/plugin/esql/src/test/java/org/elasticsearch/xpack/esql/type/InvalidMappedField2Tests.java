@@ -19,10 +19,11 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
 
 public class InvalidMappedField2Tests extends ESTestCase {
     public void testKeepsAllIndicesWhenAtOrBelowLimit() {
@@ -35,10 +36,11 @@ public class InvalidMappedField2Tests extends ESTestCase {
 
         InvalidMappedField2 field = new InvalidMappedField2("f", input);
 
-        Map<String, Set<String>> stored = field.getTypesToIndices();
-        assertThat(stored.keySet(), containsInAnyOrder(DataType.KEYWORD.typeName(), DataType.LONG.typeName()));
-        assertThat(stored.get(DataType.KEYWORD.typeName()), containsInAnyOrder("idx_a", "idx_b"));
-        assertThat(stored.get(DataType.LONG.typeName()), containsInAnyOrder("idx_c", "idx_d", "idx_e"));
+        assertMap(
+            field.getTypesToIndices(),
+            matchesMap().entry(DataType.KEYWORD.typeName(), Set.of("idx_a", "idx_b"))
+                .entry(DataType.LONG.typeName(), Set.of("idx_c", "idx_d", "idx_e"))
+        );
     }
 
     public void testTruncatesAboveLimitAndAddsEllipsisSentinel() {
@@ -49,8 +51,10 @@ public class InvalidMappedField2Tests extends ESTestCase {
 
         InvalidMappedField2 field = new InvalidMappedField2("f", input);
 
-        Set<String> stored = field.getTypesToIndices().get(DataType.KEYWORD.typeName());
-        assertThat(stored, equalTo(Set.of("idx_00000", "idx_00001", "idx_00002", InvalidMappedField2.ELLIPSIS)));
+        assertMap(
+            field.getTypesToIndices(),
+            matchesMap().entry(DataType.KEYWORD.typeName(), Set.of("idx_00000", "idx_00001", "idx_00002", InvalidMappedField2.ELLIPSIS))
+        );
     }
 
     public void testErrorMessageReflectsFullInputCountEvenAfterTruncation() {
@@ -86,7 +90,7 @@ public class InvalidMappedField2Tests extends ESTestCase {
 
         assertThat(field.isPotentiallyUnmapped(), equalTo(true));
         assertThat(field.errorMessage(), containsString("[keyword] due to loading from _source"));
-        assertThat(field.getTypesToIndices(), hasEntry(DataType.LONG.typeName(), Set.of("idx_a")));
+        assertMap(field.getTypesToIndices(), matchesMap().entry(DataType.LONG.typeName(), Set.of("idx_a")));
     }
 
     public void testTypesReflectsKeysOfTruncatedMap() {

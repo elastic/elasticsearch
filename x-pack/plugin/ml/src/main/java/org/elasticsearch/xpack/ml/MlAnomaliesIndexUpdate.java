@@ -513,7 +513,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
                 + "To recover the historical results, ensure your user has read and write on .ml-anomalies-* "
                 + "(or manage_ml / superuser) and run: "
                 + "POST _reindex?wait_for_completion=false "
-                + "{\"source\":{\"index\":\"%s\"},\"dest\":{\"index\":\"%s\",\"op_type\":\"create\"}}. "        
+                + "{\"source\":{\"index\":\"%s\"},\"dest\":{\"index\":\"%s\",\"op_type\":\"create\"}}. "
                 + "After verifying documents arrived, [%s] may be deleted. "
                 + "KB: https://support.elastic.dev/knowledge/view/d699924c",
             badIndex,

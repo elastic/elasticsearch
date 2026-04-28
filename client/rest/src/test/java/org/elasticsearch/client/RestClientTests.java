@@ -506,8 +506,8 @@ public class RestClientTests extends RestClientTestCase {
             );
         } finally {
             executor.shutdownNow();
-            client.close();
         }
+        client.close();
     }
 
 }

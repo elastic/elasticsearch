@@ -28,41 +28,35 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
-public class VoyageAIServiceSettings extends FilteredXContentObject implements ServiceSettings, VoyageAIRateLimitServiceSettings {
+public class VoyageAICommonServiceSettings extends FilteredXContentObject implements ServiceSettings, VoyageAIRateLimitServiceSettings {
 
     public static final String NAME = "voyageai_service_settings";
-    private static final Logger logger = LogManager.getLogger(VoyageAIServiceSettings.class);
+    private static final Logger logger = LogManager.getLogger(VoyageAICommonServiceSettings.class);
     // See https://docs.voyageai.com/docs/rate-limits
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
     private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
-    public static VoyageAIServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+    public static VoyageAICommonServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        var validationException = new ValidationException();
 
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            VoyageAIService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, VoyageAIService.NAME, context);
 
-        String modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new VoyageAIServiceSettings(modelId, rateLimitSettings);
+        return new VoyageAICommonServiceSettings(modelId, rateLimitSettings);
     }
 
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
 
-    public VoyageAIServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+    public VoyageAICommonServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    public VoyageAIServiceSettings(StreamInput in) throws IOException {
+    public VoyageAICommonServiceSettings(StreamInput in) throws IOException {
         modelId = in.readString();
         rateLimitSettings = new RateLimitSettings(in);
     }
@@ -75,6 +69,28 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
     @Override
     public String modelId() {
         return modelId;
+    }
+
+    /**
+     * Returns a new {@link VoyageAICommonServiceSettings} merging the current settings with the mutable fields supplied via
+     * {@code serviceSettings}. The {@code rate_limit} field is the only mutable field on the common settings; {@code model_id}
+     * is treated as immutable and copied from {@code this}. Validation errors are accumulated into {@code validationException}
+     * so callers can combine them with task-specific updates before calling
+     * {@link ValidationException#throwIfValidationErrorsExist()}.
+     */
+    public VoyageAICommonServiceSettings updateCommonServiceSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException
+    ) {
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            VoyageAIService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        return new VoyageAICommonServiceSettings(this.modelId, extractedRateLimitSettings);
     }
 
     @Override
@@ -125,7 +141,7 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        VoyageAIServiceSettings that = (VoyageAIServiceSettings) o;
+        VoyageAICommonServiceSettings that = (VoyageAICommonServiceSettings) o;
         return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 

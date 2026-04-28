@@ -52,7 +52,7 @@ public class TDigestBlockTests extends ComputeTestCase {
     }
 
     public void testOldVersionSerialization() throws IOException {
-        var oldVersion = TransportVersionUtils.getPreviousVersion(TDigestArrayBlock.MULTIVALUE_SUPPORT);
+        var oldVersion = TransportVersionUtils.getPreviousVersion(AbstractDelegatingCompoundBlock.MULTIVALUE_SUPPORT);
         TDigestBlock block = randomBlockWithNulls(false);
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(oldVersion);
@@ -67,7 +67,7 @@ public class TDigestBlockTests extends ComputeTestCase {
     }
 
     public void testOldVersionSerializationFailsForMultiValue() {
-        var oldVersion = TransportVersionUtils.getPreviousVersion(TDigestArrayBlock.MULTIVALUE_SUPPORT);
+        var oldVersion = TransportVersionUtils.getPreviousVersion(AbstractDelegatingCompoundBlock.MULTIVALUE_SUPPORT);
         TDigestBlock.Builder builder = blockFactory().newTDigestBlockBuilder(2);
         builder.beginPositionEntry();
         builder.appendTDigest(BlockTestUtils.randomTDigest());

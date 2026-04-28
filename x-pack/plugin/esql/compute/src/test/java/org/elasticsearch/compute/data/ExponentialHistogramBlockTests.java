@@ -57,7 +57,7 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
     }
 
     public void testOldVersionSerialization() throws IOException {
-        var oldVersion = TransportVersionUtils.getPreviousVersion(ExponentialHistogramArrayBlock.MULTIVALUE_SUPPORT);
+        var oldVersion = TransportVersionUtils.getPreviousVersion(AbstractDelegatingCompoundBlock.MULTIVALUE_SUPPORT);
         ExponentialHistogramBlock block = randomBlockWithNulls(false);
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(oldVersion);
@@ -72,7 +72,7 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
     }
 
     public void testOldVersionSerializationFailsForMultiValue() {
-        var oldVersion = TransportVersionUtils.getPreviousVersion(ExponentialHistogramArrayBlock.MULTIVALUE_SUPPORT);
+        var oldVersion = TransportVersionUtils.getPreviousVersion(AbstractDelegatingCompoundBlock.MULTIVALUE_SUPPORT);
         ExponentialHistogramBlock.Builder builder = blockFactory().newExponentialHistogramBlockBuilder(2);
         builder.beginPositionEntry();
         builder.append(BlockTestUtils.randomExponentialHistogram());

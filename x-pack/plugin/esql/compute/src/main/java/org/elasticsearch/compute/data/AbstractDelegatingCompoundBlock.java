@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -32,6 +33,11 @@ import java.util.stream.IntStream;
  * </p>
  */
 public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends AbstractNonThreadSafeRefCounted implements Block {
+
+    /**
+     * Transport version when multi-value support was introduced for {@link TDigestBlock} and {@link ExponentialHistogramBlock}.
+     */
+    static final TransportVersion MULTIVALUE_SUPPORT = TransportVersion.fromName("histogram_blocks_multivalue_support");
 
     private final int positionCount;
     @Nullable

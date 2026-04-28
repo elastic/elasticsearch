@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -19,7 +18,6 @@ import java.io.IOException;
 import java.util.List;
 
 public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDigestBlock> implements TDigestBlock {
-    static final TransportVersion MULTIVALUE_SUPPORT = TransportVersion.fromName("tdigest_block_multivalues");
     private final DoubleBlock minima;
     private final DoubleBlock maxima;
     private final DoubleBlock sums;
@@ -179,7 +177,7 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(MULTIVALUE_SUPPORT)) {
+        if (out.getTransportVersion().supports(AbstractDelegatingCompoundBlock.MULTIVALUE_SUPPORT)) {
             writeMultiValueMetadata(out);
         } else if (doesHaveMultivaluedFields()) {
             throw new IllegalStateException("Cannot serialize multi-valued tdigest block on old transport version");
@@ -192,7 +190,7 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
     }
 
     public static TDigestArrayBlock readFrom(BlockStreamInput input) throws IOException {
-        if (input.getTransportVersion().supports(MULTIVALUE_SUPPORT)) {
+        if (input.getTransportVersion().supports(AbstractDelegatingCompoundBlock.MULTIVALUE_SUPPORT)) {
             return AbstractDelegatingCompoundBlock.readFrom(input, TDigestArrayBlock::readSubBlocksFrom);
         } else {
             return readSubBlocksFrom(input, -1, null);

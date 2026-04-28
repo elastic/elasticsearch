@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -26,8 +25,6 @@ import java.util.List;
 final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlock<ExponentialHistogramBlock>
     implements
         ExponentialHistogramBlock {
-
-    static final TransportVersion MULTIVALUE_SUPPORT = TransportVersion.fromName("exponential_histogram_block_multivalues");
 
     // Exponential histograms consist of several components that we store in separate blocks
     // due to (a) better compression in the field mapper for disk storage and (b) faster computations if only one sub-component is needed

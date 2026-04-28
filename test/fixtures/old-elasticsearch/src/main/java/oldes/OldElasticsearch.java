@@ -20,7 +20,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +34,22 @@ import java.util.regex.Pattern;
  * writing a "ports" file.
  */
 public class OldElasticsearch {
+
+    private static final Pattern INSTALL_DIR_MAJOR_VERSION = Pattern.compile("^elasticsearch(?:-oss)?-(\\d+)");
+
+    /**
+     * Reads the install-directory name (for example {@code elasticsearch-8.12.2}) to decide transport settings.
+     * When the name is unexpected, returns a value below 8 so legacy {@code transport.tcp.port} is used.
+     */
+    private static int majorVersionFromInstallDir(Path esInstallDir) {
+        String name = esInstallDir.getFileName().toString();
+        Matcher m = INSTALL_DIR_MAJOR_VERSION.matcher(name);
+        if (m.find() == false) {
+            return 0;
+        }
+        return Integer.parseInt(m.group(1));
+    }
+
     public static void main(String[] args) throws IOException {
         Path baseDir = Paths.get(args[0]);
         Path unzipDir = Paths.get(args[1]);
@@ -76,7 +91,14 @@ public class OldElasticsearch {
         Path config = esDir.resolve("config").resolve("elasticsearch.yml");
 
         List<String> configOptions = new ArrayList<>();
-        configOptions.addAll(Arrays.asList("http.port: 0", "transport.tcp.port: 0", "network.host: 127.0.0.1"));
+        configOptions.add("http.port: 0");
+        if (majorVersionFromInstallDir(esDir) >= 8) {
+            // transport.tcp.port was removed in 8.0; transport.port replaces it
+            configOptions.add("transport.port: 0");
+        } else {
+            configOptions.add("transport.tcp.port: 0");
+        }
+        configOptions.add("network.host: 127.0.0.1");
         if (args.length > 3) {
             for (int i = 3; i < args.length; i++) {
                 configOptions.add(args[i]);

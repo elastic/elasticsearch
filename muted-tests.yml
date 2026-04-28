@@ -270,9 +270,6 @@ tests:
 - class: org.elasticsearch.index.mapper.IpOffsetDocValuesLoaderTests
   method: testOffsetArrayRandomHighCardinality
   issue: https://github.com/elastic/elasticsearch/issues/147086
-#- class: org.elasticsearch.simdvec.ESVectorUtilTests
-#  method: testLogSumExpDiff
-#  issue: https://github.com/elastic/elasticsearch/issues/146700
 - class: org.elasticsearch.xpack.ml.integration.MlMemoryIT
   method: testMemoryStats
   issue: https://github.com/elastic/elasticsearch/issues/147122

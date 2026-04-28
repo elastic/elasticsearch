@@ -288,8 +288,8 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      */
     void healReindexedV7Anomalies(ClusterState state) {
         if (healEnabled.getAsBoolean() == false) {
-                logger.debug("Setting [{}] is active; heal step skipped", HEAL_REINDEXED_V7_ENABLED.getKey());
-           
+            logger.debug("Setting [{}] is active; heal step skipped", HEAL_REINDEXED_V7_ENABLED.getKey());
+
             return;
         }
 
@@ -320,7 +320,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     }
 
     /**
-     * If necessary, create a new index with the name that does not clash with any existing index and move 
+     * If necessary, create a new index with the name that does not clash with any existing index and move
      * the aliases from the bad index to the new index.
      * @param badIndex The index to heal.
      * @param state The cluster state.
@@ -332,7 +332,9 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         }
 
         // Skip if there are no live ml-anomalies aliases still on this bad index
-        Map<String, List<AliasMetadata>> aliasesMap = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).findAllAliases(new String[] { badIndex });
+        Map<String, List<AliasMetadata>> aliasesMap = state.metadata()
+            .getProject(Metadata.DEFAULT_PROJECT_ID)
+            .findAllAliases(new String[] { badIndex });
         List<AliasMetadata> liveAliases = aliasesMap.getOrDefault(badIndex, List.of())
             .stream()
             .filter(am -> MlIndexAndAlias.isAnomaliesReadAlias(am.alias()) || MlIndexAndAlias.isAnomaliesWriteAlias(am.alias()))
@@ -356,11 +358,13 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         emitAdvisoryNotifications(badIndex, targetIndex);
 
         logger.warn(
-            "The ML anomalies index [{}] was missing required keyword mapping for [job_id]. " +
-            "Aliases for jobs [{}] have been moved to a compatible anomalies index [{}].",
-            badIndex, jobIds, targetIndex
+            "The ML anomalies index [{}] was missing required keyword mapping for [job_id]. "
+                + "Aliases for jobs [{}] have been moved to a compatible anomalies index [{}].",
+            badIndex,
+            jobIds,
+            targetIndex
         );
-   
+
     }
 
     /**

@@ -27,8 +27,11 @@ public class DLMFrozenTransitionPlugin extends Plugin {
 
     private final List<AbstractDLMPeriodicMasterOnlyService> managedServices = new ArrayList<>();
 
+    public DLMFrozenTransitionPlugin() {}
+
     // visible for testing
     DLMFrozenTransitionPlugin(List<AbstractDLMPeriodicMasterOnlyService> services) {
+        this();
         managedServices.addAll(services);
     }
 

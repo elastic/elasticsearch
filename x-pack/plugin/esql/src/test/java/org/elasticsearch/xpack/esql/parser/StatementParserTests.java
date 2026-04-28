@@ -3692,17 +3692,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // test for (
         // With WHERE_IN_SUBQUERY enabled the parser has two IN alternatives (value list / subquery),
         // so error recovery emits a "no viable alternative" message instead of the single-alt one.
-        if (EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled()) {
-            expectError("row a = 1 not in", "line 1:17: no viable alternative at input '1 not in'");
-            expectError("row a = 1 | where a not in", "line 1:27: no viable alternative at input 'a not in'");
-            expectError("row a = 1 | where a not in [1", "line 1:28: no viable alternative at input 'a not in ['");
-            expectError("row a = 1 | where a not in 123", "line 1:28: no viable alternative at input 'a not in 123'");
-        } else {
-            expectError("row a = 1 not in", "line 1:17: mismatched input '<EOF>' expecting '('");
-            expectError("row a = 1 | where a not in", "line 1:27: mismatched input '<EOF>' expecting '('");
-            expectError("row a = 1 | where a not in [1", "line 1:28: missing '(' at '['");
-            expectError("row a = 1 | where a not in 123", "line 1:28: missing '(' at '123'");
-        }
+        expectError("row a = 1 not in", "line 1:17: no viable alternative at input '1 not in'");
+        expectError("row a = 1 | where a not in", "line 1:27: no viable alternative at input 'a not in'");
+        expectError("row a = 1 | where a not in [1", "line 1:28: no viable alternative at input 'a not in ['");
+        expectError("row a = 1 | where a not in 123", "line 1:28: no viable alternative at input 'a not in 123'");
         expectError("row a = 1 | where a not in (1", "line 1:30: mismatched input '<EOF>' expecting {',', ')'}");
         // test for [
         if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {

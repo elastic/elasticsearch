@@ -47,8 +47,9 @@ import java.util.BitSet;
  * <p>Only handles flat columns (maxRepLevel == 0). List columns must use the row-at-a-time path.
  *
  * <p>When {@link RowRanges} are provided, pages whose row span does not overlap the selected
- * ranges are skipped entirely in {@link #loadNextPage()}, enabling page-level filtering for
- * the optimized reader path.
+ * ranges are skipped entirely in {@link #loadNextPage()}. This is a safety net for the
+ * sequential builder path (when prefetch is unavailable and the builder cannot pre-filter
+ * pages) and a no-op for the filtered builder path.
  */
 final class PageColumnReader {
 

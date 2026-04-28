@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -449,7 +450,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             effectiveSchema = resolvedSchema;
         }
         ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
-        return new CsvBatchIterator(reader, stream, context.projectedColumns(), context.batchSize(), effectiveSchema, effective);
+        return new CsvBatchIterator(
+            reader,
+            stream,
+            context.projectedColumns(),
+            context.batchSize(),
+            effectiveSchema,
+            effective,
+            object.path().toString()
+        );
     }
 
     @Override
@@ -578,16 +587,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         };
     }
 
-    /**
-     * Returns accumulated warnings from a CSV iterator, for testing.
-     */
-    static List<String> getWarnings(CloseableIterator<Page> iterator) {
-        if (iterator instanceof CsvBatchIterator cbi) {
-            return List.copyOf(cbi.warnings);
-        }
-        return List.of();
-    }
-
     private class CsvBatchIterator implements CloseableIterator<Page> {
         private final BufferedReader reader;
         private final InputStream stream;
@@ -602,8 +601,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final String nullValueStr;
         private final DateTimeFormatter datetimeFormatter;
         private final boolean bracketMultiValues;
-        private static final int MAX_WARNINGS = 20;
-        private final List<String> warnings = new ArrayList<>();
+        private final String sourceLocation;
+        private final SkipWarnings skipWarnings;
         private List<Attribute> schema;
         private int[] projectedIdx;
         private DataType[] projectedTypes;
@@ -625,7 +624,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<String> projectedColumns,
             int batchSize,
             List<Attribute> preResolvedSchema,
-            ErrorPolicy errorPolicy
+            ErrorPolicy errorPolicy,
+            String sourceLocation
         ) {
             this.reader = reader;
             this.stream = stream;
@@ -640,6 +640,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.nullValueStr = options.nullValue();
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
+            this.sourceLocation = sourceLocation;
+            this.skipWarnings = SkipWarnings.of(
+                errorPolicy,
+                "CSV read from ["
+                    + sourceLocation
+                    + "] encountered parse errors handled per policy (policy: "
+                    + errorPolicy.modeName()
+                    + "); affected rows/fields are listed below"
+            );
         }
 
         @Override
@@ -1199,7 +1208,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 throw new EsqlIllegalArgumentException(cause, message);
             }
             errorCount++;
-            addWarning("Row [" + totalRowCount + "] error: " + message);
+            skipWarnings.add("Row [" + totalRowCount + "] error: " + message);
             if (logErrors) {
                 logger.warn(
                     "Skipping malformed CSV row [{}] (error {}/{}): {}",
@@ -1214,7 +1223,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private void onFieldError(String message, String value, Attribute attr) {
             errorCount++;
-            addWarning("Row [" + totalRowCount + "] field [" + attr.name() + "] value [" + value + "]: " + message);
+            skipWarnings.add("Row [" + totalRowCount + "] field [" + attr.name() + "] value [" + value + "]: " + message);
             if (logErrors) {
                 logger.warn(
                     "Null-filling unparseable field [{}] value [{}] in row [{}] (error {}/{}): {}",
@@ -1229,16 +1238,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
             checkBudget(message, null);
         }
 
-        private void addWarning(String warning) {
-            if (warnings.size() < MAX_WARNINGS) {
-                warnings.add(warning);
-            } else if (warnings.size() == MAX_WARNINGS) {
-                warnings.add("... further warnings suppressed (total errors so far: " + errorCount + ")");
-            }
-        }
-
         private void checkBudget(String message, Exception cause) {
             if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
+                // Surface the budget-exceeded condition as a warning too so clients see which row tripped it
+                // even when the request itself fails.
+                skipWarnings.add(
+                    "CSV error budget exceeded at row ["
+                        + totalRowCount
+                        + "]: ["
+                        + errorCount
+                        + "] errors, maximum ["
+                        + errorPolicy.maxErrors()
+                        + "] or ratio ["
+                        + errorPolicy.maxErrorRatio()
+                        + "]"
+                );
                 throw new EsqlIllegalArgumentException(
                     cause,
                     "CSV error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -18,8 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -27,9 +24,7 @@ import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonService
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
@@ -307,7 +302,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
             """, TEST_MODEL_ID, TEST_RATE_LIMIT, TEST_SIMILARITY_MEASURE, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_EMBEDDING_TYPE)));
     }
 
-    public void testToXContent_OnlyMandatoryFields_Writes() throws IOException {
+    public void testToXContent_OnlyMandatoryFields_WritesOnlyMandatoryFieldsAndDefaults() throws IOException {
         var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
             new VoyageAICommonServiceSettings(TEST_MODEL_ID, null),
             null,
@@ -367,14 +362,6 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
             maxInputTokens,
             dimensionsSetByUser
         );
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
-        return new NamedWriteableRegistry(entries);
     }
 
     public static Map<String, Object> buildServiceSettingsMap(String modelId) {

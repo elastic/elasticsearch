@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests;
 
@@ -38,9 +37,7 @@ import static org.hamcrest.Matchers.is;
 public class VoyageAIRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<VoyageAIRerankServiceSettings> {
 
     public static VoyageAIRerankServiceSettings createRandom() {
-        return new VoyageAIRerankServiceSettings(
-            new VoyageAICommonServiceSettings(randomAlphaOfLength(10), RateLimitSettingsTests.createRandom())
-        );
+        return new VoyageAIRerankServiceSettings(VoyageAICommonServiceSettingsTests.createRandom());
     }
 
     public void testFromMap_AllFields_CreatesSettingsCorrectly() {

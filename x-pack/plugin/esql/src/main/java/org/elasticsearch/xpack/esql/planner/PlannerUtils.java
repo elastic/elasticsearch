@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -297,12 +299,41 @@ public class PlannerUtils {
         FormatReaderRegistry formatReaderRegistry,
         PlanTimeProfile planTimeProfile
     ) {
+        return localPlan(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            plan,
+            searchStats,
+            formatReaderRegistry,
+            List.of(),
+            planTimeProfile
+        );
+    }
+
+    /**
+     * Runs local logical/physical optimization with external splits injected before the physical optimizer.
+     * Splits are attached to any empty {@link ExternalSourceExec} nodes so that rules like
+     * {@code PushAggregatesToExternalSource} can see per-split statistics.
+     */
+    public static PhysicalPlan localPlan(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats,
+        FormatReaderRegistry formatReaderRegistry,
+        List<? extends ExternalSplit> externalSplits,
+        PlanTimeProfile planTimeProfile
+    ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats, formatReaderRegistry)
         );
 
-        return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile);
     }
 
     public static PhysicalPlan integrateEsFilterIntoFragment(PhysicalPlan plan, @Nullable QueryBuilder esFilter) {
@@ -323,13 +354,34 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
-        return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, null);
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, List.of(), planTimeProfile, null);
     }
 
     public static PhysicalPlan localPlan(
         PhysicalPlan plan,
         LocalLogicalPlanOptimizer logicalOptimizer,
         LocalPhysicalPlanOptimizer physicalOptimizer,
+        List<? extends ExternalSplit> externalSplits,
+        PlanTimeProfile planTimeProfile
+    ) {
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile, null);
+    }
+
+    public static PhysicalPlan localPlan(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        PlanTimeProfile planTimeProfile,
+        @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
+    ) {
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, List.of(), planTimeProfile, onLogicalPlanOptimized);
+    }
+
+    public static PhysicalPlan localPlan(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        List<? extends ExternalSplit> externalSplits,
         PlanTimeProfile planTimeProfile,
         @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
     ) {
@@ -364,6 +416,15 @@ public class PlannerUtils {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
                     query -> new EsSourceExec(Source.EMPTY, query.indexPattern(), query.indexMode(), query.output(), filter)
+                );
+            }
+
+            if (externalSplits.isEmpty() == false) {
+                @SuppressWarnings("unchecked")
+                List<ExternalSplit> typedSplits = (List<ExternalSplit>) externalSplits;
+                physicalFragment = physicalFragment.transformUp(
+                    ExternalSourceExec.class,
+                    exec -> exec.splits().isEmpty() ? exec.withSplits(typedSplits) : exec
                 );
             }
 

@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -26,7 +27,6 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -77,14 +77,11 @@ public final class InnerHitsPhase implements FetchSubPhase {
 
     private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, SearchHit hit, Source rootSource)
         throws IOException {
+        Map<String, SearchHits> results = Maps.newMapWithExpectedSize(innerHits.size());
         for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHits.entrySet()) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = entry.getValue();
             TopDocsAndMaxScore topDoc = innerHitsContext.topDocs(hit);
 
-            Map<String, SearchHits> results = hit.getInnerHits();
-            if (results == null) {
-                hit.setInnerHits(results = new HashMap<>());
-            }
             innerHitsContext.queryResult().topDocs(topDoc, innerHitsContext.sort() == null ? null : innerHitsContext.sort().formats);
             int[] docIdsToLoad = new int[topDoc.topDocs.scoreDocs.length];
             for (int j = 0; j < topDoc.topDocs.scoreDocs.length; j++) {
@@ -109,5 +106,6 @@ public final class InnerHitsPhase implements FetchSubPhase {
             results.put(entry.getKey(), h);
             h.mustIncRef();
         }
+        hit.setInnerHits(results);
     }
 }

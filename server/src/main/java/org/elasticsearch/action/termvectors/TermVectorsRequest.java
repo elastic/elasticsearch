@@ -12,7 +12,6 @@ package org.elasticsearch.action.termvectors;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.RetryableSplitAwareRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -51,13 +50,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  * <p>
  * Note, the {@link #index()} and {@link #id(String)} are required.
  */
-// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
-@SuppressWarnings("unchecked")
-public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest>
-    implements
-        RealtimeRequest,
-        RetryableSplitAwareRequest {
-
+public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RetryableSplitAwareRequest {
     public static TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("term_vectors_split_shard_count_summary");
 
     private static final ParseField INDEX = new ParseField("_index");
@@ -412,7 +405,6 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
         return this.realtime;
     }
 
-    @Override
     public TermVectorsRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;

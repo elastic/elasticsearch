@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -24,6 +25,7 @@ import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.reindex.management.ReindexManagementPlugin;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
@@ -156,9 +158,19 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
         final Throwable error = failure.get();
         final BulkByScrollResponse response = success.get();
         assertThat(ExceptionsHelper.unwrapCause(error), instanceOf(TaskRelocatedException.class));
-        assertTrue(((TaskRelocatedException) ExceptionsHelper.unwrapCause(error)).getRelocatedTaskId().isPresent());
+        final TaskRelocatedException relocated = (TaskRelocatedException) ExceptionsHelper.unwrapCause(error);
+        final String relocatedTaskIdString = relocated.getRelocatedTaskId().orElseThrow();
         assertNull(response);
 
+        // Wait until the relocated task finishes (including persisting to `.tasks` when shouldStoreResult is true)
+        // so tear-down does not race with async task-result indexing.
+        final GetTaskResponse relocatedTaskFinished = clusterAdmin().prepareGetTask(new TaskId(relocatedTaskIdString))
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueSeconds(60))
+            .get();
+        assertTrue("relocated reindex should complete", relocatedTaskFinished.getTask().isCompleted());
+
+        // Asserts that the reindexing task is relocated to another node and succeeds
         assertBusy(() -> {
             assertTrue(indexExists(DEST));
             flushAndRefresh(DEST);

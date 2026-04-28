@@ -80,6 +80,11 @@ public class NdJsonSchemaInferrer {
                         break; // End of stream
                     }
                 } catch (JsonParseException e) {
+                    // Schema inference is a best-effort sampling pass: malformed lines here are
+                    // safe to skip because every such line will be re-encountered during the
+                    // actual slice read (see NdJsonPageIterator), where the configured
+                    // ErrorPolicy decides whether to log/fail. Logging at debug avoids noisy
+                    // duplicate reports of the same issue.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
@@ -90,6 +95,7 @@ public class NdJsonSchemaInferrer {
                     inferObjectSchema(parser, root);
                     lineCount++;
                 } catch (JsonParseException e) {
+                    // See comment above: deferred to the slice read for policy-driven handling.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);

@@ -68,12 +68,13 @@ public final class AsyncExternalSourceBuffer {
             return;
         }
         long pageBytes = page.ramBytesUsedByBlocks();
-        long prevBytes = bytesInBuffer.getAndAdd(pageBytes);
+        bytesInBuffer.addAndGet(pageBytes);
         queue.add(page);
         queueSize.incrementAndGet();
-        if (prevBytes == 0) {
-            notifyNotEmpty();
-        }
+        // Always notify: the conditional guard on prevBytes==0 previously caused a lost-wakeup race
+        // when a consumer drained and blocked on notEmptyFuture between our getAndAdd and queue.add.
+        // notifyNotEmpty() is a no-op when no listener is registered, so unconditional fire is cheap.
+        notifyNotEmpty();
         if (noMoreInputs) {
             // O(N) but acceptable because it only occurs with finish(), and the queue size should be very small.
             if (queue.removeIf(p -> p == page)) {
@@ -99,10 +100,11 @@ public final class AsyncExternalSourceBuffer {
         if (page != null) {
             queueSize.decrementAndGet();
             long pageBytes = page.ramBytesUsedByBlocks();
-            long prevBytes = bytesInBuffer.getAndAdd(-pageBytes);
-            if (prevBytes >= maxBufferBytes && (prevBytes - pageBytes) < maxBufferBytes) {
-                notifyNotFull();
-            }
+            bytesInBuffer.addAndGet(-pageBytes);
+            // Always notify: the previous threshold-crossing guard could miss a crossing because the
+            // producer's waitForSpace snapshot of bytesInBuffer can race with concurrent addPage calls,
+            // orphaning notFullFuture. notifyNotFull() is a no-op when no listener is registered.
+            notifyNotFull();
         }
         signalCompletionIfDrained();
         return page;
@@ -146,30 +148,9 @@ public final class AsyncExternalSourceBuffer {
     }
 
     /**
-     * Returns an {@link IsBlockedResult} that completes when the buffer has space for writing.
-     * Used by background reader for backpressure.
-     */
-    public IsBlockedResult waitForWriting() {
-        if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
-            return Operator.NOT_BLOCKED;
-        }
-        synchronized (notFullLock) {
-            if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
-                return Operator.NOT_BLOCKED;
-            }
-            if (notFullFuture == null) {
-                notFullFuture = new SubscribableListener<>();
-            }
-            return new IsBlockedResult(notFullFuture, "async external source buffer full");
-        }
-    }
-
-    /**
      * Returns a {@link SubscribableListener} that completes when the buffer has space for writing.
-     * This is the preferred method for producers to use for backpressure coordination.
-     * <p>
-     * Unlike {@link #waitForWriting()} which returns an {@link IsBlockedResult}, this method
-     * returns a {@link SubscribableListener} that can be used directly with ES async patterns.
+     * This is the method producers use for backpressure coordination: it integrates directly with
+     * ES async patterns and the producer drain loops.
      *
      * @return a listener that completes when space is available, or an already-completed listener if space exists
      */

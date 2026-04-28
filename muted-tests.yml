@@ -412,6 +412,9 @@ tests:
 - class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
   method: testToString
   issue: https://github.com/elastic/elasticsearch/issues/147739
+- class: org.elasticsearch.search.runtime.StringScriptFieldTermQueryTests
+  method: testEqualsAndHashCode
+  issue: https://github.com/elastic/elasticsearch/issues/147743
 
 # Examples:
 #

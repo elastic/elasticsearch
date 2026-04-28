@@ -109,7 +109,8 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             final var bytesRead = nodeCachesStats.getBytesRead();
             final var evictions = nodeCachesStats.getEvictions();
             logger.info(
-                "---> nodeCachesStats for node [{}]: numRegions [{}], writes [{}], bytes written [{}], reads [{}], bytes read [{}], evictions [{}]",
+                "---> nodeCachesStats for node [{}]: numRegions [{}], writes [{}], "
+                    + "bytes written [{}], reads [{}], bytes read [{}], evictions [{}]",
                 nodeName,
                 numRegions,
                 writes,
@@ -186,7 +187,8 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
                 final var bytesRead = nodeCachesStats.getBytesRead();
                 final var evictions = nodeCachesStats.getEvictions();
                 logger.info(
-                    "---> nodeCachesStats for node [{}]: numRegions [{}], writes [{}], bytes written [{}], reads [{}], bytes read [{}], evictions [{}]",
+                    "---> nodeCachesStats for node [{}]: numRegions [{}], writes [{}], "
+                        + "bytes written [{}], reads [{}], bytes read [{}], evictions [{}]",
                     nodeName,
                     numRegions,
                     writes,

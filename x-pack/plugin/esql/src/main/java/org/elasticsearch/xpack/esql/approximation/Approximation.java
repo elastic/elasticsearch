@@ -18,6 +18,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -499,7 +500,7 @@ public class Approximation {
             Source.EMPTY,
             leaf,
             List.of(),
-            List.of(new Alias(Source.EMPTY, "$source_count", COUNT_ALL_ROWS_EXACT))
+            List.of(new Alias(Source.EMPTY, Attribute.rawTemporaryName("source_count"), COUNT_ALL_ROWS_EXACT))
         );
         sourceCountPlan.setOptimized();
         return sourceCountPlan;
@@ -565,13 +566,12 @@ public class Approximation {
                 if (plan instanceof Aggregate aggregate) {
                     // The STATS function should be replaced by a STATS COUNT(*).
                     encounteredStats.set(true);
+                    String aggName = Attribute.rawTemporaryName("count", Double.toString(sampleProbability));
                     if (sampleProbability == 1.0) {
-                        List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, "$count_p=1", COUNT_ALL_ROWS_EXACT));
+                        List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, aggName, COUNT_ALL_ROWS_EXACT));
                         plan = new Aggregate(Source.EMPTY, aggregate.child(), List.of(), aggregations);
                     } else {
-                        List<NamedExpression> aggregations = List.of(
-                            new Alias(Source.EMPTY, "$count_p=" + sampleProbability, COUNT_ALL_ROWS_APPROXIMATE)
-                        );
+                        List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, aggName, COUNT_ALL_ROWS_APPROXIMATE));
                         plan = new SampledAggregate(
                             Source.EMPTY,
                             aggregate.child(),

@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatComp
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.CoreMatchers;
@@ -92,8 +93,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelTests.createChatCompletionModel;
-import static org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionServiceSettingsTests.getServiceSettingsMap;
-import static org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettingsTests.buildServiceSettingsMap;
+import static org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionServiceSettingsTests.buildServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.empty;
@@ -163,8 +163,8 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
                 }
 
                 @Override
-                protected ModelSecrets createModelSecrets() {
-                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
+                protected ModelSecrets createModelSecrets(ConfigurationParseContext context) {
+                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap(), context));
                 }
 
                 @Override
@@ -317,7 +317,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
                 "id",
                 TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    getServiceSettingsMap("model", "url"),
+                    LlamaEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model", "url", null, null, null, null),
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
@@ -341,7 +341,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
                 "id",
                 TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    getServiceSettingsMap("model", "url"),
+                    LlamaEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model", "url", null, null, null, null),
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
@@ -375,7 +375,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(null, url), getSecretSettingsMap(secret)),
+                getRequestConfigMap(buildServiceSettingsMap(null, url, null), getSecretSettingsMap(secret)),
                 modelVerificationListener
             );
         }
@@ -406,7 +406,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(model, null), getSecretSettingsMap(secret)),
+                getRequestConfigMap(buildServiceSettingsMap(model, null, null), getSecretSettingsMap(secret)),
                 modelVerificationListener
             );
         }
@@ -663,7 +663,17 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             var secretSettings = getSecretSettingsMap("secret");
             secretSettings.put("extra_key", "value");
 
-            var config = getRequestConfigMap(getEmbeddingsServiceSettingsMap(), secretSettings);
+            var config = getRequestConfigMap(
+                LlamaEmbeddingsServiceSettingsTests.buildServiceSettingsMap(
+                    "id",
+                    "url",
+                    null,
+                    SimilarityMeasure.COSINE.toString(),
+                    null,
+                    null
+                ),
+                secretSettings
+            );
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
                 model -> fail("Expected exception, but got model: " + model),
@@ -880,10 +890,6 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
         builtServiceSettings.putAll(secretSettings);
 
         return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings));
-    }
-
-    private static Map<String, Object> getEmbeddingsServiceSettingsMap() {
-        return buildServiceSettingsMap("id", "url", SimilarityMeasure.COSINE.toString(), null, null, null);
     }
 
     @Override

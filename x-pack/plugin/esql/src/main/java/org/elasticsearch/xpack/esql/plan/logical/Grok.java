@@ -69,6 +69,11 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
         public int hashCode() {
             return Objects.hash(pattern);
         }
+
+        @Override
+        public String toString() {
+            return "Parser[pattern=" + pattern + "]";
+        }
     }
 
     public static Parser pattern(Source source, String pattern) {

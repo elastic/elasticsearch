@@ -587,3 +587,59 @@ FROM employees
 hire_date:datetime | raw_date_string:keyword       | date_string:keyword  | date:date_nanos
 1995-01-27T00:00:00Z | 1995-01-27T01:00:00.000+01:00 | 1995-01-27T01:00:00  | 1995-01-27T01:00:00+01:00
 ;
+
+convertFromKeywordToTextWithRow
+required_capability: fn_to_text
+
+// tag::to_text[]
+ROW a = ["this", "is", "a", "text"]
+| EVAL text_a = TO_TEXT(a)
+// end::to_text[]
+;
+// tag::to_text-result[]
+a:keyword           | text_a:text
+[this, is, a, text] | [this, is, a, text]
+// end::to_text-result[]
+;
+
+convertFromTextColumnToTextWithFrom
+required_capability: fn_to_text
+
+from books
+| EVAL text_title = to_text(title)
+| EVAL title_length = length(text_title)
+| SORT title_length, title
+| LIMIT 1
+| KEEP text_title, title
+;
+text_title:text | title:text
+Hocus           | Hocus
+;
+
+convertFromKeywordColumnToTextWithFrom
+required_capability: fn_to_text
+
+from employees
+| EVAL text_first_name = to_text(first_name)
+| SORT emp_no
+| LIMIT 1
+| KEEP text_first_name, first_name
+;
+text_first_name:text | first_name:keyword
+Georgi               | Georgi
+;
+
+convertFromKeywordExpressionToTextWithFrom
+required_capability: fn_to_text
+
+from employees
+| EVAL text_full_name = to_text(concat(first_name, " ", last_name))
+| SORT emp_no
+| LIMIT 1
+| KEEP text_full_name, first_name, last_name
+;
+text_full_name:text | first_name:keyword | last_name:keyword
+Georgi Facello      | Georgi             | Facello
+;
+
+

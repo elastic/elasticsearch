@@ -109,7 +109,7 @@ public class VectorScorerDistanceBulkBenchmark {
         for (int j = 0; j < numQueries; j++) {
             float[] query = queries[j];
             for (int i = 0; i < numVectors; i += 4) {
-                ESVectorUtil.squareDistanceBulk(query, vectors[i], vectors[i + 1], vectors[i + 2], vectors[i + 3], distances);
+                ESVectorUtil.squareDistanceBulk(query, vectors[i], vectors[i + 1], vectors[i + 2], vectors[i + 3], 0, distances);
                 for (float distance : distances) {
                     bh.consume(distance);
                 }

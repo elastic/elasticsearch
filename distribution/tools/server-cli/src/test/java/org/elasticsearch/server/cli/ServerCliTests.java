@@ -40,12 +40,14 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -329,6 +331,20 @@ public class ServerCliTests extends CommandTestCase {
         assertTrue(loader.verifiedEnv);
     }
 
+    public void testSecureSettingsLoader() {
+        ServerCli command = new ServerCli();
+        Function<Map<String, String>, SecureSettingsLoader> factory = sysProps -> command.secureSettingsLoader(
+            new ProcessInfo(sysProps, envVars, esHomeDir)
+        );
+
+        assertThat(factory.apply(Map.of()), is(instanceOf(KeyStoreLoader.class)));
+        assertThat(factory.apply(Map.of("es.secure_settings.source", "keystore")), is(instanceOf(KeyStoreLoader.class)));
+        assertThat(
+            factory.apply(Map.of("es.secure_settings.source", "file_settings")),
+            is(instanceOf(FileSettingsClusterSecretsLoader.class))
+        );
+    }
+
     public void testSecureSettingsLoaderWithPassword() throws Exception {
         var loader = setupMockKeystoreLoader();
         assertKeystorePassword("aaaaaaaaaaaaaaaaaa");
@@ -476,12 +492,12 @@ public class ServerCliTests extends CommandTestCase {
         }
 
         @Override
-        protected SecureSettingsLoader secureSettingsLoader(Environment env) {
+        protected SecureSettingsLoader secureSettingsLoader(ProcessInfo processInfo) {
             if (mockSecureSettingsLoader != null) {
                 return mockSecureSettingsLoader;
             }
-
-            return new KeystoreSecureSettingsLoader();
+            var loader = super.secureSettingsLoader(processInfo);
+            return loader instanceof KeyStoreLoader ? new KeystoreSecureSettingsLoader() : loader;
         }
 
         @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.inference.rerank;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
@@ -38,6 +39,7 @@ public class RerankOperator extends InferenceOperator {
      * @param inputEvaluators  Evaluator for computing reranked texts from input rows.
      * @param scoreChannel     The output channel where the relevance scores will be written.
      * @param batchSize        \The number of rows to include in each inference request batch.
+     * @param timeout          Timeout for each inference request.
      */
     RerankOperator(
         DriverContext driverContext,
@@ -46,12 +48,13 @@ public class RerankOperator extends InferenceOperator {
         String queryText,
         ExpressionEvaluator[] inputEvaluators,
         int scoreChannel,
-        int batchSize
+        int batchSize,
+        TimeValue timeout
     ) {
         super(
             driverContext,
             inferenceService,
-            new RerankRequestIterator.Factory(inferenceId, queryText, inputEvaluators, batchSize),
+            new RerankRequestIterator.Factory(inferenceId, queryText, inputEvaluators, batchSize, timeout),
             new RerankOutputBuilder(driverContext.blockFactory(), scoreChannel)
         );
         this.queryText = queryText;
@@ -71,7 +74,8 @@ public class RerankOperator extends InferenceOperator {
         String queryText,
         List<ExpressionEvaluator.Factory> inputEvaluatorFactories,
         int scoreChannel,
-        int batchSize
+        int batchSize,
+        TimeValue timeout
     ) implements OperatorFactory {
 
         @Override
@@ -88,7 +92,8 @@ public class RerankOperator extends InferenceOperator {
                 queryText,
                 inputEvaluators(driverContext),
                 scoreChannel,
-                batchSize
+                batchSize,
+                timeout
             );
         }
 

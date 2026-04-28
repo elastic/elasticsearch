@@ -52,15 +52,24 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         ErrorPolicy errorPolicy
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        String sourceLocation = object.path().toString();
         InputStream inputStream = object.newStream();
         if (skipFirstLine) {
             skipToNextLine(inputStream);
         }
         if (trimLastPartialLine) {
-            inputStream = trimLastPartialLine(inputStream, errorPolicy);
+            inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation);
         }
         this.rowLimit = rowLimit;
-        this.pageDecoder = new NdJsonPageDecoder(inputStream, resolvedAttributes, projectedColumns, batchSize, blockFactory, errorPolicy);
+        this.pageDecoder = new NdJsonPageDecoder(
+            inputStream,
+            resolvedAttributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation
+        );
     }
 
     @Override
@@ -121,13 +130,26 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         IOUtils.close(pageDecoder);
     }
 
+    /**
+     * Reader-side half of the split-alignment protocol: drop the leading partial record that the
+     * splitter's previous macro-split already emitted via finish-current-line.
+     *
+     * <p>Protocol cross-references (prose because these live in sibling plugin modules):
+     * <ul>
+     *   <li>Codec side — {@code Bzip2DecompressionCodec.BlockBoundedDecompressStream} in
+     *       the {@code esql-datasource-bzip2} module emits bytes past the split boundary up to
+     *       (and including) the next {@code '\n'}.</li>
+     *   <li>Splitter side — {@code FileSplitProvider.tryBlockAlignedSplits} in the
+     *       {@code esql} module sets the first-split vs. non-first-split markers that
+     *       {@link NdJsonFormatReader#read} uses to decide whether to call this method.</li>
+     * </ul>
+     *
+     * <p>Delegates to {@link NdJsonFormatReader#scanForTerminator} so LF/CRLF/CR are handled
+     * uniformly; in practice the codec's finish-current-line always ends on {@code '\n'}, so
+     * only the LF branch fires, but routing through one implementation removes the coupling.
+     */
     static void skipToNextLine(InputStream stream) throws IOException {
-        int b;
-        while ((b = stream.read()) != -1) {
-            if (b == '\n') {
-                return;
-            }
-        }
+        NdJsonFormatReader.scanForTerminator(stream);
     }
 
     /**
@@ -135,8 +157,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
      * the last {@code '\n'}, without materializing the whole stream in memory. The delegate is closed
      * when the returned stream is closed. Oversized partial lines follow {@code errorPolicy}.
      */
-    static InputStream trimLastPartialLine(InputStream in, ErrorPolicy errorPolicy) {
+    static InputStream trimLastPartialLine(InputStream in, ErrorPolicy errorPolicy, String sourceLocation) {
         // TODO: thread in a centralized error counter?
-        return new TrimLastPartialLineInputStream(in, errorPolicy);
+        return new TrimLastPartialLineInputStream(in, errorPolicy, sourceLocation);
     }
 }

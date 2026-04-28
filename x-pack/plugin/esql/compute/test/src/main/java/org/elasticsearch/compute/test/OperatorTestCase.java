@@ -287,9 +287,9 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     // Returns the size of an empty bytesRefBlockHash depending on the underlying implementation.
     protected final String byteRefBlockHashSize() {
         if (HashImplFactory.SWISS_HASH_AVAILABLE) {
-            return "213120b";
+            return "213160b";
         }
-        return "400b";
+        return "440b";
     }
 
 }

@@ -580,6 +580,64 @@ result:double | step:datetime
 0.0           | 2024-05-10T00:00:00.000Z
 ;
 
+days_in_month_may_31
+required_capability: promql_command_v0
+required_capability: promql_days_in_month
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(days_in_month());
+
+result:double | step:datetime
+31.0          | 2024-05-10T00:00:00.000Z
+;
+
+days_in_month_april_30
+required_capability: promql_command_v0
+required_capability: promql_days_in_month
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(days_in_month(vector(1712574000)));
+
+result:double | step:datetime
+30.0          | 2024-05-10T00:00:00.000Z
+;
+
+days_in_month_february_leap_year
+required_capability: promql_command_v0
+required_capability: promql_days_in_month
+// 1707955200 = 2024-02-15T00:00:00Z, leap year
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(days_in_month(vector(1707955200)));
+
+result:double | step:datetime
+29.0          | 2024-05-10T00:00:00.000Z
+;
+
+days_in_month_february_non_leap_year
+required_capability: promql_command_v0
+required_capability: promql_days_in_month
+// 1676419200 = 2023-02-15T00:00:00Z, non-leap year
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(days_in_month(vector(1676419200)));
+
+result:double | step:datetime
+28.0          | 2024-05-10T00:00:00.000Z
+;
+
+days_in_month_january_31
+required_capability: promql_command_v0
+required_capability: promql_days_in_month
+// 1704067200 = 2024-01-01T00:00:00Z
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(days_in_month(vector(1704067200)));
+
+result:double | step:datetime
+31.0          | 2024-05-10T00:00:00.000Z
+;
+
+days_in_month_june_30
+required_capability: promql_command_v0
+required_capability: promql_days_in_month
+// 1717200000 = 2024-06-01T00:00:00Z
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(days_in_month(vector(1717200000)));
+
+result:double | step:datetime
+30.0          | 2024-05-10T00:00:00.000Z
+;
+
 time_in_arithmetic
 required_capability: promql_command_v0
 required_capability: promql_time

@@ -2428,6 +2428,18 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    public boolean supportsBatchIndexing() {
+        // Plain number mappers can be driven through parseCreateField by the bulk batch path.
+        // ignore_malformed is allowed — parseCreateField handles it and only needs
+        // addIgnoredField on the context. Dimensions, copy_to, multi-fields, and scripts pull
+        // in behavior that the v1 batch path does not support.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && dimension == false;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         Number value;
         try {

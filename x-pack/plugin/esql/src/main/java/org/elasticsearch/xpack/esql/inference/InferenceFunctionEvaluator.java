@@ -212,7 +212,8 @@ public class InferenceFunctionEvaluator {
                     case TextEmbedding textEmbedding -> new TextEmbeddingOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
-                        expressionEvaluatorFactory(textEmbedding.inputText(), foldContext)
+                        expressionEvaluatorFactory(textEmbedding.inputText(), foldContext),
+                        textEmbedding.inputTimeout()
                     );
                     case Embedding embedding -> new EmbeddingOperator.Factory(
                         inferenceService,
@@ -225,7 +226,8 @@ public class InferenceFunctionEvaluator {
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
                         expressionEvaluatorFactory(completion.prompt(), foldContext),
-                        completion.taskSettings().toFoldedMap(foldContext)
+                        completion.taskSettings().toFoldedMap(foldContext),
+                        completion.timeout()
                     );
                     default -> throw new IllegalArgumentException("Unknown inference function: " + inferenceFunction.getClass().getName());
                 };

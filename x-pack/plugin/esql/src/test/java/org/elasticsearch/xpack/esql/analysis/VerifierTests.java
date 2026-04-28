@@ -776,6 +776,15 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testAggregateMetricDoubleNotAllowedInLimitBy() {
+        analyzer().addK8sDownsampled()
+            .stripErrorPrefix(true)
+            .error(
+                "FROM k8s | LIMIT 1 BY network.eth0.tx",
+                equalTo("1:23: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+            );
+    }
+
     public void testDoubleRenamingField() {
         defaultAnalyzer().error(
             "from test | rename emp_no as r1, r1 as r2, emp_no as r3 | keep r3",

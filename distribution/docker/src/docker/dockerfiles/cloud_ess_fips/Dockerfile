@@ -25,7 +25,7 @@
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:0274aba4304d32c67c6c4c5c26f3d24601a6e03f5fec48d68cd1944b37cd82bc AS builder
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>

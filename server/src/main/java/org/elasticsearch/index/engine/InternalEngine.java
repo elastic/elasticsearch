@@ -1356,11 +1356,6 @@ public class InternalEngine extends Engine {
     @Override
     public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
         try (var ignored = acquireEnsureOpenRef()) {
-            // Assert no duplicate uids — the caller (TransportShardBulkAction) must bail to
-            // sequential if duplicates exist, since re-entrant locks would allow both into the
-            // same sub-batch and version resolution cannot handle this.
-            assert assertNoDuplicateUids(operations);
-
             // If the first operation is recovery they are all recovery
             boolean isRecovery = operations.getFirst().origin().isRecovery();
 
@@ -1388,6 +1383,7 @@ public class InternalEngine extends Engine {
                         subBatchCount++;
                     }
 
+                    assert assertNoDuplicateUidsInSubBatch(operations, idx, subBatchCount);
                     processSubBatch(operations, idx, subBatchCount, allResults);
                 } catch (RuntimeException | IOException e) {
                     failOnTragicEvent(idx, subBatchCount, operations, e);
@@ -1405,11 +1401,14 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private static boolean assertNoDuplicateUids(List<Index> operations) {
-        final Set<BytesRef> seenUids = HashSet.newHashSet(operations.size());
-        for (Index op : operations) {
+    private static boolean assertNoDuplicateUidsInSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize) {
+        final Set<BytesRef> seenUids = HashSet.newHashSet(subBatchSize);
+        for (int i = subBatchIdx; i < subBatchIdx + subBatchSize; i++) {
+            final Index op = operations.get(i);
             if (seenUids.add(op.uid()) == false) {
-                throw new AssertionError("Duplicate uid [" + op.id() + "] in batch — caller must bail to sequential for duplicates");
+                throw new AssertionError(
+                    "Duplicate uid [" + op.id() + "] in sub-batch at index " + i + " — this indicates a bug in the version lock"
+                );
             }
         }
         return true;

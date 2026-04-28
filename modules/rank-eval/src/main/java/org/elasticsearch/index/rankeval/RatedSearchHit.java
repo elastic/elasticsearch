@@ -39,7 +39,8 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
 
     /**
      * @param acquireRef if {@code true}, {@link SearchHit#mustIncRef()} is called for live search hits; if {@code false}, the caller
-     *                   transfers ownership (e.g. {@link SearchHit#readFrom(StreamInput, boolean)} with {@code pooled == false}).
+     *                   already owns the deserialized hit's ref count from wire deserialization without an extra increment (see
+     *                   {@link #RatedSearchHit(StreamInput)} after {@link SearchHit#readFrom(StreamInput)}).
      */
     private RatedSearchHit(SearchHit searchHit, OptionalInt rating, boolean acquireRef) {
         if (acquireRef) {
@@ -50,7 +51,7 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
     }
 
     RatedSearchHit(StreamInput in) throws IOException {
-        this(SearchHit.readFrom(in, false), in.readBoolean() ? OptionalInt.of(in.readVInt()) : OptionalInt.empty(), false);
+        this(SearchHit.readFrom(in), in.readBoolean() ? OptionalInt.of(in.readVInt()) : OptionalInt.empty(), false);
     }
 
     @Override

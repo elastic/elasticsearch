@@ -836,7 +836,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
+            return ESQL_LOOKUP_PLAN_STRING;
         }
 
         @Override

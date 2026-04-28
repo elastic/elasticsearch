@@ -411,9 +411,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         query = maybeRandomizeQuery(query);
 
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        if (Strings.isNullOrEmpty(testCase.timestampBoundsGte) == false) {
-            String gte = testCase.timestampBoundsGte;
-            String lte = testCase.timestampBoundsLte;
+        if (Strings.isNullOrEmpty(testCase.requestTimeRangeGte) == false) {
+            String gte = testCase.requestTimeRangeGte;
+            String lte = testCase.requestTimeRangeLte;
             builder.filter(b -> {
                 b.startObject("range");
                 b.startObject("@timestamp");

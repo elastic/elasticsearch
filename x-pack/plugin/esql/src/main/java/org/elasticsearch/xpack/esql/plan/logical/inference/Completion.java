@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -41,6 +42,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
 
     public static final String TASK_SETTINGS_OPTION_NAME = "task_settings";
+    public static final String TIMEOUT_OPTION_NAME = "timeout";
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -63,7 +65,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     private List<Attribute> lazyOutput;
 
     public Completion(Source source, LogicalPlan p, Expression rowLimit, Expression prompt, Attribute targetField) {
-        this(source, p, Literal.NULL, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS);
+        this(source, p, Literal.NULL, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS, null);
     }
 
     public Completion(
@@ -74,7 +76,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         Expression prompt,
         Attribute targetField
     ) {
-        this(source, child, inferenceId, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS);
+        this(source, child, inferenceId, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS, null);
     }
 
     public Completion(
@@ -86,7 +88,20 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         Attribute targetField,
         MapExpression taskSettings
     ) {
-        super(source, child, inferenceId, rowLimit);
+        this(source, child, inferenceId, rowLimit, prompt, targetField, taskSettings, null);
+    }
+
+    public Completion(
+        Source source,
+        LogicalPlan child,
+        Expression inferenceId,
+        Expression rowLimit,
+        Expression prompt,
+        Attribute targetField,
+        MapExpression taskSettings,
+        TimeValue timeout
+    ) {
+        super(source, child, inferenceId, rowLimit, timeout);
         this.prompt = prompt;
         this.targetField = targetField;
         this.taskSettings = taskSettings;
@@ -103,7 +118,8 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             // COMPLETION is coordinator-only and should not be serialized in normal operation.
             // Deserialization is kept for rolling upgrade safety. Since old versions don't
             // know about task_settings, we use empty defaults.
-            (MapExpression) in.readNamedWriteable(Expression.class)
+            (MapExpression) in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
         );
     }
 
@@ -113,6 +129,9 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         out.writeNamedWriteable(prompt);
         out.writeNamedWriteable(targetField);
         out.writeNamedWriteable(taskSettings);
+        if (out.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
+            out.writeOptionalTimeValue(timeout());
+        }
     }
 
     @Override
@@ -138,24 +157,32 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             return this;
         }
 
-        return new Completion(source(), child(), newInferenceId, rowLimit(), prompt, targetField, taskSettings);
+        return new Completion(source(), child(), newInferenceId, rowLimit(), prompt, targetField, taskSettings, timeout());
     }
 
     public Completion withTaskSettings(MapExpression newTaskSettings) {
         if (taskSettings.equals(newTaskSettings)) {
             return this;
         }
-        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, targetField, newTaskSettings);
+        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, targetField, newTaskSettings, timeout());
+    }
+
+    @Override
+    public Completion withTimeout(TimeValue newTimeout) {
+        if (Objects.equals(timeout(), newTimeout)) {
+            return this;
+        }
+        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings, newTimeout);
     }
 
     @Override
     public Completion replaceChild(LogicalPlan newChild) {
-        return new Completion(source(), newChild, inferenceId(), rowLimit(), prompt, targetField, taskSettings);
+        return new Completion(source(), newChild, inferenceId(), rowLimit(), prompt, targetField, taskSettings, timeout());
     }
 
     @Override
     public List<String> validOptionNames() {
-        return List.of(INFERENCE_ID_OPTION_NAME, TASK_SETTINGS_OPTION_NAME);
+        return List.of(INFERENCE_ID_OPTION_NAME, TASK_SETTINGS_OPTION_NAME, TIMEOUT_OPTION_NAME);
     }
 
     @Override
@@ -180,7 +207,16 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     @Override
     public Completion withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, this.renameTargetField(newNames.get(0)), taskSettings);
+        return new Completion(
+            source(),
+            child(),
+            inferenceId(),
+            rowLimit(),
+            prompt,
+            this.renameTargetField(newNames.get(0)),
+            taskSettings,
+            timeout()
+        );
     }
 
     private Attribute renameTargetField(String newName) {
@@ -215,7 +251,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Completion::new, child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings);
+        return NodeInfo.create(this, Completion::new, child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings, timeout());
     }
 
     @Override

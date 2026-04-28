@@ -30,6 +30,16 @@ describe("toGradleProject", () => {
       ":x-pack:plugin:ml:qa:native-multi-node-tests"
     );
   });
+
+  test("prefixes test- on children of test/external-modules", () => {
+    expect(toGradleProject("test/external-modules/apm-integration")).toBe(
+      ":test:external-modules:test-apm-integration"
+    );
+  });
+
+  test("leaves sibling test paths unchanged", () => {
+    expect(toGradleProject("test/fixtures/some-fixture")).toBe(":test:fixtures:some-fixture");
+  });
 });
 
 describe("toFqcn", () => {
@@ -151,6 +161,21 @@ describe("classifyChangedFiles", () => {
         kind: "test",
         sourceSet: "test",
         fqcn: "org.elasticsearch.xpack.core.SomeTests",
+      },
+    ]);
+  });
+
+  test("classifies external-modules javaRestTest with test- prefix", () => {
+    const result = classifyChangedFiles([
+      "test/external-modules/apm-integration/src/javaRestTest/java/org/elasticsearch/test/apmintegration/ApmAgentTracesIT.java",
+    ]);
+
+    expect(result).toEqual([
+      {
+        gradleProject: ":test:external-modules:test-apm-integration",
+        kind: "javaRestTest",
+        sourceSet: "javaRestTest",
+        fqcn: "org.elasticsearch.test.apmintegration.ApmAgentTracesIT",
       },
     ]);
   });
@@ -311,7 +336,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.index.IndexTests" },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.index.IndexTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.IndexTests"
     );
   });
 
@@ -321,7 +346,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":libs:core", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.core.BarTests" },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test :libs:core:test --tests org.elasticsearch.index.FooTests --tests org.elasticsearch.core.BarTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test :libs:core:test --tests org.elasticsearch.index.FooTests --tests org.elasticsearch.core.BarTests"
     );
   });
 
@@ -331,7 +356,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.BarTests" },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests"
     );
   });
 
@@ -345,7 +370,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=20 :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=20 -Dtests.timeoutSuite=3600000! :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT"
     );
   });
 
@@ -433,7 +458,7 @@ describe("generatePipeline", () => {
     expect(step.parallelism).toBeUndefined();
     expect(step.env).toBeUndefined();
     expect(step.command).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.index.IndexTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.IndexTests"
     );
     expect(step.timeout_in_minutes).toBe(60);
     expect(step.agents.provider).toBe("gcp");

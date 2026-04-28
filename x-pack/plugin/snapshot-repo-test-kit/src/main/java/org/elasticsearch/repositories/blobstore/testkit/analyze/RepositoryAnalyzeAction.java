@@ -101,6 +101,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
     public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/repository/analyze");
 
     static final TransportVersion REPO_ANALYSIS_BLOB_OVERWRITE = TransportVersion.fromName("repo_analysis_blob_overwrite");
+    static final TransportVersion REPO_ANALYSIS_HTTP_RESPONSE_CODES = TransportVersion.fromName("repo_analysis_http_response_codes");
 
     static final String UNCONTENDED_REGISTER_NAME_PREFIX = "test-register-uncontended-";
     static final String CONTENDED_REGISTER_NAME_PREFIX = "test-register-contended-";
@@ -549,7 +550,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     smallBlob && rarely(random),
                     repository.supportURLRepo() && repository.hasAtomicOverwrites() && smallBlob && rarely(random) && abortWrite == false,
                     abortWrite,
-                    copyBlobName
+                    copyBlobName,
+                    request.checkHttpResponseCodes()
                 );
                 final DiscoveryNode node = nodes.get(random.nextInt(nodes.size()));
                 queue.add(ref -> runBlobAnalysis(ref, blobAnalyzeRequest, node));
@@ -1134,6 +1136,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private DiscoveryNode reroutedFrom = null;
         private boolean abortWritePermitted = true;
         private boolean checkOverwriteProtection = true;
+        private boolean checkHttpResponseCodes = true;
 
         public Request(String repositoryName) {
             this.repositoryName = repositoryName;
@@ -1157,6 +1160,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             abortWritePermitted = in.readBoolean();
             checkOverwriteProtection = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)
                 && in.readBoolean();
+            checkHttpResponseCodes = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_HTTP_RESPONSE_CODES) == false
+                || in.readBoolean();
         }
 
         @Override
@@ -1185,6 +1190,9 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 out.writeBoolean(checkOverwriteProtection);
             } else if (checkOverwriteProtection) {
                 throw new IllegalArgumentException("not all nodes support overwrite-protection checks");
+            }
+            if (out.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_HTTP_RESPONSE_CODES)) {
+                out.writeBoolean(checkHttpResponseCodes);
             }
         }
 
@@ -1339,6 +1347,14 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             return checkOverwriteProtection;
         }
 
+        public void checkHttpResponseCodes(boolean checkHttpResponseCodes) {
+            this.checkHttpResponseCodes = checkHttpResponseCodes;
+        }
+
+        public boolean checkHttpResponseCodes() {
+            return checkHttpResponseCodes;
+        }
+
         @Override
         public String toString() {
             return "Request{" + getDescription() + '}';
@@ -1372,6 +1388,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 + abortWritePermitted
                 + ", checkOverwriteProtection="
                 + checkOverwriteProtection
+                + ", checkHttpResponseCodes="
+                + checkHttpResponseCodes
                 + "]";
         }
 

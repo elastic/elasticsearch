@@ -25,6 +25,10 @@ public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestC
         return true;
     }
 
+    protected boolean checkHttpResponseCodes() {
+        return true;
+    }
+
     public void testRepositoryAnalysis() throws Exception {
         final String repositoryType = repositoryType();
         final Settings repositorySettings = repositorySettings();
@@ -42,6 +46,9 @@ public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestC
         request.addParameter("seed", Long.toString(randomLong()));
         if (checkOverwriteProtection() == false) {
             request.addParameter("check_overwrite_protection", "false");
+        }
+        if (checkHttpResponseCodes() == false) {
+            request.addParameter("check_http_response_codes", "false");
         }
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()

@@ -31,6 +31,11 @@ public abstract class AbstractHdfsRepositoryAnalysisRestIT extends AbstractRepos
         return repositorySettings.build();
     }
 
+    @Override
+    protected boolean checkHttpResponseCodes() {
+        return false;
+    }
+
     protected abstract String getRepositoryPath();
 
     protected abstract int getHdfsPort();

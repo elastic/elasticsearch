@@ -63,6 +63,9 @@ public class RestRepositoryAnalyzeAction extends BaseRestHandler {
         analyzeRepositoryRequest.checkOverwriteProtection(
             request.paramAsBoolean("check_overwrite_protection", analyzeRepositoryRequest.checkOverwriteProtection())
         );
+        analyzeRepositoryRequest.checkHttpResponseCodes(
+            request.paramAsBoolean("check_http_response_codes", analyzeRepositoryRequest.checkHttpResponseCodes())
+        );
 
         RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
         return channel -> cancelClient.execute(

@@ -519,7 +519,7 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                 }
             }
 
-            if (request.getAbortWrite() == false && verifyHttpResponseCodes()) {
+            if (request.getAbortWrite() == false && request.checkHttpResponseCodes && verifyHttpResponseCodes()) {
                 return;
             }
 
@@ -967,6 +967,7 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
         private final boolean abortWrite;
         @Nullable
         private final String copyBlobName;
+        private final boolean checkHttpResponseCodes;
 
         Request(
             String repositoryName,
@@ -980,7 +981,8 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
             boolean readEarly,
             boolean writeAndOverwrite,
             boolean abortWrite,
-            @Nullable String copyBlobName
+            @Nullable String copyBlobName,
+            boolean checkHttpResponseCodes
         ) {
             assert 0 < targetLength;
             assert targetLength <= MAX_ATOMIC_WRITE_SIZE || (readEarly == false && writeAndOverwrite == false) : "oversized atomic write";
@@ -997,6 +999,7 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
             this.writeAndOverwrite = writeAndOverwrite;
             this.abortWrite = abortWrite;
             this.copyBlobName = copyBlobName;
+            this.checkHttpResponseCodes = checkHttpResponseCodes;
         }
 
         Request(StreamInput in) throws IOException {
@@ -1017,6 +1020,8 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
             } else {
                 copyBlobName = null;
             }
+            checkHttpResponseCodes = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_HTTP_RESPONSE_CODES) == false
+                || in.readBoolean();
         }
 
         @Override
@@ -1040,6 +1045,9 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                 throw new IllegalStateException(
                     "cannot serialize " + this + "] using transport version [" + out.getTransportVersion() + "]"
                 );
+            }
+            if (out.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_HTTP_RESPONSE_CODES)) {
+                out.writeBoolean(checkHttpResponseCodes);
             }
         }
 
@@ -1068,6 +1076,8 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                 + abortWrite
                 + ", copyBlobName="
                 + copyBlobName
+                + ", checkHttpResponseCodes="
+                + checkHttpResponseCodes
                 + "]";
         }
 

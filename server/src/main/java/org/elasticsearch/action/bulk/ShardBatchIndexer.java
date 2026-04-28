@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -38,10 +37,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
@@ -132,19 +129,8 @@ public final class ShardBatchIndexer {
             return;
         }
 
-        // TODO: Required because VersionLock is re-entrant. We likely can switch that to be semaphore based and remove this protection
-        final Set<String> seenIds = HashSet.newHashSet(Math.min(items.length, BATCH_CHUNK_SIZE));
-
         for (int chunkStart = 0; chunkStart < items.length; chunkStart += BATCH_CHUNK_SIZE) {
             final int chunkEnd = Math.min(chunkStart + BATCH_CHUNK_SIZE, items.length);
-
-            for (int i = chunkStart; i < chunkEnd; i++) {
-                final IndexRequest indexRequest = (IndexRequest) items[i].request();
-                if (seenIds.add(indexRequest.id()) == false) {
-                    logger.debug("batch indexing on primary encountered duplicate uid at item [{}], falling back", i);
-                    return;
-                }
-            }
 
             final List<Engine.Index> operations = ShardBatchMapper.parseMappings(items, batch, primary, chunkEnd, chunkStart, resolution);
             if (operations == null) {
@@ -159,8 +145,6 @@ public final class ShardBatchIndexer {
                 context.markOperationAsExecuted(result);
                 context.markAsCompleted(context.getExecutionResult());
             }
-
-            seenIds.clear();
         }
     }
 
@@ -168,7 +152,6 @@ public final class ShardBatchIndexer {
      * Performs a batch index on a replica using EIRF data.
      */
     static ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, EirfBatch batch, IndexShard replica) throws Exception {
-        final Set<BytesRef> seenUids = HashSet.newHashSet(Math.min(items.length, BATCH_CHUNK_SIZE));
         final EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(batch.schema());
         Translog.Location location = null;
         int processedItems = 0;
@@ -234,10 +217,6 @@ public final class ShardBatchIndexer {
                     logger.debug("batch indexing on replica encountered dynamic mapping update at item [{}], falling back", i);
                     break;
                 }
-                if (seenUids.add(operation.uid()) == false) {
-                    logger.debug("batch indexing on replica encountered duplicate uid at item [{}], falling back", i);
-                    break;
-                }
                 operations.add(operation);
                 i++;
             }
@@ -258,7 +237,6 @@ public final class ShardBatchIndexer {
             }
 
             processedItems = chunkEnd;
-            seenUids.clear();
         }
 
         return new ReplicaBatchResult(processedItems, location);

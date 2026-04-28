@@ -1644,6 +1644,20 @@ public class VerifierTests extends ESTestCase {
             "from test | mv_expand id | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
         );
+        fullText().error(
+            "from test | limit 1 by id | where " + functionInvocation,
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
+        );
+        fullText().error(
+            "from test | sort id | limit 1 by id | where " + functionInvocation,
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
+        );
+        if (EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled()) {
+            fullText().error(
+                "from test | distinct | where " + functionInvocation,
+                containsString("[" + functionName + "] " + functionType + " cannot be used after DISTINCT")
+            );
+        }
     }
 
     // These should pass eventually once we lift some restrictions on match function

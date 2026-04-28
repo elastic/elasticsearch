@@ -2442,6 +2442,11 @@ public class EsqlCapabilities {
         TOP_SNIPPETS_HIGHLIGHT,
 
         /**
+         * Support for the {@code order} option in {@code TOP_SNIPPETS}.
+         */
+        TOP_SNIPPETS_ORDER,
+
+        /**
          * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
          * The feature will not work if we had SORT | LIMIT n BY
          */

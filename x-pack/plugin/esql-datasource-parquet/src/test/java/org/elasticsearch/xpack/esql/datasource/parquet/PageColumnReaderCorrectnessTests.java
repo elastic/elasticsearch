@@ -122,6 +122,14 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_1_0, CompressionCodecName.ZSTD);
     }
 
+    public void testV1Gzip() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_1_0, CompressionCodecName.GZIP);
+    }
+
+    public void testV1Lz4Raw() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_1_0, CompressionCodecName.LZ4_RAW);
+    }
+
     public void testV2Uncompressed() throws IOException {
         assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.UNCOMPRESSED);
     }
@@ -132,6 +140,14 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     public void testV2Zstd() throws IOException {
         assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.ZSTD);
+    }
+
+    public void testV2Gzip() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.GZIP);
+    }
+
+    public void testV2Lz4Raw() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.LZ4_RAW);
     }
 
     private void assertReadersMatch(ParquetProperties.WriterVersion version, CompressionCodecName codec) throws IOException {
@@ -165,7 +181,13 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
             ParquetProperties.WriterVersion.PARQUET_1_0,
             ParquetProperties.WriterVersion.PARQUET_2_0
         );
-        CompressionCodecName codec = randomFrom(CompressionCodecName.UNCOMPRESSED, CompressionCodecName.SNAPPY, CompressionCodecName.ZSTD);
+        CompressionCodecName codec = randomFrom(
+            CompressionCodecName.UNCOMPRESSED,
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.LZ4_RAW
+        );
 
         byte[] data = writeTestFile(version, codec, schema, numRows, (group, row) -> {
             for (ColSpec spec : specs) {

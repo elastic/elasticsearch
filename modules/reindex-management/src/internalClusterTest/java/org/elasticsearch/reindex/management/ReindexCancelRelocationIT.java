@@ -190,20 +190,7 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
 
     /**
      * Verifies that {@code POST /_reindex/{taskId}/_cancel} cancels a reindex task using its <em>original</em> task id even after
-     * relocation has moved the task to a new node and the original host has left the cluster. This depends on
-     * {@link org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction#findTargetTask} matching by
-     * {@code originalTaskId}, which our cancel-reindex action delegates to.
-     * <p>
-     * Flow:
-     * <ol>
-     *   <li>Two-node cluster: data hosts on node A, throttled reindex starts on node B.</li>
-     *   <li>{@code prepareForShutdown} on node B triggers relocation; the task moves to node A with {@code originalTaskId} pointing back
-     *       to node B.</li>
-     *   <li>Node B is stopped — the original task id can no longer be resolved by host node id.</li>
-     *   <li>Cancel-reindex is called with the original (now stale) task id; the cancel-tasks fan-out finds the relocated task on node A
-     *       via {@code originalTaskId} and cancels it.</li>
-     *   <li>Response embeds the completed reindex result with {@code cancelled=true} and the original task id preserved.</li>
-     * </ol>
+     * relocation has moved the task to a new node and the original host has left the cluster.
      */
     public void testCancelReindexCancelsRelocatedTaskByOriginalTaskId() throws Exception {
         final String indexHostNode = internalCluster().startNode(
@@ -255,11 +242,7 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
         final Map<String, Object> status = (Map<String, Object>) body.get("status");
         assertThat("task was cancelled by user request", status, Matchers.<String, Object>hasEntry("canceled", "by user request"));
 
-        assertBusy(
-            () -> assertThat("no reindex task should remain after cancellation", listReindexParentTasks(), hasSize(0)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> assertThat("no reindex task should remain after cancellation", listReindexParentTasks(), hasSize(0)));
     }
 
     private List<TaskInfo> listReindexParentTasks() {

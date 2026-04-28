@@ -92,7 +92,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature SEARCH_AS_YOU_TYPE_RELOADABLE_ANALYZER_FIX = new NodeFeature(
         "mapper.search_as_you_type.reloadable_analyzer_fix"
     );
-  
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
@@ -157,7 +157,7 @@ public class MapperFeatures implements FeatureSpecification {
             IGNORED_VALUES_STORED_IN_BINARY_DV,
             IP_MAPPER_CARDINALITY_OPTION,
             KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
-            SEARCH_AS_YOU_TYPE_RELOADABLE_ANALYZER_FIX                    
+            SEARCH_AS_YOU_TYPE_RELOADABLE_ANALYZER_FIX
         );
     }
 }

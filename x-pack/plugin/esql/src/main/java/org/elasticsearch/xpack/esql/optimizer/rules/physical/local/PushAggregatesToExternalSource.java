@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregateScanReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.MetadataAggregateReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -31,33 +31,37 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExternalMetadataAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalAggregatePushdownExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
- * Replaces {@code AggregateExec → ExternalSourceExec} with {@code LocalSourceExec}
- * when ungrouped aggregates (COUNT(*), MIN, MAX) can be computed from file-level statistics.
- * <p>
- * Supports both SINGLE and INITIAL modes. In SINGLE mode the replacement produces final-value
- * blocks (one block per aggregate). In INITIAL mode the replacement produces intermediate-format
- * blocks matching {@link AggregateExec#intermediateAttributes()}: for each aggregate, a typed
- * value block followed by a {@code seen} boolean block (all supported aggregates — Count, Min,
- * Max — share this two-channel layout).
+ * Replaces {@code AggregateExec → ExternalSourceExec} with a more efficient plan when
+ * ungrouped aggregates ({@code COUNT(*)}, {@code COUNT(field)}, {@code MIN(field)},
+ * {@code MAX(field)}) can be answered without a full data scan. Two paths:
+ * <ul>
+ *   <li><b>Planning-time:</b> when merged file-level statistics fully cover every
+ *       aggregate, replace the plan with {@link LocalSourceExec} containing constant
+ *       blocks. Supports both SINGLE and INITIAL modes (intermediate-format blocks for
+ *       INITIAL: typed value block + {@code seen} boolean block per aggregate).</li>
+ *   <li><b>Runtime:</b> when stats are partially missing (e.g. multi-file glob), and the
+ *       format reader implements {@link AggregateScanReader}, emit
+ *       {@link ExternalAggregatePushdownExec}. The runtime operator iterates per-row-group
+ *       intermediate pages from the reader, which decides per row group whether to derive
+ *       results from stats (fast path) or by scanning row data (slow path). INITIAL mode
+ *       only — SINGLE has no FINAL reducer to combine the per-row-group pages.</li>
+ * </ul>
+ * Filter pushdown does not compose: when a filter has been pushed onto the reader,
+ * {@code aggregatePushdownSupport().canPushAggregates(...)} reports non-pushable, so neither
+ * path activates.
  * <p>
  * FINAL mode is never pushed because the rule matches {@code AggregateExec → ExternalSourceExec}
  * and a FINAL aggregate's child is always another aggregate or exchange, never an external source.
- * <p>
- * Statistics come from {@code ExternalSourceExec.sourceMetadata()} for single-split queries, or
- * from merged per-split statistics in {@code FileSplit.splitStats()} for multi-split queries.
- * Falls back to normal execution when any split lacks statistics.
  */
 public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     AggregateExec,
@@ -100,12 +104,12 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
 
         SplitStats stats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
         if (stats == null) {
-            // Planning-time pushdown is unavailable (e.g. multi-file glob with partial stats).
-            // Try runtime metadata aggregation: if the reader can produce per-split stats
-            // efficiently, emit an ExternalMetadataAggregateExec that will collect them in
-            // parallel at execution time. Otherwise, preserve the original plan so the data
-            // remains correct (full scan).
-            PhysicalPlan runtime = tryRuntimeMetadataAggregate(aggregateExec, externalExec, formatReader);
+            // Planning-time pushdown is unavailable (e.g. multi-file glob where stats would
+            // need to be read serially). Try runtime aggregate pushdown: if the reader
+            // implements AggregateScanReader, it can emit intermediate-state pages directly
+            // from each split (per-row-group fast path on stats; slow path scans row data).
+            // Otherwise, preserve the original plan so the data remains correct (full scan).
+            PhysicalPlan runtime = tryRuntimeAggregatePushdown(aggregateExec, externalExec, formatReader);
             return runtime != null ? runtime : aggregateExec;
         }
         List<Object> values = new ArrayList<>(aggregateExec.aggregates().size());
@@ -132,21 +136,23 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
 
     /**
      * Attempt to replace the {@code AggregateExec → ExternalSourceExec} pair with an
-     * {@link ExternalMetadataAggregateExec} that aggregates per-file metadata in parallel
-     * at execution time. Returns {@code null} if the runtime path is not applicable, in
-     * which case the caller preserves the original plan.
+     * {@link ExternalAggregatePushdownExec} that aggregates per-file row groups (stats fast
+     * path or row-data slow path, chosen by the reader) in parallel at execution time.
+     * Returns {@code null} if the runtime path is not applicable, in which case the caller
+     * preserves the original plan.
      */
-    private PhysicalPlan tryRuntimeMetadataAggregate(
+    private PhysicalPlan tryRuntimeAggregatePushdown(
         AggregateExec aggregateExec,
         ExternalSourceExec externalExec,
         FormatReader formatReader
     ) {
-        if (formatReader instanceof MetadataAggregateReader == false) {
+        if (formatReader instanceof AggregateScanReader == false) {
             return null;
         }
-        // Requires the reducer above to combine per-split intermediate pages into a single row.
-        // SINGLE-mode aggregates have no parent reducer, so emitting N intermediate pages would
-        // produce N rows instead of 1. INITIAL-mode is always followed by a FINAL reducer.
+        // Requires the reducer above to combine per-row-group intermediate pages into a
+        // single row. SINGLE-mode aggregates have no parent reducer, so emitting N
+        // intermediate pages would produce N rows instead of 1. INITIAL-mode is always
+        // followed by a FINAL reducer.
         if (aggregateExec.getMode() != AggregatorMode.INITIAL) {
             return null;
         }
@@ -155,68 +161,45 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         }
         // Verify every aggregate is one of Count/Min/Max with a simple Attribute (or foldable
         // in the case of COUNT(*)). Anything else falls back to a normal scan.
-        Set<String> columnsToProbe = new LinkedHashSet<>();
         for (NamedExpression agg : aggregateExec.aggregates()) {
             if (agg instanceof Alias alias) {
-                Expression child = alias.child();
-                if (resolveProbeColumn(child, columnsToProbe) == false) {
+                if (isSupportedAggregateShape(alias.child()) == false) {
                     return null;
                 }
             } else {
                 return null;
             }
         }
-        return new ExternalMetadataAggregateExec(
+        return new ExternalAggregatePushdownExec(
             aggregateExec.source(),
             externalExec.sourcePath(),
             externalExec.sourceType(),
             externalExec.config(),
             externalExec.splits(),
             new ArrayList<>(aggregateExec.aggregates()),
-            aggregateExec.intermediateAttributes(),
-            new ArrayList<>(columnsToProbe)
+            aggregateExec.intermediateAttributes()
         );
     }
 
     /**
-     * Verifies a single aggregate child expression is supported by the metadata-aggregate path
-     * and records its referenced column (if any) in {@code columnsToProbe}. Returns {@code false}
-     * if the expression is unsupported (forces the caller to abandon the optimization).
+     * Whether a single aggregate child expression is one the runtime aggregate-scan operator
+     * understands: {@code COUNT(*)}, {@code COUNT(field)}, {@code MIN(field)}, or
+     * {@code MAX(field)} where {@code field} is a plain {@link Attribute} reference, with no
+     * runtime filter ({@code .. WHERE ..}). Anything else falls back to a normal scan.
      */
-    private boolean resolveProbeColumn(Expression aggFunction, Set<String> columnsToProbe) {
+    private static boolean isSupportedAggregateShape(Expression aggFunction) {
         if (aggFunction instanceof Count count) {
             if (count.hasFilter()) {
                 return false;
             }
             Expression target = count.field();
-            if (target.foldable()) {
-                return true;
-            }
-            if (target instanceof Attribute ref) {
-                columnsToProbe.add(ref.name());
-                return true;
-            }
-            return false;
+            return target.foldable() || target instanceof Attribute;
         }
         if (aggFunction instanceof Min min) {
-            if (min.hasFilter()) {
-                return false;
-            }
-            if (min.field() instanceof Attribute ref) {
-                columnsToProbe.add(ref.name());
-                return true;
-            }
-            return false;
+            return min.hasFilter() == false && min.field() instanceof Attribute;
         }
         if (aggFunction instanceof Max max) {
-            if (max.hasFilter()) {
-                return false;
-            }
-            if (max.field() instanceof Attribute ref) {
-                columnsToProbe.add(ref.name());
-                return true;
-            }
-            return false;
+            return max.hasFilter() == false && max.field() instanceof Attribute;
         }
         // Sum unsupported because Parquet metadata doesn't carry sums.
         return false;

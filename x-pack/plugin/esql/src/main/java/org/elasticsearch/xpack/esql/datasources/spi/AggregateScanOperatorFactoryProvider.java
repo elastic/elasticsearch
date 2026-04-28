@@ -10,16 +10,16 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.compute.operator.SourceOperator;
 
 /**
- * Functional interface for creating metadata-aggregate source operator factories.
- * Returned by {@link ExternalSourceFactory#metadataAggregateOperatorFactory()} for formats
- * whose readers implement {@link MetadataAggregateReader}.
+ * Functional interface for creating aggregate-scan source operator factories. Returned by
+ * {@link ExternalSourceFactory#aggregateScanOperatorFactory()} for formats whose readers
+ * implement {@link AggregateScanReader}.
  * <p>
  * The factory wires the format-specific {@link StorageProvider} and {@link FormatReader}
  * for a given context and returns a {@link SourceOperator.SourceOperatorFactory} that
- * emits per-split intermediate-shape aggregate pages.
+ * iterates {@link AggregateScanReader#scanForAggregates} per split.
  */
 @FunctionalInterface
-public interface MetadataAggregateOperatorFactoryProvider {
+public interface AggregateScanOperatorFactoryProvider {
 
-    SourceOperator.SourceOperatorFactory create(MetadataAggregateOperatorContext context);
+    SourceOperator.SourceOperatorFactory create(AggregateScanOperatorContext context);
 }

@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregateScanOperatorContext;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregateScanOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
-import org.elasticsearch.xpack.esql.datasources.spi.MetadataAggregateOperatorContext;
-import org.elasticsearch.xpack.esql.datasources.spi.MetadataAggregateOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
@@ -108,23 +108,23 @@ public class OperatorFactoryRegistry {
     }
 
     /**
-     * Resolves the metadata-aggregate operator factory for the given context. This is the
-     * runtime counterpart of the planning-time aggregate pushdown: only formats whose
+     * Resolves the aggregate-scan operator factory for the given context. This is the runtime
+     * counterpart of the planning-time aggregate pushdown: only formats whose
      * {@link ExternalSourceFactory} overrides
-     * {@link ExternalSourceFactory#metadataAggregateOperatorFactory()} can serve this call.
+     * {@link ExternalSourceFactory#aggregateScanOperatorFactory()} can serve this call.
      *
      * @throws IllegalStateException if no factory is registered for the source type or the
-     *                               format does not support metadata aggregation
+     *                               format does not support aggregate scans
      */
-    public SourceOperatorFactory metadataAggregateFactory(MetadataAggregateOperatorContext context) {
+    public SourceOperatorFactory aggregateScanFactory(AggregateScanOperatorContext context) {
         String sourceType = context.sourceType();
         ExternalSourceFactory sf = sourceType != null ? sourceFactories.get(sourceType) : null;
         if (sf == null) {
             throw new IllegalStateException("No source factory registered for sourceType: " + sourceType);
         }
-        MetadataAggregateOperatorFactoryProvider provider = sf.metadataAggregateOperatorFactory();
+        AggregateScanOperatorFactoryProvider provider = sf.aggregateScanOperatorFactory();
         if (provider == null) {
-            throw new IllegalStateException("Source factory [" + sourceType + "] does not support metadata-aggregate operator dispatch");
+            throw new IllegalStateException("Source factory [" + sourceType + "] does not support aggregate-scan operator dispatch");
         }
         return provider.create(context);
     }

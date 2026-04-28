@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregateScanOperatorFactoryProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregateScanReader;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.MetadataAggregateOperatorFactoryProvider;
-import org.elasticsearch.xpack.esql.datasources.spi.MetadataAggregateReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -187,7 +187,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     @Override
-    public MetadataAggregateOperatorFactoryProvider metadataAggregateOperatorFactory() {
+    public AggregateScanOperatorFactoryProvider aggregateScanOperatorFactory() {
         return context -> {
             StoragePath path = context.path();
             Map<String, Object> config = context.config();
@@ -198,17 +198,17 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 storage = storageRegistry.provider(path);
             }
             FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config);
-            if (format instanceof MetadataAggregateReader == false) {
+            if (format instanceof AggregateScanReader == false) {
                 // Should not happen: PushAggregatesToExternalSource only emits the runtime
                 // aggregate node when the reader supports the SPI. Guard defensively.
-                throw new IllegalStateException("format reader for [" + path.objectName() + "] does not support metadata aggregation");
+                throw new IllegalStateException("format reader for [" + path.objectName() + "] does not support aggregate scans");
             }
-            return new MetadataAggregateOperator.Factory(
+            return new AggregateScanOperator.Factory(
                 storage,
-                (MetadataAggregateReader) format,
+                (AggregateScanReader) format,
                 context.sliceQueue(),
                 context.aggregates(),
-                context.columnsToProbe()
+                context.intermediateAttributes()
             );
         };
     }

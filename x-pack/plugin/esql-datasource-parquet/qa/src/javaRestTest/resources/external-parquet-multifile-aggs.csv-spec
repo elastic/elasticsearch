@@ -1,8 +1,8 @@
-// Multi-file metadata-aggregation tests. Exercises the runtime metadata aggregation
-// path (MetadataAggregateOperator + range-aware MetadataAggregateReader) which only
-// fires when the entire aggregate set is COUNT/MIN/MAX, no GROUP BY, and no per-split
-// SplitStats are available at planning time. Multi-file globs satisfy the latter
-// because FileSplitProvider does not pre-populate SplitStats for newly created splits.
+// Multi-file aggregate-pushdown tests. Exercises the runtime aggregate-scan path
+// (AggregateScanOperator + range-aware AggregateScanReader) which only fires when the
+// entire aggregate set is COUNT/MIN/MAX, no GROUP BY, and no per-split SplitStats are
+// available at planning time. Multi-file globs satisfy the latter because
+// FileSplitProvider does not pre-populate SplitStats for newly created splits.
 //
 // Fixture: build.gradle splits employees.csv (100 rows) into 3 contiguous shards under
 // iceberg-fixtures/multifile/employees_NN.parquet. Lives in the parquet QA module

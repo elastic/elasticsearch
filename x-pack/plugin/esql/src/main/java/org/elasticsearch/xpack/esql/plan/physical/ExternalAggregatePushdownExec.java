@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregateScanReader;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.datasources.spi.MetadataAggregateReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushAggregatesToExternalSource;
 
@@ -26,30 +26,32 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Physical plan node that computes ungrouped {@code COUNT(*)}, {@code MIN}, and {@code MAX}
- * aggregates by reading per-file aggregate metadata in parallel at execution time, instead
- * of scanning row data.
+ * Physical plan node that computes ungrouped {@code COUNT(*)} / {@code COUNT(field)} /
+ * {@code MIN(field)} / {@code MAX(field)} aggregates by delegating to a per-row-group
+ * fast/slow path inside the format reader, in parallel at execution time, instead of a
+ * full scan + aggregate pipeline.
  * <p>
  * Created by {@link PushAggregatesToExternalSource} when planning-time pushdown is
  * unavailable (e.g. multi-file globs where statistics would have to be read serially) and
- * the format reader implements {@link MetadataAggregateReader}.
+ * the format reader implements {@link AggregateScanReader}.
  * <p>
- * Each split is dispatched to a driver in parallel; the operator emits one intermediate-format
- * {@code Page} per split, matching {@link AggregateExec#intermediateAttributes()} of the parent
- * aggregate so the existing FINAL-mode reducer can aggregate them without modification.
+ * Each split is dispatched to a driver in parallel; the operator iterates the format
+ * reader's per-row-group intermediate-state pages, matching
+ * {@link AggregateExec#intermediateAttributes()} of the parent aggregate so the existing
+ * FINAL-mode reducer can aggregate them without modification.
  * <p>
  * The node is only ever created on data nodes by {@code LocalPhysicalPlanOptimizer} and
  * consumed by the same node's {@code LocalExecutionPlanner}; it is never serialized across
- * the wire. The {@link NamedWriteable} implementation
- * exists only to satisfy the {@link PhysicalPlan} registry convention and supporting
- * infrastructure (round-trip tests, plan-equality checks).
+ * the wire. The {@link NamedWriteable} implementation exists only to satisfy the
+ * {@link PhysicalPlan} registry convention and supporting infrastructure (round-trip tests,
+ * plan-equality checks).
  */
-public final class ExternalMetadataAggregateExec extends LeafExec {
+public final class ExternalAggregatePushdownExec extends LeafExec {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
-        "ExternalMetadataAggregateExec",
-        ExternalMetadataAggregateExec::readFrom
+        "ExternalAggregatePushdownExec",
+        ExternalAggregatePushdownExec::readFrom
     );
 
     private final String sourcePath;
@@ -58,17 +60,15 @@ public final class ExternalMetadataAggregateExec extends LeafExec {
     private final List<ExternalSplit> splits;
     private final List<NamedExpression> aggregates;
     private final List<Attribute> intermediateAttributes;
-    private final List<String> columnsToProbe;
 
-    public ExternalMetadataAggregateExec(
+    public ExternalAggregatePushdownExec(
         Source source,
         String sourcePath,
         String sourceType,
         Map<String, Object> config,
         List<ExternalSplit> splits,
         List<NamedExpression> aggregates,
-        List<Attribute> intermediateAttributes,
-        List<String> columnsToProbe
+        List<Attribute> intermediateAttributes
     ) {
         super(source);
         this.sourcePath = Objects.requireNonNull(sourcePath, "sourcePath");
@@ -77,10 +77,9 @@ public final class ExternalMetadataAggregateExec extends LeafExec {
         this.splits = splits != null ? List.copyOf(splits) : List.of();
         this.aggregates = List.copyOf(Objects.requireNonNull(aggregates, "aggregates"));
         this.intermediateAttributes = List.copyOf(Objects.requireNonNull(intermediateAttributes, "intermediateAttributes"));
-        this.columnsToProbe = columnsToProbe != null ? List.copyOf(columnsToProbe) : List.of();
     }
 
-    private static ExternalMetadataAggregateExec readFrom(StreamInput in) throws IOException {
+    private static ExternalAggregatePushdownExec readFrom(StreamInput in) throws IOException {
         var source = Source.readFrom((PlanStreamInput) in);
         String sourcePath = in.readString();
         String sourceType = in.readString();
@@ -89,17 +88,7 @@ public final class ExternalMetadataAggregateExec extends LeafExec {
         List<ExternalSplit> splits = in.readNamedWriteableCollectionAsList(ExternalSplit.class);
         List<NamedExpression> aggregates = in.readNamedWriteableCollectionAsList(NamedExpression.class);
         List<Attribute> intermediateAttributes = in.readNamedWriteableCollectionAsList(Attribute.class);
-        List<String> columnsToProbe = in.readStringCollectionAsList();
-        return new ExternalMetadataAggregateExec(
-            source,
-            sourcePath,
-            sourceType,
-            config,
-            splits,
-            aggregates,
-            intermediateAttributes,
-            columnsToProbe
-        );
+        return new ExternalAggregatePushdownExec(source, sourcePath, sourceType, config, splits, aggregates, intermediateAttributes);
     }
 
     @Override
@@ -111,7 +100,6 @@ public final class ExternalMetadataAggregateExec extends LeafExec {
         out.writeNamedWriteableCollection(splits);
         out.writeNamedWriteableCollection(aggregates);
         out.writeNamedWriteableCollection(intermediateAttributes);
-        out.writeStringCollection(columnsToProbe);
     }
 
     @Override
@@ -143,10 +131,6 @@ public final class ExternalMetadataAggregateExec extends LeafExec {
         return intermediateAttributes;
     }
 
-    public List<String> columnsToProbe() {
-        return columnsToProbe;
-    }
-
     @Override
     public List<Attribute> output() {
         return intermediateAttributes;
@@ -156,20 +140,19 @@ public final class ExternalMetadataAggregateExec extends LeafExec {
     protected NodeInfo<? extends PhysicalPlan> info() {
         return NodeInfo.create(
             this,
-            ExternalMetadataAggregateExec::new,
+            ExternalAggregatePushdownExec::new,
             sourcePath,
             sourceType,
             config,
             splits,
             aggregates,
-            intermediateAttributes,
-            columnsToProbe
+            intermediateAttributes
         );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourcePath, sourceType, config, splits, aggregates, intermediateAttributes, columnsToProbe);
+        return Objects.hash(sourcePath, sourceType, config, splits, aggregates, intermediateAttributes);
     }
 
     @Override
@@ -180,13 +163,12 @@ public final class ExternalMetadataAggregateExec extends LeafExec {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        ExternalMetadataAggregateExec other = (ExternalMetadataAggregateExec) obj;
+        ExternalAggregatePushdownExec other = (ExternalAggregatePushdownExec) obj;
         return Objects.equals(sourcePath, other.sourcePath)
             && Objects.equals(sourceType, other.sourceType)
             && Objects.equals(config, other.config)
             && Objects.equals(splits, other.splits)
             && Objects.equals(aggregates, other.aggregates)
-            && Objects.equals(intermediateAttributes, other.intermediateAttributes)
-            && Objects.equals(columnsToProbe, other.columnsToProbe);
+            && Objects.equals(intermediateAttributes, other.intermediateAttributes);
     }
 }

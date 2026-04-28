@@ -17,42 +17,44 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
- * Context for creating a metadata-aggregate operator factory. Mirrors the role of
- * {@link SourceOperatorContext} but for the runtime metadata-aggregate path used by
- * {@code ExternalMetadataAggregateExec}: each split is dispatched to a driver, the operator
- * asks the format reader for per-file aggregate metadata (row count / null-count / min /
- * max) without scanning row data, and emits one intermediate-shape page per split.
+ * Context for creating an aggregate-scan operator factory. Mirrors the role of
+ * {@link SourceOperatorContext} but for the runtime aggregate-pushdown path used by
+ * {@code ExternalAggregatePushdownExec}: each split is dispatched to a driver, the operator
+ * iterates the format reader's {@link AggregateScanReader#scanForAggregates} pages, and
+ * forwards them to the FINAL aggregator above.
  * <p>
  * This context intentionally omits scan-only fields (batch size, push filter, error policy,
- * row limit, parsing parallelism) since metadata-only reads do not need them.
+ * row limit, parsing parallelism). Filter pushdown does not compose with aggregate pushdown
+ * today (the planner rule is gated by {@code aggregatePushdownSupport().canPushAggregates}
+ * which already returns NO when a filter has been pushed onto the reader).
  *
- * @param sourceType             the format identifier (e.g. "parquet", "parquet-rs")
+ * @param sourceType             the format identifier (e.g. "parquet")
  * @param path                   the original (possibly globbed) source path; per-file paths
  *                               come from the splits in {@code sliceQueue}
  * @param config                 reader/storage configuration
  * @param sliceQueue             the queue of splits to process; never {@code null}
  * @param aggregates             the list of {@code Alias(Count|Min|Max(...))} expressions to
- *                               compute, mirroring the parent {@code AggregateExec.aggregates()}
+ *                               compute, mirroring the parent {@code AggregateExec.aggregates()}.
+ *                               The operator factory lowers these to
+ *                               {@link AggregateScanSpec.AggOp} instances at construction time.
  * @param intermediateAttributes output shape — must match the parent
  *                               {@code AggregateExec.intermediateAttributes()}
- * @param columnsToProbe         column names whose null-count/min/max are needed; readers may
- *                               return stats for additional columns but at minimum cover these
  * @param executor               compute executor (typically {@code esql_worker})
- * @param fileReadExecutor       executor for blocking metadata reads (typically {@code generic})
- *                               so they don't starve compute drivers
+ * @param fileReadExecutor       executor for blocking file reads (typically {@code generic});
+ *                               currently unused — operators run reads on the driver thread.
+ *                               Plumbed for a future async migration.
  */
-public record MetadataAggregateOperatorContext(
+public record AggregateScanOperatorContext(
     String sourceType,
     StoragePath path,
     Map<String, Object> config,
     ExternalSliceQueue sliceQueue,
     List<NamedExpression> aggregates,
     List<Attribute> intermediateAttributes,
-    List<String> columnsToProbe,
     Executor executor,
     Executor fileReadExecutor
 ) {
-    public MetadataAggregateOperatorContext {
+    public AggregateScanOperatorContext {
         Check.notNull(sourceType, "sourceType cannot be null");
         Check.notNull(path, "path cannot be null");
         Check.notNull(sliceQueue, "sliceQueue cannot be null");
@@ -60,6 +62,5 @@ public record MetadataAggregateOperatorContext(
         config = config != null ? Map.copyOf(config) : Map.of();
         aggregates = List.copyOf(aggregates);
         intermediateAttributes = List.copyOf(intermediateAttributes);
-        columnsToProbe = columnsToProbe != null ? List.copyOf(columnsToProbe) : List.of();
     }
 }

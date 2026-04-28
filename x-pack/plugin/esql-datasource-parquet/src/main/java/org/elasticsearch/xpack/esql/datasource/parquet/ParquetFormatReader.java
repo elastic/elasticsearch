@@ -44,16 +44,15 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
-import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregateScanReader;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregateScanSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.MetadataAggregateReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -69,15 +68,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.Set;
 
 /**
  * FormatReader implementation for Parquet files.
@@ -93,7 +88,7 @@ import java.util.Set;
  *   <li>Direct conversion from Parquet to ESQL blocks</li>
  * </ul>
  */
-public class ParquetFormatReader implements RangeAwareFormatReader, MetadataAggregateReader {
+public class ParquetFormatReader implements RangeAwareFormatReader, AggregateScanReader {
 
     private static final Logger logger = LogManager.getLogger(ParquetFormatReader.class);
 
@@ -348,107 +343,29 @@ public class ParquetFormatReader implements RangeAwareFormatReader, MetadataAggr
     }
 
     @Override
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    public SplitStats aggregateMetadata(StorageObject object, List<String> columns, long byteRangeStart, long byteRangeEnd)
-        throws IOException {
+    public CloseableIterator<Page> scanForAggregates(
+        StorageObject object,
+        AggregateScanSpec spec,
+        BlockFactory blockFactory,
+        long byteRangeStart,
+        long byteRangeEnd
+    ) throws IOException {
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
         // Use Parquet's own row-group selection via withRange so we get exactly the row
         // groups whose starting position falls in [byteRangeStart, byteRangeEnd) — the
         // same convention used by the data-reading path.
         ParquetReadOptions options = readOptionsBuilder().withRange(byteRangeStart, byteRangeEnd).build();
-        try (ParquetFileReader reader = openParquetFile(object, parquetInputFile, options)) {
-            List<BlockMetaData> rowGroups = reader.getRowGroups();
-            if (rowGroups.isEmpty()) {
-                return null;
+        ParquetFileReader reader = openParquetFile(object, parquetInputFile, options);
+        try {
+            MessageType schema = reader.getFileMetaData().getSchema();
+            ParquetAggregateScanIterator iter = new ParquetAggregateScanIterator(reader, schema, spec, blockFactory);
+            // Ownership transferred to the iterator.
+            reader = null;
+            return iter;
+        } finally {
+            if (reader != null) {
+                reader.close();
             }
-            // When no specific columns are requested (typical for COUNT(*) / no projections),
-            // short-circuit and only return row/byte counts.
-            boolean countOnly = columns == null || columns.isEmpty();
-            if (countOnly) {
-                long totalRows = 0;
-                long totalSize = 0;
-                for (BlockMetaData rowGroup : rowGroups) {
-                    totalRows += rowGroup.getRowCount();
-                    totalSize += rowGroup.getTotalByteSize();
-                }
-                SplitStats.Builder b = new SplitStats.Builder();
-                b.rowCount(totalRows);
-                b.sizeInBytes(totalSize);
-                return b.build();
-            }
-            Set<String> wanted = new HashSet<>(columns);
-
-            long totalRows = 0;
-            long totalSize = 0;
-            // Per-column accumulators keyed by dotted column name. Use LinkedHashMap to keep
-            // the result deterministic and aligned with input order where possible.
-            Map<String, long[]> nullCounts = new LinkedHashMap<>();
-            Map<String, Comparable[]> mins = new LinkedHashMap<>();
-            Map<String, Comparable[]> maxs = new LinkedHashMap<>();
-            Map<String, long[]> colSizes = new LinkedHashMap<>();
-
-            for (BlockMetaData rowGroup : rowGroups) {
-                totalRows += rowGroup.getRowCount();
-                totalSize += rowGroup.getTotalByteSize();
-                for (ColumnChunkMetaData col : rowGroup.getColumns()) {
-                    String colName = col.getPath().toDotString();
-                    if (wanted != null && wanted.contains(colName) == false) {
-                        continue;
-                    }
-                    colSizes.computeIfAbsent(colName, k -> new long[1])[0] += col.getTotalUncompressedSize();
-                    Statistics stats = col.getStatistics();
-                    if (stats == null || stats.isEmpty()) {
-                        continue;
-                    }
-                    nullCounts.computeIfAbsent(colName, k -> new long[1])[0] += stats.getNumNulls();
-                    if (stats.hasNonNullValue()) {
-                        Comparable minVal = (Comparable) normalizeStatValue(stats.genericGetMin());
-                        Comparable maxVal = (Comparable) normalizeStatValue(stats.genericGetMax());
-                        Comparable[] curMin = mins.get(colName);
-                        if (curMin == null) {
-                            mins.put(colName, new Comparable[] { minVal });
-                        } else if (curMin[0].compareTo(minVal) > 0) {
-                            curMin[0] = minVal;
-                        }
-                        Comparable[] curMax = maxs.get(colName);
-                        if (curMax == null) {
-                            maxs.put(colName, new Comparable[] { maxVal });
-                        } else if (curMax[0].compareTo(maxVal) < 0) {
-                            curMax[0] = maxVal;
-                        }
-                    }
-                }
-            }
-
-            SplitStats.Builder builder = new SplitStats.Builder();
-            builder.rowCount(totalRows);
-            builder.sizeInBytes(totalSize);
-            // Union of column names seen across the four accumulators, preserving insertion order.
-            LinkedHashSet<String> allCols = new LinkedHashSet<>();
-            allCols.addAll(colSizes.keySet());
-            allCols.addAll(nullCounts.keySet());
-            allCols.addAll(mins.keySet());
-            allCols.addAll(maxs.keySet());
-            for (String name : allCols) {
-                int ord = builder.addColumn(name);
-                long[] nc = nullCounts.get(name);
-                if (nc != null) {
-                    builder.nullCount(ord, nc[0]);
-                }
-                Comparable[] mn = mins.get(name);
-                if (mn != null) {
-                    builder.min(ord, mn[0]);
-                }
-                Comparable[] mx = maxs.get(name);
-                if (mx != null) {
-                    builder.max(ord, mx[0]);
-                }
-                long[] cs = colSizes.get(name);
-                if (cs != null) {
-                    builder.sizeBytes(ord, cs[0]);
-                }
-            }
-            return builder.build();
         }
     }
 

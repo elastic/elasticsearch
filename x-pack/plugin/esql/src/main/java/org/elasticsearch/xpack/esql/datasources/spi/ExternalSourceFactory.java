@@ -34,15 +34,17 @@ public interface ExternalSourceFactory {
     }
 
     /**
-     * Optional capability for formats whose readers can produce per-file aggregate metadata
-     * (row count / null-count / min / max) without scanning row data. Returns a provider that
-     * the local execution planner uses to construct {@code MetadataAggregateOperator}
-     * instances when {@code PushAggregatesToExternalSource} elects the runtime path.
+     * Optional capability for formats whose readers implement {@link AggregateScanReader}
+     * — i.e. can compute ungrouped {@code COUNT(*)} / {@code COUNT(field)} / {@code MIN} /
+     * {@code MAX} inside the scan, choosing per row group whether to derive results from
+     * column statistics or by reading row data. Returns a provider that the local execution
+     * planner uses to construct the runtime aggregate-scan operator when
+     * {@code PushAggregatesToExternalSource} elects the runtime path.
      * <p>
      * The default implementation returns {@code null}, meaning the format does not support
-     * metadata-only aggregation; the optimizer rule will preserve the original scan plan.
+     * runtime aggregate pushdown; the optimizer rule will preserve the original scan plan.
      */
-    default MetadataAggregateOperatorFactoryProvider metadataAggregateOperatorFactory() {
+    default AggregateScanOperatorFactoryProvider aggregateScanOperatorFactory() {
         return null;
     }
 

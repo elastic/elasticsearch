@@ -51,7 +51,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExternalMetadataAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalAggregatePushdownExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -140,7 +140,7 @@ public class PlanWritables {
             ExchangeExec.ENTRY,
             ExchangeSinkExec.ENTRY,
             ExchangeSourceExec.ENTRY,
-            ExternalMetadataAggregateExec.ENTRY,
+            ExternalAggregatePushdownExec.ENTRY,
             ExternalSourceExec.ENTRY,
             FieldExtractExec.ENTRY,
             FilterExec.ENTRY,

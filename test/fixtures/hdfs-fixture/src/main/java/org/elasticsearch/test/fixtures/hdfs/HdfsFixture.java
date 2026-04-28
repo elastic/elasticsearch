@@ -46,9 +46,6 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -156,19 +153,16 @@ public class HdfsFixture extends ExternalResource {
             Locale originalLocale = Locale.getDefault();
             try {
                 Locale.setDefault(Locale.ENGLISH);
-                AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                    CloseableHAAdmin haAdmin = new CloseableHAAdmin();
-                    haAdmin.setConf(haConfiguration);
-                    try {
-                        haAdmin.transitionToStandby(from);
-                        haAdmin.transitionToActive(to);
-                    } finally {
-                        haAdmin.close();
-                    }
-                    return null;
-                });
-            } catch (PrivilegedActionException pae) {
-                throw new IOException("Unable to perform namenode failover", pae);
+                CloseableHAAdmin haAdmin = new CloseableHAAdmin();
+                haAdmin.setConf(haConfiguration);
+                try {
+                    haAdmin.transitionToStandby(from);
+                    haAdmin.transitionToActive(to);
+                } finally {
+                    haAdmin.close();
+                }
+            } catch (Exception e) {
+                throw new IOException("Unable to perform namenode failover", e);
             } finally {
                 // Restore original locale
                 Locale.setDefault(originalLocale);

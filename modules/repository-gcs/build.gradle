@@ -237,7 +237,6 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyUnitTest", Test) {
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
   include '**/GoogleCloudStorageThirdPartyTests.class'
-  systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket
   systemProperty 'test.google.fixture', Boolean.toString(useFixture)
   nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + buildParams.testSeed

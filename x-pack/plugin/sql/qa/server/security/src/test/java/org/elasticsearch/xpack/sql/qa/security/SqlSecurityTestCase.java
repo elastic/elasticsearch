@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.qa.security;
 
 import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -35,8 +34,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -187,35 +184,28 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
     @Before
     public void setInitialAuditLogOffset() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
+        if (false == Files.exists(AUDIT_LOG_FILE)) {
+            auditLogWrittenBeforeTestStart = 0;
+            return;
         }
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            if (false == Files.exists(AUDIT_LOG_FILE)) {
-                auditLogWrittenBeforeTestStart = 0;
-                return null;
-            }
-            if (false == Files.isRegularFile(AUDIT_LOG_FILE)) {
-                throw new IllegalStateException("expected tests.audit.logfile [" + AUDIT_LOG_FILE + "] to be a plain file but wasn't");
-            }
-            try {
-                auditLogWrittenBeforeTestStart = Files.size(AUDIT_LOG_FILE);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+        if (false == Files.isRegularFile(AUDIT_LOG_FILE)) {
+            throw new IllegalStateException("expected tests.audit.logfile [" + AUDIT_LOG_FILE + "] to be a plain file but wasn't");
+        }
+        try {
+            auditLogWrittenBeforeTestStart = Files.size(AUDIT_LOG_FILE);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
-            // The log file can roll over without being caught by assertLogs() method: in those tests where exceptions are being handled
-            // and no audit logs being read (and, thus, assertLogs() is not called) - for example testNoMonitorMain() method: there are no
-            // calls to auditLogs(), and the method could run while the audit file is rolled over.
-            // If this happens, next call to auditLogs() will make the tests read from the rolled over file using the main audit file
-            // offset, which will most likely not going to work since the offset will happen somewhere in the middle of a json line.
-            if (auditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
-                // once the audit file rolled over, it will stay like this
-                auditFileRolledOver = true;
-            }
-            return null;
-        });
+        // The log file can roll over without being caught by assertLogs() method: in those tests where exceptions are being handled
+        // and no audit logs being read (and, thus, assertLogs() is not called) - for example testNoMonitorMain() method: there are no
+        // calls to auditLogs(), and the method could run while the audit file is rolled over.
+        // If this happens, next call to auditLogs() will make the tests read from the rolled over file using the main audit file
+        // offset, which will most likely not going to work since the offset will happen somewhere in the middle of a json line.
+        if (auditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
+            // once the audit file rolled over, it will stay like this
+            auditFileRolledOver = true;
+        }
     }
 
     @AfterClass
@@ -568,31 +558,23 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                 // static auditFileRolledOver value can change and mess up subsequent calls of this code block
                 boolean localAuditFileRolledOver = auditFileRolledOver;
                 assertBusy(() -> {
-                    SecurityManager sm = System.getSecurityManager();
-                    if (sm != null) {
-                        sm.checkPermission(new SpecialPermission());
-                    }
-
                     BufferedReader[] logReaders = new BufferedReader[2];
-                    AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                        try {
-                            // the audit log file rolled over during the test
-                            // and we need to consume the rest of the rolled over file plus the new audit log file
-                            if (localAuditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
-                                // once the audit file rolled over, it will stay like this
-                                auditFileRolledOver = true;
-                                // unzip the file
-                                InputStream gzipStream = new GZIPInputStream(Files.newInputStream(ROLLED_OVER_AUDIT_LOG_FILE));
-                                Reader decoder = new InputStreamReader(gzipStream, StandardCharsets.UTF_8);
-                                // the order in the array matters, as the readers will be used in that order
-                                logReaders[0] = new BufferedReader(decoder);
-                            }
-                            logReaders[1] = Files.newBufferedReader(AUDIT_LOG_FILE, StandardCharsets.UTF_8);
-                            return null;
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
+                    try {
+                        // the audit log file rolled over during the test
+                        // and we need to consume the rest of the rolled over file plus the new audit log file
+                        if (localAuditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
+                            // once the audit file rolled over, it will stay like this
+                            auditFileRolledOver = true;
+                            // unzip the file
+                            InputStream gzipStream = new GZIPInputStream(Files.newInputStream(ROLLED_OVER_AUDIT_LOG_FILE));
+                            Reader decoder = new InputStreamReader(gzipStream, StandardCharsets.UTF_8);
+                            // the order in the array matters, as the readers will be used in that order
+                            logReaders[0] = new BufferedReader(decoder);
                         }
-                    });
+                        logReaders[1] = Files.newBufferedReader(AUDIT_LOG_FILE, StandardCharsets.UTF_8);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
 
                     // The "index" is used as a way of reading from both rolled over file and current audit file in order: rolled over file
                     // first, then the audit log file. Very rarely we will read from the rolled over file: when the test happened to run

@@ -40,21 +40,14 @@ public final class ApmIntakeMessageParser {
      * map is preserved verbatim (e.g. {@code system.platform}). This is the one place that closes
      * the intake-side leg of the cross-path contract; the OTLP parser produces OTel keys natively.
      */
-    private static final Map<String, String> APM_METADATA_TO_OTEL_KEY = Map.of(
-        "service.name",
-        "service.name",
-        "service.version",
-        "service.version",
-        "service.agent.name",
-        "telemetry.sdk.name",
-        "service.agent.version",
-        "telemetry.sdk.version",
-        "service.language.name",
-        "telemetry.sdk.language",
-        "service.runtime.name",
-        "process.runtime.name",
-        "service.runtime.version",
-        "process.runtime.version"
+    private static final Map<String, String> APM_METADATA_TO_OTEL_KEY = Map.ofEntries(
+        Map.entry("service.name", "service.name"),
+        Map.entry("service.version", "service.version"),
+        Map.entry("service.agent.name", "telemetry.sdk.name"),
+        Map.entry("service.agent.version", "telemetry.sdk.version"),
+        Map.entry("service.language.name", "telemetry.sdk.language"),
+        Map.entry("service.runtime.name", "process.runtime.name"),
+        Map.entry("service.runtime.version", "process.runtime.version")
     );
 
     /** Top-level {@code labels} map on metadata is flattened with a {@code labels.} prefix. */
@@ -165,6 +158,7 @@ public final class ApmIntakeMessageParser {
         }
         Map<String, Object> metadata = (Map<String, Object>) metadataObj;
         // labels is conceptually a separate flat map; flatten with a labels. prefix.
+        // Mutating `metadata` is safe — the map was just deserialized and is local to this call.
         Object labelsObj = metadata.remove(LABELS_TOP_KEY);
         Map<String, Object> flat = new LinkedHashMap<>(flattenAttributes(metadata, Set.of()));
         if (labelsObj instanceof Map<?, ?> labelsMap) {
@@ -175,8 +169,12 @@ public final class ApmIntakeMessageParser {
         Map<String, Object> renamed = new LinkedHashMap<>(flat.size());
         for (Map.Entry<String, Object> entry : flat.entrySet()) {
             String mapped = APM_METADATA_TO_OTEL_KEY.getOrDefault(entry.getKey(), entry.getKey());
-            // If two source keys collide after rename, keep the first-seen deterministic value.
-            renamed.putIfAbsent(mapped, entry.getValue());
+            // A collision after rename means two source keys map to the same OTel key — that's a
+            // contract bug in APM_METADATA_TO_OTEL_KEY (or in the intake event), not a value choice
+            // the test should silently make. Fail fast so the editor sees it immediately.
+            if (renamed.put(mapped, entry.getValue()) != null) {
+                throw new IOException("metadata rename collision on key [" + mapped + "] from source [" + entry.getKey() + "]");
+            }
         }
         return new ReceivedTelemetry.ReceivedResource(Collections.unmodifiableMap(renamed));
     }

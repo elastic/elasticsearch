@@ -41,6 +41,10 @@ public class RecordingApmServer extends ExternalResource {
      * Resource is per-JVM, not per-span; the APM agent sends it as line 1 of every intake request,
      * so first-write-wins is safe. Routed via this setter rather than the {@link #received} queue to
      * keep tests from racing on arrival order with transactions.
+     * <p>
+     * <b>Known limitation:</b> first-write-wins pins the resource for the lifetime of this server
+     * instance. Tests asserting on resource <em>values</em> (rather than just key presence) across
+     * differing JVM configurations must use a fresh {@link RecordingApmServer} per scenario.
      */
     private final AtomicReference<ReceivedTelemetry.ReceivedResource> resource = new AtomicReference<>();
 

@@ -31,14 +31,12 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
 
@@ -54,7 +52,6 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     private final TimeValue tickInterval;
     private final Map<String, ActiveSchedule> schedules = new ConcurrentHashMap<>();
-    private final Map<String, ActiveSchedule> recentlyAddedSchedules = new HashMap<>(); // used only inside synchronized blocks
     private final Ticker ticker;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
 
@@ -65,7 +62,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     @Override
-    public synchronized void start(Collection<Watch> jobs, Predicate<String> belongsToThisNode) {
+    public synchronized void start(Collection<Watch> jobs) {
         long startTime = clock.millis();
         logger.info("Starting watcher engine at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(startTime));
         schedules.clear();
@@ -74,13 +71,6 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
                 schedules.put(job.id(), createSchedule(job, trigger, startTime));
             }
         }
-        // Re-validate watches accumulated while the engine was paused. The shard allocation may have changed since
-        // postIndex put them here, so an entry that was correctly added then may no longer belong on this node.
-        // Without this filter, both the primary and the replica node can end up scheduling the same watch,
-        // which causes duplicate executions and misleading throttle results.
-        recentlyAddedSchedules.keySet().removeIf(watchId -> belongsToThisNode.test(watchId) == false);
-        schedules.putAll(recentlyAddedSchedules);
-        recentlyAddedSchedules.clear();
         isRunning.set(true);
     }
 
@@ -108,9 +98,16 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     @Override
-    public void add(Watch watch) {
+    public synchronized void add(Watch watch) {
         logger.trace("Adding watch [{}] to engine (engine is running: {})", watch.id(), isRunning.get());
         assert watch.trigger() instanceof ScheduleTrigger;
+        // While the engine is paused (between pauseExecution and start) the schedules map has been cleared.
+        // Adding here would only get wiped out by start(), so we drop the call: WatcherService keeps a separate
+        // pending-watch map populated from postIndex which is merged into the next loadWatches invocation, which then
+        // feeds start(). This way the engine schedules are only ever populated by start() while the engine is paused.
+        if (isRunning.get() == false) {
+            return;
+        }
         ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
         ActiveSchedule currentSchedule = schedules.get(watch.id());
         // only update the schedules data structure if the scheduled trigger really has changed, otherwise the time would be reset again
@@ -118,14 +115,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         // watcher indexing listener
         // this also means that updating an existing watch would not retrigger the schedule time, if it remains the same schedule
         if (currentSchedule == null || currentSchedule.schedule.equals(trigger.getSchedule()) == false) {
-            ActiveSchedule schedule = createSchedule(watch, trigger, clock.millis());
-            synchronized (this) {
-                if (isRunning.get() == false) {
-                    recentlyAddedSchedules.put(watch.id(), schedule);
-                } else {
-                    schedules.put(watch.id(), schedule);
-                }
-            }
+            schedules.put(watch.id(), createSchedule(watch, trigger, clock.millis()));
         }
     }
 

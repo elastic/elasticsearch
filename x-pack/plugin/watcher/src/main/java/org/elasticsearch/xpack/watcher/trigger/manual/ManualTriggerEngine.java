@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 
@@ -35,7 +34,7 @@ public class ManualTriggerEngine implements TriggerEngine<ManualTrigger, ManualT
      * from the given list of jobs
      */
     @Override
-    public void start(Collection<Watch> jobs, Predicate<String> belongsToThisNode) {}
+    public void start(Collection<Watch> jobs) {}
 
     @Override
     public void stop() {}

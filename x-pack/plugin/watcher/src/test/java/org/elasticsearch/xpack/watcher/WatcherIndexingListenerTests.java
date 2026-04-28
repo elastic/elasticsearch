@@ -93,7 +93,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         clock.freeze();
-        listener = new WatcherIndexingListener(parser, clock, triggerService, () -> WatcherState.STARTED);
+        listener = new WatcherIndexingListener(parser, clock, triggerService, () -> WatcherState.STARTED, watch -> {});
 
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
@@ -145,7 +145,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     public void testPostIndexWhenStopped() throws Exception {
-        listener = new WatcherIndexingListener(parser, clock, triggerService, () -> WatcherState.STOPPED);
+        listener = new WatcherIndexingListener(parser, clock, triggerService, () -> WatcherState.STOPPED, watch -> {});
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
         listener.setConfiguration(new Configuration(Watch.INDEX, map));

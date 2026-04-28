@@ -128,7 +128,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
@@ -716,7 +715,7 @@ public class WatchTests extends ESTestCase {
         }
 
         @Override
-        public void start(Collection<Watch> jobs, Predicate<String> belongsToThisNode) {}
+        public void start(Collection<Watch> jobs) {}
 
         @Override
         public void stop() {}

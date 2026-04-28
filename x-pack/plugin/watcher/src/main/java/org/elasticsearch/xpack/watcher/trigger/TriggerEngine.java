@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
 
@@ -24,15 +23,9 @@ public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
 
     /**
      * It's the responsibility of the trigger engine implementation to select the appropriate jobs
-     * from the given list of jobs.
-     *
-     * @param jobs the watches to schedule on this engine
-     * @param belongsToThisNode predicate that returns {@code true} if a watch with the given id should be scheduled on
-     *                          this node according to the current shard allocation. Used to re-validate any pending
-     *                          schedules accumulated while the engine was paused, so entries whose allocation has
-     *                          changed in the meantime are not blindly merged back in.
+     * from the given list of jobs
      */
-    void start(Collection<Watch> jobs, Predicate<String> belongsToThisNode);
+    void start(Collection<Watch> jobs);
 
     void stop();
 

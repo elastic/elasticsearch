@@ -52,13 +52,16 @@ import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -82,6 +85,14 @@ public class WatcherService {
     private final TimeValue defaultSearchTimeout;
     private final AtomicLong processedClusterStateVersion = new AtomicLong(0);
     private final ExecutorService executor;
+    /**
+     * Watches that {@link WatcherIndexingListener#postIndex} observed since the last reload finished. Drained at the
+     * start of {@link #loadWatches} and merged with the index search results so a watch that is indexed while a reload
+     * is in flight (i.e. between the search and {@code triggerService.start}) is still scheduled by that reload.
+     * Entries are filtered through the same shard-routing predicate as the search results, so an entry that no longer
+     * belongs on this node by the time the reload runs is simply dropped instead of polluting the trigger engine.
+     */
+    private final Map<String, Watch> pendingWatches = new ConcurrentHashMap<>();
 
     WatcherService(
         Settings settings,
@@ -280,7 +291,7 @@ public class WatcherService {
         // that existing executions finish, but no new ones are executed
         if (processedClusterStateVersion.get() == state.getVersion()) {
             executionService.unPause();
-            triggerService.start(watches, buildAssignmentPredicate(state));
+            triggerService.start(watches);
             if (triggeredWatches.isEmpty() == false) {
                 executionService.executeTriggeredWatches(triggeredWatches);
             }
@@ -311,6 +322,12 @@ public class WatcherService {
      * before they are fed into the trigger service.
      */
     private Collection<Watch> loadWatches(ClusterState clusterState) {
+        // Snapshot and drain the pending map: any watch that arrived via postIndex while a reload was in flight will be
+        // merged into the result below, applying the same shard-routing filter as the index search so a stale entry is
+        // dropped rather than scheduled on the wrong node.
+        Map<String, Watch> pending = new HashMap<>(pendingWatches);
+        pendingWatches.clear();
+
         IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, clusterState.metadata());
         // no index exists, all good, we can start
         if (indexMetadata == null) {
@@ -319,6 +336,7 @@ public class WatcherService {
 
         SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
+        Set<String> loadedIds = new HashSet<>();
         try {
             refreshWatches(indexMetadata);
 
@@ -331,8 +349,6 @@ public class WatcherService {
             }
             List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
 
-            // Reuse the routing logic from WatcherIndexingListener so the assignment used here matches the assignment
-            // used by postIndex and by buildAssignmentPredicate during start().
             @NotMultiProjectCapable(description = "Watcher is not available in serverless")
             IndexRoutingTable indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(watchIndexName);
             Map<ShardId, ShardAllocationConfiguration> shardConfigs = ShardAllocationConfiguration.forLocalShards(
@@ -349,10 +365,6 @@ public class WatcherService {
                 throw new ElasticsearchException("Partial response while loading watches");
             }
 
-            if (response.getHits().getTotalHits().value() == 0) {
-                return Collections.emptyList();
-            }
-
             while (response.getHits().getHits().length != 0) {
                 for (SearchHit hit : response.getHits()) {
                     ShardAllocationConfiguration shardConfig = shardConfigs.get(hit.getShard().getShardId());
@@ -362,6 +374,7 @@ public class WatcherService {
                     String id = hit.getId();
                     try {
                         Watch watch = parser.parse(id, true, hit.getSourceRef(), XContentType.JSON, hit.getSeqNo(), hit.getPrimaryTerm());
+                        loadedIds.add(id);
                         if (watch.status().state().isActive()) {
                             watches.add(watch);
                         }
@@ -373,6 +386,22 @@ public class WatcherService {
                 request.scroll(scrollTimeout);
                 response.decRef();
                 response = client.searchScroll(request).actionGet(defaultSearchTimeout);
+            }
+
+            // Merge in any pending watches the search did not pick up. This covers watches indexed after refreshWatches
+            // returned but before the search reached their shard. Search results take precedence (canonical view).
+            int numShards = indexMetadata.getNumberOfShards();
+            for (Watch pendingWatch : pending.values()) {
+                if (loadedIds.contains(pendingWatch.id())) {
+                    continue;
+                }
+                ShardAllocationConfiguration shardConfig = findShardConfig(shardConfigs, pendingWatch.id(), numShards);
+                if (shardConfig == null || shardConfig.shouldBeTriggered(pendingWatch.id()) == false) {
+                    continue;
+                }
+                if (pendingWatch.status().state().isActive()) {
+                    watches.add(pendingWatch);
+                }
             }
         } finally {
             if (response != null) {
@@ -388,6 +417,36 @@ public class WatcherService {
         return watches;
     }
 
+    /**
+     * Find the {@link ShardAllocationConfiguration} for the local shard that hosts a watch with the given id. Returns
+     * null if the local node does not have a copy of that watch's shard. Used by the pending-watch merge in
+     * {@link #loadWatches} where, unlike search hits, we don't know the shard up front and have to derive it from the
+     * standard {@code _id}-based routing (Murmur3 hash mod number of shards).
+     */
+    private static ShardAllocationConfiguration findShardConfig(
+        Map<ShardId, ShardAllocationConfiguration> shardConfigs,
+        String id,
+        int numShards
+    ) {
+        int shardIdNum = Math.floorMod(Murmur3HashFunction.hash(id), numShards);
+        for (Map.Entry<ShardId, ShardAllocationConfiguration> entry : shardConfigs.entrySet()) {
+            if (entry.getKey().getId() == shardIdNum) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Record a watch observed by {@link WatcherIndexingListener#postIndex} so that the next {@link #loadWatches} run
+     * picks it up even if it arrives between the search refresh and the actual scan. Entries added here are filtered
+     * by the local shard routing in {@link #loadWatches}, so a watch that no longer belongs on this node is dropped
+     * rather than pushed into the trigger engine.
+     */
+    void onWatchIndexed(Watch watch) {
+        pendingWatches.put(watch.id(), watch);
+    }
+
     // Non private for unit testing purposes
     void refreshWatches(IndexMetadata indexMetadata) {
         BroadcastResponse refreshResponse = client.admin()
@@ -397,51 +456,6 @@ public class WatcherService {
         if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
             throw illegalState("not all required shards have been refreshed");
         }
-    }
-
-    /**
-     * Build a predicate that, given a watch id, decides whether this watch belongs on the local node according to the
-     * given cluster state. This delegates to {@link ShardAllocationConfiguration#forLocalShards} and
-     * {@link ShardAllocationConfiguration#shouldBeTriggered} so the assignment stays consistent
-     * with the routing applied in {@link WatcherIndexingListener#postIndex} and in {@link #loadWatches}. The predicate
-     * is used to re-validate any pending watches that {@code postIndex} accumulated while the trigger engine was paused,
-     * so entries whose allocation has shifted since they were enqueued are not blindly merged back in.
-     */
-    static Predicate<String> buildAssignmentPredicate(ClusterState state) {
-        IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, state.metadata());
-        if (indexMetadata == null) {
-            return id -> false;
-        }
-        String watchIndexName = indexMetadata.getIndex().getName();
-        RoutingNode routingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
-        if (routingNode == null) {
-            return id -> false;
-        }
-        List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
-        if (localShards.isEmpty()) {
-            return id -> false;
-        }
-
-        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
-        IndexRoutingTable indexRoutingTable = state.routingTable(ProjectId.DEFAULT).index(watchIndexName);
-        Map<ShardId, ShardAllocationConfiguration> shardConfigs = ShardAllocationConfiguration.forLocalShards(
-            localShards,
-            indexRoutingTable
-        );
-        if (shardConfigs.isEmpty()) {
-            return id -> false;
-        }
-
-        int numShards = indexMetadata.getNumberOfShards();
-        return id -> {
-            int shardIdNum = Math.floorMod(Murmur3HashFunction.hash(id), numShards);
-            for (Map.Entry<ShardId, ShardAllocationConfiguration> entry : shardConfigs.entrySet()) {
-                if (entry.getKey().getId() == shardIdNum) {
-                    return entry.getValue().shouldBeTriggered(id);
-                }
-            }
-            return false;
-        };
     }
 
     /**

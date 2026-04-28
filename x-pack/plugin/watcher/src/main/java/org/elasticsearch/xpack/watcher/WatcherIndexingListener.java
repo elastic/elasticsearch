@@ -44,6 +44,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -69,13 +70,26 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     private final Clock clock;
     private final TriggerService triggerService;
     private final Supplier<WatcherState> watcherState;
+    /**
+     * Notified about each watch the listener observes so that {@link WatcherService} can pick it up on the next
+     * reload. This covers the window between a reload calling {@code triggerService.pauseExecution()} (which clears
+     * the engine schedules) and {@code triggerService.start(watches)} where {@link TriggerService#add} would be a no-op.
+     */
+    private final Consumer<Watch> pendingWatchTracker;
     private volatile Configuration configuration = INACTIVE;
 
-    WatcherIndexingListener(WatchParser parser, Clock clock, TriggerService triggerService, Supplier<WatcherState> watcherState) {
+    WatcherIndexingListener(
+        WatchParser parser,
+        Clock clock,
+        TriggerService triggerService,
+        Supplier<WatcherState> watcherState,
+        Consumer<Watch> pendingWatchTracker
+    ) {
         this.parser = parser;
         this.clock = clock;
         this.triggerService = triggerService;
         this.watcherState = watcherState;
+        this.pendingWatchTracker = pendingWatchTracker;
     }
 
     // package private for testing
@@ -139,6 +153,9 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                     if (watch.status().state().isActive()) {
                         logger.debug("adding watch [{}] to trigger service", watch.id());
                         triggerService.add(watch);
+                        // Also record the watch in the pending tracker so a reload that is in flight (engine paused,
+                        // schedules cleared) still picks it up via WatcherService.loadWatches when the engine restarts.
+                        pendingWatchTracker.accept(watch);
                     } else {
                         logger.debug("removing watch [{}] from trigger service", watch.id());
                         triggerService.remove(watch.id());

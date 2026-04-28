@@ -100,7 +100,7 @@ public class ScheduleEngineTriggerBenchmark {
                 }
             }
         };
-        scheduler.start(watches, id -> true);
+        scheduler.start(watches);
         System.out.println("Added [" + numWatches + "] jobs");
         running.set(true);
         Thread.sleep(benchTime);

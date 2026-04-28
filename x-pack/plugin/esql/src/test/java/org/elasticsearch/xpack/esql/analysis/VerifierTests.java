@@ -789,6 +789,9 @@ public class VerifierTests extends ESTestCase {
                 "FROM exp_histo_sample | LIMIT 1 BY responseTime",
                 equalTo("1:36: cannot group by on [exponential_histogram] type for grouping [responseTime]")
             );
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .stripErrorPrefix(true)
+            .error("FROM decades | LIMIT 1 BY date_range", equalTo("1:27: cannot group by on [date_range] type for grouping [date_range]"));
         tsdb().error(
             "FROM test | LIMIT 1 BY network.bytes_in",
             equalTo("1:24: cannot group by on [counter_long] type for grouping [network.bytes_in]")
@@ -807,6 +810,18 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM exp_histo_sample | STATS count(*) BY responseTime",
                 equalTo("1:43: cannot group by on [exponential_histogram] type for grouping [responseTime]")
+            );
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM decades | STATS count(*) BY date_range",
+                equalTo("1:34: cannot group by on [date_range] type for grouping [date_range]")
+            );
+        analyzer().addIndex("test", "mapping-all-types.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM test | STATS count(*) BY dense_vector",
+                equalTo("1:31: cannot group by on [dense_vector] type for grouping [dense_vector]")
             );
     }
 

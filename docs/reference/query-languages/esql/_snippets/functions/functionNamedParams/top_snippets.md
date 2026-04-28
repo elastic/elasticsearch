@@ -13,23 +13,27 @@
 useful when the text has already been chunked.
 
 
-`highlight` {applies_to}`stack: preview 9.4.1`
+`highlight` {applies_to}`stack: preview 9.5.0`
 :   (boolean) When true, wraps matched query terms in the returned snippets with markup tags.
 Defaults to false.
 
 
-`pre_tag` {applies_to}`stack: preview 9.4.1`
+`pre_tag` {applies_to}`stack: preview 9.5.0`
 :   (keyword) Opening tag for highlighted terms. Only applies when highlight is true.
 Defaults to `<em>`.
 
 
-`post_tag` {applies_to}`stack: preview 9.4.1`
+`post_tag` {applies_to}`stack: preview 9.5.0`
 :   (keyword) Closing tag for highlighted terms. Only applies when highlight is true.
 Defaults to `</em>`.
 
 
-`encoder` {applies_to}`stack: preview 9.4.1`
+`encoder` {applies_to}`stack: preview 9.5.0`
 :   (keyword) Controls HTML encoding of snippet text before tagging: `default` (no encoding) or `html`.
 Only applies when highlight is true. Defaults to `default`.
+
+
+`order` {applies_to}`stack: preview 9.5.0`
+:   (keyword) Order of returned snippets: `score` (default, by relevance) or `none` (original text order).
 
 

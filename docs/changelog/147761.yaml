@@ -1,0 +1,6 @@
+area: "ES|QL, ES|QL"
+issues:
+ - 146590
+pr: 147761
+summary: Block Loader Expression for Aggregations
+type: enhancement

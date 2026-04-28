@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.rest.RestRequest;
 
@@ -22,6 +23,7 @@ public final class SliceIndexing {
     private SliceIndexing() {}
 
     public static final FeatureFlag SLICE_FEATURE_FLAG = new FeatureFlag("slice_indexing");
+    public static final TransportVersion SLICE_MISSING_EXCEPTION_VERSION = TransportVersion.fromName("slice_missing_exception");
     private static final int MAX_SLICE_VALUE_LENGTH = 128;
     private static final Pattern VALID_SLICE_VALUE_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9._:-]*[a-zA-Z0-9])?");
 

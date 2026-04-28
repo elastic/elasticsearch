@@ -97,6 +97,56 @@ public class ESAcceptDocsTests extends ESTestCase {
         }
     }
 
+    public void testFromScorerSupplierWithSlice() throws IOException {
+        int[] docIds = new int[] { 1, 3, 5, 7, 9 };
+        BitSet bitSet = new FixedBitSet(10);
+        for (int docId : docIds) {
+            bitSet.set(docId);
+        }
+        DocIdSetIterator iterator = new BitSetIterator(bitSet, bitSet.cardinality());
+        ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
+            new TestScorerSupplier(iterator),
+            null,
+            10,
+            0,
+            () -> new ESAcceptDocs.SliceAcceptDocs(3, 7)
+        );
+        assertEquals(5L, acceptDocs.approximateCost());
+        assertEquals(3L, acceptDocs.cost());
+        DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
+        assertEquals(3, acceptDocsIterator.nextDoc());
+        assertEquals(5, acceptDocsIterator.nextDoc());
+        assertEquals(7, acceptDocsIterator.nextDoc());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, acceptDocsIterator.nextDoc());
+        Bits acceptDocsBits = acceptDocs.bits();
+        for (int i = 0; i < 10; i++) {
+            boolean expected = i >= 3 && i <= 7 && bitSet.get(i);
+            assertEquals(expected, acceptDocsBits.get(i));
+        }
+    }
+
+    public void testFromBitsWithSlice() throws IOException {
+        FixedBitSet acceptedDocs = new FixedBitSet(10);
+        acceptedDocs.set(1);
+        acceptedDocs.set(3);
+        acceptedDocs.set(5);
+        acceptedDocs.set(7);
+        acceptedDocs.set(9);
+        ESAcceptDocs acceptDocs = new ESAcceptDocs.BitsAcceptDocs(acceptedDocs, 10, 0, () -> new ESAcceptDocs.SliceAcceptDocs(3, 7));
+        assertEquals(3L, acceptDocs.approximateCost());
+        assertEquals(3L, acceptDocs.cost());
+        DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
+        assertEquals(3, acceptDocsIterator.nextDoc());
+        assertEquals(5, acceptDocsIterator.nextDoc());
+        assertEquals(7, acceptDocsIterator.nextDoc());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, acceptDocsIterator.nextDoc());
+        Bits acceptDocsBits = acceptDocs.bits();
+        for (int i = 0; i < 10; i++) {
+            boolean expected = i >= 3 && i <= 7 && acceptedDocs.get(i);
+            assertEquals(expected, acceptDocsBits.get(i));
+        }
+    }
+
     private static class TestScorerSupplier extends ScorerSupplier {
         private final DocIdSetIterator iterator;
 

@@ -22,6 +22,7 @@ import org.apache.http.client.methods.AbstractExecutionAwareRequest;
 import org.apache.http.client.methods.HttpRequestBase;
 
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Represents an operation that can be cancelled.
@@ -60,12 +61,14 @@ public abstract class Cancellable {
     private static class RequestCancellable extends Cancellable {
 
         private final HttpRequestBase httpRequest;
+        private final AtomicBoolean cancelled = new AtomicBoolean(false);
 
         private RequestCancellable(HttpRequestBase httpRequest) {
             this.httpRequest = httpRequest;
         }
 
-        public synchronized void cancel() {
+        public void cancel() {
+            cancelled.set(true);
             this.httpRequest.abort();
         }
 
@@ -83,8 +86,8 @@ public abstract class Cancellable {
          * Note that this method must be synchronized as well as the {@link #cancel()} method, to prevent a request from being cancelled
          * when there is no future to cancel, which would make cancelling the request a no-op.
          */
-        synchronized void runIfNotCancelled(Runnable runnable) {
-            if (this.httpRequest.isAborted()) {
+        void runIfNotCancelled(Runnable runnable) {
+            if (cancelled.get()) {
                 throw newCancellationException();
             }
             runnable.run();

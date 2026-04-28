@@ -17,6 +17,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.Before;
 import org.junit.runners.model.Statement;
 
 import java.io.IOException;
@@ -51,7 +52,17 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
      */
     static final int TELEMETRY_TIMEOUT = 40;
 
-    protected static RecordingApmServer recordingApmServer = new RecordingApmServer();
+    /**
+     * Subclasses own their own {@link RecordingApmServer} static field (paired with {@code cluster})
+     * and expose it here so the shared test methods can register consumers and reset state between tests.
+     * Mirrors the {@link #getTestRestCluster()} pattern.
+     */
+    protected abstract RecordingApmServer apmServer();
+
+    @Before
+    public void resetApmServer() {
+        apmServer().reset();
+    }
 
     /**
      * Returns a builder with common cluster settings (distribution, modules, telemetry.metrics.enabled).
@@ -140,7 +151,7 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
             }
         };
 
-        recordingApmServer.addMessageConsumer(messageConsumer);
+        apmServer().addMessageConsumer(messageConsumer);
 
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
         client().performRequest(new Request("GET", "/_flush_telemetry"));
@@ -206,7 +217,7 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
             }
         };
 
-        recordingApmServer.addMessageConsumer(messageConsumer);
+        apmServer().addMessageConsumer(messageConsumer);
 
         client().performRequest(new Request("GET", "/_flush_telemetry"));
         logger.debug("About to wait for telemetry");

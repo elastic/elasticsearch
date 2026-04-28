@@ -18,6 +18,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.Before;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 import org.junit.runners.model.Statement;
@@ -66,7 +67,17 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
      */
     static final long CHILD_SPAN_GRACE_PERIOD_MS = 500;
 
-    protected static RecordingApmServer recordingApmServer = new RecordingApmServer();
+    /**
+     * Subclasses own their own {@link RecordingApmServer} static field (paired with {@code cluster})
+     * and expose it here so the shared test methods can register consumers and reset state between tests.
+     * Mirrors the {@link #getTestRestCluster()} pattern.
+     */
+    protected abstract RecordingApmServer apmServer();
+
+    @Before
+    public void resetApmServer() {
+        apmServer().reset();
+    }
 
     /**
      * Returns a cluster builder with settings common to all traces integration tests:
@@ -131,7 +142,7 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
             }
         };
 
-        recordingApmServer.addMessageConsumer(messageConsumer);
+        apmServer().addMessageConsumer(messageConsumer);
 
         Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
         nodeStatsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build());
@@ -203,7 +214,7 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
             }
         };
 
-        recordingApmServer.addMessageConsumer(messageConsumer);
+        apmServer().addMessageConsumer(messageConsumer);
 
         Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
         nodeStatsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build());

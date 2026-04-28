@@ -18,6 +18,8 @@ import org.junit.rules.TestRule;
  */
 public class ApmAgentMetricsIT extends AbstractMetricsIT {
 
+    public static RecordingApmServer recordingApmServer = new RecordingApmServer();
+
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "false")
         .setting("telemetry.agent.server_url", () -> "http://127.0.0.1:" + recordingApmServer.getPort())
@@ -26,6 +28,11 @@ public class ApmAgentMetricsIT extends AbstractMetricsIT {
 
     @ClassRule
     public static TestRule ruleChain = AbstractMetricsIT.buildRuleChain(recordingApmServer, cluster);
+
+    @Override
+    protected RecordingApmServer apmServer() {
+        return recordingApmServer;
+    }
 
     @Override
     protected String getTestRestCluster() {

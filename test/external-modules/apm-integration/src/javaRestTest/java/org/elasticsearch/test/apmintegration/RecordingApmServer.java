@@ -36,23 +36,17 @@ public class RecordingApmServer extends ExternalResource {
     final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
 
     private HttpServer server;
-    private Thread messageConsumerThread;
+    private final Thread messageConsumerThread = consumerThread();
     private volatile Consumer<ReceivedTelemetry> consumer;
-    private volatile boolean running;
+    private volatile boolean running = true;
 
     @Override
     protected void before() throws Throwable {
-        // Reset state in case this rule instance is reused across multiple test classes in the same JVM:
-        // a Thread cannot be restarted once terminated, and `running` would be false from the prior tear-down.
-        received.clear();
-        running = true;
-
         server = HttpServer.create();
         server.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", this::handle);
         server.start();
 
-        messageConsumerThread = consumerThread();
         messageConsumerThread.start();
     }
 
@@ -150,6 +144,22 @@ public class RecordingApmServer extends ExternalResource {
 
     public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {
         this.consumer = messageConsumer;
+    }
+
+    /**
+     * Clears any recorded telemetry to leave the server in a clean state.
+     * <p>
+     * This server's lifetime coincides with that of the cluster it's attached to,
+     * but that same cluster (and hence this server) may be used for multiple tests.
+     * This method is intended to be used in a test class's {@code @Before}
+     * and/or {@code @After} methods to prevent tests from interfering with each other.
+     * <p>
+     * Tests are advised to flush their telemetry, or else buffered telemetry from
+     * one test may be exported during a subsequent test.
+     */
+    public void reset() {
+        consumer = null;
+        received.clear();
     }
 
 }

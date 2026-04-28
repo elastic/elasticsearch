@@ -33,6 +33,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 
 import java.io.Closeable;
@@ -90,7 +91,8 @@ public class NdJsonPageDecoder implements Closeable {
         ErrorPolicy errorPolicy
     ) throws IOException {
         this.input = input;
-        this.errorPolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
+        Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        this.errorPolicy = errorPolicy;
 
         List<Attribute> fullSchema = attributes;
         var projectedAttributes = attributes;

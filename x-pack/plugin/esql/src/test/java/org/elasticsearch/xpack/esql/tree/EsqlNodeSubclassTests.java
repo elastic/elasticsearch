@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -175,7 +176,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     );
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
-    private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
+    private static final List<Class<?>> UNRESOLVED_EXPRESSIONS = List.of(
         UnresolvedAttribute.class,
         UnresolvedException.class,
         UnresolvedFunction.class,
@@ -650,8 +651,22 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     public static <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
+        if (nodeClass.equals(UnresolvedPromqlFunction.class)) {
+            /*
+             * Promql's functions turn into WithinSeriesAggregate or AcrossSeriesAggregate or something.
+             * It's like an unresolved expression. Building it from makeNode will make invalid trees.
+             */
+            throw new IllegalArgumentException("can't make an UnresolvedPromqlFunction");
+        }
         if (Modifier.isAbstract(nodeClass.getModifiers())) {
-            nodeClass = randomFrom(innerSubclassesOf(nodeClass));
+            var subclasses = innerSubclassesOf(nodeClass);
+            /*
+             * Promql's functions turn into WithinSeriesAggregate or AcrossSeriesAggregate or something.
+             * It's like an unresolved expression. Building it from makeNode will make invalid trees.
+             */
+            subclasses.remove(UnresolvedPromqlFunction.class);
+            // It *is* safe to build an UnresoledRelation here because it is a leaf node.
+            nodeClass = randomFrom(subclasses);
         }
         Class<?> testSubclassFor = testClassFor(nodeClass);
         if (testSubclassFor != null) {
@@ -760,7 +775,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (Modifier.isAbstract(argClass.getModifiers())) {
             while (true) {
                 var candidate = randomFrom(subclassesOf(asNodeSubclass, CLASSNAME_FILTER));
-                if (UNRESOLVED_CLASSES.stream().allMatch(unresolved -> unresolved.isAssignableFrom(candidate) == false)) {
+                if (UNRESOLVED_EXPRESSIONS.stream().allMatch(unresolved -> unresolved.isAssignableFrom(candidate) == false)) {
                     asNodeSubclass = candidate;
                     break;
                 }

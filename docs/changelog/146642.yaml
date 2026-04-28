@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 146642
+summary: Allow evaluatable grouping functions (Like BUCKET) in LIMIT BY
+type: feature

@@ -184,9 +184,9 @@ public class VectorScorerInt8BulkBenchmark extends VectorScorerBulkBenchmark {
                 }
                 break;
             case NATIVE:
-                scorer = factory.getByteVectorScorerSupplier(function, in, values).orElseThrow().scorer();
+                scorer = factory.getInt8VectorScorerSupplier(function, in, values).orElseThrow().scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = factory.getByteVectorScorer(function.function(), values, ((VectorData) vectorData).queryVector)
+                    queryScorer = factory.getInt8VectorScorer(function.function(), values, ((VectorData) vectorData).queryVector)
                         .orElseThrow();
                 }
                 break;

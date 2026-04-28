@@ -114,9 +114,9 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     /// window applies to non-active shards in either unassigned or initializing state.
     public static final Setting<TimeValue> REPLICA_INACTIVE_BUFFER_TIME = Setting.timeSetting(
         "health.shards_availability.replica_unassigned_buffer_time",
-        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueSeconds(25),
         TimeValue.timeValueSeconds(0),
-        TimeValue.timeValueSeconds(60),
+        TimeValue.timeValueMinutes(2),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

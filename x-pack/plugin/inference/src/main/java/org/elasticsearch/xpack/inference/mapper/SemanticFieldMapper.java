@@ -17,9 +17,11 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -69,6 +71,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
@@ -87,6 +90,10 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     public static final String CONTENT_TYPE = "semantic";
 
+    public static final FeatureFlag SEMANTIC_FIELD_FEATURE_FLAG = new FeatureFlag("semantic_field");
+
+    public static final NodeFeature SEMANTIC_FIELD_MAPPER = new NodeFeature("semantic_field.semantic_field_mapper");
+
     static final String INDEX_OPTIONS_FIELD = "index_options";
 
     private static final DenseVectorMapperConfigurator DENSE_VECTOR_MAPPER_CONFIGURATOR = new DenseVectorMapperConfigurator(
@@ -96,6 +103,13 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         (indexVersion, modelSimilarity) -> modelSimilarity != null ? modelSimilarity.vectorSimilarity() : null,
         (indexVersion, modelSettings) -> null
     );
+
+    public static TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
+        return new TypeParser(
+            (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings(), modelRegistry.get(), c.getVectorsFormatProviders()),
+            List.of(notFromDynamicTemplates(CONTENT_TYPE))
+        );
+    }
 
     public static class Builder extends FieldMapper.Builder {
         protected final Function<Query, BitSetProducer> bitSetProducer;

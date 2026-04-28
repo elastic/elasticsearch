@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCount;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 
@@ -85,6 +86,24 @@ class PromqlBuiltinFunctionDefinitions {
     static final PromqlFunctionDefinition MINUTE = dateExtraction(ChronoField.MINUTE_OF_HOUR).description(
         "returns the minute of the hour for each of those timestamps (in UTC). Returned values are from 0 to 59."
     ).example("minute()").name("minute");
+
+    static final PromqlFunctionDefinition DAYS_IN_MONTH = PromqlFunctionDefinition.def()
+        .dateTime(
+            (source, date, configuration) -> new ToDouble(
+                source,
+                new DateUnitCount(
+                    source,
+                    Literal.keyword(source, "day"),
+                    Literal.keyword(source, "month"),
+                    date,
+                    configuration.withZoneId(ZoneOffset.UTC)
+                )
+            )
+        )
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("returns the number of days in the month of each of those timestamps (in UTC)")
+        .example("days_in_month()")
+        .name("days_in_month");
 
     static final PromqlFunctionDefinition TIME = PromqlFunctionDefinition.def()
         .scalarWithStep((source, step) -> new Div(source, new ToDouble(source, step), Literal.fromDouble(source, 1000.0)))

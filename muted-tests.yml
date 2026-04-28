@@ -222,9 +222,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
-  issue: https://github.com/elastic/elasticsearch/issues/146729
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotReindexRelocationOnShutdownIT
   method: testReindexRelocatesWithSearchableSnapshotSource
   issue: https://github.com/elastic/elasticsearch/issues/146710
@@ -291,9 +288,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/145728
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:stats_sparkline.sparklineComplexWithGrouping}
-  issue: https://github.com/elastic/elasticsearch/issues/147378
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/250_high_cardinality_keyword/Test mv_min}
   issue: https://github.com/elastic/elasticsearch/issues/147379
@@ -401,6 +395,18 @@ tests:
 - class: org.elasticsearch.search.sort.NestedSortBuilderTests
   method: testRewrite
   issue: https://github.com/elastic/elasticsearch/issues/147721
+- class: org.elasticsearch.search.runtime.StringScriptFieldTermQueryTests
+  method: testToString
+  issue: https://github.com/elastic/elasticsearch/issues/147727
+- class: org.elasticsearch.search.runtime.StringScriptFieldTermQueryTests
+  method: testVisit
+  issue: https://github.com/elastic/elasticsearch/issues/147728
+- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
+  method: testWithCranky {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
+  issue: https://github.com/elastic/elasticsearch/issues/147732
+- class: org.elasticsearch.search.internal.CancellableBulkScorerTests
+  method: testCancellationStopsScoring
+  issue: https://github.com/elastic/elasticsearch/issues/147737
 
 # Examples:
 #

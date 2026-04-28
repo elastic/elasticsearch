@@ -15,7 +15,7 @@ with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`st
 An `unmapped field` is a field referenced in a query that does not exist in the mapping of the index being queried. When querying
 multiple indices, a field is considered `partially unmapped` if it exists in the mapping of some indices but not others.
 
-PromQL queries have their own specific semantics for unmapped fields; see <!-- TODO: PromQL link -->.
+[`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
 Special notes about the `LOAD` option:
 - `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.

@@ -252,14 +252,14 @@ public class ChangePointOperator implements Operator {
         // 1. Collect values across the group's pages.
         List<Double> values = new ArrayList<>();
         List<Integer> bucketIndexes = new ArrayList<>();
-        int groupRowIndex = 0;
+        int bucketIndexOffset = 0;
         for (Page page : currentGroupPages) {
-            groupRowIndex = accumulateValues(page, values, bucketIndexes, groupRowIndex);
+            bucketIndexOffset = accumulateValues(page, values, bucketIndexes, bucketIndexOffset);
         }
 
         // 2. Detect change point
         ChangeType changeType = detectChangePoint(values, bucketIndexes);
-        int changePointIndex = changeType.changePoint(); // group-local row index, or -1
+        int changePointIndex = changeType.changePoint(); // group-local row index, or ChangeType.NO_CHANGE_POINT
         if (changeType instanceof ChangeType.Indeterminable indeterminable && hasIndeterminableChangePoint == false) {
             hasIndeterminableChangePoint = true;
             indeterminableChangePointReason = indeterminable.getReason();
@@ -269,8 +269,8 @@ public class ChangePointOperator implements Operator {
         int cumulativeRows = 0;
         while (currentGroupPages.isEmpty() == false) {
             Page page = currentGroupPages.peekFirst();
-            int pageCpPos = -1;
-            if (changePointIndex >= 0
+            int pageCpPos = ChangeType.NO_CHANGE_POINT;
+            if (changePointIndex != ChangeType.NO_CHANGE_POINT
                 && changePointIndex >= cumulativeRows
                 && changePointIndex < cumulativeRows + page.getPositionCount()) {
                 pageCpPos = changePointIndex - cumulativeRows;
@@ -287,31 +287,31 @@ public class ChangePointOperator implements Operator {
      * Updates warning flags for nulls, multivalued entries, and the per-group
      * value count limit.
      *
-     * @return the updated {@code groupRowIndex}
+     * @return the updated {@code bucketOffsetIndex}
      */
-    private int accumulateValues(Page page, List<Double> values, List<Integer> bucketIndexes, int groupRowIndex) {
+    private int accumulateValues(Page page, List<Double> values, List<Integer> bucketIndexes, int bucketOffsetIndex) {
         Block inputBlock = page.getBlock(channel);
         int positionCount = page.getPositionCount();
         for (int i = 0; i < positionCount; i++) {
-            if (groupRowIndex >= INPUT_VALUE_COUNT_LIMIT) {
+            if (bucketOffsetIndex >= INPUT_VALUE_COUNT_LIMIT) {
                 // Past the limit, no further rows are added; account for the rest in one shot.
                 tooManyValues = true;
-                return groupRowIndex + (positionCount - i);
+                return bucketOffsetIndex + (positionCount - i);
             }
 
             Object value = BlockUtils.toJavaObject(inputBlock, i);
             if (value == null) {
                 hasNulls = true;
-                groupRowIndex++;
+                bucketOffsetIndex++;
             } else if (value instanceof List<?>) {
                 hasMultivalued = true;
-                groupRowIndex++;
+                bucketOffsetIndex++;
             } else {
                 values.add(((Number) value).doubleValue());
-                bucketIndexes.add(groupRowIndex++);
+                bucketIndexes.add(bucketOffsetIndex++);
             }
         }
-        return groupRowIndex;
+        return bucketOffsetIndex;
     }
 
     private ChangeType detectChangePoint(List<Double> values, List<Integer> bucketIndexes) {
@@ -325,9 +325,9 @@ public class ChangePointOperator implements Operator {
 
     /**
      * Appends change_type and change_pvalue columns to the page. When
-     * {@code changePointPosition >= 0}, that position is annotated with
-     * {@code changeType}; all other positions are null. A negative position
-     * means the page contains no change point.
+     * {@code changePointPosition != ChangeType.NO_CHANGE_POINT}, that position is annotated
+     * with {@code changeType}; all other positions are null. A position equal to
+     * {@link ChangeType#NO_CHANGE_POINT} means the page contains no change point.
      */
     private Page annotatePageWithChangePoint(Page page, int changePointPosition, ChangeType changeType) {
         BlockFactory blockFactory = driverContext.blockFactory();
@@ -335,7 +335,7 @@ public class ChangePointOperator implements Operator {
         Block changePvalueBlock = null;
         boolean success = false;
         try {
-            if (changePointPosition < 0) {
+            if (changePointPosition == ChangeType.NO_CHANGE_POINT) {
                 changeTypeBlock = blockFactory.newConstantNullBlock(page.getPositionCount());
                 changePvalueBlock = blockFactory.newConstantNullBlock(page.getPositionCount());
             } else {

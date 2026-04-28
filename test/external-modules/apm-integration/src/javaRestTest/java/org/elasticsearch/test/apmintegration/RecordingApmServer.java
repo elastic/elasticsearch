@@ -35,18 +35,24 @@ public class RecordingApmServer extends ExternalResource {
 
     final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
 
-    private static HttpServer server;
-    private final Thread messageConsumerThread = consumerThread();
+    private HttpServer server;
+    private Thread messageConsumerThread;
     private volatile Consumer<ReceivedTelemetry> consumer;
-    private volatile boolean running = true;
+    private volatile boolean running;
 
     @Override
     protected void before() throws Throwable {
+        // Reset state in case this rule instance is reused across multiple test classes in the same JVM:
+        // a Thread cannot be restarted once terminated, and `running` would be false from the prior tear-down.
+        received.clear();
+        running = true;
+
         server = HttpServer.create();
         server.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", this::handle);
         server.start();
 
+        messageConsumerThread = consumerThread();
         messageConsumerThread.start();
     }
 

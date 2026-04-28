@@ -143,6 +143,89 @@ public class RestIndexActionIT extends ESIntegTestCase {
         assertThat(response, containsString("request does not support [_slice]"));
     }
 
+    public void testSliceRequirementAndValidationForGetAndDelete() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-get-delete-enabled");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request index = new Request("POST", "/slice-get-delete-enabled/_doc/1");
+        index.addParameter("_slice", "s1");
+        index.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        getRestClient().performRequest(index);
+
+        Request getMissingSlice = new Request("GET", "/slice-get-delete-enabled/_doc/1");
+        ResponseException missingGetSliceException = expectThrows(
+            ResponseException.class,
+            () -> getRestClient().performRequest(getMissingSlice)
+        );
+        String missingGetSliceResponse = Streams.copyToString(
+            new InputStreamReader(missingGetSliceException.getResponse().getEntity().getContent(), UTF_8)
+        );
+        assertThat(missingGetSliceResponse, containsString("[_slice] is required when [index.slice.enabled] is true"));
+
+        Request getWithSlice = new Request("GET", "/slice-get-delete-enabled/_doc/1");
+        getWithSlice.addParameter("_slice", "s1");
+        Response getResponse = getRestClient().performRequest(getWithSlice);
+        ObjectPath getResponsePath = ObjectPath.createFromResponse(getResponse);
+        assertThat(getResponsePath.evaluate("found"), equalTo(true));
+
+        Request deleteMissingSlice = new Request("DELETE", "/slice-get-delete-enabled/_doc/1");
+        ResponseException missingDeleteSliceException = expectThrows(
+            ResponseException.class,
+            () -> getRestClient().performRequest(deleteMissingSlice)
+        );
+        String missingDeleteSliceResponse = Streams.copyToString(
+            new InputStreamReader(missingDeleteSliceException.getResponse().getEntity().getContent(), UTF_8)
+        );
+        assertThat(missingDeleteSliceResponse, containsString("[_slice] is required when [index.slice.enabled] is true"));
+
+        Request deleteWithSlice = new Request("DELETE", "/slice-get-delete-enabled/_doc/1");
+        deleteWithSlice.addParameter("_slice", "s1");
+        Response deleteResponse = getRestClient().performRequest(deleteWithSlice);
+        ObjectPath deleteResponsePath = ObjectPath.createFromResponse(deleteResponse);
+        assertThat(deleteResponsePath.evaluate("result"), equalTo("deleted"));
+    }
+
+    public void testSliceRejectedForGetAndDeleteWhenSettingDisabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-get-delete-disabled");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": false
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request index = new Request("POST", "/slice-get-delete-disabled/_doc/1");
+        index.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        getRestClient().performRequest(index);
+
+        Request getWithSlice = new Request("GET", "/slice-get-delete-disabled/_doc/1");
+        getWithSlice.addParameter("_slice", "s1");
+        ResponseException getException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(getWithSlice));
+        String getResponse = Streams.copyToString(new InputStreamReader(getException.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(getResponse, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+
+        Request deleteWithSlice = new Request("DELETE", "/slice-get-delete-disabled/_doc/1");
+        deleteWithSlice.addParameter("_slice", "s1");
+        ResponseException deleteException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(deleteWithSlice));
+        String deleteResponse = Streams.copyToString(new InputStreamReader(deleteException.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(deleteResponse, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+    }
+
     public void testSliceBehaviorRespectsIndexTemplateSetting() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 

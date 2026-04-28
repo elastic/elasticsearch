@@ -83,7 +83,7 @@ public class EirfRowXContentParserTests extends ESTestCase {
         }
     }
 
-    public void testNullColumnsSkipped() throws IOException {
+    public void testAbsentColumnsSkipped() throws IOException {
         try (EirfRowBuilder builder = new EirfRowBuilder()) {
             // First doc sets schema with 3 columns
             builder.startDocument();
@@ -92,7 +92,7 @@ public class EirfRowXContentParserTests extends ESTestCase {
             builder.setString("c", "end");
             builder.endDocument();
 
-            // Second doc only sets a and c (b is null)
+            // Second doc only sets a and c (b is absent — never touched on this doc)
             builder.startDocument();
             builder.setString("a", "hello");
             builder.setString("c", "world");
@@ -106,7 +106,35 @@ public class EirfRowXContentParserTests extends ESTestCase {
                     assertFieldName(parser, "a");
                     assertToken(parser, Token.VALUE_STRING);
                     assertEquals("hello", parser.text());
-                    // b is null, should be skipped
+                    // b is absent in this doc, should be skipped
+                    assertFieldName(parser, "c");
+                    assertToken(parser, Token.VALUE_STRING);
+                    assertEquals("world", parser.text());
+                    assertToken(parser, Token.END_OBJECT);
+                    assertNull(parser.nextToken());
+                }
+            }
+        }
+    }
+
+    public void testExplicitNullEmitsValueNullToken() throws IOException {
+        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+            builder.startDocument();
+            builder.setString("a", "hello");
+            builder.setNull("b");
+            builder.setString("c", "world");
+            builder.endDocument();
+
+            try (EirfBatch batch = builder.build()) {
+                EirfRowReader row = batch.getRowReader(0);
+                EirfRowXContentParser.SchemaNode tree = EirfRowXContentParser.buildSchemaTree(batch.schema());
+                try (EirfRowXContentParser parser = new EirfRowXContentParser(tree, row)) {
+                    assertToken(parser, Token.START_OBJECT);
+                    assertFieldName(parser, "a");
+                    assertToken(parser, Token.VALUE_STRING);
+                    assertEquals("hello", parser.text());
+                    assertFieldName(parser, "b");
+                    assertToken(parser, Token.VALUE_NULL);
                     assertFieldName(parser, "c");
                     assertToken(parser, Token.VALUE_STRING);
                     assertEquals("world", parser.text());

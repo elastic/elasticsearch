@@ -7,23 +7,23 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Unit tests for {@link AsyncExternalSourceBuffer} producer backpressure, including
- * {@link AsyncExternalSourceBuffer#awaitSpaceForProducer} timeout behavior.
+ * Unit tests for {@link AsyncExternalSourceBuffer} backpressure via {@link AsyncExternalSourceBuffer#waitForSpace()}.
  */
 public class AsyncExternalSourceBufferTests extends ESTestCase {
 
@@ -46,13 +46,47 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         return new Page(blocks);
     }
 
-    /**
-     * When the buffer stays full because no consumer calls {@link AsyncExternalSourceBuffer#pollPage()},
-     * {@link AsyncExternalSourceBuffer#awaitSpaceForProducer} must time out with
-     * {@link ElasticsearchTimeoutException}. The buffer must remain consistent and recover after the
-     * producer gives up (drain pages, {@link AsyncExternalSourceBuffer#finish}).
-     */
-    public void testAwaitSpaceForProducerTimeoutLeavesBufferConsistent() {
+    public void testWaitForSpaceReturnsCompletedWhenBufferHasRoom() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        SubscribableListener<Void> space = buffer.waitForSpace();
+        assertTrue("waitForSpace should be immediately done when buffer is empty", space.isDone());
+        buffer.finish(true);
+    }
+
+    public void testWaitForSpaceReturnsPendingWhenBufferFull() {
+        long maxBufferBytes = 1500;
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+
+        while (buffer.bytesInBuffer() < maxBufferBytes) {
+            buffer.addPage(createTestPage(2, 50));
+        }
+        assertTrue(buffer.bytesInBuffer() >= maxBufferBytes);
+
+        SubscribableListener<Void> space = buffer.waitForSpace();
+        assertFalse("waitForSpace should NOT be done when buffer is full", space.isDone());
+
+        buffer.pollPage().releaseBlocks();
+        assertTrue("waitForSpace should complete after pollPage frees space", space.isDone());
+
+        buffer.finish(true);
+    }
+
+    public void testWaitForSpaceCompletesOnFinish() {
+        long maxBufferBytes = 1500;
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+
+        while (buffer.bytesInBuffer() < maxBufferBytes) {
+            buffer.addPage(createTestPage(2, 50));
+        }
+
+        SubscribableListener<Void> space = buffer.waitForSpace();
+        assertFalse(space.isDone());
+
+        buffer.finish(true);
+        assertTrue("waitForSpace should complete when buffer is finished (cancelled)", space.isDone());
+    }
+
+    public void testBufferConsistentAfterFullAndDrain() {
         long maxBufferBytes = 1500;
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
 
@@ -64,9 +98,6 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         }
         assertTrue(buffer.bytesInBuffer() >= maxBufferBytes);
         int sizeBeforeWait = buffer.size();
-
-        var ex = expectThrows(ElasticsearchTimeoutException.class, () -> buffer.awaitSpaceForProducer(TimeValue.timeValueMillis(50)));
-        assertTrue(ex.getMessage().contains("timeout waiting for async external source buffer space"));
 
         assertEquals(sizeBeforeWait, buffer.size());
         assertEquals(expectedBytes, buffer.bytesInBuffer());
@@ -83,57 +114,106 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
     }
 
     /**
-     * Same scenario through {@link ExternalSourceDrainUtils}: a tight drain timeout and a stuck consumer
-     * surface {@link ElasticsearchTimeoutException}. Byte accounting for queued pages matches
-     * {@link AsyncExternalSourceBuffer#bytesInBuffer()}, and the buffer is fully recoverable.
+     * Regression test for a lost-wakeup race between {@link AsyncExternalSourceBuffer#addPage(Page)}
+     * and {@link AsyncExternalSourceBuffer#pollPage()}.
+     * <p>
+     * The prior implementation guarded {@code notifyNotEmpty()} on a snapshot of {@code bytesInBuffer}
+     * taken BEFORE the page was inserted into the queue, and guarded {@code notifyNotFull()} on a
+     * threshold-crossing check using that same snapshot. A consumer that drained the queue and
+     * installed a {@code notEmptyFuture} in the tiny window between a producer's {@code getAndAdd}
+     * and {@code queue.add} would be orphaned — the producer would see {@code prevBytes != 0} and
+     * skip the wakeup. On buffers with a low max capacity this deadlocks both sides.
+     * <p>
+     * This test runs tens of thousands of add/poll interleavings against a small buffer. Pre-fix it
+     * reliably hangs; post-fix it completes in well under the safety deadline.
      */
-    public void testExternalSourceDrainUtilsTimeoutWithStuckConsumer() {
-        long maxBufferBytes = 1500;
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+    public void testNoLostWakeupUnderConcurrentAddAndPoll() throws Exception {
+        // Tight buffer to force frequent back-pressure flips. Each test page is ~224 B (2 cols x 1 row
+        // IntBlocks), so 3 * 8224 comfortably fits a handful of pages, with producer regularly waiting.
+        final long maxBufferBytes = 3L * 8224;
+        final int iterations = 50;
+        final int pagesPerIteration = 5_000;
+        final long deadlineNanos = TimeUnit.SECONDS.toNanos(30);
 
-        int totalPages = 8;
-        List<Page> sourcePages = new ArrayList<>();
-        for (int i = 0; i < totalPages; i++) {
-            sourcePages.add(createTestPage(2, 50));
-        }
+        for (int iter = 0; iter < iterations; iter++) {
+            AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+            AtomicInteger pagesAdded = new AtomicInteger();
+            AtomicInteger pagesConsumed = new AtomicInteger();
+            AtomicReference<Throwable> producerError = new AtomicReference<>();
 
-        CloseableIterator<Page> it = new CloseableIterator<>() {
-            private int index = 0;
-
-            @Override
-            public boolean hasNext() {
-                return index < sourcePages.size();
-            }
-
-            @Override
-            public Page next() {
-                if (index >= sourcePages.size()) {
-                    throw new NoSuchElementException();
+            Thread producer = new Thread(() -> {
+                try {
+                    for (int i = 0; i < pagesPerIteration; i++) {
+                        SubscribableListener<Void> space = buffer.waitForSpace();
+                        if (space.isDone() == false) {
+                            PlainActionFuture<Void> fut = new PlainActionFuture<>();
+                            space.addListener(fut);
+                            fut.actionGet(TimeValue.timeValueSeconds(10));
+                        }
+                        buffer.addPage(createTestPage(2, 1));
+                        pagesAdded.incrementAndGet();
+                    }
+                    buffer.finish(false);
+                } catch (Throwable t) {
+                    producerError.set(t);
                 }
-                return sourcePages.get(index++);
+            }, "async-buffer-producer");
+            producer.setDaemon(true);
+            producer.start();
+
+            long deadline = System.nanoTime() + deadlineNanos;
+            while (buffer.isFinished() == false) {
+                Page p = buffer.pollPage();
+                if (p != null) {
+                    p.releaseBlocks();
+                    pagesConsumed.incrementAndGet();
+                } else {
+                    IsBlockedResult blk = buffer.waitForReading();
+                    if (blk.listener().isDone() == false) {
+                        PlainActionFuture<Void> fut = new PlainActionFuture<>();
+                        blk.listener().addListener(fut);
+                        try {
+                            fut.actionGet(TimeValue.timeValueSeconds(10));
+                        } catch (Exception e) {
+                            throw new AssertionError(
+                                "consumer stuck waiting for data (lost wakeup) iter="
+                                    + iter
+                                    + " addedSoFar="
+                                    + pagesAdded.get()
+                                    + " consumedSoFar="
+                                    + pagesConsumed.get()
+                                    + " queueSize="
+                                    + buffer.size()
+                                    + " bytesInBuffer="
+                                    + buffer.bytesInBuffer(),
+                                e
+                            );
+                        }
+                    }
+                }
+                if (System.nanoTime() > deadline) {
+                    throw new AssertionError(
+                        "test deadline exceeded iter="
+                            + iter
+                            + " added="
+                            + pagesAdded.get()
+                            + " consumed="
+                            + pagesConsumed.get()
+                            + " queueSize="
+                            + buffer.size()
+                            + " bytesInBuffer="
+                            + buffer.bytesInBuffer()
+                    );
+                }
             }
 
-            @Override
-            public void close() {}
-        };
-
-        var ex = expectThrows(
-            ElasticsearchTimeoutException.class,
-            () -> ExternalSourceDrainUtils.drainPages(it, buffer, TimeValue.timeValueMillis(200))
-        );
-        assertTrue(ex.getMessage().contains("timeout waiting for async external source buffer space"));
-
-        assertTrue(buffer.size() >= 1);
-        long bytesInBuffer = buffer.bytesInBuffer();
-        long sumBytes = 0;
-        for (Page p = buffer.pollPage(); p != null; p = buffer.pollPage()) {
-            sumBytes += p.ramBytesUsedByBlocks();
-            p.releaseBlocks();
+            producer.join(TimeUnit.SECONDS.toMillis(5));
+            assertFalse("producer thread should have exited", producer.isAlive());
+            assertNull("producer threw", producerError.get());
+            assertEquals("all pages should have been added", pagesPerIteration, pagesAdded.get());
+            assertEquals("all pages should have been consumed", pagesPerIteration, pagesConsumed.get());
+            assertEquals(0, buffer.size());
+            assertEquals(0, buffer.bytesInBuffer());
         }
-        assertEquals(0, buffer.size());
-        assertEquals(0, buffer.bytesInBuffer());
-        assertEquals(bytesInBuffer, sumBytes);
-        assertTrue("drain should not have ingested all pages before timing out", it.hasNext());
-        buffer.finish(true);
     }
 }

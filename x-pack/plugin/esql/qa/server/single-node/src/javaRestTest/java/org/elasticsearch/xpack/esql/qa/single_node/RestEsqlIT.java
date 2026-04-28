@@ -740,26 +740,45 @@ public class RestEsqlIT extends RestEsqlTestCase {
             String description = p.get("description").toString();
             switch (description) {
                 case "data" -> {
-                    // We force a page size of 10 so there are likely to be sleeps with the outbound buffer full
-                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThanOrEqualTo(0))).extraOk());
-                    assertSleeps(sleeps, sleepMatcher("exchange full"));
+                    /*
+                     * We force a page size of 10 so there are likely to be sleeps with the
+                     * outbound buffer full. "Driver iterations" sleeps *may* happen if the
+                     * buffer doesn't fill up fast enough.
+                     */
+                    assertMap(
+                        sleeps,
+                        matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThanOrEqualTo(0)).extraOk()).extraOk()
+                    );
+                    assertSleeps(sleeps, sleepMatcher(either(equalTo("exchange full")).or(equalTo("driver iterations"))));
                 }
                 case "node_reduce" -> {
-                    // There will always be sleeps on the reduce drivers because they won't have results ready
-                    // There *might* be exchange_full sleeps as well
+                    /*
+                     * There will always be sleeps on the reduce drivers because they won't
+                     * have results ready. "Driver iterations" sleeps *may* happen if the
+                     * buffer doesn't fill up fast enough.
+                     */
                     Map<?, ?> counts = (Map<?, ?>) sleeps.get("counts");
                     assertThat(counts, either(hasKey((Object) "exchange empty")).or(hasKey("exchange empty OR exchange full")));
                     assertSleeps(
                         sleeps,
                         sleepMatcher(
-                            either(equalTo("exchange empty")).or(equalTo("exchange full")).or(equalTo("exchange empty OR exchange full"))
+                            either(equalTo("exchange empty")).or(equalTo("exchange full"))
+                                .or(equalTo("exchange empty OR exchange full"))
+                                .or(equalTo("driver iterations"))
                         )
                     );
                 }
                 case "final" -> {
-                    // There will always be sleeps on the reduce drivers because they won't have results ready
-                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
-                    assertSleeps(sleeps, sleepMatcher("exchange empty"));
+                    /*
+                     * There will always be sleeps on the reduce drivers because they won't
+                     * have results ready. "Driver iterations" sleeps *may* happen if the
+                     * buffer doesn't fill up fast enough.
+                     */
+                    assertMap(
+                        sleeps,
+                        matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0)).extraOk()).extraOk()
+                    );
+                    assertSleeps(sleeps, sleepMatcher(either(equalTo("exchange empty")).or(equalTo("driver iterations"))));
                 }
                 default -> throw new IllegalArgumentException("unknown task: " + description);
             }

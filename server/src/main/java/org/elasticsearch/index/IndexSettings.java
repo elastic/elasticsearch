@@ -702,6 +702,43 @@ public final class IndexSettings {
     );
 
     /**
+     * Enables slice semantics for the index. When enabled, APIs accept {@code _slice} and treat it as routing.
+     */
+    public static final Setting<Boolean> SLICE_ENABLED = Setting.boolSetting("index.slice.enabled", false, new Setting.Validator<>() {
+        @Override
+        public void validate(Boolean enabled) {
+            if (enabled && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "unknown setting [%s] please check that any required plugins are installed, "
+                            + "or check the breaking changes documentation for removed settings",
+                        SLICE_ENABLED.getKey()
+                    )
+                );
+            }
+        }
+
+        @Override
+        public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+            if (enabled) {
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (indexMode == IndexMode.TIME_SERIES) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] cannot be used with [%s=%s].",
+                            SLICE_ENABLED.getKey(),
+                            MODE.getKey(),
+                            IndexMode.TIME_SERIES.getName()
+                        )
+                    );
+                }
+            }
+        }
+    }, Property.IndexScope, Property.Final, Property.ServerlessPublic);
+
+    /**
     * The {@link IndexMode "mode"} of the index.
     */
     public static final Setting<IndexMode> MODE = Setting.enumSetting(
@@ -1141,6 +1178,7 @@ public final class IndexSettings {
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
+    private final boolean sliceEnabled;
     private volatile long retentionLeaseMillis;
 
     /**
@@ -1276,6 +1314,10 @@ public final class IndexSettings {
         return logsdbRouteOnSortFields;
     }
 
+    public boolean isSliceEnabled() {
+        return sliceEnabled;
+    }
+
     /**
      * Returns <code>true</code> if the index is in logsdb mode and needs a [host.name] keyword field. The default is <code>false</code>
      */
@@ -1369,6 +1411,7 @@ public final class IndexSettings {
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
+        sliceEnabled = scopedSettings.get(SLICE_ENABLED);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);

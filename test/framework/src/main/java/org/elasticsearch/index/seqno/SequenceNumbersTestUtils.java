@@ -180,6 +180,38 @@ public final class SequenceNumbersTestUtils {
     }
 
     /**
+     * Waits until the minimum retained sequence number on the primary shard of the given index has advanced
+     * to at least the expected value.
+     *
+     * Calling `getMinRetainedSeqNo()` directly on the shard advances the cached value whenever the retention
+     * lock is not held. This method retries via `assertBusy` to find such a window, ensuring the value is
+     * stored durably.
+     *
+     * @param cluster          the cluster containing the index
+     * @param indexName        the index to check
+     * @param expectedSeqNo    the expected minimum retained sequence number
+     */
+    public static void assertMinRetainedSeqNoAdvanced(InternalTestCluster cluster, String indexName, long expectedSeqNo) throws Exception {
+        assertBusy(() -> {
+            for (var indicesService : cluster.getDataNodeInstances(IndicesService.class)) {
+                for (var indexService : indicesService) {
+                    if (indexService.index().getName().equals(indexName)) {
+                        for (var indexShard : indexService) {
+                            if (indexShard.routingEntry().primary() && indexShard.routingEntry().active()) {
+                                assertThat(
+                                    "min retained seq no on " + indexShard.shardId() + " should have advanced",
+                                    indexShard.getMinRetainedSeqNo(),
+                                    equalTo(expectedSeqNo)
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    /**
      * Waits until all retention leases on all shards of the given index have their retaining sequence number
      * equal to the expected value.
      *

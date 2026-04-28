@@ -88,7 +88,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
         validateConfig(options, env);
 
-        var secureSettingsLoader = secureSettingsLoader(env);
+        var secureSettingsLoader = secureSettingsLoader(processInfo);
 
         try (
             var loadedSecrets = secureSettingsLoader.load(env, terminal);
@@ -147,7 +147,7 @@ class ServerCli extends EnvironmentAwareCommand {
         Environment env,
         SecureString keystorePassword
     ) throws Exception {
-        assert secureSettingsLoader(env) instanceof KeyStoreLoader;
+        assert secureSettingsLoader(processInfo) instanceof KeyStoreLoader;
 
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
         Command cmd = loadTool(processInfo.sysprops(), "auto-configure-node", autoConfigLibs);
@@ -301,8 +301,13 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected SecureSettingsLoader secureSettingsLoader(Environment env) {
-        // TODO: Use the environment configuration to decide what kind of secrets store to load
-        return new KeyStoreLoader();
+    protected SecureSettingsLoader secureSettingsLoader(ProcessInfo processInfo) {
+        // The SecureSettingsLoader is configured by a CLI sys prop `es.secure_settings.source` via `CLI_JAVA_OPTS`
+        String source = processInfo.sysprops().getOrDefault("es.secure_settings.source", "keystore");
+        return switch (source) {
+            case "keystore" -> new KeyStoreLoader();
+            case "file_settings" -> new FileSettingsClusterSecretsLoader();
+            default -> throw new IllegalArgumentException("Unknown secure settings source [" + source + "]");
+        };
     }
 }

@@ -37,12 +37,26 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     private long size;
 
     public BytesRefArray(long capacity, BigArrays bigArrays) {
+        this(capacity, bigArrays, 0L);
+    }
+
+    /**
+     * Creates a new {@link BytesRefArray} with pre-allocated byte storage.
+     *
+     * @param capacity  estimated number of entries
+     * @param bigArrays backing big-arrays instance
+     * @param byteHint  expected total byte payload; when positive, the internal byte
+     *                  buffer is pre-sized to this value instead of the default
+     *                  {@code capacity * 3}, reducing grow-on-demand resizes
+     */
+    public BytesRefArray(long capacity, BigArrays bigArrays, long byteHint) {
         this.bigArrays = bigArrays;
         boolean success = false;
         try {
             startOffsets = bigArrays.newLongArray(capacity + 1, false);
             startOffsets.set(0, 0);
-            bytes = bigArrays.newByteArray(capacity * 3, false);
+            long initialBytes = byteHint > 0 ? byteHint : capacity * 3;
+            bytes = bigArrays.newByteArray(initialBytes, false);
             success = true;
         } finally {
             if (false == success) {

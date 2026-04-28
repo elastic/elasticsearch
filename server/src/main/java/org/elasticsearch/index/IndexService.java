@@ -725,7 +725,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void onShardClose(ShardLock lock) {
-        // TODO: A shard may be closed for a reason unrelated to index deletion (e.g. a relocation failure), yet read
+        // TODO: A shard may be closed for a reason unrelated to index deletion (e.g. a relocation), yet read
         // deleted == true because a concurrent index deletion set the flag. It will then end up calling
         // beforeIndexShardDeleted/afterIndexShardDeleted eventhough it did not own the deletion work.
         // This is safe because index deletion is a no-return state, and cleanup should be idempotent, but should

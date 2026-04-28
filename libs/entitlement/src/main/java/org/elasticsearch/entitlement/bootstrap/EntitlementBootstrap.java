@@ -44,14 +44,6 @@ public class EntitlementBootstrap {
     public static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     /**
-     * Timeout (ms) for self-attaching the entitlement agent. Raised above the JDK default of 10s
-     * because slow container starts have been observed to push agent attachment past that window;
-     * see <a href="https://github.com/elastic/elasticsearch/issues/146333">#146333</a>.
-     */
-    static final String ATTACH_TIMEOUT_PROPERTY = "sun.tools.attach.attachTimeout";
-    static final String ATTACH_TIMEOUT_MILLIS = "30000";
-
-    /**
      * Main entry point that activates entitlement checking. Once this method returns,
      * calls to methods protected by entitlements from classes without a valid
      * policy will throw {@link org.elasticsearch.entitlement.bridge.NotEntitledException}.
@@ -136,16 +128,8 @@ public class EntitlementBootstrap {
         return PathUtils.get(userHome);
     }
 
-    @SuppressForbidden(reason = "Required to raise the JVM agent attach timeout above the JDK default")
-    static void setAttachTimeoutIfUnset() {
-        if (System.getProperty(ATTACH_TIMEOUT_PROPERTY) == null) {
-            System.setProperty(ATTACH_TIMEOUT_PROPERTY, ATTACH_TIMEOUT_MILLIS);
-        }
-    }
-
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
     static void loadAgent(String agentPath, String entitlementInitializationClassName) {
-        setAttachTimeoutIfUnset();
         long startNanos = System.nanoTime();
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));

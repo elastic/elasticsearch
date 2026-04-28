@@ -1,6 +1,6 @@
 pr: 147759
-summary: Raise entitlement agent attach timeout
+summary: Log entitlement agent attach timing
 area: Infra/Core
-type: bug
+type: enhancement
 issues:
  - 146333

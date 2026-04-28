@@ -20,9 +20,13 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
@@ -33,11 +37,13 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.HashSet;
@@ -56,6 +62,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SE
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -75,6 +82,9 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
     private static final String AGENT_PRIV = "agent";
     private static final String HELICARRIER_INDEX_PATTERN = "helicarrier-*";
     private static final String HELICARRIER_DLS_QUERY = "{\"term\":{\"clearance\":\"public\"}}";
+    // Mirrors the private constant in WorkflowService; setting it on the request thread context
+    // emulates a request originating from a workflow-allowed REST handler.
+    private static final String WORKFLOW_HEADER = "_xpack_security_workflow";
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -317,6 +327,111 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
 
         assertThat(fetchTrackedFeatureNames(), not(hasItem(DOCUMENT_LEVEL_SECURITY_FEATURE.getName())));
         assertThat(fetchTrackedFeatureNames(), not(hasItem(FIELD_LEVEL_SECURITY_FEATURE.getName())));
+    }
+
+    /**
+     * An API key role descriptor restricted to the {@code search_application_query} workflow,
+     * intersected with an owner role that holds the qualifying application privilege (so the
+     * provider attaches implicit DLS/FLS on the owner side at role-build time). When
+     * the originating workflow matches the restriction, the role survives intact and the implicit
+     * DLS/FLS attached by the provider on the owner (limited-by) side is honored end-to-end. The
+     * intersection of the assigned side's raw {@code read} and the owner side's implicit DLS+FLS
+     * yields a composed IAC that hides classified docs and strips the {@code codename} field, with
+     * the implicit flag preserved so the basic-license bypass holds and the search succeeds.
+     */
+    public void testWorkflowRestrictionRespectsImplicitPrivilegesWhenWorkflowMatches() throws Exception {
+        createUserWithRole("wong", createRoleWithApplicationPrivilege("librarian"));
+
+        assertAcked(
+            indicesAdmin().prepareCreate("helicarrier-workflow-allow").setMapping("clearance", "type=keyword", "codename", "type=keyword")
+        );
+        prepareIndex("helicarrier-workflow-allow").setId("1")
+            .setSource("clearance", "public", "codename", "kamar-taj")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex("helicarrier-workflow-allow").setId("2")
+            .setSource("clearance", "classified", "codename", "dormammu")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        final RoleDescriptor apiKeyRole = apiKeyRoleWithRawReadAndSearchApplicationWorkflow("api-key-workflow-respected");
+        final Client apiKeyClient = clientForApiKey(createApiKey("wong", List.of(apiKeyRole)))
+            // Simulate a request originating from the search_application_query REST handler, which is
+            // what the production WorkflowService would put on the thread context for this workflow.
+            .filterWithHeader(Map.of(WORKFLOW_HEADER, WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name()));
+
+        assertResponse(apiKeyClient.prepareSearch("helicarrier-workflow-allow"), response -> {
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getSourceAsMap(), is(Map.of("clearance", "public")));
+        });
+
+        assertThat(fetchTrackedFeatureNames(), not(hasItem(DOCUMENT_LEVEL_SECURITY_FEATURE.getName())));
+        assertThat(fetchTrackedFeatureNames(), not(hasItem(FIELD_LEVEL_SECURITY_FEATURE.getName())));
+    }
+
+    /**
+     * Implicit privileges are derived at role-build time and never persisted into a role descriptor.
+     * The Get API key API returns role descriptors as they were stored at creation time, so the
+     * implicit indices privileges injected by the provider must not appear in either the API key's
+     * own role descriptors or the {@code limited_by} owner role descriptors.
+     */
+    public void testGetApiKeyDoesNotReturnImplicitPrivileges() throws Exception {
+        final String username = "richards";
+        createUserWithRole(username, createRoleWithApplicationPrivilege("inventor"));
+
+        final RoleDescriptor apiKeyRole = new RoleDescriptor(
+            "api-key-with-app-priv",
+            null,
+            null,
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application(SHIELD_APP)
+                    .privileges(AGENT_PRIV)
+                    .resources("*")
+                    .build() },
+            null,
+            null,
+            null,
+            null
+        );
+        final CreateApiKeyResponse apiKey = createApiKey(username, List.of(apiKeyRole));
+
+        final GetApiKeyResponse response = clientFor(username).execute(
+            GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.builder().apiKeyId(apiKey.getId()).ownedByAuthenticatedUser().withLimitedBy().build()
+        ).get();
+
+        assertThat(response.getApiKeyInfoList().size(), equalTo(1));
+        final ApiKey apiKeyInfo = response.getApiKeyInfoList().get(0).apiKeyInfo();
+
+        assertThat(apiKeyInfo.getRoleDescriptors(), contains(apiKeyRole));
+        assertThat(indexPatternsOf(apiKeyInfo.getRoleDescriptors()), not(hasItem(HELICARRIER_INDEX_PATTERN)));
+        assertThat(
+            indexPatternsOf(apiKeyInfo.getLimitedBy().roleDescriptorsList().stream().flatMap(Set::stream).toList()),
+            not(hasItem(HELICARRIER_INDEX_PATTERN))
+        );
+    }
+
+    private static List<String> indexPatternsOf(Collection<RoleDescriptor> rds) {
+        return rds.stream().flatMap(rd -> Arrays.stream(rd.getIndicesPrivileges())).flatMap(ip -> Arrays.stream(ip.getIndices())).toList();
+    }
+
+    private static RoleDescriptor apiKeyRoleWithRawReadAndSearchApplicationWorkflow(String name) {
+        return new RoleDescriptor(
+            name,
+            null,
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder().indices(HELICARRIER_INDEX_PATTERN).privileges("read").build() },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new RoleDescriptor.Restriction(new String[] { WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name() }),
+            null
+        );
     }
 
     private String createRoleWithApplicationPrivilege(String roleName) {

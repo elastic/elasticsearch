@@ -76,15 +76,18 @@ public abstract class Cancellable {
          * Executes some arbitrary code iff the on-going request has not been cancelled, otherwise throws {@link CancellationException}.
          * This is needed to guarantee that cancelling a request works correctly even in case {@link #cancel()} is called between different
          * attempts of the same request. The low-level client reuses the same instance of the {@link AbstractExecutionAwareRequest} by
-         * calling
-         * {@link AbstractExecutionAwareRequest#reset()} between subsequent retries. The {@link #cancel()} method can be called at anytime,
-         * and we need to handle the case where it gets called while there is no request being executed as one attempt may have failed and
-         * the subsequent attempt has not been started yet.
+         * calling {@link AbstractExecutionAwareRequest#reset()} between subsequent retries. The {@link #cancel()} method can be called at
+         * anytime, and we need to handle the case where it gets called while there is no request being executed as one attempt may have
+         * failed and the subsequent attempt has not been started yet.
          * If the request has already been cancelled we don't go ahead with the next attempt, and artificially raise the
          * {@link CancellationException}, otherwise we run the provided {@link Runnable} which will reset the request and send the next
          * attempt.
-         * Note that this method must be synchronized as well as the {@link #cancel()} method, to prevent a request from being cancelled
-         * when there is no future to cancel, which would make cancelling the request a no-op.
+         * <p>
+         * This method is intentionally not synchronized to avoid a potential deadlock between this object's monitor and Apache HC4's
+         * internal connection pool lock (see <a href="https://github.com/elastic/elasticsearch/issues/141558">#141558</a>).
+         * Instead, cancellation state is tracked via a separate {@link AtomicBoolean} that is never cleared by
+         * {@link AbstractExecutionAwareRequest#reset()}. If {@link #cancel()} races with this method, at most one additional attempt
+         * may proceed before the next call to {@code runIfNotCancelled} observes the cancellation and throws.
          */
         void runIfNotCancelled(Runnable runnable) {
             if (cancelled.get()) {

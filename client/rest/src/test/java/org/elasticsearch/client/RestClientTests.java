@@ -451,57 +451,45 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     /**
-     * Demonstrates a deadlock scenario in RestClient where:
+     * Regression test for <a href="https://github.com/elastic/elasticsearch/issues/141558">#141558</a>.
+     * <p>
+     * Reproduces a scenario where a deadlock previously occurred between the Apache connection pool lock
+     * and the RequestCancellable object monitor:
      * <ol>
      * <li>The Apache IO thread holds the connection pool lock and attempts to acquire
      *    the RequestCancellable monitor (via onFailure callback)</li>
      * <li>The application thread holds the RequestCancellable monitor and attempts to
      *    acquire the connection pool lock (via synchronous retry of a different request)</li>
      * </ol>
-     *
-     * This test succeeds when the deadlock is detected by the JVM and fails if it doesn't detect a deadlock.
+     * Since {@code runIfNotCancelled} is no longer synchronized, this scenario no longer deadlocks.
      */
     public void testDeadlockBetweenConnectionPoolAndCancellableMonitor() throws Exception {
-        // Construct a RestClient pointing to localhost with an invalid port to reliably make connection requests fail.
-        // Intentionally not closing this client because it will also deadlock on the connection pool lock during
-        // cleanup and cause the test to hang indefinitely.
         RestClient client = RestClient.builder(new HttpHost("127.0.0.1", 1, "http")).build();
 
         CountDownLatch isConnectionPoolLockHeld = new CountDownLatch(1);
         CountDownLatch cancellableMonitorHeld = new CountDownLatch(1);
+        CountDownLatch testCompleted = new CountDownLatch(1);
 
-        // Perform a notional request that mimics the synchronous retry-upon-failure pattern implemented in
-        // RestClient#performRequestAsync(NodeTuple, InternalRequest, FailureTrackingResponseListener)
         AtomicReference<Cancellable> cancellable = new AtomicReference<>();
         cancellable.set(client.performRequestAsync(new Request("GET", "/test/endpoint"), new ResponseListener() {
             @Override
-            public void onSuccess(Response _response) {
-                // No-op
-            }
+            public void onSuccess(Response _response) {}
 
             @Override
             public void onFailure(Exception _exception) {
-                // This method is invoked on the Apache IO thread through AbstractNIOConnPool#requestFailed
                 isConnectionPoolLockHeld.countDown();
-
-                // Simulates the application thread holding the original RequestCancellable object monitor before
-                // issuing a synchronous retry for a different RequestCancellable whose request completed with an
-                // exception (e.g. 4xx or 5xx HTTP error).
                 awaitCountDownLatch(cancellableMonitorHeld);
                 cancellable.get().runIfNotCancelled(() -> {});
+                testCompleted.countDown();
             }
         }));
 
-        // Don't block the test thread for assertions
         ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
             executor.execute(() -> {
                 awaitCountDownLatch(isConnectionPoolLockHeld);
                 cancellable.get().runIfNotCancelled(() -> {
                     cancellableMonitorHeld.countDown();
-
-                    // Simulate the synchronous retry-upon-failure for a different request, which will cause a deadlock
-                    // on the connection pool lock
                     client.performRequestAsync(new Request("GET", "/test/endpoint"), new ResponseListener() {
                         @Override
                         public void onSuccess(Response _response) {}
@@ -512,22 +500,13 @@ public class RestClientTests extends RestClientTestCase {
                 });
             });
 
-            // Poll for deadlock detection
-            boolean deadlockDetected = false;
-            ThreadMXBean threadMxBean = ManagementFactory.getThreadMXBean();
-            for (int i = 0; i < 10; i++) {
-                if (threadMxBean.findDeadlockedThreads() != null) {
-                    deadlockDetected = true;
-                    break;
-                }
-                Thread.sleep(1_000);
-            }
-
-            if (!deadlockDetected) {
-                fail("No deadlock detected after 10 tries");
-            }
+            assertTrue(
+                "Test did not complete within timeout — deadlock detected between pool lock and RequestCancellable",
+                testCompleted.await(10, TimeUnit.SECONDS)
+            );
         } finally {
             executor.shutdownNow();
+            client.close();
         }
     }
 

@@ -349,7 +349,10 @@ public abstract class GoldenTestCase extends ESTestCase {
                         result.add(
                             Tuple.tuple(
                                 Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
-                                verifyOrWrite(localOptimize(reductionPlan.dataNodePlan(), configuration), outputPath(singleFileOutput.output()))
+                                verifyOrWrite(
+                                    localOptimize(reductionPlan.dataNodePlan(), configuration),
+                                    outputPath(singleFileOutput.output())
+                                )
                             )
                         );
                     }

@@ -127,6 +127,92 @@ public class KeyedLockTests extends ESTestCase {
         assertFalse(lock.hasLockedKeys());
     }
 
+    public void testNonReentrantIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
+        ConcurrentHashMap<String, Integer> counter = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
+        KeyedLock<String> connectionLock = new KeyedLock<>(false);
+        String[] names = new String[randomIntBetween(1, 40)];
+        for (int i = 0; i < names.length; i++) {
+            names[i] = randomRealisticUnicodeOfLengthBetween(10, 20);
+        }
+        int numThreads = randomIntBetween(3, 10);
+        final CountDownLatch startLatch = new CountDownLatch(1 + numThreads);
+        NonReentrantAcquireAndReleaseThread[] threads = new NonReentrantAcquireAndReleaseThread[numThreads];
+        for (int i = 0; i < numThreads; i++) {
+            threads[i] = new NonReentrantAcquireAndReleaseThread(startLatch, connectionLock, names, counter, safeCounter);
+        }
+        for (int i = 0; i < numThreads; i++) {
+            threads[i].start();
+        }
+        startLatch.countDown();
+
+        for (int i = 0; i < numThreads; i++) {
+            threads[i].join();
+        }
+        assertThat(connectionLock.hasLockedKeys(), equalTo(false));
+
+        Set<Entry<String, Integer>> entrySet = counter.entrySet();
+        assertThat(counter.size(), equalTo(safeCounter.size()));
+        for (Entry<String, Integer> entry : entrySet) {
+            AtomicInteger atomicInteger = safeCounter.get(entry.getKey());
+            assertThat(atomicInteger, not(Matchers.nullValue()));
+            assertThat(atomicInteger.get(), equalTo(entry.getValue()));
+        }
+    }
+
+    public void testNonReentrantTryAcquire() throws InterruptedException {
+        KeyedLock<String> lock = new KeyedLock<>(false);
+        Releasable foo = lock.tryAcquire("foo");
+        assertNotNull(foo);
+        // same thread cannot re-acquire
+        assertNull(lock.tryAcquire("foo"));
+        assertTrue(lock.hasLockedKeys());
+        foo.close();
+        assertFalse(lock.hasLockedKeys());
+        // can acquire again after release
+        Releasable acquire = lock.tryAcquire("foo");
+        assertNotNull(acquire);
+        final AtomicBoolean check = new AtomicBoolean(false);
+        CountDownLatch latch = new CountDownLatch(1);
+        Thread thread = new Thread(() -> {
+            latch.countDown();
+            try (Releasable ignore = lock.acquire("foo")) {
+                assertTrue(check.get());
+            }
+        });
+        thread.start();
+        latch.await();
+        check.set(true);
+        acquire.close();
+        thread.join();
+    }
+
+    public void testLockIsNotReentrant() throws InterruptedException {
+        KeyedLock<String> lock = new KeyedLock<>(false);
+        Releasable foo = lock.acquire("foo");
+        assertTrue(lock.isHeldByCurrentThread("foo"));
+        assertFalse(lock.isHeldByCurrentThread("bar"));
+        // tryAcquire returns null for the holding thread — the key difference from the reentrant case
+        assertNull(lock.tryAcquire("foo"));
+        assertTrue(lock.isHeldByCurrentThread("foo"));
+        AtomicInteger test = new AtomicInteger(0);
+        CountDownLatch latch = new CountDownLatch(1);
+        Thread t = new Thread(() -> {
+            latch.countDown();
+            try (Releasable r = lock.acquire("foo")) {
+                test.incrementAndGet();
+            }
+        });
+        t.start();
+        latch.await();
+        Thread.yield();
+        assertEquals(0, test.get());
+        foo.close();
+        t.join();
+        assertEquals(1, test.get());
+        assertFalse(lock.hasLockedKeys());
+    }
+
     public static class AcquireAndReleaseThread extends Thread {
         private CountDownLatch startLatch;
         KeyedLock<String> connectionLock;
@@ -186,6 +272,77 @@ public class KeyedLockTests extends ESTestCase {
                             Thread.yield();
                         }
                     }
+                    Integer integer = counter.get(curName);
+                    if (integer == null) {
+                        counter.put(curName, 1);
+                    } else {
+                        counter.put(curName, integer.intValue() + 1);
+                    }
+                }
+                AtomicInteger atomicInteger = new AtomicInteger(0);
+                AtomicInteger value = safeCounter.putIfAbsent(curName, atomicInteger);
+                if (value == null) {
+                    atomicInteger.incrementAndGet();
+                } else {
+                    value.incrementAndGet();
+                }
+            }
+        }
+    }
+
+    public static class NonReentrantAcquireAndReleaseThread extends Thread {
+        private CountDownLatch startLatch;
+        KeyedLock<String> connectionLock;
+        String[] names;
+        ConcurrentHashMap<String, Integer> counter;
+        ConcurrentHashMap<String, AtomicInteger> safeCounter;
+        final int numRuns = scaledRandomIntBetween(5000, 50000);
+
+        public NonReentrantAcquireAndReleaseThread(
+            CountDownLatch startLatch,
+            KeyedLock<String> connectionLock,
+            String[] names,
+            ConcurrentHashMap<String, Integer> counter,
+            ConcurrentHashMap<String, AtomicInteger> safeCounter
+        ) {
+            this.startLatch = startLatch;
+            this.connectionLock = connectionLock;
+            this.names = names;
+            this.counter = counter;
+            this.safeCounter = safeCounter;
+        }
+
+        @Override
+        public void run() {
+            startLatch.countDown();
+            try {
+                startLatch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            for (int i = 0; i < numRuns; i++) {
+                String curName = names[randomInt(names.length - 1)];
+                assert connectionLock.isHeldByCurrentThread(curName) == false;
+                Releasable lock;
+                if (randomIntBetween(0, 10) < 4) {
+                    int tries = 0;
+                    boolean stepOut = false;
+                    while ((lock = connectionLock.tryAcquire(curName)) == null) {
+                        assertFalse(connectionLock.isHeldByCurrentThread(curName));
+                        if (tries++ == 10) {
+                            stepOut = true;
+                            break;
+                        }
+                    }
+                    if (stepOut) {
+                        break;
+                    }
+                } else {
+                    lock = connectionLock.acquire(curName);
+                }
+                try (Releasable ignore = lock) {
+                    assert connectionLock.isHeldByCurrentThread(curName);
+                    assert connectionLock.isHeldByCurrentThread(curName + "bla") == false;
                     Integer integer = counter.get(curName);
                     if (integer == null) {
                         counter.put(curName, 1);

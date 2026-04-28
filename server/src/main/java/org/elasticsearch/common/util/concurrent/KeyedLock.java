@@ -14,6 +14,7 @@ import org.elasticsearch.core.Releasable;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -23,15 +24,29 @@ import java.util.concurrent.locks.ReentrantLock;
  * lock. The latter is important to assure that the list of locks does not grow
  * infinitely.
  * <p>
- * Note: this lock is reentrant.
+ * Note: reentrant by default; use {@code new KeyedLock(false)} for non-reentrant
+ * (semaphore-based) semantics, where a thread attempting to acquire a key it
+ * already holds will block rather than re-enter.
  */
 public final class KeyedLock<T> {
 
+    private final boolean reentrant;
     private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
+    public KeyedLock() {
+        this(true);
+    }
+
+    public KeyedLock(boolean reentrant) {
+        this.reentrant = reentrant;
+    }
+
     /**
-     * Acquires a lock for the given key. The key is compared by its equals method not by object identity. The lock can be acquired
-     * by the same thread multiple times. The lock is released by closing the returned {@link Releasable}.
+     * Acquires a lock for the given key. The key is compared by its equals method not by object identity. The lock is released by
+     * closing the returned {@link Releasable}.
+     * <p>
+     * If this lock was constructed with {@code reentrant = true} (the default), the same thread may acquire the same key multiple
+     * times. If constructed with {@code reentrant = false}, a thread attempting to acquire a key it already holds will block.
      */
     public Releasable acquire(T key) {
         while (true) {
@@ -75,7 +90,7 @@ public final class KeyedLock<T> {
     }
 
     private ReleasableLock tryCreateNewLock(T key) {
-        KeyLock newLock = new KeyLock();
+        KeyLock newLock = reentrant ? new ReentrantKeyLock() : new SemaphoreKeyLock();
         newLock.lock();
         KeyLock keyLock = map.putIfAbsent(key, newLock);
         if (keyLock == null) {
@@ -122,7 +137,7 @@ public final class KeyedLock<T> {
         }
     }
 
-    private static final class KeyLock extends ReentrantLock {
+    private abstract static class KeyLock {
         private static final VarHandle VH_COUNT_FIELD;
 
         static {
@@ -136,9 +151,13 @@ public final class KeyedLock<T> {
         @SuppressWarnings("FieldMayBeFinal") // updated via VH_COUNT_FIELD (and _only_ via VH_COUNT_FIELD)
         private volatile int count = 1;
 
-        KeyLock() {
-            super();
-        }
+        abstract void lock();
+
+        abstract boolean tryLock();
+
+        abstract void unlock();
+
+        abstract boolean isHeldByCurrentThread();
 
         int decCountAndGet() {
             do {
@@ -152,6 +171,61 @@ public final class KeyedLock<T> {
 
         boolean tryIncCount(int expectedCount) {
             return VH_COUNT_FIELD.compareAndSet(this, expectedCount, expectedCount + 1);
+        }
+    }
+
+    private static final class ReentrantKeyLock extends KeyLock {
+        private final ReentrantLock lock = new ReentrantLock();
+
+        @Override
+        void lock() {
+            lock.lock();
+        }
+
+        @Override
+        boolean tryLock() {
+            return lock.tryLock();
+        }
+
+        @Override
+        void unlock() {
+            lock.unlock();
+        }
+
+        @Override
+        boolean isHeldByCurrentThread() {
+            return lock.isHeldByCurrentThread();
+        }
+    }
+
+    private static final class SemaphoreKeyLock extends KeyLock {
+        private final Semaphore semaphore = new Semaphore(1);
+        private volatile Thread owner;
+
+        @Override
+        void lock() {
+            semaphore.acquireUninterruptibly();
+            owner = Thread.currentThread();
+        }
+
+        @Override
+        boolean tryLock() {
+            if (semaphore.tryAcquire()) {
+                owner = Thread.currentThread();
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        void unlock() {
+            owner = null;
+            semaphore.release();
+        }
+
+        @Override
+        boolean isHeldByCurrentThread() {
+            return owner == Thread.currentThread();
         }
     }
 

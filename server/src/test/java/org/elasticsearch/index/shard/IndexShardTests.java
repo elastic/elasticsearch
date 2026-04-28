@@ -3483,20 +3483,24 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("listener registered while cap allows should be parked, not rejected", accepted.get(), equalTo(false));
     }
 
-    public void testDefaultMaxPendingSupplierFallsBackToFloorForUnboundedQueue() {
+    public void testDefaultMaxPendingSupplierUsesFallbackForUnboundedQueue() {
         ThreadPool tp = mock(ThreadPool.class);
         ThreadPool.Info info = mock(ThreadPool.Info.class);
         when(tp.info(ThreadPool.Names.SEARCH)).thenReturn(info);
 
-        // null queue size (unbounded scaling pool): supplier should always return the floor.
+        // Anchor on what the formula yields with an explicit queue size equal to the fallback constant. Asserting
+        // against this value (rather than UNBOUNDED_QUEUE_FALLBACK directly) keeps the test order-independent: the
+        // formula reads the node-global recovering-shard counter, which other tests may transiently bump.
+        when(info.getQueueSize()).thenReturn((long) IndexShard.SearchReadyGate.UNBOUNDED_QUEUE_FALLBACK);
+        int expected = IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp).getAsInt();
+
+        // null queue size (unbounded scaling pool): supplier must use UNBOUNDED_QUEUE_FALLBACK as a queue-size substitute.
         when(info.getQueueSize()).thenReturn(null);
-        IntSupplier unboundedSupplier = IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp);
-        assertThat(unboundedSupplier.getAsInt(), equalTo(IndexShard.SearchReadyGate.MIN_PENDING_PER_SHARD));
+        assertThat(IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp).getAsInt(), equalTo(expected));
 
         // Zero queue size: treated the same as unbounded.
         when(info.getQueueSize()).thenReturn(0L);
-        IntSupplier zeroSupplier = IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp);
-        assertThat(zeroSupplier.getAsInt(), equalTo(IndexShard.SearchReadyGate.MIN_PENDING_PER_SHARD));
+        assertThat(IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp).getAsInt(), equalTo(expected));
     }
 
     /**
@@ -3512,7 +3516,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ThreadPool tp = mock(ThreadPool.class);
         ThreadPool.Info info = mock(ThreadPool.Info.class);
         when(tp.info(ThreadPool.Names.SEARCH)).thenReturn(info);
-        // Large queue size keeps us well above the floor across the full counter range exercised here.
+        // Large queue size keeps the supplier well above the per-shard minimum across the counter range exercised here.
         when(info.getQueueSize()).thenReturn(100_000L);
 
         IntSupplier supplier = IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp);

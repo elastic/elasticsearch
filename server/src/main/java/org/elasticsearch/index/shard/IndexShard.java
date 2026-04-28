@@ -5035,11 +5035,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * fail fast with {@link EsRejectedExecutionException} so a slow-to-recover shard cannot accumulate an unbounded backlog.
      * In production the cap is dynamic: it scales the search thread pool queue size by the number of shards currently
      * recovering on this node, so a single recovering shard is allowed to park as many requests as the queue could fit,
-     * while a node-wide recovery storm tightens each shard's budget proportionally. A minimum floor of
-     * {@link #MIN_PENDING_PER_SHARD} guarantees the cap never collapses to zero.
+     * while a node-wide recovery storm tightens each shard's budget proportionally. The cap is floored at one waiter
+     * per shard so a node hosting more recovering shards than the search queue can fit still admits a single waiter
+     * per shard rather than collapsing to all-reject.
      */
     static final class SearchReadyGate {
-        static final int MIN_PENDING_PER_SHARD = 32;
+        static final int UNBOUNDED_QUEUE_FALLBACK = 1000;
 
         private static final AtomicInteger RECOVERING_SHARDS_ON_NODE = new AtomicInteger();
 
@@ -5097,20 +5098,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         /**
-         * Default supplier: caps per-shard pending at {@code max(MIN_PENDING_PER_SHARD, searchQueueSize / recoveringShards)},
-         * so the total across all concurrently-recovering shards stays bounded by the search thread pool queue size.
-         * If the search queue is unbounded (no configured size) the floor is used directly.
+         * Default supplier: caps per-shard pending at {@code max(1, searchQueueSize / recoveringShards)}, so the total
+         * across all concurrently-recovering shards stays bounded by the search thread pool queue size in the common case,
+         * and never collapses below one waiter per shard when the node hosts more recovering shards than the queue can fit.
+         * If the search queue is unbounded (no configured size) the formula uses {@link #UNBOUNDED_QUEUE_FALLBACK} as a
+         * substitute for the queue size, matching the default {@code thread_pool.search.queue_size}.
          * <p>
          * The queue size is read when this method is called. Only the recovering-shards count is re-read on each supplier
          * invocation. This is safe because {@code thread_pool.search.queue_size} is a static node-level setting.
          */
         static IntSupplier defaultMaxPendingSupplier(ThreadPool threadPool) {
             Long queueSizeRaw = threadPool.info(ThreadPool.Names.SEARCH).getQueueSize();
-            if (queueSizeRaw == null || queueSizeRaw <= 0) {
-                return () -> MIN_PENDING_PER_SHARD;
-            }
-            int queueSize = Math.toIntExact(queueSizeRaw);
-            return () -> Math.max(MIN_PENDING_PER_SHARD, queueSize / Math.max(1, RECOVERING_SHARDS_ON_NODE.get()));
+            int queueSize = queueSizeRaw == null || queueSizeRaw <= 0 ? UNBOUNDED_QUEUE_FALLBACK : Math.toIntExact(queueSizeRaw);
+            return () -> Math.max(1, queueSize / Math.max(1, RECOVERING_SHARDS_ON_NODE.get()));
         }
     }
 }

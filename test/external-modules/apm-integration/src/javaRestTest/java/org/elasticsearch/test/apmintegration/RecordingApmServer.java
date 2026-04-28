@@ -38,9 +38,10 @@ public class RecordingApmServer extends ExternalResource {
 
     /**
      * First {@link ReceivedTelemetry.ReceivedResource} observed in this server's lifetime.
-     * Resource is per-JVM, not per-span; the APM agent sends it as line 1 of every intake request,
-     * so first-write-wins is safe. Routed via this setter rather than the {@link #received} queue to
-     * keep tests from racing on arrival order with transactions.
+     * Resource is per-JVM, not per-span; the APM agent sends it as line 1 of every intake request
+     * and OTLP carries it on every {@code ResourceSpans} batch, so first-write-wins is safe.
+     * Routed via this setter rather than the {@link #received} queue to keep tests from racing on
+     * arrival order with spans/transactions.
      * <p>
      * <b>Known limitation:</b> first-write-wins pins the resource for the lifetime of this server
      * instance. Tests asserting on resource <em>values</em> (rather than just key presence) across
@@ -106,20 +107,11 @@ public class RecordingApmServer extends ExternalResource {
                     if (requestBody != null) {
                         switch (path) {
                             case "/v1/metrics" -> received.addAll(OtlpMetricsParser.parse(requestBody));
-                            case "/v1/traces" -> received.addAll(OtlpTracesParser.parse(requestBody));
+                            case "/v1/traces" -> OtlpTracesParser.parse(requestBody).forEach(this::route);
                             case "/intake/v2/events" -> {
                                 List<String> lines = readJsonMessages(requestBody);
                                 for (String line : lines) {
-                                    ApmIntakeMessageParser.parseLine(line).ifPresent(msg -> {
-                                        logger.debug("APM telemetry received: {}", msg);
-                                        if (msg instanceof ReceivedTelemetry.ReceivedResource r) {
-                                            // Resource is per-JVM; first-write-wins. Not queued so tests don't
-                                            // race between metadata and transactions from the same intake request.
-                                            resource.compareAndSet(null, r);
-                                        } else {
-                                            received.add(msg);
-                                        }
-                                    });
+                                    ApmIntakeMessageParser.parseLine(line).ifPresent(this::route);
                                 }
                             }
                             default -> logger.debug("ignoring request to unhandled path [{}]", path);
@@ -137,6 +129,20 @@ public class RecordingApmServer extends ExternalResource {
                 }
             }
             exchange.sendResponseHeaders(201, 0);
+        }
+    }
+
+    /**
+     * Route a parsed event: {@link ReceivedTelemetry.ReceivedResource} goes to the per-JVM
+     * {@link #resource} reference (first-write-wins, not queued so tests don't race on arrival
+     * order with spans/transactions); everything else is queued for consumers.
+     */
+    private void route(ReceivedTelemetry msg) {
+        logger.debug("telemetry received: {}", msg);
+        if (msg instanceof ReceivedTelemetry.ReceivedResource r) {
+            resource.compareAndSet(null, r);
+        } else {
+            received.add(msg);
         }
     }
 
@@ -167,7 +173,7 @@ public class RecordingApmServer extends ExternalResource {
 
     /**
      * @return the first {@link ReceivedTelemetry.ReceivedResource} observed in this server's
-     *         lifetime, or {@code null} if no metadata event has arrived yet
+     *         lifetime, or {@code null} if no resource event has arrived yet
      */
     public ReceivedTelemetry.ReceivedResource resource() {
         return resource.get();

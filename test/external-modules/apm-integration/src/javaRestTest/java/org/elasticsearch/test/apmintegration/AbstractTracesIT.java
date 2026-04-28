@@ -231,13 +231,14 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
      * Asserts that the resource (telemetry source) that emitted the {@code GET /_nodes/stats} span
      * carries every entry in {@link #REQUIRED_RESOURCE_KEYS}. Locks in the service / sdk attribute
      * set every exporter must produce; the APM-agent path produces these via its
-     * {@code metadata} intake event, the OTel SDK path will produce them via its Resource.
+     * {@code metadata} intake event, the OTel SDK path produces them via the Resource on each
+     * {@code ResourceSpans} batch.
      *
-     * <p>The APM agent sends metadata as line 1 of every intake request; we only need a short wait
-     * in case the first request hasn't arrived yet.
+     * <p>Resource arrives on the first telemetry request from each path; we only need a short wait
+     * in case it hasn't arrived yet.
      */
     protected void assertNodeStatsResourceAttributes() throws Exception {
-        assertBusy(() -> assertNotNull("no APM metadata event observed yet", recordingApmServer.resource()), 5, TimeUnit.SECONDS);
+        assertBusy(() -> assertNotNull("no resource event observed yet", recordingApmServer.resource()), 5, TimeUnit.SECONDS);
         ReceivedTelemetry.ReceivedResource resource = recordingApmServer.resource();
         assertContainsAll("nodes_stats resource attributes", REQUIRED_RESOURCE_KEYS, resource.attributes().keySet());
     }

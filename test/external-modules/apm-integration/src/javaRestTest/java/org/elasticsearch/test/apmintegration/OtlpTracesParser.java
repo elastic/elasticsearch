@@ -44,10 +44,7 @@ public final class OtlpTracesParser {
         ExportTraceServiceRequest request = ExportTraceServiceRequest.parseFrom(input);
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceSpans resourceSpans : request.getResourceSpansList()) {
-            // TODO(ES-14041): also emit a ReceivedTelemetry.ReceivedResource built from
-            // resourceSpans.getResource().getAttributesList() so the OTel SDK exporter satisfies
-            // AbstractTracesIT#REQUIRED_RESOURCE_KEYS. To be added alongside the OTel SDK
-            // trace-export PR.
+            result.add(new ReceivedTelemetry.ReceivedResource(extractAttributes(resourceSpans.getResource().getAttributesList())));
             for (ScopeSpans scopeSpans : resourceSpans.getScopeSpansList()) {
                 for (Span span : scopeSpans.getSpansList()) {
                     String traceId = toHex(span.getTraceId().toByteArray());
@@ -55,7 +52,7 @@ public final class OtlpTracesParser {
                     Optional<String> parentSpanId = span.getParentSpanId().isEmpty()
                         ? Optional.empty()
                         : Optional.of(toHex(span.getParentSpanId().toByteArray()));
-                    Map<String, Object> attributes = extractAttributes(span);
+                    Map<String, Object> attributes = extractAttributes(span.getAttributesList());
                     result.add(new ReceivedTelemetry.ReceivedSpan(span.getName(), traceId, spanId, parentSpanId, attributes));
                 }
             }
@@ -63,9 +60,9 @@ public final class OtlpTracesParser {
         return result;
     }
 
-    private static Map<String, Object> extractAttributes(Span span) {
+    private static Map<String, Object> extractAttributes(List<KeyValue> kvs) {
         Map<String, Object> attributes = new LinkedHashMap<>();
-        for (KeyValue kv : span.getAttributesList()) {
+        for (KeyValue kv : kvs) {
             attributes.put(kv.getKey(), toJavaValue(kv.getValue()));
         }
         return Map.copyOf(attributes);

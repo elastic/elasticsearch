@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertMinRetainedSeqNoAdvanced;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertRetentionLeasesAdvanced;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertShardsHaveSeqNoDocValues;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertShardsSeqNoDocValuesCount;
@@ -110,7 +111,7 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
         final long maxSeqNo = getMaxSeqNo(leaderClient(), leaderIndex);
         assertRetentionLeasesAdvanced(leaderClient(), leaderIndex, maxSeqNo + 1);
         persistGlobalCheckpointOnPrimaryShards(getLeaderCluster(), leaderIndex);
-        flush(leaderClient(), leaderIndex);
+        assertMinRetainedSeqNoAdvanced(getLeaderCluster(), leaderIndex, maxSeqNo + 1);
 
         var forceMerge = leaderClient().admin().indices().prepareForceMerge(leaderIndex).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));

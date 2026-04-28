@@ -691,7 +691,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         private final int prefetchDepth;
 
         PrefetchDepthOverrideFormat(int prefetchDepth) {
-            super(128, 4);
+            super(128, 4, null);
             this.prefetchDepth = prefetchDepth;
         }
 

@@ -2450,7 +2450,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, imf, supportedTypes)) {
                         return convertExpression;
                     }
-                    
+
                     Expression potentiallyUnmappedConversion = imf.isPotentiallyUnmapped()
                         ? ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, imf)
                         : null;
@@ -2512,9 +2512,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             InvalidMappedField imf,
             Set<DataType> supportedTypes
         ) {
-            return loadUnmappedFields
-                && imf.isPotentiallyUnmapped()
-                && supportedTypes.contains(KEYWORD) == false;
+            return loadUnmappedFields && imf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD) == false;
         }
 
         private Expression createIfDoesNotAlreadyExist(

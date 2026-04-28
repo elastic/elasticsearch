@@ -1170,7 +1170,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggregate = as(exchange.child(), AggregateExec.class);
         // sum is long, x isn't calculated until the agg above
         var extract = as(aggregate.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("emp_no", "salary"));
+        assertThat(names(extract.attributesToExtract()), contains(equalTo("emp_no"), startsWith("$$salary$MV_MIN")));
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no, salary*/));

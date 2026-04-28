@@ -410,18 +410,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
             }
             final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
-            final Thread callingThread = Thread.currentThread();
             for (int i = 0; i < leafSlices.length; ++i) {
                 final LeafReaderContextPartition[] leaves = leafSlices[i].partitions;
                 final C collector = collectors.get(i);
                 listTasks.add(() -> {
-                    final long before;
-                    // the calling thread's reads are already captured by the thread-local delta
-                    if (threadBytesRead != null && Thread.currentThread() != callingThread) {
-                        before = threadBytesRead.getAsLong();
-                    } else {
-                        before = -1;
-                    }
+                    final long before = threadBytesRead != null ? threadBytesRead.getAsLong() : -1;
                     try {
                         search(leaves, weight, collector);
                         return collector;
@@ -432,7 +425,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     }
                 });
             }
+            // capture the calling thread's bytes-read delta around invokeAll. Lucene's TaskExecutor
+            // runs some tasks inline on the calling thread; those reads are already captured by the
+            // thread-local delta picked up by metricsDelta in SearchService. Subtract them here so
+            // they aren't double-counted when workerDirectoryBytesRead is folded into the calling
+            // thread StoreMetrics.
+            final long callingThreadBefore = threadBytesRead != null ? threadBytesRead.getAsLong() : -1;
             List<C> collectedCollectors = getTaskExecutor().invokeAll(listTasks);
+            if (callingThreadBefore >= 0) {
+                workerDirectoryBytesRead.addAndGet(callingThreadBefore - threadBytesRead.getAsLong());
+            }
             return collectorManager.reduce(collectedCollectors);
         }
     }

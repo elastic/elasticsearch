@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.cloud;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -24,12 +25,12 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
  * In a non-serverless environment, the {@link Default} no-op implementation is used instead.
  */
 public interface InternalCloudApiKeyService {
-    record CloudAuthenticationResult(String credential, Authentication authentication) {}
+    record CloudGrantApiKeyResult(SecureString credential, Authentication authentication) {}
 
     @Nullable
-    String extractCloudManagedCredential(ThreadContext threadContext);
+    SecureString extractCloudManagedCredential(ThreadContext threadContext);
 
-    void injectCloudManagedCredential(ThreadContext context, String storedCredential);
+    void injectCloudManagedCredential(ThreadContext context, SecureString storedCredential);
 
     /**
      * Grants a dedicated UIAM Cloud API key for an ML job, using the caller's credential to authenticate
@@ -42,9 +43,9 @@ public interface InternalCloudApiKeyService {
      */
     void grantCloudAuthentication(
         ThreadContext threadContext,
-        String cloudManagedCredential,
+        SecureString cloudManagedCredential,
         String description,
-        ActionListener<CloudAuthenticationResult> listener
+        ActionListener<CloudGrantApiKeyResult> listener
     );
 
     interface Provider {
@@ -60,21 +61,21 @@ public interface InternalCloudApiKeyService {
 
     class Default implements InternalCloudApiKeyService {
         @Override
-        public String extractCloudManagedCredential(ThreadContext threadContext) {
+        public SecureString extractCloudManagedCredential(ThreadContext threadContext) {
             return null;
         }
 
         @Override
-        public void injectCloudManagedCredential(ThreadContext context, String storedCredential) {
+        public void injectCloudManagedCredential(ThreadContext context, SecureString storedCredential) {
 
         }
 
         @Override
         public void grantCloudAuthentication(
             ThreadContext threadContext,
-            String cloudManagedCredential,
+            SecureString cloudManagedCredential,
             String description,
-            ActionListener<CloudAuthenticationResult> listener
+            ActionListener<CloudGrantApiKeyResult> listener
         ) {
             listener.onFailure(new UnsupportedOperationException("UIAM cloud authentication is not available outside serverless"));
         }

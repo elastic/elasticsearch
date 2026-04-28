@@ -1223,10 +1223,6 @@ public class Security extends Plugin
         components.add(new PluginComponentBinding<>(RemoteClusterAuthenticationService.class, remoteClusterAuthenticationService.get()));
         var remoteClusterTransportInterceptor = remoteClusterSecurityExtension.get().getTransportInterceptor();
         components.add(new PluginComponentBinding<>(RemoteClusterTransportInterceptor.class, remoteClusterTransportInterceptor));
-
-        if (internalCloudApiKeyServiceProvider.get() == null) {
-            internalCloudApiKeyServiceProvider.set(new InternalCloudApiKeyService.Provider.Default());
-        }
         components.add(
             new PluginComponentBinding<>(
                 InternalCloudApiKeyService.class,
@@ -2605,7 +2601,12 @@ public class Security extends Plugin
             RemoteClusterSecurityExtension.Provider.class,
             CrossClusterAccessSecurityExtension.Provider::new
         );
-        loadSingletonExtensionAndSetOnce(loader, internalCloudApiKeyServiceProvider, InternalCloudApiKeyService.Provider.class);
+        loadSingletonExtensionAndSetOnce(
+            loader,
+            internalCloudApiKeyServiceProvider,
+            InternalCloudApiKeyService.Provider.class,
+            InternalCloudApiKeyService.Provider.Default::new
+        );
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

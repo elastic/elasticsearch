@@ -285,10 +285,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         if (numSlices > 0) {
             maxSliceSize = input.readVInt();
         }
-        float rescoreOversample = Float.NaN;
-        if (versionMeta >= ESNextDiskBBQVectorsFormat.VERSION_OVERSAMPLING_FACTOR) {
-            rescoreOversample = Float.intBitsToFloat(input.readInt());
-        }
+        float rescoreOversample = Float.intBitsToFloat(input.readInt());
         return new NextFieldEntry(
             rawVectorFormat,
             useDirectIOReads,

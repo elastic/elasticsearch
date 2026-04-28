@@ -444,8 +444,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexVersionCreated,
                     false,
                     bits,
-                    experimentalFeaturesEnabled,
-                    false
+                    experimentalFeaturesEnabled
                 );
             }
 
@@ -1931,8 +1930,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexVersion,
                     doPrecondition,
                     quantizeBits,
-                    experimentalFeaturesEnabled,
-                    persistIvfSegmentConfig
+                    experimentalFeaturesEnabled
                 );
             }
 
@@ -2614,7 +2612,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
-        final boolean persistIvfSegmentConfig;
 
         public BBQIVFIndexOptions(
             int clusterSize,
@@ -2625,8 +2622,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             IndexVersion indexVersionCreated,
             boolean doPrecondition,
             int bits,
-            boolean experimentalFeaturesEnabled,
-            boolean persistIvfSegmentConfig
+            boolean experimentalFeaturesEnabled
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
@@ -2637,7 +2633,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.bits = bits;
             this.doPrecondition = doPrecondition;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
-            this.persistIvfSegmentConfig = persistIvfSegmentConfig;
         }
 
         @Override
@@ -2663,7 +2658,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     doPrecondition,
                     ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                     flatIndexThreshold,
-                    persistIvfSegmentConfig,
                     null
                 );
             } else {
@@ -2695,7 +2689,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && defaultVisitPercentage == that.defaultVisitPercentage
                 && onDiskRescore == that.onDiskRescore
                 && bits == that.bits
-                && persistIvfSegmentConfig == that.persistIvfSegmentConfig
                 && doPrecondition == that.doPrecondition
                 && experimentalFeaturesEnabled == that.experimentalFeaturesEnabled
                 && Objects.equals(rescoreVector, that.rescoreVector);
@@ -2711,7 +2704,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 bits,
                 doPrecondition,
                 experimentalFeaturesEnabled,
-                persistIvfSegmentConfig,
                 rescoreVector
             );
         }
@@ -2736,9 +2728,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("bits", bits);
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
-            }
-            if (persistIvfSegmentConfig) {
-                builder.field("persist_ivf_segment_config", true);
             }
         }
 
@@ -2766,9 +2755,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return bits;
         }
 
-        public boolean persistIvfSegmentConfig() {
-            return persistIvfSegmentConfig;
-        }
     }
 
     public record RescoreVector(float oversample) implements ToXContentObject {
@@ -3237,10 +3223,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int adjustedK = k;
             // precedence: query oversample > persisted > mapping rescore_vector
             Float oversample = queryOversample;
-            if (oversample == null
-                && indexOptions instanceof BBQIVFIndexOptions bbqIvf
-                && bbqIvf.persistIvfSegmentConfig()
-                && indexReader != null) {
+            if (oversample == null && indexOptions instanceof BBQIVFIndexOptions bbqIvf && indexReader != null) {
                 float stored = readStoredBbqIvfRescoreOversample(indexReader, name());
                 if (Float.isFinite(stored)) {
                     oversample = stored;

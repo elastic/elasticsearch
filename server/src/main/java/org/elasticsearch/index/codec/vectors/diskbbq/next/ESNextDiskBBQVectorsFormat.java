@@ -59,9 +59,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     public static final int VERSION_START = 1;
     public static final int VERSION_DIRECT_IO = VERSION_START;
-    // added persisted rescore oversample in {@code mivf} after slice metadata
-    public static final int VERSION_OVERSAMPLING_FACTOR = 2;
-    public static final int VERSION_CURRENT = VERSION_OVERSAMPLING_FACTOR;
+    public static final int VERSION_CURRENT = VERSION_START;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
@@ -294,11 +292,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final boolean doPrecondition;
     private final int preconditioningBlockDimension;
     private final int flatVectorThreshold;
-    /**
-     * When {@code false}, flush/merge use only mapping/codec defaults for persisted {@code mivf} IVF metadata and
-     * queries use mapping for quant, precondition, and rescore instead of on-disk values.
-     */
-    private final boolean persistIvfSegmentConfig;
     private final String sliceField;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
@@ -317,7 +310,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             defaultFlatThreshold(vectorPerCluster),
-            false,
             sliceField
         );
     }
@@ -345,7 +337,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             doPrecondition,
             preconditioningBlockDimension,
             defaultFlatThreshold(vectorPerCluster),
-            false,
             sliceField
         );
     }
@@ -361,7 +352,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         boolean doPrecondition,
         int preconditioningBlockDimension,
         int flatVectorThreshold,
-        boolean persistIvfSegmentConfig,
         String sliceField
     ) {
         super(NAME);
@@ -416,7 +406,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.preconditioningBlockDimension = preconditioningBlockDimension;
         this.doPrecondition = doPrecondition;
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
-        this.persistIvfSegmentConfig = persistIvfSegmentConfig;
         this.sliceField = sliceField;
     }
 
@@ -441,7 +430,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             doPrecondition,
             flatVectorThreshold,
             sliceField,
-            persistIvfSegmentConfig,
             null,
             null
         );

@@ -78,7 +78,6 @@ public record TestConfiguration(
     int preconditioningBlockDims,
     int flatVectorThreshold,
     int secondaryClusterSize,
-    boolean persistIvfSegmentConfig,
     String directoryType,
     DatasetConfig datasetConfig
 ) {
@@ -903,7 +902,6 @@ public record TestConfiguration(
                 preconditioningBlockDims,
                 flatVectorThreshold,
                 secondaryClusterSize,
-                persistIvfSegmentConfig,
                 directoryType,
                 datasetConfig
             );

@@ -246,7 +246,6 @@ public class KnnIndexTester {
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
                     flatVectorThreshold,
-                    args.persistIvfSegmentConfig(),
                     null
                 );
             }

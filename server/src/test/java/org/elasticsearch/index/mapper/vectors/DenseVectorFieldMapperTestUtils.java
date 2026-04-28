@@ -116,8 +116,7 @@ public class DenseVectorFieldMapperTestUtils {
                 indexVersionCreated,
                 false,
                 bits,
-                experimentalFeaturesEnabled,
-                false
+                experimentalFeaturesEnabled
             );
         }
 

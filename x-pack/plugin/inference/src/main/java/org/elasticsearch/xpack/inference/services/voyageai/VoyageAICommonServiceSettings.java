@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,19 +29,26 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 public class VoyageAICommonServiceSettings extends FilteredXContentObject implements ServiceSettings, VoyageAIRateLimitServiceSettings {
 
     public static final String NAME = "voyageai_service_settings";
-    private static final Logger logger = LogManager.getLogger(VoyageAICommonServiceSettings.class);
-    // See https://docs.voyageai.com/docs/rate-limits
+    /**
+     * See <a href="https://docs.voyageai.com/docs/rate-limits">VoyageAI rate limits</a>
+     */
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
     private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
-    public static VoyageAICommonServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, VoyageAIService.NAME, context);
+    public static VoyageAICommonServiceSettings fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
 
         var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        validationException.throwIfValidationErrorsExist();
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, VoyageAIService.NAME, context);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
 
         return new VoyageAICommonServiceSettings(modelId, rateLimitSettings);
     }

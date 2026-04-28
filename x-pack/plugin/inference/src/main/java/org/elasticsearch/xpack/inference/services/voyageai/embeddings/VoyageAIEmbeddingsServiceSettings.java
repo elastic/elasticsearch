@@ -52,7 +52,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
 
     public static VoyageAIEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
-        var commonServiceSettings = VoyageAICommonServiceSettings.fromMap(map, context);
+        var commonServiceSettings = VoyageAICommonServiceSettings.fromMap(map, context, validationException);
 
         var embeddingTypes = parseEmbeddingType(map, context, validationException);
 
@@ -82,6 +82,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
                 }
             }
         }
+
         validationException.throwIfValidationErrorsExist();
 
         return new VoyageAIEmbeddingsServiceSettings(

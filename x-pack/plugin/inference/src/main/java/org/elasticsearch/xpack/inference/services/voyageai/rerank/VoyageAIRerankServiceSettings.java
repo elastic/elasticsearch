@@ -31,9 +31,9 @@ public class VoyageAIRerankServiceSettings extends FilteredXContentObject implem
     public static VoyageAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        validationException.throwIfValidationErrorsExist();
+        var commonServiceSettings = VoyageAICommonServiceSettings.fromMap(map, context, validationException);
 
-        var commonServiceSettings = VoyageAICommonServiceSettings.fromMap(map, context);
+        validationException.throwIfValidationErrorsExist();
 
         return new VoyageAIRerankServiceSettings(commonServiceSettings);
     }

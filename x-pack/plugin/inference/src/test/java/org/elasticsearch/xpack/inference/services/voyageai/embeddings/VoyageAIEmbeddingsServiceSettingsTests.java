@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -62,9 +61,9 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         return new VoyageAIEmbeddingsServiceSettings(
             VoyageAICommonServiceSettingsTests.createRandom(),
             randomFrom(VoyageAIEmbeddingType.values()),
-            randomSimilarityMeasure(),
-            randomIntBetween(1, 2048),
-            randomIntBetween(128, 2048),
+            randomFrom(randomSimilarityMeasure(), null),
+            randomFrom(randomIntBetween(128, 256), null),
+            randomFrom(randomIntBetween(128, 2048), null),
             randomBoolean()
         );
     }
@@ -357,8 +356,8 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
                 () -> randomFrom(randomFrom(VoyageAIEmbeddingType.values()), null)
             );
             case 2 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
-            case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
-            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 3 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(1, 2048), null));
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 2048), null));
             case 5 -> dimensionsSetByUser = dimensionsSetByUser == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }

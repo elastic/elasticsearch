@@ -28,6 +28,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class VoyageAICommonServiceSettingsTests extends AbstractBWCWireSerializationTestCase<VoyageAICommonServiceSettings> {
 
@@ -43,32 +44,41 @@ public class VoyageAICommonServiceSettingsTests extends AbstractBWCWireSerializa
     }
 
     public void testFromMap_AllFields_CreatesSettingsCorrectly() {
+        var validationException = new ValidationException();
         var serviceSettings = VoyageAICommonServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT),
-            randomFrom(ConfigurationParseContext.values())
+            randomFrom(ConfigurationParseContext.values()),
+            validationException
         );
 
         assertThat(serviceSettings, is(new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
+        assertThat(validationException.validationErrors(), is(empty()));
     }
 
     public void testFromMap_OnlyMandatoryFields_CreatesSettingsCorrectly() {
+        var validationException = new ValidationException();
         var serviceSettings = VoyageAICommonServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, null),
-            randomFrom(ConfigurationParseContext.values())
+            randomFrom(ConfigurationParseContext.values()),
+            validationException
         );
 
         assertThat(serviceSettings, is(new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
+        assertThat(validationException.validationErrors(), is(empty()));
     }
 
-    public void testFromMap_NoModelId_ThrowsValidationError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> VoyageAICommonServiceSettings.fromMap(buildServiceSettingsMap(null, null), randomFrom(ConfigurationParseContext.values()))
+    public void testFromMap_NoModelId_AccumulatesValidationError() {
+        var validationException = new ValidationException();
+        var serviceSettings = VoyageAICommonServiceSettings.fromMap(
+            buildServiceSettingsMap(null, null),
+            randomFrom(ConfigurationParseContext.values()),
+            validationException
         );
 
-        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(serviceSettings, is(nullValue()));
+        assertThat(validationException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
+            validationException.validationErrors().getFirst(),
             is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.MODEL_ID))
         );
     }

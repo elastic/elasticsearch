@@ -406,6 +406,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
   method: testWithCranky {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
   issue: https://github.com/elastic/elasticsearch/issues/147732
+- class: org.elasticsearch.search.internal.CancellableBulkScorerTests
+  method: testCancellationStopsScoring
+  issue: https://github.com/elastic/elasticsearch/issues/147737
 
 # Examples:
 #

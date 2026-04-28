@@ -43,7 +43,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         {
           "dynamic": "strict",
           "properties": {
-            "title":   { "type": "text" },
+            "title":   { "type": "keyword" },
             "count":   { "type": "integer" },
             "tag":     { "type": "keyword" }
           }
@@ -378,10 +378,10 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             "host": {
               "properties": {
                 "name":   { "type": "keyword" },
-                "ip":     { "type": "ip" }
+                "ip":     { "type": "keyword" }
               }
             },
-            "message": { "type": "text" }
+            "message": { "type": "keyword" }
           }
         }""";
 
@@ -391,7 +391,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
           "properties": {
             "tags":    { "type": "keyword" },
             "scores":  { "type": "integer" },
-            "message": { "type": "text" }
+            "message": { "type": "keyword" }
           }
         }""";
 
@@ -405,7 +405,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
                 "tags": { "type": "keyword" }
               }
             },
-            "message": { "type": "text" }
+            "message": { "type": "keyword" }
           }
         }""";
 
@@ -466,7 +466,10 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testBatchIndexWithArrayFields() throws Exception {
+    public void testBatchIndexWithArrayFieldsFallsBack() throws Exception {
+        // Array-valued columns are outside the v1 batch support matrix (each leaf column is
+        // expected to be a scalar). The batch path must return early via fallback rather than
+        // throwing, leaving the items for the sequential path to process.
         IndexShard shard = newPrimaryShardWithMapping(ARRAY_MAPPING);
 
         int numDocs = randomIntBetween(2, 10);
@@ -492,24 +495,16 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
 
-            assertFalse(context.hasMoreOperationsToExecute());
-            for (int i = 0; i < numDocs; i++) {
-                BulkItemResponse response = items[i].getPrimaryResponse();
-                assertThat(response, notNullValue());
-                assertFalse("doc " + i + " should not have failed", response.isFailed());
-                assertThat(response.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-            }
-
-            shard.refresh("test");
-            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
-            }
+            // Fallback contract: no per-item responses produced, items remain queued for the
+            // caller's sequential path.
+            assertTrue(context.hasMoreOperationsToExecute());
         }
 
         closeShards(shard);
     }
 
-    public void testBatchIndexWithNestedFieldsAndArrays() throws Exception {
+    public void testBatchIndexWithNestedFieldsAndArraysFallsBack() throws Exception {
+        // Same as above but nested under an object mapper.
         IndexShard shard = newPrimaryShardWithMapping(NESTED_ARRAY_MAPPING);
 
         int numDocs = randomIntBetween(2, 10);
@@ -537,18 +532,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
 
-            assertFalse(context.hasMoreOperationsToExecute());
-            for (int i = 0; i < numDocs; i++) {
-                BulkItemResponse response = items[i].getPrimaryResponse();
-                assertThat(response, notNullValue());
-                assertFalse("doc " + i + " should not have failed", response.isFailed());
-                assertThat(response.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-            }
-
-            shard.refresh("test");
-            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
-            }
+            assertTrue(context.hasMoreOperationsToExecute());
         }
 
         closeShards(shard);

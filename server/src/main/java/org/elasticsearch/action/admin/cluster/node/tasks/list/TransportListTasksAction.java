@@ -65,7 +65,7 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
 
-    private static final Set<String> RELOCATABLE_ACTIONS = Set.of(ReindexAction.NAME);
+    public static final Set<String> RELOCATABLE_ACTIONS = Set.of(ReindexAction.NAME);
     private static final Logger logger = LogManager.getLogger(TransportListTasksAction.class);
 
     public static final ActionType<ListTasksResponse> TYPE = new ActionType<>("cluster:monitor/tasks/lists");

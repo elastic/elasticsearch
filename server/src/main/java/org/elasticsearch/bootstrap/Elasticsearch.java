@@ -162,7 +162,7 @@ class Elasticsearch {
     /**
      * Second phase of process initialization.
      *
-     * <p> Phase 2 consists of everything that must occur up to and including security manager initialization.
+     * <p> Phase 2 consists of everything that must occur up to and including entitlement initialization.
      */
     private static void initPhase2(Bootstrap bootstrap) throws IOException {
         // always start by dumping what we know about the process to the log
@@ -191,7 +191,7 @@ class Elasticsearch {
             BootstrapSettings.CTRLHANDLER_SETTING.get(args.nodeSettings())
         );
 
-        // initialize probes before the security manager is installed
+        // initialize probes before entitlements are installed
         initializeProbes();
 
         Runtime.getRuntime().addShutdownHook(new Thread(Elasticsearch::shutdown, "elasticsearch-shutdown"));
@@ -200,24 +200,27 @@ class Elasticsearch {
         final Logger logger = LogManager.getLogger(JarHell.class);
         JarHell.checkJarHell(logger::debug);
 
-        // Log ifconfig output before SecurityManager is installed
+        // Log ifconfig output before entitlements are installed
         IfConfig.logIfNecessary();
 
         ensureInitialized(
             // See https://github.com/elastic/elasticsearch/issues/136268
             TermsEnum.class,
-            // ReleaseVersions does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
+            // ReleaseVersions does nontrivial static initialization which should always succeed but load it now (before entitlements) to be
+            // sure
             ReleaseVersions.class,
-            // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
+            // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before entitlements)
+            // to be sure
             ReferenceDocs.class,
-            // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed
+            // The following classes use MethodHandles.lookup during initialization, load them now (before entitlements) to be sure they
+            // succeed
             AbstractRefCounted.class,
             SubscribableListener.class,
             RunOnce.class,
             // We eagerly initialize to work around log4j permissions & JDK-8309727
             VectorUtil.class,
             // RequestHandlerRegistry and MethodHandlers classes do nontrivial static initialization which should always succeed but load
-            // it now (before SM) to be sure
+            // it now (before entitlements) to be sure
             RequestHandlerRegistry.class,
             MethodHandlers.class
         );
@@ -395,8 +398,8 @@ class Elasticsearch {
     /**
      * Third phase of initialization.
      *
-     * <p> Phase 3 consists of everything after security manager is initialized. Up until now, the system has been single
-     * threaded. This phase can spawn threads, write to the log, and is subject ot the security manager policy.
+     * <p> Phase 3 consists of everything after entitlements are initialized. Up until now, the system has been single
+     * threaded. This phase can spawn threads, write to the log, and is subject to the entitlement policy.
      *
      * <p> At the end of phase 3 the system is ready to accept requests and the main thread is ready to terminate. This means:
      * <ul>

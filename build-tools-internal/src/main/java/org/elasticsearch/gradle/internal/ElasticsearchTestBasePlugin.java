@@ -20,7 +20,6 @@ import org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin;
 import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Action;
-import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -136,13 +135,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             );
 
             test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
-            test.getJvmArgumentProviders().add(() -> {
-                if (test.getJavaVersion().compareTo(JavaVersion.VERSION_23) <= 0) {
-                    return List.of("-Djava.security.manager=allow");
-                } else {
-                    return List.of();
-                }
-            });
             test.getJvmArgumentProviders()
                 .add(() -> List.of("-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + test.getJavaVersion().getMajorVersion()));
 
@@ -160,16 +152,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 System.out.println("disable assertions");
                 test.setEnableAssertions(false);
             }
-            Map<String, String> sysprops = Map.of(
-                "java.awt.headless",
-                "true",
-                "tests.artifact",
-                project.getName(),
-                "tests.security.manager",
-                "true",
-                "jna.nosys",
-                "true"
-            );
+            Map<String, String> sysprops = Map.of("java.awt.headless", "true", "tests.artifact", project.getName(), "jna.nosys", "true");
             test.systemProperties(sysprops);
 
             // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability

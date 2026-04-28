@@ -54,7 +54,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         var validationException = new ValidationException();
         var commonServiceSettings = VoyageAICommonServiceSettings.fromMap(map, context, validationException);
 
-        var embeddingTypes = parseEmbeddingType(map, context, validationException);
+        var embeddingType = parseEmbeddingType(map, context, validationException);
 
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -87,7 +87,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
 
         return new VoyageAIEmbeddingsServiceSettings(
             commonServiceSettings,
-            embeddingTypes,
+            embeddingType,
             similarity,
             dimensions,
             maxInputTokens,

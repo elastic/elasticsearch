@@ -61,7 +61,7 @@ public class HttpRequestSender implements Sender {
             var executorServiceSettings = new RequestExecutorServiceSettings(serviceComponents.settings());
             executorServiceSettings.init(clusterService);
 
-            var service = new RequestExecutorService(serviceComponents.threadPool(), null, executorServiceSettings, requestSender);
+            var service = new RequestExecutorService(serviceComponents.threadPool(), executorServiceSettings, requestSender);
 
             httpRequestSender = new HttpRequestSender(serviceComponents.threadPool(), httpClientManager, requestSender, service);
         }
@@ -182,7 +182,7 @@ public class HttpRequestSender implements Sender {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.<Void>newForked(l -> startAsynchronously(l, STARTUP_TIMEOUT))
+        SubscribableListener.<Void>newForked(startListener -> startAsynchronously(startListener, STARTUP_TIMEOUT))
             .<InferenceServiceResults>andThen(sendListener -> service.execute(requestCreator, inferenceInputs, timeout, sendListener))
             .addListener(listener);
     }
@@ -205,7 +205,7 @@ public class HttpRequestSender implements Sender {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.<Void>newForked(l -> startAsynchronously(l, STARTUP_TIMEOUT))
+        SubscribableListener.<Void>newForked(startListener -> startAsynchronously(startListener, STARTUP_TIMEOUT))
             .<InferenceServiceResults>andThen(sendListener -> {
                 var preservedListener = ContextPreservingActionListener.wrapPreservingContext(sendListener, threadPool.getThreadContext());
                 var timedListener = new TimedListener<>(timeout, preservedListener, threadPool, request.getInferenceEntityId());

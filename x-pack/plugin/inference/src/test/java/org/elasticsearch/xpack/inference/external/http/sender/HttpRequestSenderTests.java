@@ -450,9 +450,9 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public void testConcurrentSend_OnlyStartsOnce() throws Exception {
-        // At a minimum we need 1 for the startAsynchronously to kick off the init tasks
-        final var maxUtilityThreads = 1;
-        final var maxResponseThreads = 1;
+        // At a minimum we need 1 for the startAsynchronously to kick off the init tasks, and allowing 1 more to allow for a race to occur
+        final var maxUtilityThreads = 2;
+        final var maxResponseThreads = 2;
         try (var smallThreadPool = createThreadPool(inferenceUtilityExecutors(maxUtilityThreads, maxResponseThreads))) {
             var mockManager = createMockHttpClientManager();
             var mockService = mock(RequestExecutor.class);
@@ -476,9 +476,9 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public void testConcurrentSendWithoutQueuing_OnlyStartsOnce() throws Exception {
-        // At a minimum we need 1 for the startAsynchronously to kick off the init tasks
-        final var maxUtilityThreads = 1;
-        final var maxResponseThreads = 1;
+        // At a minimum we need 1 for the startAsynchronously to kick off the init tasks, and allowing 1 more to allow for a race to occur
+        final var maxUtilityThreads = 2;
+        final var maxResponseThreads = 2;
         try (var smallThreadPool = createThreadPool(inferenceUtilityExecutors(maxUtilityThreads, maxResponseThreads))) {
             var mockManager = createMockHttpClientManager();
             var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class));

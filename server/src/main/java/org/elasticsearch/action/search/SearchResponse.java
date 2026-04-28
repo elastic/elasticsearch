@@ -220,39 +220,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     public SearchResponse(
-        SearchResponseSections searchResponseSections,
-        String scrollId,
-        int totalShards,
-        int successfulShards,
-        int skippedShards,
-        long tookInMillis,
-        ShardSearchFailure[] shardFailures,
-        Clusters clusters,
-        BytesReference pointInTimeId
-    ) {
-        this(
-            searchResponseSections.hits,
-            searchResponseSections.aggregations,
-            searchResponseSections.suggest,
-            searchResponseSections.timedOut,
-            searchResponseSections.terminatedEarly,
-            searchResponseSections.profileResults,
-            searchResponseSections.numReducePhases,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            shardFailures,
-            clusters,
-            pointInTimeId,
-            searchResponseSections.transferTopHitsToRelease(),
-            searchResponseSections.transferCompletionOptionHitsToRelease()
-        );
-        this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
-    }
-
-    public SearchResponse(
         SearchHits hits,
         InternalAggregations aggregations,
         Suggest suggest,

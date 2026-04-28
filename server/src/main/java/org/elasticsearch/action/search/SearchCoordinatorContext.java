@@ -15,8 +15,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.util.Arrays;
 
 /**
- * Shallow snapshot of coordinator search source and indices for {@code profile.request}, taken before CCS mutates
- * {@link SearchSourceBuilder#from(int)} / {@link SearchSourceBuilder#size(int)} for sub-requests.
+ * Shallow snapshot of coordinator search source and indices for populating the search profile {@code profile.request} object when the
+ * search request has {@code profile: true}, taken before CCS mutates {@link SearchSourceBuilder#from(int)} / {@link SearchSourceBuilder#size(int)}
+ * for sub-requests.
  */
 record SearchCoordinatorContext(@Nullable SearchSourceBuilder originalSource, @Nullable String[] requestIndices) {
     static SearchCoordinatorContext none() {

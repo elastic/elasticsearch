@@ -108,11 +108,7 @@ public class ResumeInfoTests extends ESTestCase {
 
     public void testResumeInfoWithSourceTaskResult() throws IOException {
         ResumeInfo.RelocationOrigin origin = randomOrigin();
-        ScrollWorkerResumeInfo worker = scrollWorkerResumeInfo(
-            randomAlphaOfLengthBetween(1, 24),
-            randomNonNegativeLong(),
-            taskStatus()
-        );
+        ScrollWorkerResumeInfo worker = scrollWorkerResumeInfo(randomAlphaOfLengthBetween(1, 24), randomNonNegativeLong(), taskStatus());
         TaskResult source = TaskResultTests.randomTaskResult();
         ResumeInfo info = new ResumeInfo(origin, worker, null, source);
         assertThat(info.sourceTaskResult(), equalTo(source));

@@ -103,9 +103,8 @@ public class WorkerResultWireSerializingTests extends AbstractWireSerializingTes
     }
 
     private static ResumeInfo.WorkerResult randomWorkerResult() {
-        return randomBoolean() ? new ResumeInfo.WorkerResult(randomBulkByScrollResponse(), null) : new ResumeInfo.WorkerResult(
-            null,
-            new ElasticsearchException(randomAlphaOfLengthBetween(1, 20))
-        );
+        return randomBoolean()
+            ? new ResumeInfo.WorkerResult(randomBulkByScrollResponse(), null)
+            : new ResumeInfo.WorkerResult(null, new ElasticsearchException(randomAlphaOfLengthBetween(1, 20)));
     }
 }

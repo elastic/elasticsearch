@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.io.SeekableInputStream;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -17,6 +20,7 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Adapter that wraps a StorageObject to implement Parquet's InputFile interface.
@@ -30,9 +34,11 @@ import java.util.NavigableMap;
  * </ul>
  */
 public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputFile {
+    private static final Logger logger = LogManager.getLogger(ParquetStorageObjectAdapter.class);
 
     private final StorageObject storageObject;
     private final long length;
+    private final FooterByteCache.Key cacheKey;
     private final int windowSize;
     private volatile NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetchedChunks;
 
@@ -72,6 +78,11 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
         }
+        this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
+    }
+
+    static void clearFooterCacheForTests() {
+        FooterByteCache.getInstance().invalidateAll();
     }
 
     /**
@@ -94,7 +105,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
     @Override
     public SeekableInputStream newStream() throws IOException {
-        return new WindowedSeekableInputStream(storageObject, length, windowSize, this);
+        return new WindowedSeekableInputStream(storageObject, cacheKey, length, windowSize, this);
     }
 
     /**
@@ -115,6 +126,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private static final int STREAM_READ_CHUNK_SIZE = 256 * 1024;
 
         private final StorageObject storageObject;
+        private final FooterByteCache.Key cacheKey;
         private final long length;
         private final int windowSize;
         private final byte[] window;
@@ -125,8 +137,15 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private long position;
         private boolean closed;
 
-        WindowedSeekableInputStream(StorageObject storageObject, long length, int windowSize, ParquetStorageObjectAdapter adapter) {
+        WindowedSeekableInputStream(
+            StorageObject storageObject,
+            FooterByteCache.Key cacheKey,
+            long length,
+            int windowSize,
+            ParquetStorageObjectAdapter adapter
+        ) {
             this.storageObject = storageObject;
+            this.cacheKey = cacheKey;
             this.length = length;
             this.windowSize = windowSize;
             this.window = new byte[windowSize];
@@ -176,6 +195,23 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return;
             }
 
+            FooterByteCache tailCache = FooterByteCache.getInstance();
+            if (fillFromTailCache(tailCache, pos, (int) toRead)) {
+                return;
+            }
+
+            boolean isTailRead = pos + toRead == length;
+            if (isTailRead && toRead <= tailCache.maxEntryBytes()) {
+                try {
+                    byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> readTailBytes(pos, (int) toRead));
+                    if (tailBytes.length > 0 && fillFromCachedTail(tailBytes, pos, (int) toRead)) {
+                        return;
+                    }
+                } catch (ExecutionException e) {
+                    logger.debug("footer cache load failed; retrying direct I/O", e.getCause());
+                }
+            }
+
             windowStart = -1;
             windowLength = 0;
 
@@ -198,6 +234,55 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 windowStart = pos;
                 windowLength = totalRead;
             }
+
+            if (windowLength > 0 && windowStart + windowLength == length) {
+                byte[] tailBytes = new byte[windowLength];
+                System.arraycopy(window, 0, tailBytes, 0, windowLength);
+                tailCache.put(cacheKey, tailBytes);
+            }
+        }
+
+        private byte[] readTailBytes(long pos, int toRead) throws IOException {
+            byte[] buf = new byte[toRead];
+            try (InputStream in = storageObject.newStream(pos, toRead)) {
+                int totalRead = 0;
+                while (totalRead < toRead) {
+                    int chunk = Math.min(STREAM_READ_CHUNK_SIZE, toRead - totalRead);
+                    int n = in.read(buf, totalRead, chunk);
+                    if (n < 0) {
+                        break;
+                    }
+                    totalRead += n;
+                }
+                if (totalRead <= 0) {
+                    return new byte[0];
+                }
+                if (totalRead == toRead) {
+                    return buf;
+                }
+                byte[] result = new byte[totalRead];
+                System.arraycopy(buf, 0, result, 0, totalRead);
+                return result;
+            }
+        }
+
+        private boolean fillFromTailCache(FooterByteCache tailCache, long pos, int toRead) {
+            byte[] cached = tailCache.get(cacheKey);
+            return cached != null && fillFromCachedTail(cached, pos, toRead);
+        }
+
+        private boolean fillFromCachedTail(byte[] cached, long pos, int toRead) {
+            long cachedStart = length - cached.length;
+            if (pos >= cachedStart && pos + toRead <= length) {
+                int from = (int) (pos - cachedStart);
+                windowStart = -1;
+                windowLength = 0;
+                System.arraycopy(cached, from, window, 0, toRead);
+                windowStart = pos;
+                windowLength = toRead;
+                return true;
+            }
+            return false;
         }
 
         /**

@@ -7,8 +7,11 @@ Unlike [`TBUCKET`](https://www.elastic.co/docs/reference/query-languages/esql/fu
 which aligns buckets to calendar boundaries, `TSTEP` always buckets at the fixed interval increments in UTC timezone.
 Each `bucket` label is rendered as the upper boundary of the half-open interval `(timestamp - step, timestamp]`.
 
-Provide a [`@timestamp` range](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter)
-in the request query filter; that range's start anchors the grid. `TSTEP` cannot be used together with `TRANGE`.
+In the one-argument form, provide a
+[`@timestamp` range](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter)
+in the request query filter; that range's start anchors the grid.
+In the three-argument form, supply explicit `from` and `to` bounds directly; these take precedence over any
+request `@timestamp` filter. `TSTEP` cannot be used together with `TRANGE`.
 
 ```esql
 FROM sample_data

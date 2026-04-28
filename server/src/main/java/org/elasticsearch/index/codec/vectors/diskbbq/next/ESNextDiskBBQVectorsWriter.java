@@ -107,41 +107,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         int blockDimension,
         boolean doPrecondition,
         int flatVectorThreshold,
-        String sliceField
-    ) throws IOException {
-        this(
-            state,
-            rawVectorFormatName,
-            useDirectIOReads,
-            rawVectorDelegate,
-            encoding,
-            vectorPerCluster,
-            centroidsPerParentCluster,
-            mergeExec,
-            numMergeWorkers,
-            blockDimension,
-            doPrecondition,
-            flatVectorThreshold,
-            sliceField,
-            false,
-            null,
-            null
-        );
-    }
-
-    public ESNextDiskBBQVectorsWriter(
-        SegmentWriteState state,
-        String rawVectorFormatName,
-        boolean useDirectIOReads,
-        FlatVectorsWriter rawVectorDelegate,
-        ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
-        int vectorPerCluster,
-        int centroidsPerParentCluster,
-        TaskExecutor mergeExec,
-        int numMergeWorkers,
-        int blockDimension,
-        boolean doPrecondition,
-        int flatVectorThreshold,
         String sliceField,
         boolean persistIvfSegmentConfig,
         IvfFlushConfigSource flushConfigSource,

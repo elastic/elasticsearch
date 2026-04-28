@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator.function;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DistinctGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitByGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
@@ -44,7 +45,8 @@ public final class FullTextFunctionGenerator {
         StatsGenerator.STATS,
         InlineStatsGenerator.INLINE_STATS,
         ChangePointGenerator.CHANGE_POINT,
-        MvExpandGenerator.MV_EXPAND
+        MvExpandGenerator.MV_EXPAND,
+        DistinctGenerator.DISTINCT
     );
 
     private static boolean isFullTextAllowed(List<CommandGenerator.CommandDescription> previousCommands) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -25,6 +26,8 @@ import java.util.List;
 final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlock<ExponentialHistogramBlock>
     implements
         ExponentialHistogramBlock {
+
+    static final TransportVersion MULTIVALUE_SUPPORT = TransportVersion.fromName("exponential_histogram_block_multivalues");
 
     // Exponential histograms consist of several components that we store in separate blocks
     // due to (a) better compression in the field mapper for disk storage and (b) faster computations if only one sub-component is needed
@@ -323,7 +326,11 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeMultiValueMetadata(out);
+        if (out.getTransportVersion().supports(MULTIVALUE_SUPPORT)) {
+            writeMultiValueMetadata(out);
+        } else if (doesHaveMultivaluedFields()) {
+            throw new IllegalStateException("Cannot serialize multi-valued exponential histogram block on old transport version");
+        }
         Block.writeTypedBlock(minima, out);
         Block.writeTypedBlock(maxima, out);
         Block.writeTypedBlock(sums, out);
@@ -333,40 +340,46 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
     }
 
     public static ExponentialHistogramArrayBlock readFrom(BlockStreamInput input) throws IOException {
-        return AbstractDelegatingCompoundBlock.readFrom(input, (in, positionCount, firstValueIndexes) -> {
+        if (input.getTransportVersion().supports(MULTIVALUE_SUPPORT)) {
+            return AbstractDelegatingCompoundBlock.readFrom(input, ExponentialHistogramArrayBlock::readSubBlocksFrom);
+        } else {
+            return readSubBlocksFrom(input, -1, null);
+        }
+    }
 
-            DoubleBlock minima = null;
-            DoubleBlock maxima = null;
-            DoubleBlock sums = null;
-            DoubleBlock valueCounts = null;
-            DoubleBlock zeroThresholds = null;
-            BytesRefBlock encodedHistograms = null;
+    private static ExponentialHistogramArrayBlock readSubBlocksFrom(BlockStreamInput in, int positionCount, int[] firstValueIndexes)
+        throws IOException {
+        DoubleBlock minima = null;
+        DoubleBlock maxima = null;
+        DoubleBlock sums = null;
+        DoubleBlock valueCounts = null;
+        DoubleBlock zeroThresholds = null;
+        BytesRefBlock encodedHistograms = null;
 
-            boolean success = false;
-            try {
-                minima = (DoubleBlock) Block.readTypedBlock(in);
-                maxima = (DoubleBlock) Block.readTypedBlock(in);
-                sums = (DoubleBlock) Block.readTypedBlock(in);
-                valueCounts = (DoubleBlock) Block.readTypedBlock(in);
-                zeroThresholds = (DoubleBlock) Block.readTypedBlock(in);
-                encodedHistograms = (BytesRefBlock) Block.readTypedBlock(in);
-                success = true;
-                return new ExponentialHistogramArrayBlock(
-                    minima,
-                    maxima,
-                    sums,
-                    valueCounts,
-                    zeroThresholds,
-                    encodedHistograms,
-                    positionCount,
-                    firstValueIndexes
-                );
-            } finally {
-                if (success == false) {
-                    Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
-                }
+        boolean success = false;
+        try {
+            minima = (DoubleBlock) Block.readTypedBlock(in);
+            maxima = (DoubleBlock) Block.readTypedBlock(in);
+            sums = (DoubleBlock) Block.readTypedBlock(in);
+            valueCounts = (DoubleBlock) Block.readTypedBlock(in);
+            zeroThresholds = (DoubleBlock) Block.readTypedBlock(in);
+            encodedHistograms = (BytesRefBlock) Block.readTypedBlock(in);
+            success = true;
+            return new ExponentialHistogramArrayBlock(
+                minima,
+                maxima,
+                sums,
+                valueCounts,
+                zeroThresholds,
+                encodedHistograms,
+                firstValueIndexes == null ? encodedHistograms.getPositionCount() : positionCount,
+                firstValueIndexes
+            );
+        } finally {
+            if (success == false) {
+                Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
             }
-        });
+        }
     }
 
     /**

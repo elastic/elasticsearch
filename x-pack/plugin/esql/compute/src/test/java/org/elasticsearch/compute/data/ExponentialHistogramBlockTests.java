@@ -7,13 +7,18 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExponentialHistogramBlockTests extends ComputeTestCase {
 
     public void testPopulatedBlockSerialization() throws IOException {
-        ExponentialHistogramBlock block = randomBlockWithNulls();
+        ExponentialHistogramBlock block = randomBlockWithNulls(true);
         Block deserializedBlock = serializationRoundTrip(block);
         assertThat(deserializedBlock, equalTo(block));
         Releasables.close(block, deserializedBlock);
@@ -51,6 +56,37 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
         Releasables.close(block, deserializedBlock);
     }
 
+    public void testOldVersionSerialization() throws IOException {
+        var oldVersion = TransportVersionUtils.getPreviousVersion(ExponentialHistogramArrayBlock.MULTIVALUE_SUPPORT);
+        ExponentialHistogramBlock block = randomBlockWithNulls(false);
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(oldVersion);
+        Block.writeTypedBlock(block, out);
+        var streamInput = out.bytes().streamInput();
+        streamInput.setTransportVersion(oldVersion);
+        try (BlockStreamInput input = new BlockStreamInput(streamInput, blockFactory())) {
+            Block deserializedBlock = Block.readTypedBlock(input);
+            assertThat(deserializedBlock, equalTo(block));
+            Releasables.close(block, deserializedBlock);
+        }
+    }
+
+    public void testOldVersionSerializationFailsForMultiValue() {
+        var oldVersion = TransportVersionUtils.getPreviousVersion(ExponentialHistogramArrayBlock.MULTIVALUE_SUPPORT);
+        ExponentialHistogramBlock.Builder builder = blockFactory().newExponentialHistogramBlockBuilder(2);
+        builder.beginPositionEntry();
+        builder.append(BlockTestUtils.randomExponentialHistogram());
+        builder.append(BlockTestUtils.randomExponentialHistogram());
+        builder.endPositionEntry();
+        builder.appendNull();
+        ExponentialHistogramBlock block = builder.build();
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(oldVersion);
+        var e = expectThrows(IllegalStateException.class, () -> Block.writeTypedBlock(block, out));
+        assertThat(e.getMessage(), equalTo("Cannot serialize multi-valued exponential histogram block on old transport version"));
+        block.close();
+    }
+
     private Block serializationRoundTrip(Block block) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         Block.writeTypedBlock(block, out);
@@ -62,7 +98,7 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
     public void testComponentAccess() {
         ExponentialHistogramBlock block;
         if (randomBoolean()) {
-            block = randomBlockWithNulls();
+            block = randomBlockWithNulls(false);
         } else {
             block = (ExponentialHistogramBlock) blockFactory().newConstantNullBlock(randomIntBetween(1, 100));
         }
@@ -182,9 +218,7 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
     }
 
     public void testRandomBlockEquality() {
-        int positionCount = randomIntBetween(0, 10_000);
-        Block expHistoBlock = RandomBlock.randomBlock(blockFactory(), ElementType.EXPONENTIAL_HISTOGRAM, positionCount, true, 1, 10, 0, 10)
-            .block();
+        Block expHistoBlock = randomBlockWithNulls(true);
         Block copy = BlockUtils.deepCopyOf(expHistoBlock, blockFactory());
 
         assertThat(expHistoBlock, equalTo(copy));
@@ -208,7 +242,8 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
         builder.append(histo3);
         builder.append(histo1);
         builder.append(histo2);
-        builder.endPositionEntry();
+        // intentionally leave out last endPosition() to test auto-closing
+        // builder.endPositionEntry();
         ExponentialHistogramBlock block = builder.build();
 
         assertThat(block.getPositionCount(), equalTo(3));
@@ -258,16 +293,49 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
         return filtered;
     }
 
-    private ExponentialHistogramBlock randomBlockWithNulls() {
-        int elementCount = randomIntBetween(0, 100);
-        ExponentialHistogramBlockBuilder builder = blockFactory().newExponentialHistogramBlockBuilder(elementCount);
-        for (int i = 0; i < elementCount; i++) {
-            if (randomBoolean()) {
-                builder.appendNull();
-            } else {
-                builder.append(BlockTestUtils.randomExponentialHistogram());
+    public void testCranky() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
+        for (int i = 0; i < 100; i++) {
+            try {
+                try (
+                    Block.Builder builder = blockFactory.newExponentialHistogramBlockBuilder(100);
+                    ExponentialHistogramBlock random = randomBlockWithNulls(true);
+                ) {
+                    builder.copyFrom(random, 0, random.getPositionCount());
+                    try (Block built = builder.build()) {
+                        assertThat(built, equalTo(random));
+                    }
+                }
+                // If we made it this far cranky didn't fail us!
+            } catch (CircuitBreakingException e) {
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
             }
         }
-        return builder.build();
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private ExponentialHistogramBlock randomBlockWithNulls(boolean allowMultiValues) {
+        boolean multiValued = randomBoolean() && allowMultiValues;
+        int elementCount = randomIntBetween(0, 100);
+        try (ExponentialHistogramBlockBuilder builder = blockFactory().newExponentialHistogramBlockBuilder(elementCount)) {
+            for (int i = 0; i < elementCount; i++) {
+                if (randomBoolean()) {
+                    builder.appendNull();
+                } else {
+                    int valueCount = randomIntBetween(1, multiValued ? 10 : 1);
+                    if (valueCount > 1) {
+                        builder.beginPositionEntry();
+                    }
+                    for (int j = 0; j < valueCount; j++) {
+                        builder.append(BlockTestUtils.randomExponentialHistogram());
+                    }
+                    if (valueCount > 1) {
+                        builder.endPositionEntry();
+                    }
+                }
+            }
+            return builder.build();
+        }
     }
 }

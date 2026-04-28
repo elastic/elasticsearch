@@ -7,11 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class TDigestBlockTests extends ComputeTestCase {
 
     public void testPopulatedBlockSerialization() throws IOException {
-        TDigestBlock block = randomBlockWithNulls();
+        TDigestBlock block = randomBlockWithNulls(true);
         Block deserializedBlock = serializationRoundTrip(block);
         assertThat(deserializedBlock, equalTo(block));
         Releasables.close(block, deserializedBlock);
@@ -46,6 +51,37 @@ public class TDigestBlockTests extends ComputeTestCase {
         Releasables.close(block, deserializedBlock);
     }
 
+    public void testOldVersionSerialization() throws IOException {
+        var oldVersion = TransportVersionUtils.getPreviousVersion(TDigestArrayBlock.MULTIVALUE_SUPPORT);
+        TDigestBlock block = randomBlockWithNulls(false);
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(oldVersion);
+        Block.writeTypedBlock(block, out);
+        var streamInput = out.bytes().streamInput();
+        streamInput.setTransportVersion(oldVersion);
+        try (BlockStreamInput input = new BlockStreamInput(streamInput, blockFactory())) {
+            Block deserializedBlock = Block.readTypedBlock(input);
+            assertThat(deserializedBlock, equalTo(block));
+            Releasables.close(block, deserializedBlock);
+        }
+    }
+
+    public void testOldVersionSerializationFailsForMultiValue() {
+        var oldVersion = TransportVersionUtils.getPreviousVersion(TDigestArrayBlock.MULTIVALUE_SUPPORT);
+        TDigestBlock.Builder builder = blockFactory().newTDigestBlockBuilder(2);
+        builder.beginPositionEntry();
+        builder.appendTDigest(BlockTestUtils.randomTDigest());
+        builder.appendTDigest(BlockTestUtils.randomTDigest());
+        builder.endPositionEntry();
+        builder.appendNull();
+        TDigestBlock block = builder.build();
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(oldVersion);
+        var e = expectThrows(IllegalStateException.class, () -> Block.writeTypedBlock(block, out));
+        assertThat(e.getMessage(), equalTo("Cannot serialize multi-valued tdigest block on old transport version"));
+        block.close();
+    }
+
     private Block serializationRoundTrip(Block block) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         Block.writeTypedBlock(block, out);
@@ -57,7 +93,7 @@ public class TDigestBlockTests extends ComputeTestCase {
     public void testComponentAccess() {
         TDigestBlock block;
         if (randomBoolean()) {
-            block = randomBlockWithNulls();
+            block = randomBlockWithNulls(false);
         } else {
             block = (TDigestBlock) blockFactory().newConstantNullBlock(randomIntBetween(1, 100));
         }
@@ -174,8 +210,7 @@ public class TDigestBlockTests extends ComputeTestCase {
     }
 
     public void testRandomBlockEquality() {
-        int positionCount = randomIntBetween(0, 10_000);
-        Block tdigestBlock = RandomBlock.randomBlock(blockFactory(), ElementType.TDIGEST, positionCount, true, 1, 10, 0, 10).block();
+        Block tdigestBlock = randomBlockWithNulls(true);
         Block copy = BlockUtils.deepCopyOf(tdigestBlock, blockFactory());
 
         assertThat(tdigestBlock, equalTo(copy));
@@ -199,7 +234,8 @@ public class TDigestBlockTests extends ComputeTestCase {
         builder.appendTDigest(digest3);
         builder.appendTDigest(digest1);
         builder.appendTDigest(digest2);
-        builder.endPositionEntry();
+        // intentionally leave out last endPosition() to test auto-closing
+        // builder.endPositionEntry();
         TDigestBlock block = builder.build();
 
         assertThat(block.getPositionCount(), equalTo(3));
@@ -249,16 +285,46 @@ public class TDigestBlockTests extends ComputeTestCase {
         return filtered;
     }
 
-    private TDigestBlock randomBlockWithNulls() {
-        int elementCount = randomIntBetween(0, 100);
-        TDigestBlockBuilder builder = blockFactory().newTDigestBlockBuilder(elementCount);
-        for (int i = 0; i < elementCount; i++) {
-            if (randomBoolean()) {
-                builder.appendNull();
-            } else {
-                builder.appendTDigest(BlockTestUtils.randomTDigest());
+    public void testCranky() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
+        for (int i = 0; i < 100; i++) {
+            try {
+                try (Block.Builder builder = blockFactory.newTDigestBlockBuilder(100); TDigestBlock random = randomBlockWithNulls(true)) {
+                    builder.copyFrom(random, 0, random.getPositionCount());
+                    try (Block built = builder.build()) {
+                        assertThat(built, equalTo(random));
+                    }
+                }
+                // If we made it this far cranky didn't fail us!
+            } catch (CircuitBreakingException e) {
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
             }
         }
-        return builder.build();
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private TDigestBlock randomBlockWithNulls(boolean allowMultiValues) {
+        boolean multiValued = randomBoolean() && allowMultiValues;
+        int elementCount = randomIntBetween(0, 100);
+        try (TDigestBlockBuilder builder = blockFactory().newTDigestBlockBuilder(elementCount)) {
+            for (int i = 0; i < elementCount; i++) {
+                if (randomBoolean()) {
+                    builder.appendNull();
+                } else {
+                    int valueCount = randomIntBetween(1, multiValued ? 10 : 1);
+                    if (valueCount > 1) {
+                        builder.beginPositionEntry();
+                    }
+                    for (int j = 0; j < valueCount; j++) {
+                        builder.appendTDigest(BlockTestUtils.randomTDigest());
+                    }
+                    if (valueCount > 1) {
+                        builder.endPositionEntry();
+                    }
+                }
+            }
+            return builder.build();
+        }
     }
 }

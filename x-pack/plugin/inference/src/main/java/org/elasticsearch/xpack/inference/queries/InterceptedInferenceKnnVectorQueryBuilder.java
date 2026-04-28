@@ -449,11 +449,11 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                 // TextEmbeddingQueryVectorBuilder needs validation when an explicit inference ID is required. A non-null model text value
                 // is guaranteed by its constructor.
                 if (tevb.getModelId() == null) {
-                    throw new IllegalArgumentException("[model_id] must be specified.");
+                    throw new IllegalArgumentException("[model_id] must be specified");
                 }
             } else if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
                 if (eqvb.getInferenceId() == null) {
-                    throw new IllegalArgumentException("[inference_id] must be specified.");
+                    throw new IllegalArgumentException("[inference_id] must be specified");
                 }
             }
         }

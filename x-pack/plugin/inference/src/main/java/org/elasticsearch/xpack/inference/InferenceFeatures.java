@@ -149,12 +149,13 @@ public class InferenceFeatures implements FeatureSpecification {
                 EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE,
                 SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS,
                 SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES,
-                SEMANTIC_TEXT_EMBEDDING_TASK,
-                EMBEDDING_QVB_INFERS_INFERENCE_ID
+                SEMANTIC_TEXT_EMBEDDING_TASK
+
             )
         );
         if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
             testFeatures.add(SemanticFieldMapper.SEMANTIC_FIELD_MAPPER);
+            testFeatures.add(EMBEDDING_QVB_INFERS_INFERENCE_ID);
         }
         testFeatures.addAll(getFeatures());
         return testFeatures;

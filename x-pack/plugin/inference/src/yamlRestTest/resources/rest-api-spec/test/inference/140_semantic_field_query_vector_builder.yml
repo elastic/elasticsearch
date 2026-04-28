@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: "semantic_field.semantic_field_mapper"
-      reason: "semantic field needs to be available"
+      cluster_features: "search.embedding_query_vector_builder.infers_inference_id"
+      reason: embedding query vector builder infers inference_id from semantic field metadata
 
   - do:
       inference.put:
@@ -83,9 +83,6 @@ setup:
 
 ---
 "knn query against semantic field infers inference_id from field metadata":
-  - requires:
-      cluster_features: "search.embedding_query_vector_builder.infers_inference_id"
-      reason: embedding query vector builder infers inference_id from semantic field metadata
 
   # Search without specifying inference_id - should be inferred from the semantic field
   - do:
@@ -122,9 +119,6 @@ setup:
 
 ---
 "knn query against combined dense_vector and semantic fields still requires inference_id":
-  - requires:
-      cluster_features: "search.embedding_query_vector_builder.infers_inference_id"
-      reason: embedding query vector builder infers inference_id from semantic field metadata
 
   - do:
       catch: bad_request
@@ -143,13 +137,10 @@ setup:
                   input: "test query"
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "[inference_id] must be specified." }
+  - match: { error.reason: "[inference_id] must be specified" }
 
 ---
 "knn query with image input against semantic field infers inference_id from field metadata":
-  - requires:
-      cluster_features: "search.embedding_query_vector_builder.infers_inference_id"
-      reason: embedding query vector builder infers inference_id from semantic field metadata
 
   # Search with image input without specifying inference_id - should be inferred from the semantic field
   - do:
@@ -190,10 +181,6 @@ setup:
 
 ---
 "knn query with image input on non-semantic field still requires inference_id":
-  - requires:
-      cluster_features: "search.embedding_query_vector_builder.infers_inference_id"
-      reason: embedding query vector builder infers inference_id from semantic field metadata
-
   - do:
       catch: bad_request
       search:
@@ -211,4 +198,4 @@ setup:
                     value: "data:image/jpeg;base64,abcdef1234567890"
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "[inference_id] must be specified." }
+  - match: { error.reason: "[inference_id] must be specified" }

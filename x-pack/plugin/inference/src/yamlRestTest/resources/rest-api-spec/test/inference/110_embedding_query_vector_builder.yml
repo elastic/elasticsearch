@@ -311,9 +311,8 @@ setup:
                   input: "test query"
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "[inference_id] must be specified." }
+  - match: { error.reason: "[inference_id] must be specified" }
 
-  # The retriever path uses KnnRetrieverBuilder which calls buildVector() directly, bypassing the query interceptor
   - do:
       catch: bad_request
       search:
@@ -569,4 +568,3 @@ setup:
 
   - match: { error.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
   - match: { error.caused_by.caused_by.caused_by.reason: "Required [type, value]" }
-

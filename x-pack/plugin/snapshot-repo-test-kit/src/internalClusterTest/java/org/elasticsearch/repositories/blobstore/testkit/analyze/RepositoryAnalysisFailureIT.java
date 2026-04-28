@@ -169,7 +169,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         blobStore.setDisruption(new Disruption() {
             @Override
             public byte[] onRead(byte[] actualContents, long position, long length) {
-                if (countDown.countDown()) {
+                if (actualContents != null && countDown.countDown()) {
                     return null;
                 }
                 return actualContents;

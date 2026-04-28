@@ -85,6 +85,33 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
     }
 
     /*
+     * Verifies that hidden tokens (whitespace, comments) between the IN keyword and
+     * the opening '(' of the subquery don't break recognition. The IN_SUBQUERY mode
+     * routes WS / LINE_COMMENT / MULTILINE_COMMENT to the hidden channel, so the
+     * IN_SUBQUERY_LP rule should still fire when the next default-channel char is '('.
+     */
+    public void testWhereInSubqueryWithHiddenTokensBeforeParenthesis() {
+        String[] queries = new String[] {
+            "FROM main_index | WHERE x IN               (FROM sub_index)",
+            "FROM main_index | WHERE x IN /* some comment */ (FROM sub_index)",
+            "FROM main_index | WHERE x IN // line comment\n (FROM sub_index)" };
+
+        for (String query : queries) {
+            LogicalPlan plan = query(query);
+            Filter filter = as(plan, Filter.class);
+            InSubquery inSubquery = as(filter.condition(), InSubquery.class);
+            UnresolvedAttribute value = as(inSubquery.value(), UnresolvedAttribute.class);
+            assertEquals(query, "x", value.name());
+
+            UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
+            assertEquals(query, "sub_index", subqueryRelation.indexPattern().indexPattern());
+
+            UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+            assertEquals(query, "main_index", mainRelation.indexPattern().indexPattern());
+        }
+    }
+
+    /*
      * Filter[NOT(InSubquery[?x,UnresolvedRelation[sub_index]])]
      * \_UnresolvedRelation[main_index]
      */
@@ -352,6 +379,67 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         Keep secondKeep = as(secondIn.subquery(), Keep.class);
         UnresolvedRelation secondRelation = as(secondKeep.child(), UnresolvedRelation.class);
         assertEquals("sub2", secondRelation.indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+    }
+
+    /*
+     * IN/NOT IN subqueries combined with AND and OR. Operator precedence makes
+     * AND bind tighter than OR, so the parse tree is:
+     *
+     * Filter[Or[And[InSubquery[?f1, Keep[UnresolvedRelation[sub1]]],
+     *               Not[InSubquery[?f2, Keep[Filter[UnresolvedRelation[sub2]]]]]],
+     *           InSubquery[?f3, Keep[Limit[OrderBy[Aggregate[UnresolvedRelation[sub3]]]]]]]]
+     * \_UnresolvedRelation[main_index]
+     *
+     */
+    public void testMultipleWhereInSubqueries() {
+        String query = """
+            FROM main_index
+            | WHERE main_index_field1 IN (FROM sub_index1
+                                          | KEEP sub_index1_field1)
+              AND main_index_field2 NOT IN (FROM sub_index2
+                                            | WHERE sub_index2_field1 > 0
+                                            | KEEP sub_index2_field2)
+              OR main_index_field3 IN (FROM sub_index3
+                                       | STATS count=COUNT(*) BY sub_index3_field1
+                                       | SORT count DESC
+                                       | LIMIT 5
+                                       | KEEP sub_index3_field1)
+            """;
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        And and = as(or.left(), And.class);
+
+        // First branch: main_index_field1 IN (FROM sub_index1 | KEEP sub_index1_field1)
+        InSubquery firstIn = as(and.left(), InSubquery.class);
+        assertEquals("main_index_field1", as(firstIn.value(), UnresolvedAttribute.class).name());
+        Keep firstKeep = as(firstIn.subquery(), Keep.class);
+        UnresolvedRelation firstRelation = as(firstKeep.child(), UnresolvedRelation.class);
+        assertEquals("sub_index1", firstRelation.indexPattern().indexPattern());
+
+        // Second branch: main_index_field2 NOT IN (FROM sub_index2 | WHERE ... | KEEP ...)
+        Not not = as(and.right(), Not.class);
+        InSubquery secondIn = as(not.field(), InSubquery.class);
+        assertEquals("main_index_field2", as(secondIn.value(), UnresolvedAttribute.class).name());
+        Keep secondKeep = as(secondIn.subquery(), Keep.class);
+        Filter secondFilter = as(secondKeep.child(), Filter.class);
+        as(secondFilter.condition(), GreaterThan.class);
+        UnresolvedRelation secondRelation = as(secondFilter.child(), UnresolvedRelation.class);
+        assertEquals("sub_index2", secondRelation.indexPattern().indexPattern());
+
+        // Third branch: main_index_field3 IN (FROM sub_index3 | STATS ... | SORT ... | LIMIT 5 | KEEP ...)
+        InSubquery thirdIn = as(or.right(), InSubquery.class);
+        assertEquals("main_index_field3", as(thirdIn.value(), UnresolvedAttribute.class).name());
+        Keep thirdKeep = as(thirdIn.subquery(), Keep.class);
+        Limit thirdLimit = as(thirdKeep.child(), Limit.class);
+        OrderBy thirdOrderBy = as(thirdLimit.child(), OrderBy.class);
+        Aggregate thirdAggregate = as(thirdOrderBy.child(), Aggregate.class);
+        UnresolvedRelation thirdRelation = as(thirdAggregate.child(), UnresolvedRelation.class);
+        assertEquals("sub_index3", thirdRelation.indexPattern().indexPattern());
 
         UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());

@@ -43,5 +43,5 @@ IN_SUBQUERY_LP
 // Match a single char as lookahead, then fully unwind so EXPRESSION_MODE
 // re-lexes from the original position.
 IN_EXPR_FALLBACK
-    : . { this.rewindToTokenStart(0); } -> popMode, skip
+    : . { this.rewindToTokenStart(0); } -> skip, popMode
     ;

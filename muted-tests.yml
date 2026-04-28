@@ -282,33 +282,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlMemoryIT
   method: testMemoryStats
   issue: https://github.com/elastic/elasticsearch/issues/147122
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  method: test {csv-spec:stats.statsWithSubstitutedExpressionOverFilters}
-  issue: https://github.com/elastic/elasticsearch/issues/147125
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  method: test {csv-spec:k8s-timeseries-arithmetic.division_metric_metric_grouping_filtering_ts}
-  issue: https://github.com/elastic/elasticsearch/issues/147126
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  method: test {csv-spec:bucket.docsBucketMonthlyHistogram}
-  issue: https://github.com/elastic/elasticsearch/issues/147127
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  method: test {csv-spec:stats.commonFilterExtractionWithAliasing}
-  issue: https://github.com/elastic/elasticsearch/issues/147128
-- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
-  method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
-  issue: https://github.com/elastic/elasticsearch/issues/147133
-- class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
-  method: testApproximationDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/147144
-- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
-  method: testLicenseCheck
-  issue: https://github.com/elastic/elasticsearch/issues/147147
-- class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
-  method: test {yaml=ingest/70_bulk/Update with pipeline}
-  issue: https://github.com/elastic/elasticsearch/issues/147163
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/145901
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec}
   issue: https://github.com/elastic/elasticsearch/issues/147164
@@ -318,15 +291,6 @@ tests:
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testNonOperatorUserCanCallAnalyzeRepositoryAPI
   issue: https://github.com/elastic/elasticsearch/issues/147171
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison}
-  issue: https://github.com/elastic/elasticsearch/issues/147195
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction}
-  issue: https://github.com/elastic/elasticsearch/issues/147199
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=aggregations/terms_text_docvalues/Indexing disabled}
-  issue: https://github.com/elastic/elasticsearch/issues/147200
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array}
   issue: https://github.com/elastic/elasticsearch/issues/147205

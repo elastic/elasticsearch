@@ -35,10 +35,10 @@ public class RecordingApmServer extends ExternalResource {
 
     final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
 
-    private static HttpServer server;
-    private final Thread messageConsumerThread = consumerThread();
+    private HttpServer server;
+    private Thread messageConsumerThread;
     private volatile Consumer<ReceivedTelemetry> consumer;
-    private volatile boolean running = true;
+    private volatile boolean running;
 
     @Override
     protected void before() throws Throwable {
@@ -47,6 +47,8 @@ public class RecordingApmServer extends ExternalResource {
         server.createContext("/", this::handle);
         server.start();
 
+        running = true;
+        messageConsumerThread = consumerThread();
         messageConsumerThread.start();
     }
 

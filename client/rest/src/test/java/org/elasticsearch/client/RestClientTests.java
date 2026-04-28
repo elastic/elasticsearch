@@ -28,8 +28,6 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.elasticsearch.client.RestClient.NodeTuple;
 
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadMXBean;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;

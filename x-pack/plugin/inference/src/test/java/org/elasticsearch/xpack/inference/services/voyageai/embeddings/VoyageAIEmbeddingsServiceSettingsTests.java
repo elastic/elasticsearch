@@ -351,10 +351,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         var dimensionsSetByUser = instance.dimensionsSetByUser();
         switch (randomInt(5)) {
             case 0 -> commonSettings = randomValueOtherThan(commonSettings, VoyageAICommonServiceSettingsTests::createRandom);
-            case 1 -> embeddingType = randomValueOtherThan(
-                embeddingType,
-                () -> randomFrom(VoyageAIEmbeddingType.values())
-            );
+            case 1 -> embeddingType = randomValueOtherThan(embeddingType, () -> randomFrom(VoyageAIEmbeddingType.values()));
             case 2 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
             case 3 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(1, 2048), null));
             case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 2048), null));

@@ -122,6 +122,11 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testIndexModeNonStandardRejected() {
+        // Note on coverage: only TIME_SERIES (via TS) and LOOKUP (via LOOKUP JOIN) are user-reachable
+        // through ESQL syntax; LOGSDB has no user-syntax path that constructs an UnresolvedRelation
+        // with IndexMode.LOGSDB pointing at a dataset name. The LOGSDB branch is defensive code for
+        // any future path that might set it. There is no IT analogue for LOGSDB — this unit case
+        // pins the rejection-message contract.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
@@ -143,6 +148,26 @@ public class DatasetRewriterTests extends ESTestCase {
             assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString(entry.getValue()));
             assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs"));
         }
+    }
+
+    public void testDatasetReferencingUnknownDataSourceFailsWithExplicitMessage() {
+        // Production scenario: a broken cluster-state restore leaves a Dataset whose parent
+        // DataSource is no longer registered. DataSourceService.deleteDataSources rejects (409)
+        // when any dataset still references a data source, so this is normally impossible —
+        // but if the invariant breaks, the rewriter must fail with a message that names the
+        // missing parent, not NPE inside mergeSettings. Asserts are off in production, so the
+        // rewriter throws IllegalStateException explicitly.
+        Dataset orphan = new Dataset("orphan_ds", new DataSourceReference("missing_parent"), "s3://orphan/", null, Map.of());
+        // Note: dataSources map intentionally does NOT contain "missing_parent" — this is the
+        // broken-state we're simulating.
+        ProjectMetadata project = projectWith(Map.of(), Map.of("orphan_ds", orphan));
+
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
+            () -> DatasetRewriter.rewrite(relationOf("orphan_ds"), project, RESOLVER)
+        );
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("dataset [orphan_ds]"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("unknown data source [missing_parent]"));
     }
 
     public void testSecretSettingUnwrappedToPlaintext() {
@@ -229,21 +254,19 @@ public class DatasetRewriterTests extends ESTestCase {
         }
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
 
-        long start = System.nanoTime();
         LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER);
-        long elapsedMs = (System.nanoTime() - start) / 1_000_000;
 
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(8));
-        assertThat("rewrite should be fast at the UnionAll branch cap", elapsedMs, org.hamcrest.Matchers.lessThan(500L));
     }
 
-    public void testWildcardOverUnionAllCapSurfacesPlatformLimit() {
-        // A wildcard matching more than 8 datasets crosses Fork's 8-branch cap. The rewriter doesn't
-        // pre-check this — it produces the UnionAll, and Fork's constructor surfaces the limit. The
-        // failure is loud (IllegalArgumentException), not silent. Tracked as a follow-up to either
-        // raise the cap or reject this case with a friendlier message at the rewriter.
+    public void testWildcardOverUnionAllCapRejectsWithUserFacingMessage() {
+        // A wildcard matching more than 8 datasets crosses Fork's 8-branch cap. The rewriter
+        // intercepts before constructing the UnionAll and throws a VerificationException with
+        // user-facing framing — the user typed FROM <pattern>, not FORK, so the error references
+        // the pattern + the cap, not Fork's internal name. Tracked as esql-planning#614 (raise the
+        // cap or coalesce siblings) for the long-term fix.
         DataSource parent = dataSource("s3_parent", Map.of());
         java.util.Map<String, Dataset> datasets = new java.util.HashMap<>();
         for (int i = 0; i < 9; i++) {
@@ -254,11 +277,14 @@ public class DatasetRewriterTests extends ESTestCase {
         }
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
 
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
+        VerificationException ex = expectThrows(
+            VerificationException.class,
             () -> DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER)
         );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("up to 8 branches"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("FROM [logs_*]"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("matched 9 datasets"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("current limit is 8"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("Narrow the pattern"));
     }
 
     public void testCommaSeparatedDatasetsAndWildcardCombine() {

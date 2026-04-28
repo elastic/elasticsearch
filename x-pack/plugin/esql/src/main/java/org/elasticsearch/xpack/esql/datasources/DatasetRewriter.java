@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -145,13 +146,37 @@ public final class DatasetRewriter {
             DataSource parent = dataSources.get(dataset.dataSource().getName());
             // DataSourceService.deleteDataSources rejects (409) when any dataset still references the
             // data source, so a dataset with a missing parent should only happen if that invariant breaks
-            // (e.g. a broken cluster-state restore). Assert in dev/test; let it NPE at mergeSettings otherwise.
-            assert parent != null : "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]";
+            // (e.g. a broken cluster-state restore). Throw with explicit context — assert was previously
+            // used here, but asserts are off in production and the next line would NPE without context.
+            if (parent == null) {
+                throw new IllegalStateException(
+                    "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
+                );
+            }
             Map<String, Object> merged = mergeSettings(parent, dataset);
             Literal path = Literal.keyword(relation.source(), dataset.resource());
             children.add(new UnresolvedExternalRelation(relation.source(), path, toParams(relation.source(), merged)));
         }
-        return children.size() == 1 ? children.get(0) : new UnionAll(relation.source(), children, List.of());
+        if (children.size() == 1) {
+            return children.get(0);
+        }
+        // Wrap the platform's UnionAll/Fork branch cap with a user-facing message. Without this, the
+        // caller hits Fork's constructor with "FORK supports up to 8 branches" — but FORK is an
+        // internal plan-node name; the user's query said FROM <pattern>. Tracked as the long-term
+        // fix at esql-planning#614 (raise the cap or coalesce siblings); meanwhile fail with framing
+        // the user can act on.
+        if (children.size() > Fork.MAX_BRANCHES) {
+            throw new VerificationException(
+                "FROM ["
+                    + relation.indexPattern().indexPattern()
+                    + "] matched "
+                    + children.size()
+                    + " datasets; current limit is "
+                    + Fork.MAX_BRANCHES
+                    + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
+            );
+        }
+        return new UnionAll(relation.source(), children, List.of());
     }
 
     /** Parent data source settings (secrets unwrapped to plaintext) overlaid by the dataset's settings. */

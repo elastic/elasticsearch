@@ -529,6 +529,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
   method: test {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
   issue: https://github.com/elastic/elasticsearch/issues/147654
+- class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
+  method: testUpdateTransformWithProjectRouting
+  issue: https://github.com/elastic/elasticsearch/issues/147655
 
 # Examples:
 #

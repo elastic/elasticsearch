@@ -44,12 +44,12 @@ public class IncreaseTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.longCases(1, 1000, 0, 1000_000_000, true),
             MultiRowTestCaseSupplier.intCases(1, 1000, 0, 1000_000_000, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, 0, 1000_000_000, true)
-
         );
         for (List<TestCaseSupplier.TypedDataSupplier> valuesSupplier : valuesSuppliers) {
             for (TestCaseSupplier.TypedDataSupplier fieldSupplier : valuesSupplier) {
-                TestCaseSupplier testCaseSupplier = makeSupplier(fieldSupplier);
-                suppliers.add(testCaseSupplier);
+                for (RateTests.TemporalityParameter temporality : RateTests.TemporalityParameter.values()) {
+                    suppliers.add(makeSupplier(fieldSupplier, temporality));
+                }
             }
         }
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
@@ -84,10 +84,13 @@ public class IncreaseTests extends AbstractAggregationTestCase {
         };
     }
 
-    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+    private static TestCaseSupplier makeSupplier(
+        TestCaseSupplier.TypedDataSupplier fieldSupplier,
+        RateTests.TemporalityParameter temporality
+    ) {
         DataType type = counterType(fieldSupplier.type());
         return new TestCaseSupplier(
-            fieldSupplier.name(),
+            fieldSupplier.name() + " temporality=" + temporality,
             List.of(type, DataType.DATETIME, DataType.KEYWORD, DataType.INTEGER, DataType.LONG),
             () -> {
                 TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
@@ -109,10 +112,11 @@ public class IncreaseTests extends AbstractAggregationTestCase {
                 List<Integer> slices = new ArrayList<>();
                 List<Long> maxTimestamps = new ArrayList<>();
                 long lastTimestamp = randomLongBetween(0, 1_000_000);
+                Object temporalityValue = temporality.byteValue();
                 for (int row = 0; row < dataRows.size(); row++) {
                     lastTimestamp += randomLongBetween(1, 10_000);
                     timestamps.add(lastTimestamp);
-                    temporalities.add(null);
+                    temporalities.add(temporalityValue);
                     slices.add(0);
                     maxTimestamps.add(Long.MAX_VALUE);
                 }
@@ -134,32 +138,51 @@ public class IncreaseTests extends AbstractAggregationTestCase {
                 );
 
                 List<Object> nonNullDataRows = dataRows.stream().filter(Objects::nonNull).toList();
-                final Matcher<?> matcher;
-                if (nonNullDataRows.size() < 2) {
-                    matcher = Matchers.nullValue();
-                } else {
-                    double resets = 0.0;
-                    double last = ((Number) nonNullDataRows.get(0)).doubleValue();
-                    double current = last;
-                    for (int i = 1; i < nonNullDataRows.size(); i++) {
-                        double prev = ((Number) nonNullDataRows.get(i)).doubleValue();
-                        if (prev > current) {
-                            resets += prev;
-                        }
-                        current = prev;
-                    }
-                    double increase = resets + (last - current);
-                    matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 1.01));
-                }
-
-                return new TestCaseSupplier.TestCase(
+                final Matcher<?> matcher = increaseMatcher(nonNullDataRows, temporality);
+                TestCaseSupplier.TestCase result = new TestCaseSupplier.TestCase(
                     List.of(fieldTypedData, timestampsField, temporalityType, sliceIndexType, nextTimestampType),
                     standardAggregatorName("Rate", fieldTypedData.type()),
                     DataType.DOUBLE,
                     matcher
                 );
+                if (temporality == RateTests.TemporalityParameter.INVALID && nonNullDataRows.isEmpty() == false) {
+                    return result.withWarning(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                    )
+                        .withWarning(
+                            "Line 1:1: org.elasticsearch.compute.aggregation.InvalidTemporalityException: "
+                                + "Invalid temporality value: [gotcha], expected [cumulative] or [delta]"
+                        );
+                }
+                return result;
             }
         );
+    }
+
+    private static Matcher<?> increaseMatcher(List<Object> nonNullDataRows, RateTests.TemporalityParameter temporality) {
+        if (nonNullDataRows.size() < 2 || temporality == RateTests.TemporalityParameter.INVALID) {
+            return Matchers.nullValue();
+        }
+        double increase;
+        if (temporality == RateTests.TemporalityParameter.DELTA) {
+            // last array entry corresponds to first timestamp, as we have reverse chronological order
+            double firstDelta = ((Number) nonNullDataRows.getLast()).doubleValue();
+            increase = nonNullDataRows.stream().mapToDouble(v -> ((Number) v).doubleValue()).sum() - firstDelta;
+        } else {
+            // cumulative
+            double resets = 0.0;
+            double last = ((Number) nonNullDataRows.get(0)).doubleValue();
+            double current = last;
+            for (int i = 1; i < nonNullDataRows.size(); i++) {
+                double prev = ((Number) nonNullDataRows.get(i)).doubleValue();
+                if (prev > current) {
+                    resets += prev;
+                }
+                current = prev;
+            }
+            increase = resets + (last - current);
+        }
+        return Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 1.01));
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {

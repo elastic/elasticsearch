@@ -14,6 +14,7 @@ import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
 
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
@@ -58,6 +59,12 @@ public abstract class OTelDocumentBuilder {
         if (value != null && value.isEmpty() == false) {
             builder.field(name);
             byteStringAccessor.utf8Value(builder, value);
+        }
+    }
+
+    protected void addHexFieldIfNotEmpty(XContentBuilder builder, String name, ByteString value) throws IOException {
+        if (value != null && value.isEmpty() == false) {
+            builder.field(name, MessageDigests.toHexString(value.toByteArray()));
         }
     }
 

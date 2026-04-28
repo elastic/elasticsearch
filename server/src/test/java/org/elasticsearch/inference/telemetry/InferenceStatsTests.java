@@ -25,7 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.inference.telemetry.InferenceStats.ERROR_TYPE_ATTRIBUTE;
-import static org.elasticsearch.inference.telemetry.InferenceStats.IS_PRODUCTION_RELEASE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.PRODUCTION_RELEASE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.SERVICE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.STACK_VERSION_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_ATTRIBUTE;
@@ -83,7 +83,7 @@ public class InferenceStatsTests extends ESTestCase {
         assertThat(attributes.get(SERVICE_ATTRIBUTE), is(TEST_SERVICE));
         assertThat(attributes.get(TASK_TYPE_ATTRIBUTE), is(TaskType.ANY.toString()));
         assertThat(attributes.get(STACK_VERSION_ATTRIBUTE), is(TEST_STACK_VERSION));
-        assertThat(attributes.get(IS_PRODUCTION_RELEASE_ATTRIBUTE), is(TEST_IS_PRODUCTION_RELEASE));
+        assertThat(attributes.get(PRODUCTION_RELEASE), is(TEST_IS_PRODUCTION_RELEASE));
     }
 
     public void testRecordDurationWithoutError() {

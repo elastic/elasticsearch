@@ -27,8 +27,11 @@ public record InferenceStats(
     Map<String, Object> constantAttributes
 ) {
 
-    static final String STACK_VERSION_ATTRIBUTE = "stack_version";
-    static final String IS_PRODUCTION_RELEASE_ATTRIBUTE = "is_production_release";
+    // Attribute keys must start with "es_" prefix see org.elasticsearch.telemetry.apm.internal.MetricValidator#validateAttributeKey
+    static final String STACK_VERSION_ATTRIBUTE = "es_stack_version";
+    static final String PRODUCTION_RELEASE = "es_production_release";
+
+    // These attributes predated the "es_" prefix requirement
     static final String SERVICE_ATTRIBUTE = "service";
     static final String TASK_TYPE_ATTRIBUTE = "task_type";
     static final String STATUS_CODE_ATTRIBUTE = "status_code";
@@ -58,7 +61,7 @@ public record InferenceStats(
                 "Inference API time spent waiting for Trained Model Deployments",
                 "ms"
             ),
-            Map.of(STACK_VERSION_ATTRIBUTE, stackVersion, IS_PRODUCTION_RELEASE_ATTRIBUTE, isProductionRelease)
+            Map.of(STACK_VERSION_ATTRIBUTE, stackVersion, PRODUCTION_RELEASE, isProductionRelease)
         );
     }
 

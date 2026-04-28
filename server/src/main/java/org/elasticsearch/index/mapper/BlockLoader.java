@@ -265,9 +265,7 @@ public interface BlockLoader {
      * callers are responsible for applying block-level skipping on top.
      */
     interface NumericRangeReader {
-        default void collectMatches(LeafCollector collect, int firstDoc, int lastDoc, long lowerValue, long upperValue) throws IOException {
-            throw new UnsupportedOperationException();
-        };
+        void collectMatches(LeafCollector collect, int firstDoc, int lastDoc, long lowerValue, long upperValue) throws IOException;
     }
 
     /**

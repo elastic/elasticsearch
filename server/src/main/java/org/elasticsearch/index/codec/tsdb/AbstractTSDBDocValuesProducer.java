@@ -1406,6 +1406,23 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return null;
         }
 
+        @Override
+        public void collectMatches(
+            LeafCollector collector,
+            int firstDoc,
+            int lastDoc,
+            long lowerValue,
+            long upperValue
+        ) throws IOException {
+            for (int d = firstDoc; d <= lastDoc; d++) {
+                advanceExact(d);
+                long v = longValue();
+                if (lowerValue <= v && v <= upperValue) {
+                    collector.collect(d);
+                }
+            }
+        }
+
         @Nullable
         abstract SortedOrdinalReader sortedOrdinalReader();
     }

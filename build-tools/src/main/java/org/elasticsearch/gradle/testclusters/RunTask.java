@@ -83,10 +83,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
         this.cliDebug = enabled;
     }
 
-    @Option(
-        option = "entitlements",
-        description = "Use the Entitlements agent system in place of SecurityManager to enforce sandbox policies."
-    )
+    @Option(option = "entitlements", description = "Use the Entitlements agent system to enforce sandbox policies.")
     public void setEntitlementsEnabled(boolean enabled) {}
 
     @Input

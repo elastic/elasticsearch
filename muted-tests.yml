@@ -2,9 +2,6 @@ tests:
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
-  method: testTracingCrossCluster
-  issue: https://github.com/elastic/elasticsearch/issues/112731
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
@@ -88,9 +85,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
   method: testIndexPoints
   issue: https://github.com/elastic/elasticsearch/issues/142439
-- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
-  method: testQuantizedXY
-  issue: https://github.com/elastic/elasticsearch/issues/141234
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
@@ -249,12 +243,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/146955
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testMinimalToMaximal {p0=true p1=ENTERPRISE}
-  issue: https://github.com/elastic/elasticsearch/issues/146966
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testMinimalToMaximal {p0=true p1=BASIC}
-  issue: https://github.com/elastic/elasticsearch/issues/146967
 - class: org.elasticsearch.index.reindex.ReindexClientYamlTestSuiteIT
   method: test {yaml=reindex/10_basic/Response format for created}
   issue: https://github.com/elastic/elasticsearch/issues/147005
@@ -282,24 +270,15 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlMemoryIT
   method: testMemoryStats
   issue: https://github.com/elastic/elasticsearch/issues/147122
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testBulkOperations {useLegacyFormat=false useSyntheticSource=false}
-  issue: https://github.com/elastic/elasticsearch/issues/147130
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec}
   issue: https://github.com/elastic/elasticsearch/issues/147164
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testBulkOperations {useLegacyFormat=true useSyntheticSource=true}
-  issue: https://github.com/elastic/elasticsearch/issues/147169
 - class: org.elasticsearch.xpack.prometheus.PrometheusMetadataRestIT
   method: testMultipleEntriesForSameMetricAcrossStreams
   issue: https://github.com/elastic/elasticsearch/issues/147170
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testNonOperatorUserCanCallAnalyzeRepositoryAPI
   issue: https://github.com/elastic/elasticsearch/issues/147171
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testBulkOperations {useLegacyFormat=false useSyntheticSource=true}
-  issue: https://github.com/elastic/elasticsearch/issues/147177
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array}
   issue: https://github.com/elastic/elasticsearch/issues/147205
@@ -321,9 +300,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/250_high_cardinality_keyword/Test avg length}
   issue: https://github.com/elastic/elasticsearch/issues/147380
-- class: org.elasticsearch.search.fetch.ChunkedFetchPhaseCircuitBreakerTrippingIT
-  method: testCircuitBreakerTripsWithConcurrentSearches
-  issue: https://github.com/elastic/elasticsearch/issues/147391
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/147449

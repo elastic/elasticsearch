@@ -729,7 +729,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         // deleted == true because a concurrent index deletion set the flag. It will then end up calling
         // beforeIndexShardDeleted/afterIndexShardDeleted eventhough it did not own the deletion work.
         // This is safe because index deletion is a no-return state, and cleanup should be idempotent, but should
-        // eventually be fixed for completeness' sake. See elastic/elasticsearch-serverless#6183.
+        // eventually be fixed for completeness' sake. See issue #147666.
         if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
                 try {

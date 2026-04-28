@@ -29,6 +29,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -569,6 +570,92 @@ public final class MlIndexAndAlias {
     }
 
     /**
+     * Filters {@code candidates} to only those exactly matching {@code baseIndexName-NNNNNN}.
+     * Complements {@link #indicesMatchingBasename} by excluding indices that just share the prefix.
+     * Use when dealing with rollover generations to avoid matching unrelated indices.
+
+     *
+     * @param baseIndexName The base part of an index name, without the 6 digit suffix.
+     * @param candidates    The candidate index names to filter (typically the result of
+     *                      {@link #indicesMatchingBasename}).
+     * @return              The subset of {@code candidates} that belong to exactly this family.
+     */
+    public static String[] strictFamily(String baseIndexName, String[] candidates) {
+        int expectedLength = baseIndexName.length() + FIRST_INDEX_SIX_DIGIT_SUFFIX.length();
+        return Arrays.stream(candidates).filter(i -> has6DigitSuffix(i) && i.length() == expectedLength).toArray(String[]::new);
+    }
+
+    /**
+     * Convenience method combining {@link #indicesMatchingBasename} and {@link #strictFamily}:
+     * resolves all cluster indices that match {@code baseIndexName + "*"} and then filters
+     * to the exact family (i.e. exactly {@code baseIndexName-NNNNNN} names).
+     *
+     * @param baseIndexName      The base part of an index name, without the 6 digit suffix.
+     * @param expressionResolver The expression resolver.
+     * @param state              The cluster state.
+     * @return                   The exact rollover family for {@code baseIndexName}.
+     */
+    public static String[] strictFamilyOf(String baseIndexName, IndexNameExpressionResolver expressionResolver, ClusterState state) {
+        return strictFamily(baseIndexName, indicesMatchingBasename(baseIndexName, expressionResolver, state));
+    }
+
+    /**
+     * Returns the lowest suffix integer (≥ 1) not yet occupied by any member of
+     * {@code exactFamily}.  If {@code exactFamily} is empty, returns {@code 1},
+     * which will produce the first {@code base-000001} index.
+     * <p>
+     * Only family members with a parseable numeric 6-digit suffix are considered;
+     * anything else is silently skipped.
+     *
+     * @param exactFamily The strict (length-exact) rollover family array, as returned by
+     *                    {@link #strictFamily} or {@link #strictFamilyOf}.
+     * @return            The next free suffix integer.
+     */
+    public static int nextSuffix(String[] exactFamily) {
+        int highest = 0;
+        for (String idx : exactFamily) {
+            if (has6DigitSuffix(idx)) {
+                String suffixStr = idx.substring(idx.length() - 6);
+                try {
+                    highest = Math.max(highest, Integer.parseInt(suffixStr));
+                } catch (NumberFormatException ignored) {
+                    // non-numeric suffix; skip
+                }
+            }
+        }
+        return highest + 1;
+    }
+
+    /**
+     * Returns {@code true} if the top-level mapping of {@code indexMetadata} contains a field
+     * named {@code fieldName} whose {@code "type"} attribute equals {@code expectedType}.
+     * <p>
+     * Returns {@code false} for absent metadata, missing mappings, missing {@code properties}
+     * block, missing field, or non-matching type — i.e. all failure modes are collapsed to
+     * {@code false} so callers do not need defensive null-checks.
+     *
+     * @param indexMetadata The index metadata to inspect. May be {@code null}.
+     * @param fieldName     The field to look up inside the top-level {@code properties} block.
+     * @param expectedType  The expected Elasticsearch field type string (e.g. {@code "keyword"}).
+     * @return              {@code true} iff the field exists and has the expected type.
+     */
+    @SuppressWarnings("unchecked")
+    public static boolean hasFieldTypedAs(IndexMetadata indexMetadata, String fieldName, String expectedType) {
+        if (indexMetadata == null || indexMetadata.mapping() == null) {
+            return false;
+        }
+        var rawProperties = indexMetadata.mapping().sourceAsMap().get("properties");
+        if (rawProperties instanceof Map<?, ?> == false) {
+            return false;
+        }
+        var rawField = ((Map<String, Object>) rawProperties).get(fieldName);
+        if (rawField instanceof Map<?, ?> == false) {
+            return false;
+        }
+        return expectedType.equals(((Map<String, Object>) rawField).get("type"));
+    }
+
+    /**
      * Strip any suffix from the index name and find any other indices
      * that match the base name. Then return the latest index from the
      * matching ones.
@@ -586,20 +673,10 @@ public final class MlIndexAndAlias {
 
         String baseIndexName = baseIndexName(index);
 
-        var matching = indicesMatchingBasename(baseIndexName, expressionResolver, latestState);
-
         // We used to assert here if no matching indices could be found. However, when called _before_ a job is created it may be the case
-        // that no .ml-anomalies-shared* indices yet exist
-        if (matching.length == 0) {
-            return index;
-        }
-
-        // Exclude indices that start with the same base name but are a different index
-        // e.g. .ml-anomalies-foobar should not be included when the index name is
-        // .ml-anomalies-foo
-        String[] filtered = Arrays.stream(matching).filter(i -> {
-            return i.equals(index) || (has6DigitSuffix(i) && i.length() == baseIndexName.length() + FIRST_INDEX_SIX_DIGIT_SUFFIX.length());
-        }).toArray(String[]::new);
+        // that no .ml-anomalies-shared* indices yet exist.
+        // strictFamilyOf also excludes prefix-siblings (e.g. .ml-anomalies-foobar when the base is .ml-anomalies-foo).
+        String[] filtered = strictFamilyOf(baseIndexName, expressionResolver, latestState);
 
         if (filtered.length == 0) {
             return index;

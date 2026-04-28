@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -116,6 +115,44 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
         );
     }
 
+    /**
+     * Regression guard for the cross-customer index-resolution bug: when two custom results
+     * groups share a name prefix (e.g. {@code foo} and {@code foobar}), the unfiltered
+     * {@code .ml-anomalies-custom-foo*} glob resolves both families, and a suffix tie in
+     * {@link org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias#latestIndex} can pick the
+     * wrong winner. Without strict family filtering the heal would move {@code foo}'s aliases
+     * onto the unrelated {@code foobar-000001} index, corrupting both customers' results.
+     */
+    public void testHeals_GivenCustomPrefixSibling_DoesNotReuseUnrelatedIndex() {
+        String badIndex = ".reindexed-v7-ml-anomalies-custom-foo-000001";
+        String unrelatedSibling = ".ml-anomalies-custom-foobar-000001";
+        String expectedTarget = ".ml-anomalies-custom-foo-000001";
+        List<String> fooJobs = List.of("fooJob");
+
+        // Pre-create the unrelated sibling via the ML template so it gets the correct
+        // keyword job_id mapping — the only conditions under which the buggy resolver
+        // would have happily reused it as the foo family's heal target.
+        client().admin().indices().create(new CreateIndexRequest(unrelatedSibling)).actionGet();
+
+        createBadIndex(badIndex, BROKEN_MAPPING, fooJobs);
+        runHeal();
+
+        ClusterState state = clusterService().state();
+
+        // Heal picked the correct foo target, not the prefix-matching foobar sibling.
+        assertThat(
+            "foo target should have been created, not reused from unrelated sibling",
+            state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(expectedTarget),
+            is(notNullValue())
+        );
+        assertAliasesOnIndex(expectedTarget, fooJobs, state);
+        assertJobIdIsKeyword(expectedTarget, state);
+        assertBadIndexHasNoMlAliases(badIndex, state);
+
+        // Unrelated sibling must be untouched — no foo-job aliases leaked onto it.
+        assertNoMlAliasesOnIndex(unrelatedSibling, state);
+    }
+
     public void testHeals_GivenSharedIndexWithSuffixCollision_PicksNextIndex() {
         String badIndex = ".reindexed-v7-ml-anomalies-shared-000001";
         String existingBlocker = ".ml-anomalies-shared-000001";
@@ -151,43 +188,26 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
         updater.runUpdate(clusterService().state());
     }
 
-    /**
-     * Creates an index named {@code name} with the given mapping source and puts read+write
-     * {@code .ml-anomalies-*} aliases on it for each supplied job id, mirroring the alias
-     * shape that the broken upgrade left behind.
-     */
+    /** Creates an index with the broken mapping and the canonical ML read+write aliases. */
     private void createBadIndex(String name, String mappingSource, List<String> jobIds) {
-        client().admin().indices().create(new CreateIndexRequest(name).mapping(mappingSource)).actionGet();
-
-        var aliasesReq = client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
-        for (String jobId : jobIds) {
-            aliasesReq.addAliasAction(
-                IndicesAliasesRequest.AliasActions.add()
-                    .index(name)
-                    .alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-                    .isHidden(true)
-            );
-            aliasesReq.addAliasAction(
-                IndicesAliasesRequest.AliasActions.add()
-                    .index(name)
-                    .alias(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
-                    .writeIndex(true)
-                    .isHidden(true)
-            );
-        }
-        aliasesReq.get();
+        createResultsIndexWithAliases(name, mappingSource, jobIds);
     }
 
     /** Asserts that no {@code .ml-anomalies-*} alias lives on the given bad index. */
     private static void assertBadIndexHasNoMlAliases(String badIndex, ClusterState state) {
+        assertNoMlAliasesOnIndex(badIndex, state);
+    }
+
+    /** Asserts that no {@code .ml-anomalies-*} alias lives on the given index. */
+    private static void assertNoMlAliasesOnIndex(String index, ClusterState state) {
         Map<String, List<AliasMetadata>> aliasesMap = state.metadata()
             .getProject(Metadata.DEFAULT_PROJECT_ID)
-            .findAllAliases(new String[] { badIndex });
-        List<AliasMetadata> remaining = aliasesMap.getOrDefault(badIndex, List.of())
+            .findAllAliases(new String[] { index });
+        List<AliasMetadata> mlAliases = aliasesMap.getOrDefault(index, List.of())
             .stream()
             .filter(a -> a.alias().startsWith(".ml-anomalies-"))
             .toList();
-        assertThat("bad index [" + badIndex + "] should have no live ml-anomalies aliases after heal", remaining, is(empty()));
+        assertThat("index [" + index + "] should have no ml-anomalies aliases", mlAliases, is(empty()));
     }
 
     /**

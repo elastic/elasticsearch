@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -142,7 +143,6 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         return "ml_anomalies_index_update";
     }
 
-    @Override
     /**
      * Executes updates related to ML anomaly indices.
      * - Runs the rollover process for ML anomaly indices.
@@ -153,8 +153,9 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      * @param latestState The latest {@link ClusterState} to operate against.
      * @throws ElasticsearchStatusException if one or more update steps fail.
      */
+    @Override
     public void runUpdate(ClusterState latestState) {
-        // rol over legacy ml anomalies indices if necessary
+        // roll over legacy ml anomalies indices if necessary
         ElasticsearchStatusException rolloverFailure = null;
         try {
             runRolloverLoop(latestState);
@@ -288,8 +289,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      */
     void healReindexedV7Anomalies(ClusterState state) {
         if (healEnabled.getAsBoolean() == false) {
-            logger.debug("Setting [{}] is active; heal step skipped", HEAL_REINDEXED_V7_ENABLED.getKey());
-
+            logger.debug("Setting [{}] is disabled; heal step skipped", HEAL_REINDEXED_V7_ENABLED.getKey());
             return;
         }
 
@@ -298,12 +298,16 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
 
         List<Exception> failures = new ArrayList<>();
 
+        // Memoize the target index per base, so related bad indices share one new target index.
+
+        Map<String, String> targetByBase = new HashMap<>();
+
         for (String badIndex : candidates) {
             try {
-                healOneBadIndex(badIndex, state);
+                healOneBadIndex(badIndex, state, targetByBase);
             } catch (Exception e) {
-                var msg = "failed to heal reindexed-v7 ml anomalies index [" + badIndex + "]";
-                logger.warn(msg, e);
+                logger.warn("failed to heal reindexed-v7 ml anomalies index [{}]", badIndex, e);
+                String msg = Strings.format("failed to heal reindexed-v7 ml anomalies index [%s]", badIndex);
                 if (e instanceof ElasticsearchException ee) {
                     failures.add(new ElasticsearchStatusException(msg, ee.status(), ee));
                 } else {
@@ -322,10 +326,13 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     /**
      * If necessary, create a new index with the name that does not clash with any existing index and move
      * the aliases from the bad index to the new index.
-     * @param badIndex The index to heal.
-     * @param state The cluster state.
+     *
+     * @param badIndex     The index to heal.
+     * @param state        The cluster state snapshot for this heal run.
+     * @param targetByBase Maps target base name to created target index for this heal run, so related indices use the same new target index.
+
      */
-    private void healOneBadIndex(String badIndex, ClusterState state) {
+    private void healOneBadIndex(String badIndex, ClusterState state, Map<String, String> targetByBase) {
         // Determine if the mapping is broken (absent or non-keyword job_id)
         if (hasCorrectJobIdMapping(badIndex, state)) {
             return;
@@ -353,7 +360,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         String strippedName = "." + badIndex.substring(REINDEXED_V7_PREFIX.length()); // e.g. ".ml-anomalies-shared-000001"
         String targetBase = MlIndexAndAlias.baseIndexName(strippedName);               // e.g. ".ml-anomalies-shared"
 
-        String targetIndex = resolveOrCreateTargetIndex(targetBase, state);
+        String targetIndex = targetByBase.computeIfAbsent(targetBase, base -> resolveOrCreateTargetIndex(base, state));
         moveAliasesToTarget(badIndex, targetIndex, jobIds);
         emitAdvisoryNotifications(badIndex, targetIndex);
 
@@ -368,29 +375,12 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     }
 
     /**
-     * Returns {@code false} for absent, empty, or non-keyword mappings of the {@code job_id} field.
+     * Returns {@code true} iff the {@code job_id} field in {@code indexName}'s mapping
+     * is typed as {@code keyword} (i.e. the ML index template was applied correctly).
      */
-    @SuppressWarnings("unchecked")
     private boolean hasCorrectJobIdMapping(String indexName, ClusterState state) {
         var indexMetadata = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(indexName);
-        if (indexMetadata == null || indexMetadata.mapping() == null) {
-            return false;
-        }
-        var sourceMap = indexMetadata.mapping().sourceAsMap();
-        var rawProperties = sourceMap.get("properties");
-        if (rawProperties instanceof Map<?, ?> == false) {
-            return false;
-        }
-        Map<String, Object> propsMap = (Map<String, Object>) rawProperties;
-        if (propsMap.isEmpty()) {
-            return false;
-        }
-        var rawJobIdField = propsMap.get(Job.ID.getPreferredName());
-        if (rawJobIdField instanceof Map<?, ?> == false) {
-            return false;
-        }
-        Map<String, Object> jobIdMap = (Map<String, Object>) rawJobIdField;
-        return "keyword".equals(jobIdMap.get("type"));
+        return MlIndexAndAlias.hasFieldTypedAs(indexMetadata, Job.ID.getPreferredName(), "keyword");
     }
 
     /**
@@ -399,7 +389,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      * creating a new index with the next free 6-digit suffix.
      */
     private String resolveOrCreateTargetIndex(String targetBase, ClusterState state) {
-        String[] existingFamily = MlIndexAndAlias.indicesMatchingBasename(targetBase, expressionResolver, state);
+        String[] existingFamily = MlIndexAndAlias.strictFamilyOf(targetBase, expressionResolver, state);
         if (existingFamily.length > 0) {
             String latest = MlIndexAndAlias.latestIndex(existingFamily);
             var latestMeta = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(latest);
@@ -420,21 +410,10 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      * Retries up to {@link #MAX_SUFFIX_RETRIES} times on {@link ResourceAlreadyExistsException}.
      */
     private String createNewTargetIndex(String targetBase, String[] existingFamily) {
-        int highestSuffix = 0;
-        for (String idx : existingFamily) {
-            if (MlIndexAndAlias.has6DigitSuffix(idx)) {
-                String suffixStr = idx.substring(idx.length() - 6);
-                try {
-                    highestSuffix = Math.max(highestSuffix, Integer.parseInt(suffixStr));
-                } catch (NumberFormatException ignored) {
-                    // non-numeric suffix; skip
-                }
-            }
-        }
+        int firstSuffix = MlIndexAndAlias.nextSuffix(existingFamily);
 
         for (int attempt = 0; attempt < MAX_SUFFIX_RETRIES; attempt++) {
-            int nextSuffix = highestSuffix + 1 + attempt;
-            String targetName = targetBase + "-" + String.format("%06d", nextSuffix);
+            String targetName = targetBase + "-" + Strings.format("%06d", firstSuffix + attempt);
 
             PlainActionFuture<CreateIndexResponse> createFuture = new PlainActionFuture<>();
             CreateIndexRequest request = new CreateIndexRequest(targetName);
@@ -534,13 +513,15 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
                 + "To recover the historical results, ensure your user has read and write on .ml-anomalies-* "
                 + "(or manage_ml / superuser) and run: "
                 + "POST _reindex?wait_for_completion=false "
-                + "{\"source\":{\"index\":\"%s\"},\"dest\":{\"index\":\"%s\"}}. "
+                + "{\"source\":{\"index\":\"%s\"},\"dest\":{\"index\":\"%s\",\"op_type\":\"create\"}}. "        
                 + "After verifying documents arrived, [%s] may be deleted. "
                 + "KB: https://support.elastic.dev/knowledge/view/d699924c",
             badIndex,
             targetIndex,
             badIndex,
             targetIndex,
+            targetIndex,
+            badIndex,
             badIndex
         );
 

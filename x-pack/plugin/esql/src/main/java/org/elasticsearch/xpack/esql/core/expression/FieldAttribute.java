@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
@@ -193,6 +194,10 @@ public class FieldAttribute extends TypedAttribute {
             }
         }
         return lazyFieldName;
+    }
+
+    public boolean hasTypeConflicts() {
+        return field instanceof InvalidMappedField;
     }
 
     /**

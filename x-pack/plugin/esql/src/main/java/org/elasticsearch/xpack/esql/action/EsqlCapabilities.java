@@ -195,6 +195,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_NULLIFY_FLATTENED_SUBFIELD,
 
         /**
+         * Fix for LOOKUP JOIN and ENRICH failing when the match field has NULL type from unmapped field nullification.
+         * See https://github.com/elastic/elasticsearch/issues/141827
+         */
+        OPTIONAL_FIELDS_FIX_NULL_MATCH_FIELD_IN_JOIN_AND_ENRICH,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */

@@ -37,6 +37,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -55,10 +56,27 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         ensureStableCluster(nodeNames.length);
 
         final String index = randomIdentifier();
-        createIndex(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
+        final int shardCount = between(1, 4);
+        createIndex(
+            index,
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardCount).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
 
-        final int nbDocs = randomIntBetween(1_000, 10_000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs)) {
+        final int nbDocs = randomIntBetween(500, 1000);
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs, between(2, 5), false, null)) {
+            if (shardCount > 1) {
+                // Round-robin documents across shards so every shard holds documents.
+                indexer.setDocumentIdGenerator(counter -> {
+                    final int targetShard = (int) (counter % shardCount);
+                    String id = counter + "";
+                    int iteration = 0;
+                    while (Math.floorMod(Murmur3HashFunction.hash(id), shardCount) != targetShard) {
+                        id = counter + "-" + iteration++;
+                    }
+                    return id;
+                });
+            }
+            indexer.start(nbDocs);
             waitForDocs(nbDocs, indexer);
         }
         refresh(index);
@@ -103,49 +121,25 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             final long cacheSize = SharedBlobCacheService.calculateCacheSize(clusterService.getSettings(), totalFsSize);
             assertThat(nodeCachesStats.getSize(), equalTo(cacheSize));
 
-            final long expectedRegionSize = SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(clusterService.getSettings())
-                .getBytes();
-            final var regionSize = nodeCachesStats.getRegionSize();
-            final var numRegions = nodeCachesStats.getNumRegions();
-            final var writes = nodeCachesStats.getWrites();
-            final var bytesWritten = nodeCachesStats.getBytesWritten();
-            final var reads = nodeCachesStats.getReads();
-            final var bytesRead = nodeCachesStats.getBytesRead();
-            final var evictions = nodeCachesStats.getEvictions();
-            logger.info(
-                "---> nodeCachesStats for node [{}]: numRegions [{}], writes [{}], "
-                    + "bytes written [{}], reads [{}], bytes read [{}], evictions [{}]",
-                nodeName,
-                numRegions,
-                writes,
-                bytesWritten,
-                reads,
-                bytesRead,
-                evictions
-            );
-            assertThat(regionSize, equalTo(expectedRegionSize));
+            final long regionSize = SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
 
-            assertThat(numRegions, equalTo(Math.toIntExact(cacheSize / regionSize)));
-            assertThat(writes, equalTo(0L));
-            assertThat(bytesWritten, equalTo(0L));
-            assertThat(reads, equalTo(0L));
-            assertThat(bytesRead, equalTo(0L));
-            assertThat(evictions, equalTo(0L));
+            assertThat(nodeCachesStats.getRegionSize(), equalTo(regionSize));
+            assertThat(nodeCachesStats.getNumRegions(), equalTo(Math.toIntExact(cacheSize / regionSize)));
+            assertThat(nodeCachesStats.getWrites(), equalTo(0L));
+            assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
+            assertThat(nodeCachesStats.getReads(), equalTo(0L));
+            assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
+            assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
         }
 
         for (int i = 0; i < 20; i++) {
-            final var searchResponse = prepareSearch(mountedIndex).setQuery(
-                randomBoolean()
-                    ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
+            // The first search uses rangeQuery("id").gte(0) to guarantee a full search on every shard regardless of
+            // doc distribution, ensuring SharedBlobCacheService writes are produced on every node holding a frozen shard.
+            prepareSearch(mountedIndex).setQuery(
+                i == 0 ? QueryBuilders.rangeQuery("id").gte(0)
+                    : randomBoolean() ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
                     : QueryBuilders.termQuery("test", "value" + randomIntBetween(0, 1000))
-            ).setSize(randomIntBetween(0, 1000)).get();
-            logger.info(
-                "search [{}]: totalShards={} skippedShards={}",
-                i,
-                searchResponse.getTotalShards(),
-                searchResponse.getSkippedShards()
-            );
-            searchResponse.decRef();
+            ).setSize(randomIntBetween(0, 1000)).get().decRef();
         }
 
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
@@ -157,7 +151,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         assertThat(clearCacheResponse.getSuccessfulShards(), greaterThan(0));
         assertThat(clearCacheResponse.getFailedShards(), equalTo(0));
 
-        final String[] dataNodesWithFrozenShards = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+        final String[] nodesWithFrozenShards = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .routingTable()
@@ -169,59 +163,63 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             .collect(toSet())
             .toArray(String[]::new);
 
-        // We've seen `getWrites` inexplicably return zero. `assertBusy` to test the theory of it being due
-        // to contention on the `LongAdder` at `SharedBlobCacheService#writeCount`.
-        assertBusy(() -> {
-            final NodesCachesStatsResponse response = client().execute(
-                TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
-                new NodesRequest(dataNodesWithFrozenShards)
-            ).actionGet();
-            assertThat(
-                response.getNodes().stream().map(r -> r.getNode().getId()).collect(Collectors.toList()),
-                containsInAnyOrder(dataNodesWithFrozenShards)
-            );
-            assertThat(response.hasFailures(), equalTo(false));
+        final var response = client().execute(
+            TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
+            new NodesRequest(nodesWithFrozenShards)
+        ).actionGet();
+        assertThat(
+            response.getNodes().stream().map(r -> r.getNode().getId()).collect(Collectors.toList()),
+            containsInAnyOrder(nodesWithFrozenShards)
+        );
+        assertThat(response.hasFailures(), equalTo(false));
 
-            for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {
-                final var nodeName = nodeCachesStats.getNode().getName();
-                final var numRegions = nodeCachesStats.getNumRegions();
-                final var writes = nodeCachesStats.getWrites();
-                final var bytesWritten = nodeCachesStats.getBytesWritten();
-                final var reads = nodeCachesStats.getReads();
-                final var bytesRead = nodeCachesStats.getBytesRead();
-                final var evictions = nodeCachesStats.getEvictions();
-                logger.info(
-                    "---> nodeCachesStats for node [{}]: numRegions [{}], writes [{}], "
-                        + "bytes written [{}], reads [{}], bytes read [{}], evictions [{}]",
-                    nodeName,
-                    numRegions,
-                    writes,
-                    bytesWritten,
-                    reads,
-                    bytesRead,
-                    evictions
-                );
-                if (numRegions > 0) {
-                    assertThat(writes, greaterThan(0L));
-                    assertThat(bytesWritten, greaterThan(0L));
-                    assertThat(reads, greaterThan(0L));
-                    assertThat(bytesRead, greaterThan(0L));
-                    assertThat(evictions, greaterThan(0L));
-                } else {
-                    assertThat(writes, equalTo(0L));
-                    assertThat(bytesWritten, equalTo(0L));
-                    assertThat(reads, equalTo(0L));
-                    assertThat(bytesRead, equalTo(0L));
-                    assertThat(evictions, equalTo(0L));
-                }
+        for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {
+            final var nodeName = nodeCachesStats.getNode().getName();
+            final var numRegions = nodeCachesStats.getNumRegions();
+            final var writes = nodeCachesStats.getWrites();
+            final var bytesWritten = nodeCachesStats.getBytesWritten();
+            final var reads = nodeCachesStats.getReads();
+            final var bytesRead = nodeCachesStats.getBytesRead();
+            final var evictions = nodeCachesStats.getEvictions();
+            logger.info(
+                "nodeCachesStats for node [{}]: numRegions [{}], writes [{}], "
+                    + "bytes written [{}], reads [{}], bytes read [{}], evictions [{}]",
+                nodeName,
+                numRegions,
+                writes,
+                bytesWritten,
+                reads,
+                bytesRead,
+                evictions
+            );
+        }
+
+        for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {
+            if (nodeCachesStats.getNumRegions() > 0) {
+                assertThat(nodeCachesStats.getWrites(), greaterThan(0L));
+                assertThat(nodeCachesStats.getBytesWritten(), greaterThan(0L));
+                assertThat(nodeCachesStats.getReads(), greaterThan(0L));
+                assertThat(nodeCachesStats.getBytesRead(), greaterThan(0L));
+                assertThat(nodeCachesStats.getEvictions(), greaterThan(0L));
+            } else {
+                assertThat(nodeCachesStats.getWrites(), equalTo(0L));
+                assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
+                assertThat(nodeCachesStats.getReads(), equalTo(0L));
+                assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
+                assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
             }
-        });
+        }
     }
 
     /// Demonstrates how the `writes > 0` assertion in testNodesCachesStats can fail.
+    /// For a query with no matches, only readWithBlobCache will be called (the BKD traversal short-circuits?).
+    /// But when the query matches something, the search uses readWithoutBlobCache (to read leaf data), which uses
+    /// the SharedBlobCacheService and increments the write count.
     ///
     /// To make this deterministic we control routing and queries explicitly.
     /// Documents with id-field values `1..splitPoint` are routed to shard 0 and the rest to shard 1.
+    /// We only do searches that match doc ranges on shard 1.
+    /// TODO: remove this test before merging PR # 147708
     public void testNodesCachesStatsZeroWritesRepro() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureStableCluster(internalCluster().getNodeNames().length);
@@ -320,7 +318,6 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             .collect(toSet())
             .toArray(String[]::new);
 
-        logger.info(" ---> nodes with frozen shards [{}]", String.join(",", nodesFrozenShards));
         final NodesCachesStatsResponse response = client().execute(
             TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
             new NodesRequest(nodesFrozenShards)
@@ -340,7 +337,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             final var bytesRead = nodeCachesStats.getBytesRead();
             final var evictions = nodeCachesStats.getEvictions();
             logger.info(
-                "---> nodeCachesStats for node [{}]: numRegions [{}], writes [{}], "
+                "nodeCachesStats for node [{}]: numRegions [{}], writes [{}], "
                     + "bytes written [{}], reads [{}], bytes read [{}], evictions [{}]",
                 nodeName,
                 numRegions,

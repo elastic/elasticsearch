@@ -101,7 +101,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         );
         PrefetchedPageReader reader = new PrefetchedPageReader(
             codecFactory.getDecompressor(CompressionCodecName.GZIP), // codec must not be invoked
-            List.of(v2),
+            List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
             null,
             8
         );
@@ -181,7 +181,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         );
         PrefetchedPageReader reader = new PrefetchedPageReader(
             codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-            List.of(v1),
+            List.of(new PrefetchedPageReader.CompressedPage(v1, 42L)),
             null,
             5
         );
@@ -207,7 +207,12 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             Encoding.PLAIN
         );
         BytesInputDecompressor decompressor = codecFactory.getDecompressor(codec);
-        PrefetchedPageReader reader = new PrefetchedPageReader(decompressor, List.of(v1), null, 10);
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            decompressor,
+            List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
+            null,
+            10
+        );
         DataPage page = reader.readPage();
         assertThat(page, notNullValue());
         DataPageV1 outV1 = (DataPageV1) page;
@@ -240,7 +245,12 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             true
         );
         BytesInputDecompressor decompressor = codecFactory.getDecompressor(codec);
-        PrefetchedPageReader reader = new PrefetchedPageReader(decompressor, List.of(v2), null, 10);
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            decompressor,
+            List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
+            null,
+            10
+        );
         DataPage page = reader.readPage();
         assertThat(page, notNullValue());
         DataPageV2 outV2 = (DataPageV2) page;

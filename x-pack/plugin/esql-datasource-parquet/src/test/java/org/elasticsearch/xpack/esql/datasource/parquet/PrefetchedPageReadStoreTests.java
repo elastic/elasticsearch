@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -79,7 +80,8 @@ public class PrefetchedPageReadStoreTests extends ESTestCase {
         ColumnDescriptor unknown = newColumn("unknown");
         PrefetchedPageReadStore store = new PrefetchedPageReadStore(Map.of(known, newPageReader(0)), 0);
         assertThat(store.readDictionaryPage(unknown), nullValue());
-        assertThat(store.getPageReader(unknown), nullValue());
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> store.getPageReader(unknown));
+        assertThat(e.getMessage(), containsString("No prefetched reader for column"));
     }
 
     public void testCloseIsIdempotent() {
@@ -98,7 +100,12 @@ public class PrefetchedPageReadStoreTests extends ESTestCase {
             Encoding.RLE,
             Encoding.PLAIN
         );
-        return new PrefetchedPageReader(codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED), List.of(page), null, valueCount);
+        return new PrefetchedPageReader(
+            codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
+            List.of(new PrefetchedPageReader.CompressedPage(page, -1L)),
+            null,
+            valueCount
+        );
     }
 
     private static ColumnDescriptor newColumn(String name) {

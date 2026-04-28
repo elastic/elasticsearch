@@ -37,7 +37,14 @@ final class PrefetchedPageReadStore implements PageReadStore, DictionaryPageRead
 
     @Override
     public PrefetchedPageReader getPageReader(ColumnDescriptor descriptor) {
-        return readers.get(descriptor);
+        PrefetchedPageReader reader = readers.get(descriptor);
+        if (reader == null) {
+            // Mirror parquet-mr's ColumnChunkPageReadStore.getPageReader behaviour: fail loud
+            // if a caller asks for a column we did not prefetch, instead of returning null and
+            // NPE-ing on the first readPage().
+            throw new IllegalStateException("No prefetched reader for column [" + descriptor + "]");
+        }
+        return reader;
     }
 
     @Override

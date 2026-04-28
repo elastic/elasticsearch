@@ -59,8 +59,10 @@ import java.util.Set;
  *       {@code totalSize} bytes are consumed.</li>
  * </ul>
  *
- * <p>Encrypted columns and pages with CRC verification enabled are unsupported - the optimized
- * iterator never enables either, so a request to handle them is a programmer error.
+ * <p>Encrypted columns are not supported and surface as {@link IllegalArgumentException} (HTTP
+ * 400) so user-supplied encrypted files produce a clear client-side error rather than a 500.
+ * Pages with CRC verification enabled are also unsupported; the optimized iterator never
+ * enables CRC, so a request to handle one is treated as a programmer error.
  */
 final class PrefetchedRowGroupBuilder {
 
@@ -113,7 +115,11 @@ final class PrefetchedRowGroupBuilder {
                 continue;
             }
             if (column.isEncrypted()) {
-                throw new UnsupportedOperationException(
+                // User-facing error: the file uses a feature we don't support. Use a plain
+                // IllegalArgumentException so it maps to HTTP 400 rather than 500 (a
+                // QlIllegalArgumentException would be wrong here per its Javadoc — that one is
+                // reserved for bugs and is mapped to 500).
+                throw new IllegalArgumentException(
                     "Encrypted columns are not supported by the optimized Parquet reader: column ["
                         + path
                         + "] in row group ["
@@ -178,7 +184,7 @@ final class PrefetchedRowGroupBuilder {
     ) {
         DictionaryPage dictPage = readDictionaryPageIfPresent(column, source, rowGroupOrdinal);
         long valueCount = 0;
-        List<DataPage> pages = new ArrayList<>();
+        List<PrefetchedPageReader.CompressedPage> pages = new ArrayList<>();
         int pageCount = offsetIndex.getPageCount();
         for (int p = 0; p < pageCount; p++) {
             long pageStartRow = offsetIndex.getFirstRowIndex(p);
@@ -197,7 +203,10 @@ final class PrefetchedRowGroupBuilder {
                 column.getPath().toDotString(),
                 rowGroupOrdinal
             );
-            pages.add(decoded);
+            // Pair every queued page with its firstRowIndex from the offset index. V1 pages also
+            // carry it via DataPageV1's 9-arg constructor, but pairing here is cheap and keeps
+            // V1 and V2 on a single, uniform code path through PrefetchedPageReader.
+            pages.add(new PrefetchedPageReader.CompressedPage(decoded, pageStartRow));
             valueCount += decoded.getValueCount();
         }
         return new PrefetchedPageReader(decompressor, pages, dictPage, valueCount);
@@ -221,7 +230,7 @@ final class PrefetchedRowGroupBuilder {
         try (PageHeaderStream stream = source.openStream(startingPos, totalSize, column.getPath().toDotString())) {
             DictionaryPage dictPage = null;
             long valueCount = 0;
-            List<DataPage> pages = new ArrayList<>();
+            List<PrefetchedPageReader.CompressedPage> pages = new ArrayList<>();
             // Loop on value count rather than byte count: total_compressed_size in the column
             // metadata occasionally undercounts actual on-disk page bytes (CRC/padding), so a
             // byte-based loop can spuriously continue into bytes that belong to the next column.
@@ -244,7 +253,11 @@ final class PrefetchedRowGroupBuilder {
                     dictPage = makeDictionaryPage(header, payload);
                 } else if (header.type == PageType.DATA_PAGE || header.type == PageType.DATA_PAGE_V2) {
                     DataPage page = makeDataPage(header, payload, primitiveType, -1L, -1);
-                    pages.add(page);
+                    // Sequential path: no offset index, so we cannot recover firstRowIndex per
+                    // page. Pair with -1; PageColumnReader treats that as "page starts at the
+                    // current cursor" and falls back to its rowRanges overlap check (which is
+                    // why rowRanges must remain non-null on the sequential builder path).
+                    pages.add(new PrefetchedPageReader.CompressedPage(page, -1L));
                     valueCount += page.getValueCount();
                 }
             }
@@ -267,11 +280,12 @@ final class PrefetchedRowGroupBuilder {
         }
         long dictOffset = column.getDictionaryPageOffset();
         // The dictionary slice extends from dictOffset up to the first data page; the prefetcher
-        // includes the whole [dictOffset, firstDataPageOffset) span so the slice is safe.
-        long firstDataOffset = column.getStartingPos();
-        if (firstDataOffset <= dictOffset) {
-            firstDataOffset = column.getFirstDataPageOffset();
-        }
+        // includes the whole [dictOffset, firstDataPageOffset) span so the slice is safe. We
+        // always use getFirstDataPageOffset() rather than getStartingPos() because (a) when the
+        // dictionary precedes the data, getStartingPos() returns the dictionary offset (which
+        // would yield a 0-byte span here), and (b) we need the data-page boundary as the upper
+        // bound of the dictionary slice regardless.
+        long firstDataOffset = column.getFirstDataPageOffset();
         long dictSpan = firstDataOffset - dictOffset;
         if (dictSpan <= 0) {
             return null;
@@ -346,6 +360,9 @@ final class PrefetchedRowGroupBuilder {
             Encoding rl = METADATA_CONVERTER.getEncoding(dph.repetition_level_encoding);
             Encoding dl = METADATA_CONVERTER.getEncoding(dph.definition_level_encoding);
             Encoding values = METADATA_CONVERTER.getEncoding(dph.encoding);
+            // Per-page statistics in the page header are not consumed downstream (PageColumnReader
+            // and the optimized iterator only look at row-group level stats and the column index),
+            // so building an empty Statistics is cheaper than parsing header.statistics.
             Statistics<?> stats = Statistics.getBuilderForReading(primitiveType).build();
             BytesInput compressed = bytesInputFrom(payload);
             if (firstRowIndex >= 0 && indexRowCount >= 0) {
@@ -366,6 +383,7 @@ final class PrefetchedRowGroupBuilder {
         if (header.type == PageType.DATA_PAGE_V2) {
             DataPageHeaderV2 dph = header.data_page_header_v2;
             Encoding dataEnc = METADATA_CONVERTER.getEncoding(dph.encoding);
+            // See note on per-page stats above (V1 branch).
             Statistics<?> stats = Statistics.getBuilderForReading(primitiveType).build();
             int rlBytes = dph.repetition_levels_byte_length;
             int dlBytes = dph.definition_levels_byte_length;
@@ -374,10 +392,16 @@ final class PrefetchedRowGroupBuilder {
             BytesInput rlInput = bytesInputFromSlice(payload, 0, rlBytes);
             BytesInput dlInput = bytesInputFromSlice(payload, rlBytes, dlBytes);
             BytesInput dataInput = bytesInputFromSlice(payload, rlBytes + dlBytes, dataCompressedSize);
-            // DataPageV2's firstRowIndex-aware constructor is package-private; the public
-            // constructor used here drops firstRowIndex but PageColumnReader does not consult it
-            // for V2 pages (page->firstRowIndex applies only when chasing the offset index, which
-            // we already use in the filtered path to compute pageStartRow upstream).
+            // DataPageV2's firstRowIndex-aware constructor is package-private and the
+            // DataPageV2.uncompressed(... firstRowIndex ...) factory marks the page as
+            // already-decompressed, which we need to defer until PrefetchedPageReader.decompressV2
+            // runs. We therefore use the public constructor which drops firstRowIndex, and pair
+            // each DataPage with its firstRowIndex via PrefetchedPageReader.CompressedPage so the
+            // decompression step can splice it back in via DataPageV2.uncompressed(... firstRowIndex
+            // ..., decompressedData, ...). PageColumnReader DOES consult page.getFirstRowIndex()
+            // for V2 pages (it's defined on the DataPage base class), so without this pairing
+            // the filtered builder path would silently drop all queued V2 pages whose
+            // firstRowIndex > 0.
             return new DataPageV2(
                 dph.num_rows,
                 dph.num_nulls,
@@ -509,15 +533,12 @@ final class PrefetchedRowGroupBuilder {
     }
 
     /**
-     * {@link InputStream} that also tracks the byte length of the most recently parsed page
-     * header (so the caller can subtract it from the column-chunk byte budget) and supports a
-     * cheap payload slice for the data immediately following each header.
+     * {@link InputStream} that supports a cheap {@link #readPayload(int)} for the data
+     * immediately following a parsed {@code PageHeader}. The two implementations below either
+     * slice an in-memory buffer directly (zero-copy) or copy from the upstream delegate into
+     * a fresh heap buffer.
      */
     private abstract static class PageHeaderStream extends InputStream {
-        abstract void snapshotAvailable();
-
-        abstract int lastReadHeaderLength();
-
         abstract ByteBuffer readPayload(int length) throws IOException;
     }
 
@@ -527,7 +548,6 @@ final class PrefetchedRowGroupBuilder {
      */
     private static final class ByteBufferPageHeaderStream extends PageHeaderStream {
         private final ByteBuffer buffer;
-        private int lastBefore;
 
         ByteBufferPageHeaderStream(ByteBuffer buffer) {
             this.buffer = buffer;
@@ -561,16 +581,6 @@ final class PrefetchedRowGroupBuilder {
         }
 
         @Override
-        int lastReadHeaderLength() {
-            return lastBefore - buffer.remaining();
-        }
-
-        @Override
-        void snapshotAvailable() {
-            lastBefore = buffer.remaining();
-        }
-
-        @Override
         ByteBuffer readPayload(int length) {
             if (buffer.remaining() < length) {
                 throw new IllegalStateException("Need " + length + " payload bytes but only " + buffer.remaining() + " remain");
@@ -592,7 +602,6 @@ final class PrefetchedRowGroupBuilder {
     private static final class InputStreamPageHeaderStream extends PageHeaderStream {
         private final InputStream delegate;
         private long remaining;
-        private int lastBefore;
 
         InputStreamPageHeaderStream(InputStream delegate, long totalLength) {
             this.delegate = delegate;
@@ -620,16 +629,6 @@ final class PrefetchedRowGroupBuilder {
         @Override
         public int available() throws IOException {
             return (int) Math.min(Integer.MAX_VALUE, Math.max(0, remaining));
-        }
-
-        @Override
-        int lastReadHeaderLength() {
-            return lastBefore - (int) Math.min(Integer.MAX_VALUE, remaining);
-        }
-
-        @Override
-        void snapshotAvailable() {
-            lastBefore = (int) Math.min(Integer.MAX_VALUE, remaining);
         }
 
         @Override

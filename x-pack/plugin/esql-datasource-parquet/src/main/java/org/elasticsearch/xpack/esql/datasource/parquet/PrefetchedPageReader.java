@@ -34,9 +34,18 @@ import java.util.List;
  */
 final class PrefetchedPageReader implements PageReader {
 
+    /**
+     * A compressed data page paired with its {@code firstRowIndex}. Required because
+     * parquet-mr's public {@link DataPageV2} constructor does not accept {@code firstRowIndex}
+     * (only the package-private one does), so we cannot rely on the {@link DataPage} carrying
+     * it through. {@code firstRowIndex == -1} means "unknown"; {@link PageColumnReader} treats
+     * an empty {@code getFirstRowIndex()} as "page starts at the current cursor".
+     */
+    record CompressedPage(DataPage page, long firstRowIndex) {}
+
     private final BytesInputDecompressor decompressor;
     private final long valueCount;
-    private final Deque<DataPage> compressedPages;
+    private final Deque<CompressedPage> compressedPages;
     private final DictionaryPage compressedDictionaryPage;
 
     private DictionaryPage cachedDictionaryPage;
@@ -44,7 +53,7 @@ final class PrefetchedPageReader implements PageReader {
 
     PrefetchedPageReader(
         BytesInputDecompressor decompressor,
-        List<DataPage> compressedPages,
+        List<CompressedPage> compressedPages,
         DictionaryPage compressedDictionaryPage,
         long valueCount
     ) {
@@ -61,15 +70,16 @@ final class PrefetchedPageReader implements PageReader {
 
     @Override
     public DataPage readPage() {
-        DataPage page = compressedPages.poll();
-        if (page == null) {
+        CompressedPage entry = compressedPages.poll();
+        if (entry == null) {
             return null;
         }
+        DataPage page = entry.page();
         if (page instanceof DataPageV1 v1) {
             return decompressV1(v1);
         }
         if (page instanceof DataPageV2 v2) {
-            return decompressV2(v2);
+            return decompressV2(v2, entry.firstRowIndex());
         }
         throw new ParquetDecodingException("Unexpected page type: " + page.getClass().getName());
     }
@@ -82,7 +92,6 @@ final class PrefetchedPageReader implements PageReader {
         if (dictionaryDecompressed) {
             return cachedDictionaryPage;
         }
-        dictionaryDecompressed = true;
         try {
             BytesInput decompressed = decompressor.decompress(
                 compressedDictionaryPage.getBytes(),
@@ -97,6 +106,9 @@ final class PrefetchedPageReader implements PageReader {
         } catch (IOException e) {
             throw new ParquetDecodingException("Could not decompress dictionary page", e);
         }
+        // Set the cache flag only after a successful decompression. If decompression throws,
+        // the next call will retry instead of silently returning a null cachedDictionaryPage.
+        dictionaryDecompressed = true;
         return cachedDictionaryPage;
     }
 
@@ -132,7 +144,7 @@ final class PrefetchedPageReader implements PageReader {
         }
     }
 
-    private DataPageV2 decompressV2(DataPageV2 v2) {
+    private DataPageV2 decompressV2(DataPageV2 v2, long firstRowIndex) {
         if (v2.isCompressed() == false) {
             // Parquet-mr's writer can produce a V2 page where only the data portion was eligible
             // for compression but compression chose not to compress (is_compressed=false). Expose
@@ -141,7 +153,7 @@ final class PrefetchedPageReader implements PageReader {
                 v2.getRowCount(),
                 v2.getNullCount(),
                 v2.getValueCount(),
-                v2.getFirstRowIndex().orElse(-1L),
+                firstRowIndex,
                 v2.getRepetitionLevels(),
                 v2.getDefinitionLevels(),
                 v2.getDataEncoding(),
@@ -154,7 +166,6 @@ final class PrefetchedPageReader implements PageReader {
             int dlBytes = (int) v2.getDefinitionLevels().size();
             int uncompressedDataSize = v2.getUncompressedSize() - rlBytes - dlBytes;
             BytesInput decompressedData = decompressor.decompress(v2.getData(), uncompressedDataSize);
-            long firstRowIndex = v2.getFirstRowIndex().orElse(-1L);
             return DataPageV2.uncompressed(
                 v2.getRowCount(),
                 v2.getNullCount(),

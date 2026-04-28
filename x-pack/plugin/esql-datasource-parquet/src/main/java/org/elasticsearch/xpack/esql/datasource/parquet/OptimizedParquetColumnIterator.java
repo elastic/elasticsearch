@@ -36,7 +36,6 @@ import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Default Parquet column iterator with vectorized decoding and I/O prefetch.
@@ -82,10 +81,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
      * row groups survive.
      */
     private final boolean[] survivingRowGroups;
+    /**
+     * Precomputed lookup mapping every ordinal {@code i} to the smallest surviving ordinal
+     * {@code >= i} (or {@code length} if none survive). Built once in the constructor so each
+     * call to {@link #nextSurvivingRowGroupOrdinal(int)} is O(1) instead of O(K).
+     */
+    private final int[] nextSurvivor;
     private final CompressionCodecFactory codecFactory;
     private int rowBudget;
-    /** Bytes reserved on the breaker for the pending (in-flight) prefetch. */
-    private final AtomicLong pendingReservedBytes = new AtomicLong();
+    /**
+     * Bytes reserved on the breaker for the pending (in-flight) prefetch. Only mutated from the
+     * iterator thread (the prefetch I/O thread populates the {@link CompletableFuture} but never
+     * touches this field), so a plain {@code long} is sufficient.
+     */
+    private long pendingReservedBytes = 0;
     /** Bytes reserved on the breaker for the chunks currently in use by {@link #rowGroup}. */
     private long currentReservedBytes = 0;
 
@@ -130,6 +139,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         this.breaker = blockFactory.breaker();
         this.allRowRanges = allRowRanges;
         this.survivingRowGroups = survivingRowGroups;
+        this.nextSurvivor = buildNextSurvivorLookup(survivingRowGroups);
         this.codecFactory = codecFactory;
 
         this.projectedColumnPaths = buildProjectedColumnPaths(columnInfos);
@@ -218,26 +228,43 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     /**
      * Returns the smallest row group ordinal {@code >= from} that survives the pre-computed
      * row-group level filter. When no filter is set, {@code from} is returned unchanged.
+     * O(1) thanks to the {@link #nextSurvivor} lookup built in the constructor.
      */
     private int nextSurvivingRowGroupOrdinal(int from) {
-        if (survivingRowGroups == null) {
+        if (nextSurvivor == null) {
             return from;
         }
-        for (int i = from; i < survivingRowGroups.length; i++) {
+        if (from >= nextSurvivor.length) {
+            return nextSurvivor.length;
+        }
+        return nextSurvivor[from];
+    }
+
+    private static int[] buildNextSurvivorLookup(boolean[] survivingRowGroups) {
+        if (survivingRowGroups == null) {
+            return null;
+        }
+        int[] next = new int[survivingRowGroups.length];
+        int last = survivingRowGroups.length;
+        for (int i = survivingRowGroups.length - 1; i >= 0; i--) {
+            next[i] = survivingRowGroups[i] ? i : last;
             if (survivingRowGroups[i]) {
-                return i;
+                last = i;
             }
         }
-        return survivingRowGroups.length;
+        return next;
     }
 
     /**
      * Returns the pre-computed {@link RowRanges} for the current row group. {@code rowGroupOrdinal}
      * is the physical block index in the file (we walk row groups ourselves now), so it directly
-     * indexes {@code allRowRanges}.
+     * indexes {@code allRowRanges}. Slots for row groups dropped by the row-group level filter are
+     * left {@code null} on purpose by {@code ParquetFormatReader} - those ordinals are skipped via
+     * {@link #nextSurvivingRowGroupOrdinal} so this method never sees them, but we guard against a
+     * stray {@code null} just in case.
      */
     private RowRanges resolveCurrentRowRanges(BlockMetaData block) {
-        if (allRowRanges == null || rowGroupOrdinal >= allRowRanges.length) {
+        if (allRowRanges == null || rowGroupOrdinal >= allRowRanges.length || allRowRanges[rowGroupOrdinal] == null) {
             return null;
         }
         assert allRowRanges[rowGroupOrdinal].totalRows() == block.getRowCount()
@@ -306,7 +333,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             cancelPendingPrefetch();
             return null;
         }
-        long reserved = pendingReservedBytes.getAndSet(0);
+        long reserved = pendingReservedBytes;
+        pendingReservedBytes = 0;
         CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future = pendingPrefetch;
         pendingPrefetch = null;
         pendingPrefetchOrdinal = -1;
@@ -362,7 +390,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         }
         try {
             breaker.addEstimateBytesAndMaybeBreak(prefetchBytes, "esql_parquet_prefetch");
-            pendingReservedBytes.set(prefetchBytes);
+            pendingReservedBytes = prefetchBytes;
         } catch (CircuitBreakingException e) {
             logger.debug(
                 "Skipping prefetch for row group [{}] in [{}]: circuit breaker limit reached ({} bytes requested)",
@@ -373,12 +401,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             return;
         }
         try {
-            if (allRowRanges != null && nextRgOrdinal < allRowRanges.length) {
+            // nextRgOrdinal is always a surviving ordinal (nextSurvivingRowGroupOrdinal skips
+            // dropped row groups), so allRowRanges[nextRgOrdinal] is non-null when allRowRanges
+            // itself is non-null. The explicit null guard makes the contract obvious.
+            RowRanges nextRowRanges = allRowRanges != null && nextRgOrdinal < allRowRanges.length ? allRowRanges[nextRgOrdinal] : null;
+            if (nextRowRanges != null) {
                 pendingPrefetch = ColumnChunkPrefetcher.prefetchAsync(
                     storageObject,
                     nextBlock,
                     projectedColumnPaths,
-                    allRowRanges[nextRgOrdinal],
+                    nextRowRanges,
                     preloadedMetadata,
                     nextRgOrdinal,
                     nextBlock.getRowCount()
@@ -417,7 +449,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
      * safe to call multiple times (subsequent calls are no-ops when reservation is zero).
      */
     private void releasePendingReservation() {
-        long reserved = pendingReservedBytes.getAndSet(0);
+        long reserved = pendingReservedBytes;
+        pendingReservedBytes = 0;
         if (reserved > 0) {
             breaker.addWithoutBreaking(-reserved);
         }

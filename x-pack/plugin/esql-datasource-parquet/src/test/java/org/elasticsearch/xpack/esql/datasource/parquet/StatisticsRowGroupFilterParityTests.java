@@ -39,8 +39,12 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Verifies that {@link StatisticsRowGroupFilter#canDrop} produces the same keep/drop set as
- * parquet-mr's {@link ParquetFileReader#readNextFilteredRowGroup()} for a multi-row-group file.
+ * Verifies that the production row-group skip path (parquet-mr's
+ * {@code RowGroupFilter.filterRowGroups} called from
+ * {@code ParquetFormatReader.computeSurvivingRowGroups}) produces the same keep/drop set as
+ * {@link ParquetFileReader#readNextFilteredRowGroup()} for a multi-row-group file. This guards
+ * against regressions in how we configure {@code RowGroupFilter} (filter levels, predicate
+ * resolution) on the optimized read path.
  */
 public class StatisticsRowGroupFilterParityTests extends ESTestCase {
 
@@ -108,12 +112,27 @@ public class StatisticsRowGroupFilterParityTests extends ESTestCase {
     }
 
     private Set<Integer> customKeptOrdinals(byte[] file, FilterPredicate predicate) throws IOException {
+        // Mirror ParquetFormatReader.computeSurvivingRowGroups: same filter levels, same call.
         Set<Integer> kept = new LinkedHashSet<>();
         try (ParquetFileReader reader = openReader(file)) {
             List<BlockMetaData> blocks = reader.getRowGroups();
-            for (int i = 0; i < blocks.size(); i++) {
-                if (StatisticsRowGroupFilter.canDrop(predicate, blocks.get(i)) == false) {
+            List<org.apache.parquet.filter2.compat.RowGroupFilter.FilterLevel> levels = List.of(
+                org.apache.parquet.filter2.compat.RowGroupFilter.FilterLevel.STATISTICS,
+                org.apache.parquet.filter2.compat.RowGroupFilter.FilterLevel.DICTIONARY,
+                org.apache.parquet.filter2.compat.RowGroupFilter.FilterLevel.BLOOMFILTER
+            );
+            List<BlockMetaData> survivors = org.apache.parquet.filter2.compat.RowGroupFilter.filterRowGroups(
+                levels,
+                FilterCompat.get(predicate),
+                blocks,
+                reader
+            );
+            // Map identity-equal block back to its ordinal (filterRowGroups preserves order).
+            int idx = 0;
+            for (int i = 0; i < blocks.size() && idx < survivors.size(); i++) {
+                if (blocks.get(i) == survivors.get(idx)) {
                     kept.add(i);
+                    idx++;
                 }
             }
         }

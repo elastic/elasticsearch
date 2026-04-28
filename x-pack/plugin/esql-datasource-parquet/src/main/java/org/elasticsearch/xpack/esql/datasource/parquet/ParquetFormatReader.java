@@ -714,6 +714,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         if (filterPredicate != null) {
             allRowRanges = new RowRanges[blocks.size()];
             for (int i = 0; i < blocks.size(); i++) {
+                // Row groups dropped by stats/dictionary/bloom filters will never be opened by
+                // the iterator, so there is no need to compute their column-index row ranges.
+                if (survivingRowGroups[i] == false) {
+                    continue;
+                }
                 allRowRanges[i] = ColumnIndexRowRangesComputer.compute(filterPredicate, preloadedMetadata, i, blocks.get(i).getRowCount());
             }
         }

@@ -158,6 +158,20 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     /**
+     * Returns the query input as a single {@link InferenceStringGroup}, combining {@link #getQueryInferenceGroup()} (non-text) and
+     * {@link #getQuery()} (plain text). {@link #getQueryInferenceGroup()} takes precedence; if both are null, returns {@code null}.
+     */
+    @Nullable
+    protected final InferenceStringGroup getInput() {
+        InferenceStringGroup queryInferenceGroup = getQueryInferenceGroup();
+        if (queryInferenceGroup != null) {
+            return queryInferenceGroup;
+        }
+        String query = getQuery();
+        return query != null ? new InferenceStringGroup(query) : null;
+    }
+
+    /**
      * Rewrite to a backwards-compatible form of the query builder, depending on the value of
      * {@link QueryRewriteContext#getMinTransportVersion()}. If no rewrites are required, the implementation should return {@code this}.
      *
@@ -376,8 +390,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> newInferenceInfoFuture = new PlainActionFuture<>();
         InferenceQueryUtils.InferenceInfoRequest inferenceInfoRequest = new InferenceQueryUtils.InferenceInfoRequest(
             getFields(),
-            getQuery(),
-            getQueryInferenceGroup(),
+            getInput(),
             inferenceResultsMap,
             resolveWildcards(),
             useDefaultFields(),

@@ -102,7 +102,9 @@ public final class InferenceQueryUtils {
      * </p>
      *
      * @param fields The field pattern map, where the key is the field pattern and the value is the pattern weight.
-     * @param query The query string
+     * @param input The query input. A plain-text query should be wrapped as {@code new InferenceStringGroup(queryText)}.
+     *              A non-text input (e.g. an image) should be passed as the appropriate {@link InferenceStringGroup}.
+     *              If {@code null}, no additional inference results will be generated.
      * @param inferenceResultsMap The current inference results map
      * @param resolveWildcards If {@code true}, wildcards in field patterns will be resolved. Otherwise, only explicit
      *                         field name matches will be used.
@@ -111,8 +113,7 @@ public final class InferenceQueryUtils {
      */
     public record InferenceInfoRequest(
         Map<String, Float> fields,
-        @Nullable String query,
-        @Nullable InferenceStringGroup queryInput,
+        @Nullable InferenceStringGroup input,
         @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         boolean resolveWildcards,
         boolean useDefaultFields,
@@ -147,6 +148,11 @@ public final class InferenceQueryUtils {
      * for remote clusters will always be gathered when {@link QueryRewriteContext#isCcsMinimizeRoundTrips()} is
      * {@code false}. This can be determined using only the connection(s) to the remote cluster(s), so no roundtrip is
      * necessary.
+     * </p>
+     * <p>
+     * NOTE: Non-text inputs (e.g. images) in {@link InferenceInfoRequest#input()} are only supported for local inference.
+     * Remote clusters are queried using a plain text string extracted from the input; non-text inputs are not forwarded
+     * to remote clusters.
      * </p>
      *
      * @param queryRewriteContext The query rewrite context
@@ -233,8 +239,7 @@ public final class InferenceQueryUtils {
         InferenceInfoRequest inferenceInfoRequest,
         ActionListener<InferenceInfo> localInferenceInfoListener
     ) {
-        String query = inferenceInfoRequest.query();
-        InferenceStringGroup queryInput = inferenceInfoRequest.queryInput();
+        InferenceStringGroup input = inferenceInfoRequest.input();
         var inferenceResultsMap = inferenceInfoRequest.inferenceResultsMap();
 
         Map<String, Set<InferenceFieldMetadata>> localInferenceFields = getLocalInferenceFields(
@@ -250,10 +255,10 @@ public final class InferenceQueryUtils {
             inferenceFieldCount += inferenceFieldMetadataSet.size();
         }
 
-        if (inferenceFieldCount == 0 || (query == null && queryInput == null)) {
+        if (inferenceFieldCount == 0 || input == null) {
             // Skip local inference result generation if:
             // - No inference fields were queried
-            // - Both query and queryInput are null
+            // - No input is available
             localInferenceInfoListener.onResponse(
                 new InferenceInfo(
                     inferenceFieldCount,
@@ -272,8 +277,7 @@ public final class InferenceQueryUtils {
         final int finalInferenceFieldCount = inferenceFieldCount;
         getLocalInferenceResults(
             queryRewriteContext,
-            query,
-            queryInput,
+            input,
             localInferenceIds,
             inferenceResultsMap,
             localInferenceInfoListener.delegateFailureAndWrap((l, m) -> {
@@ -297,6 +301,13 @@ public final class InferenceQueryUtils {
         GroupedActionListener<Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>> gal =
             createRemoteInferenceInfoGroupedActionListener(remoteIndices.size(), remoteInferenceInfoListener);
 
+        InferenceStringGroup input = inferenceInfoRequest.input();
+        // Remote clusters accept only a plain text string; extract it when the input is a single text entry.
+        // Non-text or multi-entry inputs are not forwarded to remote clusters (remote query will be null).
+        String remoteQuery = (input != null && input.containsNonTextEntry() == false && input.containsMultipleInferenceStrings() == false)
+            ? input.textValue()
+            : null;
+
         for (var entry : remoteIndices.entrySet()) {
             String clusterAlias = entry.getKey();
             OriginalIndices originalIndices = entry.getValue();
@@ -306,7 +317,7 @@ public final class InferenceQueryUtils {
                 inferenceInfoRequest.fields(),
                 inferenceInfoRequest.resolveWildcards(),
                 inferenceInfoRequest.useDefaultFields(),
-                inferenceInfoRequest.query(),
+                remoteQuery,
                 originalIndices.indicesOptions()
             );
 
@@ -399,8 +410,7 @@ public final class InferenceQueryUtils {
 
     private static void getLocalInferenceResults(
         QueryRewriteContext queryRewriteContext,
-        @Nullable String query,
-        @Nullable InferenceStringGroup queryInput,
+        InferenceStringGroup input,
         Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds,
         @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapListener
@@ -426,7 +436,7 @@ public final class InferenceQueryUtils {
 
         if (inferenceIds.isEmpty() == false) {
             queryRewriteContext.registerUniqueAsyncAction(
-                new LocalInferenceAsyncAction(query, queryInput, inferenceIds, queryRewriteContext.getLocalClusterAlias()),
+                new LocalInferenceAsyncAction(input, inferenceIds, queryRewriteContext.getLocalClusterAlias()),
                 inferenceResultsMapListener::onResponse
             );
         } else {
@@ -514,21 +524,12 @@ public final class InferenceQueryUtils {
         Map<FullyQualifiedInferenceId, InferenceResults>,
         LocalInferenceAsyncAction> {
 
-        @Nullable
-        private final String query;
-        @Nullable
-        private final InferenceStringGroup queryInput;
+        private final InferenceStringGroup input;
         private final List<String> inferenceIds;
         private final String clusterAlias;
 
-        private LocalInferenceAsyncAction(
-            @Nullable String query,
-            @Nullable InferenceStringGroup queryInput,
-            List<String> inferenceIds,
-            String clusterAlias
-        ) {
-            this.query = query;
-            this.queryInput = queryInput;
+        private LocalInferenceAsyncAction(InferenceStringGroup input, List<String> inferenceIds, String clusterAlias) {
+            this.input = input;
             this.inferenceIds = inferenceIds;
             this.clusterAlias = clusterAlias;
         }
@@ -568,13 +569,12 @@ public final class InferenceQueryUtils {
 
         @Override
         public int doHashCode() {
-            return Objects.hash(query, queryInput, inferenceIds, clusterAlias);
+            return Objects.hash(input, inferenceIds, clusterAlias);
         }
 
         @Override
         public boolean doEquals(LocalInferenceAsyncAction other) {
-            return Objects.equals(query, other.query)
-                && Objects.equals(queryInput, other.queryInput)
+            return Objects.equals(input, other.input)
                 && Objects.equals(inferenceIds, other.inferenceIds)
                 && Objects.equals(clusterAlias, other.clusterAlias);
         }
@@ -597,7 +597,7 @@ public final class InferenceQueryUtils {
 
             switch (taskType) {
                 case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
-                    if (query == null) {
+                    if (input.containsNonTextEntry() || input.containsMultipleInferenceStrings()) {
                         gal.onFailure(
                             new IllegalArgumentException("Non-text input is not supported for [" + taskType + "] inference endpoints")
                         );
@@ -613,7 +613,7 @@ public final class InferenceQueryUtils {
                             null,
                             null,
                             null,
-                            List.of(query),
+                            List.of(input.textValue()),
                             Map.of(),
                             InputType.INTERNAL_SEARCH,
                             TIMEOUT_NOT_DETERMINED,
@@ -622,21 +622,18 @@ public final class InferenceQueryUtils {
                         responseListener
                     );
                 }
-                case EMBEDDING -> {
-                    InferenceStringGroup input = queryInput != null ? queryInput : new InferenceStringGroup(query);
-                    executeAsyncWithOrigin(
-                        client,
-                        ML_ORIGIN,
-                        EmbeddingAction.INSTANCE,
-                        new EmbeddingAction.Request(
-                            inferenceId,
-                            taskType,
-                            new EmbeddingRequest(List.of(input), InputType.INTERNAL_SEARCH, Map.of()),
-                            TIMEOUT_NOT_DETERMINED
-                        ),
-                        responseListener
-                    );
-                }
+                case EMBEDDING -> executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    EmbeddingAction.INSTANCE,
+                    new EmbeddingAction.Request(
+                        inferenceId,
+                        taskType,
+                        new EmbeddingRequest(List.of(input), InputType.INTERNAL_SEARCH, Map.of()),
+                        TIMEOUT_NOT_DETERMINED
+                    ),
+                    responseListener
+                );
                 default -> gal.onFailure(
                     new IllegalArgumentException("The [" + taskType + "] task type is not supported on inference fields")
                 );

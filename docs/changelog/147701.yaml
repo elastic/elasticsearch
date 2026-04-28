@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147701
+summary: Helpful logging for NPE investigation
+type: bug

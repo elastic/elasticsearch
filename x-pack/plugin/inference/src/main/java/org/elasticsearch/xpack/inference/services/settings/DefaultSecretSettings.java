@@ -19,6 +19,7 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -26,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
 /**
@@ -38,13 +40,14 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     public static final String API_KEY = "api_key";
 
-    public static DefaultSecretSettings fromMap(@Nullable Map<String, Object> map) {
+    public static DefaultSecretSettings fromMap(@Nullable Map<String, Object> map, ConfigurationParseContext parseContext) {
         if (map == null) {
             return null;
         }
 
         ValidationException validationException = new ValidationException();
-        SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
+        var scope = parseContext == ConfigurationParseContext.REQUEST ? SERVICE_SETTINGS : ModelSecrets.SECRET_SETTINGS;
+        SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, scope, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -109,6 +112,6 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(newSecrets);
+        return fromMap(newSecrets, ConfigurationParseContext.REQUEST);
     }
 }

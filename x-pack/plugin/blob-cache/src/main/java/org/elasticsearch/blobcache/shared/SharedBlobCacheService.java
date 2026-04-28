@@ -966,10 +966,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert Thread.holdsLock(blobCacheService) : "must hold lock when evicting";
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
+                blobCacheService.evictCount.increment();
                 blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
-                if (tracker.checkAvailable(1)) {
-                    blobCacheService.evictCount.increment();
-                }
                 decRef();
                 return true;
             }
@@ -980,10 +978,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert Thread.holdsLock(blobCacheService) : "must hold lock when evicting";
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted and take {} with channel offset {}", regionKey, physicalStartOffset());
+                blobCacheService.evictCount.increment();
                 blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
-                if (tracker.checkAvailable(1)) {
-                    blobCacheService.evictCount.increment();
-                }
                 return true;
             }
 
@@ -994,10 +990,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert Thread.holdsLock(blobCacheService) : "must hold lock when evicting";
             if (evict()) {
                 logger.trace("force evicted {} with channel offset {}", regionKey, physicalStartOffset());
+                blobCacheService.evictCount.increment();
                 blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
-                if (tracker.checkAvailable(1)) {
-                    blobCacheService.evictCount.increment();
-                }
                 decRef();
                 return true;
             }

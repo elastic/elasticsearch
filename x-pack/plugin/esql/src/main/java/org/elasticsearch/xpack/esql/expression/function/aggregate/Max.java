@@ -18,6 +18,7 @@ import org.elasticsearch.compute.aggregation.MaxIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -44,9 +45,16 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig.Function.MV_MAX;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
-public class Max extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
+public class Max extends AggregateFunction
+    implements
+        ToAggregator,
+        SurrogateExpression,
+        AggregateMetricDoubleNativeSupport,
+        AggregateBlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Max", Max::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Max.class).unary(Max::new).name("max");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
@@ -203,5 +211,13 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
             return new Max(source(), ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MAX), filter(), window());
         }
         return field().foldable() ? new MvMax(source(), field()) : null;
+    }
+
+    @Override
+    public BlockLoaderFunctionConfig.Function fieldBlockLoaderFunction() {
+        if (AGG_BLOCK_LOADER_EXPRESSION.isEnabled() == false) {
+            return null;
+        }
+        return MV_MAX;
     }
 }

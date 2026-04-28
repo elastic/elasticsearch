@@ -1,0 +1,11 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[],[MIN(salary{f}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#1],FINAL,[$$m$min{r}#2, $$m$seen{r}#3],null]
+  \_ExchangeExec[[$$m$min{r}#2, $$m$seen{r}#3],true]
+    \_AggregateExec[[],[MIN($$salary$MV_MIN$0{f$}#4,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#1],INITIAL,[$$m$min{r}#5, $$m$seen{r}#6],4]
+      \_FieldExtractExec[$$salary$MV_MIN$0{f$}#4]<[],[],[]>
+        \_EsQueryExec[employees], indexMode[standard], [_doc{f}#7], limit[], sort[] estimatedRowSize[8] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "exists" : {
+    "field" : "salary",
+    "boost" : 0.0
+  }
+}, tags=[]]]]

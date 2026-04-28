@@ -618,6 +618,133 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assertThat(sumPushed, hasSize(1));
     }
 
+    // ---- Min/Max aggregate field pushdown tests ----
+
+    public void testMinFieldPushdown() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | STATS m = MIN(salary)
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "salary", BlockLoaderFunctionConfig.Function.MV_MIN);
+        assertThat(pushed, hasSize(1));
+    }
+
+    public void testMaxFieldPushdown() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | STATS m = MAX(salary)
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "salary", BlockLoaderFunctionConfig.Function.MV_MAX);
+        assertThat(pushed, hasSize(1));
+    }
+
+    public void testMinFieldPushdownWithGrouping() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | STATS m = MIN(salary) BY languages
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "salary", BlockLoaderFunctionConfig.Function.MV_MIN);
+        assertThat(pushed, hasSize(1));
+    }
+
+    public void testMaxFieldPushdownWithGrouping() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | STATS m = MAX(salary) BY languages
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "salary", BlockLoaderFunctionConfig.Function.MV_MAX);
+        assertThat(pushed, hasSize(1));
+    }
+
+    public void testMinAndMaxSameField() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | STATS lo = MIN(salary), hi = MAX(salary)
+            """);
+
+        List<FieldAttribute> minPushed = findPushedFields(plan, "salary", BlockLoaderFunctionConfig.Function.MV_MIN);
+        List<FieldAttribute> maxPushed = findPushedFields(plan, "salary", BlockLoaderFunctionConfig.Function.MV_MAX);
+        assertThat(minPushed, hasSize(1));
+        assertThat(maxPushed, hasSize(1));
+    }
+
+    public void testMinTwoFields() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | STATS s = MIN(salary), e = MIN(emp_no)
+            """);
+
+        List<FieldAttribute> salaryPushed = findPushedFields(plan, "salary", BlockLoaderFunctionConfig.Function.MV_MIN);
+        List<FieldAttribute> empNoPushed = findPushedFields(plan, "emp_no", BlockLoaderFunctionConfig.Function.MV_MIN);
+        assertThat(salaryPushed, hasSize(1));
+        assertThat(empNoPushed, hasSize(1));
+    }
+
+    public void testMinDuplicateFieldDeduplicated() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | STATS a = MIN(salary), b = MIN(salary)
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "salary", BlockLoaderFunctionConfig.Function.MV_MIN);
+        assertThat("Duplicate MIN(salary) should share one pushed field", pushed, hasSize(1));
+    }
+
+    public void testMinNonFieldExpressionNotPushed() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | STATS m = MIN(salary + 1)
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "salary", BlockLoaderFunctionConfig.Function.MV_MIN);
+        assertThat("MIN(salary + 1) should not be pushed (field input is not a FieldAttribute)", pushed, hasSize(0));
+    }
+
+    public void testMinKeywordField() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | STATS m = MIN(last_name)
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.MV_MIN);
+        assertThat(pushed, hasSize(1));
+    }
+
+    public void testMaxDateField() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | STATS m = MAX(hire_date)
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.MV_MAX);
+        assertThat(pushed, hasSize(1));
+    }
+
+    public void testMinWithUnsupportedLoaderConfig() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | STATS m = MIN(salary)
+            """, new EsqlTestUtils.TestSearchStats(false));
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "salary", BlockLoaderFunctionConfig.Function.MV_MIN);
+        assertThat("MIN should not be pushed when loader config is unsupported", pushed, hasSize(0));
+    }
+
     // ---- Reduction plan tests ----
 
     public void testReductionPlanForTopNWithPushedDownFunctions() {

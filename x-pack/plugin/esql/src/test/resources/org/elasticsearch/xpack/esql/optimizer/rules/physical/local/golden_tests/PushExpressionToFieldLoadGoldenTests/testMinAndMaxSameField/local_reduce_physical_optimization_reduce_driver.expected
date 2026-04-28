@@ -1,0 +1,3 @@
+ExchangeSinkExec[[$$lo$min{r}#0, $$lo$seen{r}#1, $$hi$max{r}#2, $$hi$seen{r}#3],false]
+\_AggregateExec[[],[MIN(salary{f}#4,true[BOOLEAN],PT0S[TIME_DURATION]) AS lo#5, MAX(salary{f}#4,true[BOOLEAN],PT0S[TIME_DURATION]) AS hi#6],INTERMEDIATE,[$$lo$min{r}#7, $$lo$seen{r}#8, $$hi$max{r}#9, $$hi$seen{r}#10],8]
+  \_ExchangeSourceExec[[$$lo$min{r}#0, $$lo$seen{r}#1, $$hi$max{r}#2, $$hi$seen{r}#3],false]

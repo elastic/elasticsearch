@@ -167,6 +167,40 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    // ---- Min/Max aggregate field pushdown tests ----
+
+    public void testMinFieldPushdown() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | STATS m = MIN(salary)
+            """);
+    }
+
+    public void testMaxFieldPushdown() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | STATS m = MAX(salary)
+            """);
+    }
+
+    public void testMinFieldPushdownWithGrouping() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | STATS m = MIN(salary) BY languages
+            """);
+    }
+
+    public void testMinAndMaxSameField() {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | STATS lo = MIN(salary), hi = MAX(salary)
+            """);
+    }
+
     // ---- Aggregate Metric Double tests ----
 
     public void testAggregateMetricDouble() {

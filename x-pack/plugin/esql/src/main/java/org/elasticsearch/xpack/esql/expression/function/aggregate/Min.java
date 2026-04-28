@@ -18,6 +18,7 @@ import org.elasticsearch.compute.aggregation.MinIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -44,9 +45,16 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig.Function.MV_MIN;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
-public class Min extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
+public class Min extends AggregateFunction
+    implements
+        ToAggregator,
+        SurrogateExpression,
+        AggregateMetricDoubleNativeSupport,
+        AggregateBlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Min", Min::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Min.class).unary(Min::new).name("min");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
@@ -203,5 +211,13 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
             return new Min(source(), ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MIN), filter(), window());
         }
         return field().foldable() ? new MvMin(source(), field()) : null;
+    }
+
+    @Override
+    public BlockLoaderFunctionConfig.Function fieldBlockLoaderFunction() {
+        if (AGG_BLOCK_LOADER_EXPRESSION.isEnabled() == false) {
+            return null;
+        }
+        return MV_MIN;
     }
 }

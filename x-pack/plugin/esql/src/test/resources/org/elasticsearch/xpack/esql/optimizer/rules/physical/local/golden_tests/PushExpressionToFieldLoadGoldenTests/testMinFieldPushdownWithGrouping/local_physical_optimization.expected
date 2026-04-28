@@ -1,0 +1,6 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[languages{f}#0],[MIN(salary{f}#1,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#2, languages{f}#0],FINAL,[languages{f}#0, $$m$min{r}#3, $$m$seen{r}#4],null]
+  \_ExchangeExec[[languages{f}#0, $$m$min{r}#3, $$m$seen{r}#4],true]
+    \_AggregateExec[[languages{f}#0],[MIN($$salary$MV_MIN$0{f$}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#2, languages{f}#0],INITIAL,[languages{f}#0, $$m$min{r}#6, $$m$seen{r}#7],8]
+      \_FieldExtractExec[languages{f}#0, $$salary$MV_MIN$0{f$}#5]<[],[],[]>
+        \_EsQueryExec[employees], indexMode[standard], [_doc{f}#8], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

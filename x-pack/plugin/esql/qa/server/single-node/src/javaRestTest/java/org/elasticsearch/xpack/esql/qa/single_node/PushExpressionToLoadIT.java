@@ -376,6 +376,102 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
+    public void testMinAggPushdownToLong() throws IOException {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        long min = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 10);
+        long max = randomLongBetween(min + 1, Long.MAX_VALUE);
+        test(
+            justType("long"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            """
+                FROM test
+                | STATS test = MIN(test)
+                """,
+            matchesList().item(min),
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            Map.of("data", List.of(matchesMap().entry("test:column_at_a_time:MvMinLongsFromDocValues.Sorted", 1))),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
+    }
+
+    public void testMaxAggPushdownToLong() throws IOException {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        long min = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 10);
+        long max = randomLongBetween(min + 1, Long.MAX_VALUE);
+        test(
+            justType("long"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            """
+                FROM test
+                | STATS test = MAX(test)
+                """,
+            matchesList().item(max),
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            Map.of("data", List.of(matchesMap().entry("test:column_at_a_time:MvMaxLongsFromDocValues.Sorted", 1))),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
+    }
+
+    public void testMinAggPushdownToInt() throws IOException {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        int min = between(Integer.MIN_VALUE, Integer.MAX_VALUE - 10);
+        int max = between(min + 1, Integer.MAX_VALUE);
+        test(
+            justType("integer"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            """
+                FROM test
+                | STATS test = MIN(test)
+                """,
+            matchesList().item(min),
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            Map.of("data", List.of(matchesMap().entry("test:column_at_a_time:MvMinIntsFromDocValues.Sorted", 1))),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
+    }
+
+    public void testMaxAggPushdownToKeyword() throws IOException {
+        assumeTrue("Agg block loader must be enabled", EsqlCapabilities.Cap.AGG_BLOCK_LOADER_EXPRESSION.isEnabled());
+        String min = "a".repeat(between(1, 256));
+        String max = "b".repeat(between(1, 256));
+        test(
+            justType("keyword"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            """
+                FROM test
+                | STATS test = MAX(test)
+                """,
+            matchesList().item(max),
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            Map.of("data", List.of(matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromOrds.SortedSet", 1))),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
+    }
+
     public void testVCosine() throws IOException {
         test(
             justType("dense_vector"),

@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateBlockLoaderExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -158,6 +161,9 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
                 if (e instanceof BlockLoaderExpression ble) {
                     return transformExpression(plan, e, ble);
                 }
+                if (e instanceof AggregateFunction agg && e instanceof AggregateBlockLoaderExpression able) {
+                    return transformAggregateField(plan, agg, able);
+                }
                 return e;
             });
             if (addedNewAttribute == false) {
@@ -188,6 +194,44 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
             }
             addedNewAttribute = true;
             return replaceFieldsForFieldTransformations(e, fuse);
+        }
+
+        private Expression transformAggregateField(PhysicalPlan plan, AggregateFunction agg, AggregateBlockLoaderExpression able) {
+            if (agg.field() instanceof FieldAttribute f) {
+                BlockLoaderFunctionConfig.Function fn = able.fieldBlockLoaderFunction();
+                if (fn == null) {
+                    return agg;
+                }
+                if (primaries.canPush(plan) == false) {
+                    return agg;
+                }
+                MappedFieldType.FieldExtractPreference preference = context.configuration().pragmas().fieldExtractPreference();
+                BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.JustFunction(fn);
+                if (context.searchStats().supportsLoaderConfig(f.fieldName(), config, preference) == false) {
+                    return agg;
+                }
+                FunctionEsField functionEsField = new FunctionEsField(f.field(), agg.field().dataType(), config);
+                String name = rawTemporaryName(f.name(), fn.toString(), String.valueOf(config.hashCode()));
+                FieldAttribute newAttr = new FieldAttribute(
+                    agg.source(),
+                    f.parentName(),
+                    f.qualifier(),
+                    name,
+                    functionEsField,
+                    f.nullable(),
+                    new NameId(),
+                    true
+                );
+                Attribute.IdIgnoringWrapper key = newAttr.ignoreId();
+                if (addedAttrs.containsKey(key)) {
+                    newAttr = (FieldAttribute) addedAttrs.get(key);
+                } else {
+                    addedAttrs.put(key, newAttr);
+                }
+                addedNewAttribute = true;
+                return agg.withField(newAttr);
+            }
+            return agg;
         }
 
         private PhysicalPlan transformProject(ProjectExec project) {

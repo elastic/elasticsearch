@@ -1,0 +1,9 @@
+ExchangeSinkExec[[$$m$max{r}#0, $$m$seen{r}#1],false]
+\_AggregateExec[[],[MAX($$salary$MV_MAX$0{f$}#2,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#3],INITIAL,[$$m$max{r}#4, $$m$seen{r}#5],4]
+  \_FieldExtractExec[$$salary$MV_MAX$0{f$}#2]<[],[],[]>
+    \_EsQueryExec[employees], indexMode[standard], [_doc{f}#6], limit[], sort[] estimatedRowSize[8] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "exists" : {
+    "field" : "salary",
+    "boost" : 0.0
+  }
+}, tags=[]]]]

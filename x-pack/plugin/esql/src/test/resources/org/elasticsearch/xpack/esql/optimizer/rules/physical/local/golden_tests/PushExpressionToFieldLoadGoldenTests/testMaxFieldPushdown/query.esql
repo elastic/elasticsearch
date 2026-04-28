@@ -1,0 +1,2 @@
+FROM employees
+| STATS m = MAX(salary)

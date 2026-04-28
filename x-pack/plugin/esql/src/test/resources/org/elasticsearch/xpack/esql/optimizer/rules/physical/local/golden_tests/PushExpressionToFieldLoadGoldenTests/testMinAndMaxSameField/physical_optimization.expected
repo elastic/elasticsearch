@@ -1,0 +1,6 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[],[MIN(salary{f}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS lo#1, MAX(salary{f}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS hi#2],FINAL,[$$lo$min{r}#3, $$lo$seen{r}#4, $$hi$max{r}#5, $$hi$seen{r}#6],null]
+  \_ExchangeExec[[$$lo$min{r}#3, $$lo$seen{r}#4, $$hi$max{r}#5, $$hi$seen{r}#6],true]
+    \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[MIN(salary{f}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS lo#1, MAX(salary{f}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS hi#2]]
+\_EsRelation[employees][avg_worked_seconds{f}#7, birth_date{f}#8, emp_no{f}#9, first_name{f}#10, gender{f}#11, height{f}#12, height.float{f}#13, height.half_float{f}#14, height.scaled_float{f}#15, hire_date{f}#16, is_rehired{f}#17, job_positions{f}#18, languages{f}#19, languages.byte{f}#20, languages.long{f}#21, languages.short{f}#22, last_name{f}#23, salary{f}#0, salary_change{f}#24, salary_change.int{f}#25, salary_change.keyword{f}#26, salary_change.long{f}#27, still_hired{f}#28]<>]]

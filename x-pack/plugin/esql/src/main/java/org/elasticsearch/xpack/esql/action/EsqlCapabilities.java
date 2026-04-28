@@ -2628,6 +2628,11 @@ public class EsqlCapabilities {
          */
         FIX_SET_WRONG_LINE_COLUMN,
 
+        /**
+         * Support for pushing MV_MIN/MV_MAX into field loading for Min/Max aggregations.
+         */
+        AGG_BLOCK_LOADER_EXPRESSION,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -1,0 +1,3 @@
+ExchangeSinkExec[[languages{f}#0, $$m$min{r}#1, $$m$seen{r}#2],false]
+\_AggregateExec[[languages{f}#0],[MIN(salary{f}#3,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#4, languages{f}#0],INTERMEDIATE,[languages{f}#0, $$m$min{r}#5, $$m$seen{r}#6],8]
+  \_ExchangeSourceExec[[languages{f}#0, $$m$min{r}#1, $$m$seen{r}#2],false]

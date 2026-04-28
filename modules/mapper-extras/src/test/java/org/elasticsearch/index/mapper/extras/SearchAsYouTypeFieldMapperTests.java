@@ -902,8 +902,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     /**
      * Regression test for https://github.com/elastic/elasticsearch/issues/146914.
      * When the delegate of a {@code SearchAsYouTypeAnalyzer} is a {@link ReloadableCustomAnalyzer}, calling
-     * {@code tokenStream()} must not throw a {@code ClassCastException} caused by the delegate's
-     * {@code UPDATE_STRATEGY} trying to cast the outer wrapper to {@code ReloadableCustomAnalyzer}.
+     * {@code tokenStream()} must not throw a {@code ClassCastException} caused by the delegate's reuse
+     * strategy trying to cast the outer wrapper to {@code ReloadableCustomAnalyzer}.
      */
     public void testSearchAsYouTypeAnalyzerWithReloadableDelegate() throws Exception {
         TokenizerFactory tokenizerFactory = TokenizerFactory.newFactory("standard", StandardTokenizer::new);
@@ -930,8 +930,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             ReloadableCustomAnalyzer reloadableAnalyzer = new ReloadableCustomAnalyzer(components, 0, -1);
             SearchAsYouTypeAnalyzer wrapper = SearchAsYouTypeAnalyzer.withShingle(reloadableAnalyzer, 2)
         ) {
-            // Before the fix, this threw ClassCastException because SearchAsYouTypeAnalyzer inherited
-            // UPDATE_STRATEGY from ReloadableCustomAnalyzer, which hardcodes a cast to ReloadableCustomAnalyzer.
+            // Before the fix, this threw ClassCastException because SearchAsYouTypeAnalyzer inherited the
+            // delegate's reuse strategy, which hardcodes a cast to ReloadableCustomAnalyzer.
             try (TokenStream ts = wrapper.tokenStream("field", "hello world")) {
                 ts.reset();
                 ts.end();

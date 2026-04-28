@@ -1228,6 +1228,7 @@ public class BulkOperationTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
         when(clusterService.localNode()).thenReturn(mockNode);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
         return new BulkOperation(
             null,

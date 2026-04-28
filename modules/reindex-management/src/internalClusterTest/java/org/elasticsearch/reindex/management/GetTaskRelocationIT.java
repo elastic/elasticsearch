@@ -11,6 +11,7 @@ package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -30,6 +31,8 @@ import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -76,7 +79,7 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -156,6 +159,40 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
         assertThat("completed task should have no error", completedResult.getError(), is(nullValue()));
 
         assertCompletedReindexResponse(completedResult);
+    }
+
+    /**
+     * Tests that the Get Task API falls back to the {@code .tasks} index when the original task's node
+     * is unreachable, then follows the relocation chain and waits for the relocated task to complete.
+     */
+    public void testGetTaskFallsBackToTasksIndexOnNodeDisconnect() throws Exception {
+        final ClusterSetup setup = startClusterAndReindex();
+
+        // Trigger relocation: .tasks is written, relocated task running on survivor. Reindex node still alive.
+        internalCluster().getInstance(ShutdownPrepareService.class, setup.reindexNodeName).prepareForShutdown();
+        assertTrue(".tasks index should exist after relocation", indexExists(TaskResultsService.TASK_INDEX));
+        ensureYellowAndNoInitializingShards(TaskResultsService.TASK_INDEX);
+
+        final TaskId relocatedTaskId = readRelocatedTaskId(setup.originalTaskId);
+
+        // Block the GetTask transport action from survivor → reindex node and simulate a ConnectTransportException
+        MockTransportService survivorTransport = MockTransportService.getInstance(setup.survivorNodeName);
+        survivorTransport.addFailToSendNoConnectRule(
+            internalCluster().getInstance(TransportService.class, setup.reindexNodeName),
+            Set.of(TransportGetTaskAction.TYPE.name())
+        );
+
+        // Unthrottle so the relocated task can finish
+        unthrottleReindex(relocatedTaskId);
+
+        // Get should still follow relocation chain using result in .tasks
+        final GetTaskResponse response = getTask(setup.survivorNodeName, setup.originalTaskId, true);
+        final TaskResult result = response.getTask();
+        assertThat("task should be completed", result.isCompleted(), is(true));
+        assertThat("start time should be from original task", result.getTask().startTime(), equalTo(setup.originalStartTimeMillis));
+        assertThat("original task ID should be preserved", result.getTask().originalTaskId(), equalTo(setup.originalTaskId));
+        assertThat("no error on completed task", result.getError(), is(nullValue()));
+        assertCompletedReindexResponse(result);
     }
 
     /**
@@ -244,7 +281,11 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
     }
 
     private GetTaskResponse getTask(TaskId taskId, boolean waitForCompletion) {
-        return client().admin()
+        return getTask(null, taskId, waitForCompletion);
+    }
+
+    private GetTaskResponse getTask(String nodeName, TaskId taskId, boolean waitForCompletion) {
+        return client(nodeName).admin()
             .cluster()
             .getTask(
                 new GetTaskRequest().setTaskId(taskId).setWaitForCompletion(waitForCompletion).setTimeout(TimeValue.timeValueSeconds(30))

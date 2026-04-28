@@ -26,10 +26,6 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
 }
 
-tasks.named('test').configure {
-  systemProperty "tests.security.manager", "false"
-}
-
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }

@@ -59,7 +59,7 @@ public class FromGenerator implements CommandGenerator {
         if (useUnmappedFields) {
             result.append(SET_UNMAPPED_FIELDS_PREFIX);
         }
-        boolean setQueryApproximation = EsqlCapabilities.Cap.APPROXIMATION_V6.isEnabled()
+        boolean setQueryApproximation = EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled()
             && randomDouble() < QUERY_APPROXIMATION_SETTING_PROBABILITY;
         if (setQueryApproximation) {
             result.append(randomQueryApproximationSettings());

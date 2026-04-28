@@ -1,0 +1,453 @@
+dateRange
+required_capability: date_range_field_type_v2
+FROM decades
+| SORT decade;
+
+date_range:date_range  | decade:integer | description:keyword
+1900-01-01..1910-01-01 | 1900           | Edwardian Era
+1910-01-01..1920-01-01 | 1910           | Ragtime Era
+1920-01-01..1930-01-01 | 1920           | Roaring Twenties
+1930-01-01..1940-01-01 | 1930           | Dirty Thirties
+1940-01-01..1950-01-01 | 1940           | Fabulous Forties
+1950-01-01..1960-01-01 | 1950           | Nifty Fifties
+1960-01-01..1970-01-01 | 1960           | Swinging Sixties
+1970-01-01..1980-01-01 | 1970           | Groovy Seventies
+1980-01-01..1990-01-01 | 1980           | Radical Eighties
+1990-01-01..2000-01-01 | 1990           | Nineties Nostalgia
+2000-01-01..2010-01-01 | 2000           | Innovation Explosion Decade
+2010-01-01..2020-01-01 | 2010           | Renaissance Decade
+2020-01-01..2030-01-01 | 2020           | Empowerment Era
+;
+
+dateRangeToString
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE decade == 1900
+| EVAL range = TO_STRING(date_range)
+;
+
+date_range:date_range  | decade:integer | description:keyword | range:keyword
+1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
+;
+
+dateRangeIdentityFieldType
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE decade == 1900
+| EVAL range = TO_DATE_RANGE(date_range)
+;
+
+date_range:date_range  | decade:integer | description:keyword | range:date_range
+1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01..1910-01-01
+;
+
+dateRangeToStringFieldType
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE decade == 1900
+| EVAL range = TO_STRING(date_range)
+;
+
+date_range:date_range  | decade:integer | description:keyword | range:keyword
+1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
+;
+
+// Requires range_within (TO_DATE_RANGE(keyword) support).
+toDateRangeFromString
+required_capability: date_range_field_type_v2
+
+// tag::to_date_range-str[]
+ROW str = "2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z"
+| EVAL range = TO_DATE_RANGE(str)
+// end::to_date_range-str[]
+;
+
+// tag::to_date_range-str-result[]
+str:keyword                                          | range:date_range
+2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z   | 2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z
+// end::to_date_range-str-result[]
+;
+
+toDateRangeIdentity
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE decade == 1900
+| EVAL range = TO_DATE_RANGE(date_range)
+;
+
+date_range:date_range  | decade:integer | description:keyword | range:date_range
+1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01..1910-01-01
+;
+
+// Requires range_within (TO_DATE_RANGE(keyword) support).
+toDateRangeFromShortFormat
+required_capability: date_range_field_type_v2
+
+ROW str = "2024-06-01..2024-06-30"
+| EVAL range = TO_DATE_RANGE(str)
+;
+
+str:keyword            | range:date_range
+2024-06-01..2024-06-30 | 2024-06-01..2024-06-30
+;
+
+// Requires range_within (TO_DATE_RANGE(keyword) support).
+toDateRangeWithEval
+required_capability: date_range_field_type_v2
+
+ROW start_date = "2023-01-01T00:00:00.000Z", end_date = "2024-01-01T00:00:00.000Z"
+| EVAL range_str = CONCAT(start_date, "..", end_date)
+| EVAL range = TO_DATE_RANGE(range_str)
+| KEEP start_date, end_date, range
+;
+
+start_date:keyword              | end_date:keyword                | range:date_range
+2023-01-01T00:00:00.000Z        | 2024-01-01T00:00:00.000Z        | 2023-01-01T00:00:00.000Z..2024-01-01T00:00:00.000Z
+;
+
+// Requires range_within (TO_DATE_RANGE(keyword) support).
+toDateRangeSingleDay
+required_capability: date_range_field_type_v2
+
+ROW str = "2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z"
+| EVAL range = TO_DATE_RANGE(str)
+;
+
+str:keyword                                          | range:date_range
+2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z   | 2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z
+;
+
+###############################################
+# RANGE_WITHIN tests
+###############################################
+
+rangeWithinWithEmployees
+required_capability: date_range_field_type_v2
+
+// tag::rangeWithin[]
+FROM employees
+| WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-02-01..1985-03-01"))
+| KEEP emp_no, hire_date
+| SORT emp_no
+// end::rangeWithin[]
+;
+
+// tag::rangeWithin-result[]
+emp_no:integer | hire_date:date
+10009          | 1985-02-18T00:00:00.000Z
+10048          | 1985-02-24T00:00:00.000Z
+// end::rangeWithin-result[]
+;
+
+rangeWithinWithDateRangesTable
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE RANGE_WITHIN(TO_DATETIME("1955-06-15"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1950           | Nifty Fifties
+;
+
+rangeWithinAtBoundaryStart
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE RANGE_WITHIN(TO_DATETIME("1950-01-01"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1950           | Nifty Fifties
+;
+
+rangeWithinAtBoundaryEnd
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE RANGE_WITHIN(TO_DATETIME("1959-12-31T23:59:59.999Z"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1950           | Nifty Fifties
+;
+
+rangeWithinOutsideRange
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE RANGE_WITHIN(TO_DATETIME("2050-01-01"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+;
+
+rangeWithinWithEval
+required_capability: date_range_field_type_v2
+
+FROM decades
+| EVAL test_date = TO_DATETIME("1965-07-20")
+| EVAL in_range = RANGE_WITHIN(test_date, date_range)
+| WHERE in_range
+| KEEP decade, description, in_range
+;
+
+decade:integer | description:keyword | in_range:boolean
+1960           | Swinging Sixties    | true
+;
+
+rangeWithinMultipleMatches
+required_capability: date_range_field_type_v2
+
+FROM employees
+| WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
+| STATS count = COUNT(*)
+;
+
+count:long
+11
+;
+
+rangeWithinWithNull
+required_capability: date_range_field_type_v2
+
+FROM employees
+| WHERE emp_no == 10040
+| EVAL in_range = RANGE_WITHIN(birth_date, TO_DATE_RANGE("1960-01-01..1970-01-01"))
+| KEEP emp_no, birth_date, in_range
+;
+
+emp_no:integer | birth_date:date | in_range:boolean
+10040          | null            | null
+;
+
+rangeWithinWithStats
+required_capability: date_range_field_type_v2
+
+FROM employees
+| EVAL in_1985 = RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
+| STATS count_in_1985 = COUNT(*) WHERE in_1985, total = COUNT(*)
+;
+
+count_in_1985:long | total:long
+11                  | 100
+;
+
+rangeWithinBeforeStart
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE RANGE_WITHIN(TO_DATETIME("1899-12-31T23:59:59.999Z"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+;
+
+rangeWithinAfterEnd
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE RANGE_WITHIN(TO_DATETIME("2030-01-01T00:00:00.000Z"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+;
+
+rangeWithinWithLiteralRange
+required_capability: date_range_field_type_v2
+
+ROW date = TO_DATETIME("2024-06-15T12:00:00.000Z")
+| EVAL in_june = RANGE_WITHIN(date, TO_DATE_RANGE("2024-06-01..2024-07-01"))
+| EVAL in_july = RANGE_WITHIN(date, TO_DATE_RANGE("2024-07-01..2024-08-01"))
+| KEEP date, in_june, in_july
+;
+
+date:date                     | in_june:boolean | in_july:boolean
+2024-06-15T12:00:00.000Z      | true            | false
+;
+
+// RANGE_WITHIN with LOOKUP JOIN: date from lookup, date_range from FROM (existing indices only).
+// join_key=1 matches two rows in multi_column_joinable_lookup, so LOOKUP JOIN emits multi-value warnings.
+rangeWithinDateFromLookupRangeFromFrom
+required_capability: date_range_field_type_v2
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM decades
+| EVAL join_key = 1
+| LOOKUP JOIN multi_column_joinable_lookup ON join_key == id_int
+| WHERE RANGE_WITHIN(date, date_range)
+| KEEP date_range, decade, description, date
+| SORT decade, date
+;
+
+warningRegex: evaluation of \[LOOKUP JOIN multi_column_joinable_lookup ON join_key == id_int\] failed, treating result as null
+warningRegex: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+date_range:date_range                              | decade:integer | description:keyword      | date:date
+1980-01-01T00:00:00.000Z..1990-01-01T00:00:00.000Z | 1980           | Radical Eighties          | 1980-02-29T23:59:59.999Z
+1990-01-01T00:00:00.000Z..2000-01-01T00:00:00.000Z | 1990           | Nineties Nostalgia        | 1999-05-02T00:00:01.000Z
+;
+
+###############################################
+# RANGE_WITHIN with range in first parameter position
+###############################################
+
+literalRangeWithinRange
+required_capability: date_range_field_type_v2
+
+ROW y2020 = TO_DATE_RANGE("2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z"),
+    y2021 = TO_DATE_RANGE("2021-01-01T00:00:00.000Z..2022-01-01T00:00:00.000Z"),
+    feb2020 = TO_DATE_RANGE("2020-02-01T00:00:00.000Z..2020-03-01T00:00:00.000Z"),
+    feb2021 = TO_DATE_RANGE("2021-02-01T00:00:00.000Z..2021-03-01T00:00:00.000Z")
+| EVAL y2020in2021 = RANGE_WITHIN(y2020, y2021),
+       y2021in2020 = RANGE_WITHIN(y2021, y2020),
+       feb2020in2020 = RANGE_WITHIN(feb2020, y2020),
+       feb2020in2021 = RANGE_WITHIN(feb2020, y2021),
+       feb2021in2020 = RANGE_WITHIN(feb2021, y2020),
+       feb2021in2021 = RANGE_WITHIN(feb2021, y2021),
+       y2020inFeb2020 = RANGE_WITHIN(y2020, feb2020),
+       y2021inFeb2020 = RANGE_WITHIN(y2021, feb2020),
+       y2020inFeb2021 = RANGE_WITHIN(y2020, feb2021),
+       y2021inFeb2021 = RANGE_WITHIN(y2021, feb2021)
+| DROP y2020, y2021, feb2020, feb2021
+;
+
+y2020in2021:bool | y2021in2020:bool | feb2020in2020:bool | feb2020in2021:bool | feb2021in2020:bool | feb2021in2021:bool | y2020inFeb2020:bool | y2021inFeb2020:bool | y2020inFeb2021:bool | y2021inFeb2021:bool
+false            | false            | true               | false              | false              | true               | false               | false               | false               | false
+;
+
+
+fieldRangeWithinRange
+required_capability: date_range_field_type_v2
+
+FROM decades
+| EVAL c1900 = TO_DATE_RANGE("1900-01-01T00:00:00.000Z..2000-01-01T00:00:00.000Z"),
+       c2000 = TO_DATE_RANGE("2000-01-01T00:00:00.000Z..2100-01-01T00:00:00.000Z"),
+       y1975to2005 = TO_DATE_RANGE("1975-01-01T00:00:00.000Z..2006-01-01T00:00:00.000Z"),
+       feb2000 = TO_DATE_RANGE("2000-02-01T00:00:00.000Z..2000-03-01T00:00:00.000Z")
+| EVAL in1900s = RANGE_WITHIN(date_range, c1900),
+       in2000s = RANGE_WITHIN(date_range, c2000),
+       inThirty = RANGE_WITHIN(date_range, y1975to2005),
+       inFeb2000 = RANGE_WITHIN(date_range, feb2000),
+       c1900inRange = RANGE_WITHIN(c1900, date_range),
+       c2000inRange = RANGE_WITHIN(c2000, date_range),
+       thirtyInRange = RANGE_WITHIN(y1975to2005, date_range),
+       feb2000inRange = RANGE_WITHIN(feb2000, date_range)
+| DROP date_range, description, c1900, c2000, y1975to2005, feb2000
+| SORT decade
+;
+
+decade:integer | in1900s:bool | in2000s:bool | inThirty:bool | inFeb2000:bool | c1900inRange:bool | c2000inRange:bool | thirtyInRange:bool | feb2000inRange:bool
+1900           | true         | false        | false         | false          | false             | false             | false              | false
+1910           | true         | false        | false         | false          | false             | false             | false              | false
+1920           | true         | false        | false         | false          | false             | false             | false              | false
+1930           | true         | false        | false         | false          | false             | false             | false              | false
+1940           | true         | false        | false         | false          | false             | false             | false              | false
+1950           | true         | false        | false         | false          | false             | false             | false              | false
+1960           | true         | false        | false         | false          | false             | false             | false              | false
+1970           | true         | false        | false         | false          | false             | false             | false              | false
+1980           | true         | false        | true          | false          | false             | false             | false              | false
+1990           | true         | false        | true          | false          | false             | false             | false              | false
+2000           | false        | true         | false         | false          | false             | false             | false              | true
+2010           | false        | true         | false         | false          | false             | false             | false              | false
+2020           | false        | true         | false         | false          | false             | false             | false              | false
+;
+
+###############################################
+# RANGE_WITHIN with disjunction / boundary (uses decades)
+###############################################
+
+// Multiple ranges in WHERE (OR) -- test disjunction
+rangeWithinMultipleRangesInWhere
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE RANGE_WITHIN(TO_DATETIME("1955-06-15"), date_range) OR RANGE_WITHIN(TO_DATETIME("1975-06-15"), date_range)
+| KEEP decade, description
+| SORT decade
+;
+
+decade:integer | description:keyword
+1950           | Nifty Fifties
+1970           | Groovy Seventies
+;
+
+// Boundary: point at inclusive start of range
+rangeWithinBoundaryCondition
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE RANGE_WITHIN(TO_DATETIME("1980-01-01"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1980           | Radical Eighties
+;
+
+###############################################
+# range_min / range_max tests
+###############################################
+
+rangeMin
+required_capability: date_range_field_type_v2
+
+// tag::range_min[]
+FROM decades
+| WHERE decade == 1900
+| EVAL min_bound = RANGE_MIN(date_range)
+| KEEP date_range, min_bound
+// end::range_min[]
+;
+
+// tag::range_min-result[]
+date_range:date_range  | min_bound:date
+1900-01-01..1910-01-01 | 1900-01-01T00:00:00.000Z
+// end::range_min-result[]
+;
+
+rangeMax
+required_capability: date_range_field_type_v2
+
+// tag::range_max[]
+FROM decades
+| WHERE decade == 1900
+| EVAL max_bound = RANGE_MAX(date_range)
+| KEEP date_range, max_bound
+// end::range_max[]
+;
+
+// tag::range_max-result[]
+date_range:date_range  | max_bound:date
+1900-01-01..1910-01-01 | 1910-01-01T00:00:00.000Z
+// end::range_max-result[]
+;
+
+rangeMinMaxReparse
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE decade == 1900 OR decade == 2000
+| EVAL min_bound = RANGE_MIN(date_range)
+| EVAL max_bound = RANGE_MAX(date_range)
+| EVAL new_range = TO_DATE_RANGE(CONCAT(min_bound::keyword, "..", max_bound::keyword))
+| KEEP date_range, min_bound, max_bound, new_range
+;
+
+ignoreOrder:true
+date_range:date_range  | min_bound:date           | max_bound:date           | new_range:date_range
+1900-01-01..1910-01-01 | 1900-01-01T00:00:00.000Z | 1910-01-01T00:00:00.000Z | 1900-01-01..1910-01-01
+2000-01-01..2010-01-01 | 2000-01-01T00:00:00.000Z | 2010-01-01T00:00:00.000Z | 2000-01-01..2010-01-01
+;
+

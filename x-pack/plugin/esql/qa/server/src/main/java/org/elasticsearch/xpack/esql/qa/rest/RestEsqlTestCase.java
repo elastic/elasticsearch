@@ -1951,7 +1951,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testApproximationColumnMetadata() throws IOException {
-        assumeTrue("approximation support", EsqlCapabilities.Cap.APPROXIMATION_V6.isEnabled());
+        assumeTrue("approximation support", EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled());
         bulkLoadTestData(10);
 
         String query = "SET approximation=true; " + fromIndex() + " | STATS count=COUNT()";

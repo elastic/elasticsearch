@@ -46,7 +46,7 @@ public class AlibabaCloudSearchEmbeddingsModel extends AlibabaCloudSearchModel {
             AlibabaCloudSearchEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AlibabaCloudSearchEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

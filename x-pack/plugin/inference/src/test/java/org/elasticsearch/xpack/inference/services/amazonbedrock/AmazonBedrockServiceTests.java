@@ -41,7 +41,6 @@ import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -1057,18 +1056,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -1114,18 +1102,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             var results = new DenseEmbeddingFloatResults(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F })));
             requestSender.enqueue(results);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1166,18 +1143,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                     SECRET_KEY_VALUE
                 );
                 PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-                service.infer(
-                    model,
-                    null,
-                    null,
-                    null,
-                    List.of("abc"),
-                    false,
-                    new HashMap<>(),
-                    InputType.CLASSIFICATION,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                );
+                service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
 
                 var result = listener.actionGet(TIMEOUT);
 
@@ -1217,18 +1183,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                     SECRET_KEY_VALUE
                 );
                 PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-                service.infer(
-                    model,
-                    null,
-                    null,
-                    null,
-                    List.of("abc"),
-                    false,
-                    new HashMap<>(),
-                    InputType.INGEST,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                );
+                service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
                 var result = listener.actionGet(TIMEOUT);
 
@@ -1401,18 +1356,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 "_INVALID_AWS_SECRET_KEY_"
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var exceptionThrown = assertThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(exceptionThrown.getCause().getMessage(), containsString("The security token included in the request is invalid"));
@@ -1483,15 +1427,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             )
         ) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
@@ -1537,7 +1473,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                     List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                     new HashMap<>(),
                     InputType.INTERNAL_INGEST,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    null,
                     listener
                 );
 

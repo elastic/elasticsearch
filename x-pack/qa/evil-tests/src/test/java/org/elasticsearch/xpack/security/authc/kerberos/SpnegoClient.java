@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.SuppressForbidden;
 import org.ietf.jgss.GSSContext;
@@ -20,10 +19,7 @@ import org.ietf.jgss.GSSName;
 import org.ietf.jgss.Oid;
 
 import java.io.IOException;
-import java.security.AccessController;
 import java.security.Principal;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
@@ -70,23 +66,21 @@ class SpnegoClient implements AutoCloseable {
      * interacts with.
      * @param mechanism the Oid of the desired mechanism. Use (Oid) null to request
      * the default mechanism.
-     * @throws PrivilegedActionException when privileged action threw exception
      * @throws GSSException thrown when GSS API error occurs
+     * @throws LoginException thrown when login fails
      */
     SpnegoClient(final String userPrincipalName, final SecureString password, final String servicePrincipalName, final Oid mechanism)
-        throws PrivilegedActionException, GSSException {
+        throws GSSException, LoginException {
         String oldUseSubjectCredsOnlyFlag = null;
         try {
             oldUseSubjectCredsOnlyFlag = getAndSetUseSubjectCredsOnlySystemProperty("true");
             LOGGER.info("SpnegoClient with userPrincipalName : {}", userPrincipalName);
             final GSSName gssUserPrincipalName = gssManager.createName(userPrincipalName, GSSName.NT_USER_NAME);
             final GSSName gssServicePrincipalName = gssManager.createName(servicePrincipalName, GSSName.NT_USER_NAME);
-            loginContext = AccessController.doPrivileged(
-                (PrivilegedExceptionAction<LoginContext>) () -> loginUsingPassword(userPrincipalName, password)
-            );
-            final GSSCredential userCreds = KerberosTestCase.doAsWrapper(
+            loginContext = loginUsingPassword(userPrincipalName, password);
+            final GSSCredential userCreds = Subject.callAs(
                 loginContext.getSubject(),
-                (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(
+                () -> gssManager.createCredential(
                     gssUserPrincipalName,
                     GSSCredential.DEFAULT_LIFETIME,
                     mechanism,
@@ -100,9 +94,6 @@ class SpnegoClient implements AutoCloseable {
                 GSSCredential.DEFAULT_LIFETIME
             );
             gssContext.requestMutualAuth(true);
-        } catch (PrivilegedActionException pve) {
-            LOGGER.error("privileged action exception, with root cause", pve.getException());
-            throw pve;
         } finally {
             getAndSetUseSubjectCredsOnlySystemProperty(oldUseSubjectCredsOnlyFlag);
         }
@@ -113,13 +104,9 @@ class SpnegoClient implements AutoCloseable {
      * base64 encoded token to be sent to server.
      *
      * @return Base64 encoded token
-     * @throws PrivilegedActionException when privileged action threw exception
      */
-    String getBase64EncodedTokenForSpnegoHeader() throws PrivilegedActionException {
-        final byte[] outToken = KerberosTestCase.doAsWrapper(
-            loginContext.getSubject(),
-            (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(new byte[0], 0, 0)
-        );
+    String getBase64EncodedTokenForSpnegoHeader() {
+        final byte[] outToken = Subject.callAs(loginContext.getSubject(), () -> gssContext.initSecContext(new byte[0], 0, 0));
         return Base64.getEncoder().encodeToString(outToken);
     }
 
@@ -130,17 +117,13 @@ class SpnegoClient implements AutoCloseable {
      *            gss negotiation
      * @return Base64 encoded token to be sent to server. May return {@code null} if
      *         nothing to be sent.
-     * @throws PrivilegedActionException when privileged action threw exception
      */
-    String handleResponse(final String base64Token) throws PrivilegedActionException {
+    String handleResponse(final String base64Token) {
         if (gssContext.isEstablished()) {
             throw new IllegalStateException("GSS Context has already been established");
         }
         final byte[] token = Base64.getDecoder().decode(base64Token);
-        final byte[] outToken = KerberosTestCase.doAsWrapper(
-            loginContext.getSubject(),
-            (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(token, 0, token.length)
-        );
+        final byte[] outToken = Subject.callAs(loginContext.getSubject(), () -> gssContext.initSecContext(token, 0, token.length));
         if (outToken == null || outToken.length == 0) {
             return null;
         }
@@ -151,18 +134,12 @@ class SpnegoClient implements AutoCloseable {
      * Spnego Client after usage needs to be closed in order to logout from
      * {@link LoginContext} and dispose {@link GSSContext}
      */
-    public void close() throws LoginException, GSSException, PrivilegedActionException {
+    public void close() throws LoginException, GSSException {
         if (loginContext != null) {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                loginContext.logout();
-                return null;
-            });
+            loginContext.logout();
         }
         if (gssContext != null) {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                gssContext.dispose();
-                return null;
-            });
+            gssContext.dispose();
         }
     }
 
@@ -257,27 +234,12 @@ class SpnegoClient implements AutoCloseable {
         }
     }
 
+    @SuppressForbidden(reason = "For tests where we provide credentials, need to set and reset javax.security.auth.useSubjectCredsOnly")
     private static String getAndSetUseSubjectCredsOnlySystemProperty(final String value) {
-        String retVal = null;
-        try {
-            retVal = AccessController.doPrivileged(new PrivilegedExceptionAction<String>() {
-
-                @Override
-                @SuppressForbidden(
-                    reason = "For tests where we provide credentials, need to set and reset javax.security.auth.useSubjectCredsOnly"
-                )
-                public String run() throws Exception {
-                    String oldValue = System.getProperty("javax.security.auth.useSubjectCredsOnly");
-                    if (value != null) {
-                        System.setProperty("javax.security.auth.useSubjectCredsOnly", value);
-                    }
-                    return oldValue;
-                }
-
-            });
-        } catch (PrivilegedActionException e) {
-            throw ExceptionsHelper.convertToRuntime(e);
+        String oldValue = System.getProperty("javax.security.auth.useSubjectCredsOnly");
+        if (value != null) {
+            System.setProperty("javax.security.auth.useSubjectCredsOnly", value);
         }
-        return retVal;
+        return oldValue;
     }
 }

@@ -91,7 +91,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
                 authModelListener.onFailure(e);
             });
 
-            SubscribableListener.newForked(sender::startAsynchronously).<InferenceServiceResults>andThen((authListener) -> {
+            SubscribableListener.<InferenceServiceResults>newForked((authListener) -> {
                 var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
                 var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo(), requestMetadata);
                 sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, authListener);

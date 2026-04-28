@@ -110,7 +110,11 @@ public class RequestExecutorService implements RequestExecutor {
     private final AtomicReference<Scheduler.Cancellable> cancellableCleanupTask = new AtomicReference<>();
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    public RequestExecutorService(
+    public RequestExecutorService(ThreadPool threadPool, RequestExecutorServiceSettings settings, RequestSender requestSender) {
+        this(threadPool, null, settings, requestSender);
+    }
+
+    protected RequestExecutorService(
         ThreadPool threadPool,
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings,
@@ -119,7 +123,7 @@ public class RequestExecutorService implements RequestExecutor {
         this(threadPool, DEFAULT_QUEUE_CREATOR, startupLatch, settings, requestSender, Clock.systemUTC(), DEFAULT_RATE_LIMIT_CREATOR);
     }
 
-    public RequestExecutorService(
+    RequestExecutorService(
         ThreadPool threadPool,
         AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> queueCreator,
         @Nullable CountDownLatch startupLatch,

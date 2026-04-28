@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.IOUtils;
@@ -74,11 +73,13 @@ public abstract class SenderService implements InferenceService {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((inferListener) -> {
+        try {
             var resolvedInferenceTimeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
             var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
-            doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, inferListener);
-        }).addListener(listener);
+            doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private static InferenceInputs createInput(
@@ -128,9 +129,11 @@ public abstract class SenderService implements InferenceService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((completionInferListener) -> {
-            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, completionInferListener);
-        }).addListener(listener);
+        try {
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     @Override
@@ -143,7 +146,7 @@ public abstract class SenderService implements InferenceService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        SubscribableListener.newForked(this::init).<List<ChunkedInference>>andThen((chunkedInferListener) -> {
+        try {
             ValidationException validationException = new ValidationException();
             validateInputType(inputType, model, validationException);
             if (validationException.validationErrors().isEmpty() == false) {
@@ -151,17 +154,19 @@ public abstract class SenderService implements InferenceService {
             }
             if (supportsChunkedInfer()) {
                 if (input.isEmpty()) {
-                    chunkedInferListener.onResponse(List.of());
+                    listener.onResponse(List.of());
                 } else {
                     // a non-null query is not supported and is dropped by all providers
-                    doChunkedInfer(model, input, taskSettings, inputType, timeout, chunkedInferListener);
+                    doChunkedInfer(model, input, taskSettings, inputType, timeout, listener);
                 }
             } else {
-                chunkedInferListener.onFailure(
+                listener.onFailure(
                     new UnsupportedOperationException(Strings.format("%s service does not support chunked inference", name()))
                 );
             }
-        }).addListener(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     protected abstract void doInfer(
@@ -196,23 +201,9 @@ public abstract class SenderService implements InferenceService {
         return true;
     }
 
-    public void start(Model model, ActionListener<Boolean> listener) {
-        SubscribableListener.newForked(this::init)
-            .<Boolean>andThen((doStartListener) -> doStart(model, doStartListener))
-            .addListener(listener);
-    }
-
     @Override
-    public void start(Model model, @Nullable TimeValue unused, ActionListener<Boolean> listener) {
-        start(model, listener);
-    }
-
-    protected void doStart(Model model, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
-    }
-
-    private void init(ActionListener<Void> listener) {
-        sender.startAsynchronously(listener);
+    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
+        listener.onResponse(Boolean.TRUE);
     }
 
     @Override

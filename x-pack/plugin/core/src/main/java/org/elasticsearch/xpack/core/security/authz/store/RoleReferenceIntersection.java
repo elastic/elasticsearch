@@ -38,16 +38,12 @@ public class RoleReferenceIntersection {
     public void buildRole(BiConsumer<RoleReference, ActionListener<Role>> singleRoleBuilder, ActionListener<Role> roleActionListener) {
         // Role#limitedBy is non-commutative, so the fold must reduce in submission order regardless of
         // the order in which singleRoleBuilder responses arrive.
-        OrderedGroupedActionListener.forEach(
-            roleReferences,
-            singleRoleBuilder,
-            roleActionListener.delegateFailureAndWrap((l, roles) -> {
-                Role finalRole = roles.getFirst();
-                for (int i = 1; i < roles.size(); i++) {
-                    finalRole = finalRole.limitedBy(roles.get(i));
-                }
-                l.onResponse(finalRole);
-            })
-        );
+        OrderedGroupedActionListener.forEach(roleReferences, singleRoleBuilder, roleActionListener.delegateFailureAndWrap((l, roles) -> {
+            Role finalRole = roles.getFirst();
+            for (int i = 1; i < roles.size(); i++) {
+                finalRole = finalRole.limitedBy(roles.get(i));
+            }
+            l.onResponse(finalRole);
+        }));
     }
 }

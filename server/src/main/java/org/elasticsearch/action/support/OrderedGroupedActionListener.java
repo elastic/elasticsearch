@@ -16,7 +16,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 /**
  * Static utility for fanning out asynchronous work over a collection and gathering the results in
@@ -44,11 +43,7 @@ public final class OrderedGroupedActionListener {
      *                 {@link ActionListener} when done
      * @param delegate receives the ordered results (or the first failure)
      */
-    public static <T, R> void forEach(
-        Collection<T> items,
-        BiConsumer<T, ActionListener<R>> task,
-        ActionListener<List<R>> delegate
-    ) {
+    public static <T, R> void forEach(Collection<T> items, BiConsumer<T, ActionListener<R>> task, ActionListener<List<R>> delegate) {
         if (items.isEmpty()) {
             delegate.onResponse(List.of());
             return;
@@ -83,11 +78,7 @@ public final class OrderedGroupedActionListener {
         }
     }
 
-    private static <R> void finish(
-        AtomicArray<R> results,
-        AtomicReference<Exception> failure,
-        ActionListener<List<R>> delegate
-    ) {
+    private static <R> void finish(AtomicArray<R> results, AtomicReference<Exception> failure, ActionListener<List<R>> delegate) {
         final Exception e = failure.get();
         if (e != null) {
             delegate.onFailure(e);

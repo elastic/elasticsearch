@@ -576,6 +576,7 @@ ST_Polygon        | 35
 
 stBufferFlatEndCap
 required_capability: fn_st_buffer
+required_capability: st_buffer_options
 
 // tag::st_buffer_flat_endcap[]
 ROW geom = TO_CARTESIANSHAPE("LINESTRING(0 0, 10 0)")
@@ -592,6 +593,7 @@ POLYGON ((10.0 2.0, 10.0 -2.0, 0.0 -2.0, 0.0 2.0, 10.0 2.0))
 
 stBufferSquareEndCap
 required_capability: fn_st_buffer
+required_capability: st_buffer_options
 
 ROW geom = TO_CARTESIANSHAPE("LINESTRING(0 0, 10 0)")
 | EVAL buffered = ST_BUFFER(geom, 2, {"endcap": "square"})
@@ -604,6 +606,7 @@ POLYGON ((10.0 2.0, 12.0 2.0, 12.0 -2.0, 0.0 -2.0, -2.0 -2.0, -2.0 2.0, 10.0 2.0
 
 stBufferQuadSegsDiamond
 required_capability: fn_st_buffer
+required_capability: st_buffer_options
 
 // quad_segs=1 produces a diamond around a point (one segment per quadrant)
 ROW geom = TO_CARTESIANSHAPE("POINT(0 0)")
@@ -619,6 +622,7 @@ stBufferMitreJoin
 required_capability: fn_st_buffer
 required_capability: fn_st_geometrytype
 required_capability: fn_st_npoints
+required_capability: st_buffer_options
 
 ROW geom = TO_CARTESIANSHAPE("LINESTRING(0 0, 10 0, 10 10)")
 | EVAL buffered = ST_BUFFER(geom, 2, {"endcap": "flat", "join": "mitre"})
@@ -632,6 +636,7 @@ ST_Polygon        | 7
 
 stBufferAllOptions
 required_capability: fn_st_buffer
+required_capability: st_buffer_options
 
 // All four buffer options at once: expanding a square produces a square because mitre joins keep corners sharp
 ROW geom = TO_CARTESIANSHAPE("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
@@ -647,6 +652,7 @@ stBufferOptionsPreserveDefaults
 required_capability: fn_st_buffer
 required_capability: fn_st_geometrytype
 required_capability: fn_st_npoints
+required_capability: st_buffer_options
 
 // An empty options map should behave the same as no options at all
 ROW geom = TO_CARTESIANSHAPE("POINT(0 0)")

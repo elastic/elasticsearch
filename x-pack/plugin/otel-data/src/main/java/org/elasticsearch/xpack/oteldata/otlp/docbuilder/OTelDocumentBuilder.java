@@ -14,6 +14,7 @@ import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import java.io.IOException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Base class for constructing Elasticsearch document representations of OTel data (metrics, logs, traces).
@@ -65,6 +67,16 @@ public abstract class OTelDocumentBuilder {
     protected void addHexFieldIfNotEmpty(XContentBuilder builder, String name, ByteString value) throws IOException {
         if (value != null && value.isEmpty() == false) {
             builder.field(name, MessageDigests.toHexString(value.toByteArray()));
+        }
+    }
+
+    protected void addEpochMillisNanosField(XContentBuilder builder, String fieldName, long unixNanos) throws IOException {
+        long millis = TimeUnit.NANOSECONDS.toMillis(unixNanos);
+        long nanosRemainder = unixNanos - TimeUnit.MILLISECONDS.toNanos(millis);
+        if (nanosRemainder == 0) {
+            builder.field(fieldName, millis);
+        } else {
+            builder.field(fieldName, Strings.format("%d.%06d", millis, nanosRemainder));
         }
     }
 

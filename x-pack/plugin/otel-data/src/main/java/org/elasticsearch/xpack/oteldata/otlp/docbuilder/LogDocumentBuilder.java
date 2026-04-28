@@ -16,13 +16,11 @@ import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This class constructs an Elasticsearch document representation of an OTel log record.
@@ -48,8 +46,8 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
         if (docTimestamp == 0) {
             docTimestamp = observedTimestamp;
         }
-        addLogTimestampField(builder, "@timestamp", docTimestamp);
-        addLogTimestampField(builder, "observed_timestamp", observedTimestamp);
+        addEpochMillisNanosField(builder, "@timestamp", docTimestamp);
+        addEpochMillisNanosField(builder, "observed_timestamp", observedTimestamp);
         if (logRecord.getSeverityNumber() != SeverityNumber.SEVERITY_NUMBER_UNSPECIFIED) {
             builder.field("severity_number", logRecord.getSeverityNumber().getNumber());
         }
@@ -73,12 +71,6 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
         buildAttributes(builder, logRecord.getAttributesList(), logRecord.getDroppedAttributesCount());
         buildBody(builder, logRecord);
         builder.endObject();
-    }
-
-    private void addLogTimestampField(XContentBuilder builder, String fieldName, long unixNanos) throws IOException {
-        long millis = TimeUnit.NANOSECONDS.toMillis(unixNanos);
-        long nanosRemainder = unixNanos - TimeUnit.MILLISECONDS.toNanos(millis);
-        builder.field(fieldName, nanosRemainder == 0 ? millis + ".0" : Strings.format("%d.%06d", millis, nanosRemainder));
     }
 
     private void buildBody(XContentBuilder builder, LogRecord logRecord) throws IOException {

@@ -54,8 +54,8 @@ public class LogDocumentBuilderTests extends ESTestCase {
 
         assertThat(doc.evaluate("body.text"), equalTo("Hello world"));
         assertThat(doc.evaluate("body.structured"), nullValue());
-        assertThat(doc.evaluate("@timestamp"), equalTo("1000.0"));
-        assertThat(doc.evaluate("observed_timestamp"), equalTo("2000.0"));
+        assertThat(doc.evaluate("@timestamp"), equalTo(1000));
+        assertThat(doc.evaluate("observed_timestamp"), equalTo(2000));
         assertThat(doc.evaluate("severity_text"), equalTo("INFO"));
         assertThat(doc.evaluate("severity_number"), equalTo(SeverityNumber.SEVERITY_NUMBER_INFO.getNumber()));
         assertThat(doc.evaluate("attributes"), equalTo(Map.of()));
@@ -302,8 +302,8 @@ public class LogDocumentBuilderTests extends ESTestCase {
 
         ObjectPath doc = buildDocument(logRecord);
 
-        assertThat(doc.evaluate("@timestamp"), equalTo("5000.0"));
-        assertThat(doc.evaluate("observed_timestamp"), equalTo("5000.0"));
+        assertThat(doc.evaluate("@timestamp"), equalTo(5000));
+        assertThat(doc.evaluate("observed_timestamp"), equalTo(5000));
     }
 
     public void testTimestampPreservesSubMillisecondPrecision() throws IOException {
@@ -315,7 +315,7 @@ public class LogDocumentBuilderTests extends ESTestCase {
         ObjectPath doc = buildDocument(logRecord);
 
         assertThat(doc.evaluate("@timestamp"), equalTo("1721314113467.654123"));
-        assertThat(doc.evaluate("observed_timestamp"), equalTo("0.0"));
+        assertThat(doc.evaluate("observed_timestamp"), equalTo(0));
     }
 
     public void testTimestampPadsSubMillisecondRemainder() throws IOException {
@@ -327,7 +327,7 @@ public class LogDocumentBuilderTests extends ESTestCase {
         ObjectPath doc = buildDocument(logRecord);
 
         assertThat(doc.evaluate("@timestamp"), equalTo("1000.000123"));
-        assertThat(doc.evaluate("observed_timestamp"), equalTo("0.0"));
+        assertThat(doc.evaluate("observed_timestamp"), equalTo(0));
     }
 
     public void testEmptyBodyIsOmitted() throws IOException {

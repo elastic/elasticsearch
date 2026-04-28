@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147500
+summary: Surface skipped/null-filled external rows as response `Warning` headers
+type: enhancement

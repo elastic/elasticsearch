@@ -46,7 +46,11 @@ public class Prerequisites {
     }
 
     static Predicate<ClientYamlTestExecutionContext> skipOnClusterFeatures(Set<String> clusterFeatures) {
-        return context -> clusterFeatures.stream().anyMatch(f -> context.clusterHasFeature(f, true));
+        return skipOnClusterFeatures(clusterFeatures, false);
+    }
+
+    static Predicate<ClientYamlTestExecutionContext> skipOnClusterFeatures(Set<String> clusterFeatures, boolean skipOnAllNodes) {
+        return context -> clusterFeatures.stream().anyMatch(f -> context.clusterHasFeature(f, !skipOnAllNodes));
     }
 
     static Predicate<ClientYamlTestExecutionContext> skipOnKnownIssue(List<KnownIssue> knownIssues) {

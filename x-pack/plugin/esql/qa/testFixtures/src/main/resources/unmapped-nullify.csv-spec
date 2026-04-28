@@ -198,21 +198,21 @@ null                      | null
 null                      | null
 ;
 
-keepWithPattern
+simpleUnmappedNullify
 required_capability: optional_fields_nullify_tech_preview
 
 // tag::unmapped-nullify-simple-keep[]
 SET unmapped_fields="nullify"\;
-FROM employees
-| KEEP emp_*, foo
-| SORT emp_no
+FROM partial_mapping_sample_data
+| KEEP event_duration, unmapped_message
+| SORT event_duration
 | LIMIT 1
 // end::unmapped-nullify-simple-keep[]
 ;
 
 // tag::unmapped-nullify-simple-keep-result[]
-emp_no:integer | foo:null
-10001          | null
+event_duration:long | unmapped_message:null
+725447              | null
 // end::unmapped-nullify-simple-keep-result[]
 ;
 

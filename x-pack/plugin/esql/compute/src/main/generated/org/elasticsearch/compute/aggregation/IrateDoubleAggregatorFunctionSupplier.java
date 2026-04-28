@@ -15,12 +15,9 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class IrateDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final boolean isDelta;
-
   private final boolean isDateNanos;
 
-  public IrateDoubleAggregatorFunctionSupplier(boolean isDelta, boolean isDateNanos) {
-    this.isDelta = isDelta;
+  public IrateDoubleAggregatorFunctionSupplier(boolean isDateNanos) {
     this.isDateNanos = isDateNanos;
   }
 
@@ -42,7 +39,7 @@ public final class IrateDoubleAggregatorFunctionSupplier implements AggregatorFu
   @Override
   public IrateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new IrateDoubleGroupingAggregatorFunction(channels, driverContext, isDelta, isDateNanos);
+    return new IrateDoubleGroupingAggregatorFunction(channels, driverContext, isDateNanos);
   }
 
   @Override

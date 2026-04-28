@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -825,6 +826,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             this.node = node;
         }
 
+        @Override
+        public void writeTo(StreamOutput out) {}
     }
 
     public static final class MockConnection implements Transport.Connection {

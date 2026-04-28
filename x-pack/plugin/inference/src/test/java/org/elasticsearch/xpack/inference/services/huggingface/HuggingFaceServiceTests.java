@@ -46,7 +46,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
@@ -71,6 +70,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -93,7 +93,8 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettingsTests.getServiceSettingsMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettingsTests.buildServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.empty;
@@ -110,7 +111,8 @@ import static org.mockito.Mockito.when;
 
 public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-    private static final String URL_VALUE = "url";
+    private static final String URL_VALUE = "https://www.test.com";
+    private static final URI URI_VALUE = createUri(URL_VALUE);
     private static final String API_KEY_VALUE = "secret";
     private static final String MODEL_ID_VALUE = "some_model";
     private static final String INFERENCE_ENTITY_ID_VALUE = "id";
@@ -139,14 +141,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
                 var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, (e) -> fail("parse request should not fail " + e.getMessage()));
 
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap(URL_VALUE), getSecretSettingsMap(API_KEY_VALUE)),
+                getRequestConfigMap(buildServiceSettingsMap(URL_VALUE), getSecretSettingsMap(API_KEY_VALUE)),
                 modelVerificationActionListener
             );
         }
@@ -158,7 +160,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
                 var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("parse request should not fail " + e.getMessage()));
@@ -167,7 +169,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    getServiceSettingsMap(URL_VALUE),
+                    buildServiceSettingsMap(URL_VALUE),
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
@@ -182,7 +184,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
                 var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, (e) -> fail("parse request should not fail " + e.getMessage()));
@@ -190,7 +192,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap(URL_VALUE), getSecretSettingsMap(API_KEY_VALUE)),
+                getRequestConfigMap(buildServiceSettingsMap(URL_VALUE), getSecretSettingsMap(API_KEY_VALUE)),
                 modelVerificationActionListener
             );
         }
@@ -202,14 +204,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(HuggingFaceElserModel.class));
 
                 var embeddingsModel = (HuggingFaceElserModel) model;
-                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, (e) -> fail("parse request should not fail " + e.getMessage()));
 
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.SPARSE_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap(URL_VALUE), getSecretSettingsMap(API_KEY_VALUE)),
+                getRequestConfigMap(buildServiceSettingsMap(URL_VALUE), getSecretSettingsMap(API_KEY_VALUE)),
                 modelVerificationActionListener
             );
         }
@@ -222,7 +224,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
                 var completionsModel = (HuggingFaceChatCompletionModel) m;
 
-                assertThat(completionsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+                assertThat(completionsModel.getServiceSettings().uri(), is(URI_VALUE));
                 assertThat(completionsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
                 assertThat(completionsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
 
@@ -232,7 +234,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.COMPLETION,
                 getRequestConfigMap(
-                    HuggingFaceChatCompletionServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_ID_VALUE),
+                    HuggingFaceChatCompletionServiceSettingsTests.buildServiceSettingsMap(URL_VALUE, MODEL_ID_VALUE, null),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener
@@ -247,7 +249,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
                 var completionsModel = (HuggingFaceChatCompletionModel) m;
 
-                assertThat(completionsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+                assertThat(completionsModel.getServiceSettings().uri(), is(URI_VALUE));
                 assertNull(completionsModel.getServiceSettings().modelId());
                 assertThat(completionsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
 
@@ -256,7 +258,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(URL_VALUE), getSecretSettingsMap(API_KEY_VALUE)),
+                getRequestConfigMap(buildServiceSettingsMap(URL_VALUE), getSecretSettingsMap(API_KEY_VALUE)),
                 modelVerificationListener
             );
         }
@@ -272,18 +274,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
         try (var service = new HuggingFaceService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -346,7 +337,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -395,7 +386,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
                         var t = unwrapCause(e);
@@ -522,7 +513,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -579,18 +570,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = HuggingFaceChatCompletionModelTests.createCompletionModel(getUrl(webServer), API_KEY_VALUE, "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                true,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
@@ -657,7 +637,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var config = getRequestConfigMap(getServiceSettingsMap(URL_VALUE), getSecretSettingsMap(API_KEY_VALUE));
+            var config = getRequestConfigMap(buildServiceSettingsMap(URL_VALUE), getSecretSettingsMap(API_KEY_VALUE));
             config.put("extra_key", "value");
 
             ActionListener<Model> modelVerificationActionListener = ActionListener.wrap(
@@ -677,7 +657,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var serviceSettings = getServiceSettingsMap(URL_VALUE);
+            var serviceSettings = buildServiceSettingsMap(URL_VALUE);
             serviceSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(serviceSettings, getSecretSettingsMap(API_KEY_VALUE));
@@ -702,7 +682,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
-            var config = getRequestConfigMap(getServiceSettingsMap(URL_VALUE), secretSettingsMap);
+            var config = getRequestConfigMap(buildServiceSettingsMap(URL_VALUE), secretSettingsMap);
 
             ActionListener<Model> modelVerificationActionListener = ActionListener.wrap(
                 (model) -> { fail("parse request should fail"); },
@@ -722,7 +702,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_CreatesAnEmbeddingsModel() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(URL_VALUE),
+                buildServiceSettingsMap(URL_VALUE),
                 new HashMap<>(),
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -740,7 +720,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
@@ -748,7 +728,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_CreatesACompletionModel() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(URL_VALUE),
+                buildServiceSettingsMap(URL_VALUE),
                 new HashMap<>(),
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -766,7 +746,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceChatCompletionModel.class));
 
             var chatCompletionModel = (HuggingFaceChatCompletionModel) model;
-            assertThat(chatCompletionModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(chatCompletionModel.getServiceSettings().uri(), is(URI_VALUE));
             assertThat(chatCompletionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
@@ -774,7 +754,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(URL_VALUE),
+                buildServiceSettingsMap(URL_VALUE),
                 new HashMap<>(),
                 createRandomChunkingSettingsMap(),
                 getSecretSettingsMap(API_KEY_VALUE)
@@ -793,7 +773,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -802,7 +782,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(URL_VALUE),
+                buildServiceSettingsMap(URL_VALUE),
                 new HashMap<>(),
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -820,7 +800,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -829,7 +809,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_CreatesAnElserModel() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(URL_VALUE),
+                buildServiceSettingsMap(URL_VALUE),
                 new HashMap<>(),
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -847,7 +827,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceElserModel.class));
 
             var embeddingsModel = (HuggingFaceElserModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
@@ -855,7 +835,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(URL_VALUE),
+                buildServiceSettingsMap(URL_VALUE),
                 new HashMap<>(),
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -874,7 +854,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
@@ -884,7 +864,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE), new HashMap<>(), secretSettingsMap);
+            var persistedConfig = getPersistedConfigMap(buildServiceSettingsMap(URL_VALUE), new HashMap<>(), secretSettingsMap);
 
             var model = service.parsePersistedConfig(
                 new UnparsedModel(
@@ -899,7 +879,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
@@ -907,7 +887,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(URL_VALUE),
+                buildServiceSettingsMap(URL_VALUE),
                 new HashMap<>(),
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -926,14 +906,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var serviceSettingsMap = getServiceSettingsMap(URL_VALUE);
+            var serviceSettingsMap = buildServiceSettingsMap(URL_VALUE);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, new HashMap<>(), getSecretSettingsMap(API_KEY_VALUE));
@@ -951,7 +931,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
@@ -962,7 +942,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(URL_VALUE),
+                buildServiceSettingsMap(URL_VALUE),
                 taskSettingsMap,
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -980,14 +960,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfig_CreatesAnEmbeddingsModel() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE));
+            var persistedConfig = getPersistedConfigMap(buildServiceSettingsMap(URL_VALUE));
 
             var model = service.parsePersistedConfig(
                 new UnparsedModel(
@@ -1002,14 +982,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE), createRandomChunkingSettingsMap());
+            var persistedConfig = getPersistedConfigMap(buildServiceSettingsMap(URL_VALUE), createRandomChunkingSettingsMap());
 
             var model = service.parsePersistedConfig(
                 new UnparsedModel(
@@ -1024,7 +1004,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -1032,7 +1012,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE));
+            var persistedConfig = getPersistedConfigMap(buildServiceSettingsMap(URL_VALUE));
 
             var model = service.parsePersistedConfig(
                 new UnparsedModel(
@@ -1047,7 +1027,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -1055,7 +1035,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfig_CreatesAnElserModel() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE), new HashMap<>());
+            var persistedConfig = getPersistedConfigMap(buildServiceSettingsMap(URL_VALUE), new HashMap<>());
 
             var model = service.parsePersistedConfig(
                 new UnparsedModel(
@@ -1070,14 +1050,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceElserModel.class));
 
             var embeddingsModel = (HuggingFaceElserModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE));
+            var persistedConfig = getPersistedConfigMap(buildServiceSettingsMap(URL_VALUE));
             persistedConfig.config().put("extra_key", "value");
 
             var model = service.parsePersistedConfig(
@@ -1093,14 +1073,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createHuggingFaceService()) {
-            var serviceSettingsMap = getServiceSettingsMap(URL_VALUE);
+            var serviceSettingsMap = buildServiceSettingsMap(URL_VALUE);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap);
@@ -1118,7 +1098,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
@@ -1128,7 +1108,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             var taskSettingsMap = new HashMap<String, Object>();
             taskSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE), taskSettingsMap, null);
+            var persistedConfig = getPersistedConfigMap(buildServiceSettingsMap(URL_VALUE), taskSettingsMap, null);
 
             var model = service.parsePersistedConfig(
                 new UnparsedModel(
@@ -1143,7 +1123,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().uri(), is(URI_VALUE));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
@@ -1167,18 +1147,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), API_KEY_VALUE);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1204,18 +1173,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
         try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -1241,18 +1199,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), API_KEY_VALUE);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1342,7 +1289,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 List.of(new ChunkInferenceInput("abc")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1394,7 +1341,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 List.of(new ChunkInferenceInput("abc")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1433,15 +1380,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), API_KEY_VALUE);
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
@@ -1582,17 +1521,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             );
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ENTITY_ID_VALUE,
-                        HuggingFaceService.NAME,
-                        HuggingFaceService.NAME,
-                        TaskType.ANY
-                    )
-                )
+                is(Strings.format("The [%s] service does not support task type [%s]", HuggingFaceService.NAME, TaskType.ANY))
 
             );
         }

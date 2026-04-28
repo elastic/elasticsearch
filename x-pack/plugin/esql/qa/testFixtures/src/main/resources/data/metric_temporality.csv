@@ -1,4 +1,4 @@
-@timestamp:date,network.total_bytes_in:counter_long,cluster:keyword,temporality:keyword
+@timestamp:date,network.total_bytes_in:counter_long,cluster:keyword,my_temporality:keyword
 2024-05-10T00:00:00Z,78,prod-null,
 2024-05-10T00:00:00Z,78,prod-cumulative,cumulative
 2024-05-10T00:00:00Z,0,prod-delta,delta

@@ -87,7 +87,7 @@ public class GcsDataSourceValidatorTests extends ESTestCase {
         settings.put("project_id", "my-project");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);
-        assertEquals("my-project", result.get("project_id").value());
+        assertEquals("my-project", result.get("project_id").nonSecretValue());
         assertNull(result.get("endpoint"));
     }
 
@@ -112,6 +112,8 @@ public class GcsDataSourceValidatorTests extends ESTestCase {
         var result = config.toStoredSettings();
         assertTrue(result.get("credentials").secret());
         assertFalse(result.get("project_id").secret());
-        assertEquals("{\"type\":\"service_account\"}", result.get("credentials").value());
+        try (var s = result.get("credentials").secretValue()) {
+            assertEquals("{\"type\":\"service_account\"}", s.toString());
+        }
     }
 }

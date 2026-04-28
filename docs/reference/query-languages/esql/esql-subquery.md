@@ -30,10 +30,11 @@ index patterns can be combined in a single `FROM` clause, separated by commas.
 
 ## Description
 
-Subqueries enable you to combine results from multiple independently processed
+Much like [views](/reference/query-languages/esql/esql-views.md),
+subqueries enable you to combine results from multiple independently processed
 data sources within a single query. Each subquery runs its own pipeline of
 processing commands (such as `WHERE`, `EVAL`, `STATS`, or `SORT`) and the
-results are combined together with results from other index patterns or subqueries
+results are combined together with results from other index patterns, views or subqueries
 in the `FROM` clause.
 
 Fields that exist in one source but not another are filled with `null` values.
@@ -65,7 +66,7 @@ Processing commands:
 - [`STATS`](/reference/query-languages/esql/commands/stats-by.md)
 - [`WHERE`](/reference/query-languages/esql/commands/where.md)
 
-The [`METADATA` fields](/reference/query-languages/esql/esql-metadata-fields.md)
+The [`METADATA` directive](/reference/query-languages/esql/esql-subquery.md#subqueries-with-metadata)
 is also supported on either the subquery or the outer `FROM`.
 
 ## Examples
@@ -150,3 +151,34 @@ The subquery aggregates `sample_data` by `client_ip`, sorts by count in
 descending order, and limits to the top result. Only the `client_ip` with the
 highest count (`172.21.3.15` with 4 occurrences) is included when combined with
 `employees`.
+
+### Subqueries with METADATA
+
+The [`METADATA` directive](/reference/query-languages/esql/esql-metadata-fields.md) is supported both inside and outside a subquery.
+If the directive is used only outside the subquery, it will report `null` for the values within the subquery:
+
+:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_metadata_outer.md
+:::
+
+To see the combined values from within the subquery include the directive inside as well:
+
+:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_metadata.md
+:::
+
+If you only have the directive within the subquery, null values will be returned for the indices outside the subquery:
+
+:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_metadata_outer.md
+:::
+
+## Comparing views, subqueries and FORK
+
+:::{include} _snippets/common/comparing_views_subqueries_fork.md
+:::
+
+## Related pages
+
+* [Query multiple sources](/reference/query-languages/esql/esql-multi.md): high-level overview of combining data from multiple indices, clusters, subqueries, and views.
+* [Define virtual indices using ES|QL views](/reference/query-languages/esql/esql-views.md): the closest alternative to subqueries, with a persisted, named definition.
+* [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where subqueries are used.
+* [`FORK` command](/reference/query-languages/esql/commands/fork.md): the other branching construct in ES|QL, which shares the same branching limits.
+* [Query multiple indices](/reference/query-languages/esql/esql-multi-index.md): how index patterns, wildcards, and date math combine sources in a single `FROM`.

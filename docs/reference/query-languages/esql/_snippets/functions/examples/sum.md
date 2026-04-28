@@ -34,4 +34,16 @@ TS exp_histo_sample
 | --- |
 | 1472.74 |
 
+`SUM` can also operate on `tdigest` and casted `histogram` fields, computing the sum of the values which were used to construct the digests.
+
+```esql
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS total = ROUND(SUM(responseTime::tdigest), 2)
+```
+
+| total:double |
+| --- |
+| 1472.74 |
+
 

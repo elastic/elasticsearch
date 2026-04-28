@@ -13,6 +13,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.CompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicAccount;
@@ -25,7 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicRequestUtils.createVersionHeader;
 
-public class AnthropicChatCompletionRequest implements Request {
+public class AnthropicChatCompletionRequest implements CompletionRequest {
 
     private final AnthropicAccount account;
     private final List<String> input;

@@ -107,6 +107,14 @@ public class DesiredBalanceMetrics {
     /** {@link #UNDESIRED_ALLOCATION_COUNT_METRIC_NAME} / {@link #TOTAL_SHARDS_METRIC_NAME} */
     public static final String UNDESIRED_ALLOCATION_RATIO_METRIC_NAME = "es.allocator.desired_balance.allocations.undesired.ratio";
 
+    // Desired balance computation metrics (from {@link DesiredBalanceStats}).
+    public static final String COMPUTATIONS_SUBMITTED_METRIC_NAME = "es.allocator.desired_balance.computations.submitted.total";
+    public static final String COMPUTATIONS_EXECUTED_METRIC_NAME = "es.allocator.desired_balance.computations.executed.total";
+    public static final String COMPUTATIONS_CONVERGED_METRIC_NAME = "es.allocator.desired_balance.computations.converged.total";
+    public static final String COMPUTATIONS_ITERATIONS_METRIC_NAME = "es.allocator.desired_balance.computations.iterations.total";
+    public static final String COMPUTATIONS_TIME_METRIC_NAME = "es.allocator.desired_balance.computations.time";
+    public static final String RECONCILIATIONS_TIME_METRIC_NAME = "es.allocator.desired_balance.reconciliations.time";
+
     // Desired balance node metrics.
     public static final String DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME = "es.allocator.desired_balance.allocations.node_weight.current";
     public static final String DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME =
@@ -145,10 +153,13 @@ public class DesiredBalanceMetrics {
         Map.of()
     );
 
+    private volatile DesiredBalanceStats desiredBalanceStats = DesiredBalanceStats.ZERO;
+
     public void updateMetrics(
         AllocationStats allocationStats,
         Map<DiscoveryNode, NodeWeightStats> weightStatsPerNode,
-        Map<DiscoveryNode, NodeAllocationStatsAndWeight> nodeAllocationStats
+        Map<DiscoveryNode, NodeAllocationStatsAndWeight> nodeAllocationStats,
+        DesiredBalanceStats desiredBalanceStats
     ) {
         assert allocationStats != null : "allocation stats cannot be null";
         assert weightStatsPerNode != null : "node balance weight stats cannot be null";
@@ -157,6 +168,7 @@ public class DesiredBalanceMetrics {
         }
         weightStatsPerNodeRef.set(weightStatsPerNode);
         allocationStatsPerNodeRef.set(nodeAllocationStats);
+        this.desiredBalanceStats = desiredBalanceStats;
     }
 
     public DesiredBalanceMetrics(MeterRegistry meterRegistry) {
@@ -179,6 +191,43 @@ public class DesiredBalanceMetrics {
             "Ratio of undesired allocations to shard count excluding shutting down nodes",
             "1",
             this::getUndesiredAllocationsRatioMetrics
+        );
+
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_SUBMITTED_METRIC_NAME,
+            "Total number of desired balance computations submitted on this elected master",
+            "unit",
+            this::getComputationSubmittedMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_EXECUTED_METRIC_NAME,
+            "Total number of desired balance computations executed on this elected master",
+            "unit",
+            this::getComputationExecutedMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_CONVERGED_METRIC_NAME,
+            "Total number of desired balance computations that converged on this elected master",
+            "unit",
+            this::getComputationConvergedMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_ITERATIONS_METRIC_NAME,
+            "Total iterations across desired balance computations on this elected master",
+            "unit",
+            this::getComputationIterationsMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_TIME_METRIC_NAME,
+            "Cumulative wall-clock time spent in desired balance computation on this elected master",
+            "ms",
+            this::getCumulativeComputationTimeMillisMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            RECONCILIATIONS_TIME_METRIC_NAME,
+            "Cumulative wall-clock time spent reconciling toward the desired balance on this elected master",
+            "ms",
+            this::getCumulativeReconciliationTimeMillisMetrics
         );
 
         meterRegistry.registerDoublesGauge(
@@ -430,6 +479,37 @@ public class DesiredBalanceMetrics {
         return List.of();
     }
 
+    private List<LongWithAttributes> getComputationSubmittedMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::computationSubmitted);
+    }
+
+    private List<LongWithAttributes> getComputationExecutedMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::computationExecuted);
+    }
+
+    private List<LongWithAttributes> getComputationConvergedMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::computationConverged);
+    }
+
+    private List<LongWithAttributes> getComputationIterationsMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::computationIterations);
+    }
+
+    private List<LongWithAttributes> getCumulativeComputationTimeMillisMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::cumulativeComputationTime);
+    }
+
+    private List<LongWithAttributes> getCumulativeReconciliationTimeMillisMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::cumulativeReconciliationTime);
+    }
+
+    private List<LongWithAttributes> getIfPublishingDesiredBalanceStats(ToLongFunction<DesiredBalanceStats> value) {
+        if (nodeIsMaster && lastReconciliationAllocationStats != EMPTY_ALLOCATION_STATS) {
+            return List.of(new LongWithAttributes(value.applyAsLong(desiredBalanceStats)));
+        }
+        return List.of();
+    }
+
     /**
      * Sets all the internal class fields to zero/empty. Typically used in conjunction with {@link #setNodeIsMaster}.
      * This is best-effort because it is possible for {@link #updateMetrics} to race with this method.
@@ -438,5 +518,6 @@ public class DesiredBalanceMetrics {
         lastReconciliationAllocationStats = EMPTY_ALLOCATION_STATS;
         weightStatsPerNodeRef.set(Map.of());
         allocationStatsPerNodeRef.set(Map.of());
+        desiredBalanceStats = DesiredBalanceStats.ZERO;
     }
 }

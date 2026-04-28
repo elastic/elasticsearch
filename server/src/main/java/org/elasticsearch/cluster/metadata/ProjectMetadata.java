@@ -168,10 +168,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         final var lookup = indicesLookup;
         final var dsMetadata = custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
         final var viewMetadata = custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
-        assert lookup == null || lookup.equals(Builder.buildIndicesLookup(dsMetadata, viewMetadata, indices))
+        final var datasetMetadata = custom(DatasetMetadata.TYPE, DatasetMetadata.EMPTY);
+        assert lookup == null || lookup.equals(Builder.buildIndicesLookup(dsMetadata, viewMetadata, datasetMetadata, indices))
             : "expected the current lookup to either not exist, or be equal to the newly constructed lookup, but it was not";
         try {
-            Builder.ensureNoNameCollisions(aliasedIndices.keySet(), indices, dsMetadata, viewMetadata);
+            Builder.ensureNoNameCollisions(aliasedIndices.keySet(), indices, dsMetadata, viewMetadata, datasetMetadata);
         } catch (Exception e) {
             assert false : e;
         }
@@ -535,6 +536,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         i = Builder.buildIndicesLookup(
             custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY),
             custom(ViewMetadata.TYPE, ViewMetadata.EMPTY),
+            custom(DatasetMetadata.TYPE, DatasetMetadata.EMPTY),
             indices
         );
         indicesLookup = i;
@@ -553,6 +555,16 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
      */
     public boolean hasView(String viewName) {
         return custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).getView(viewName) != null;
+    }
+
+    /**
+     * Returns whether a dataset exists with provided dataset name.
+     *
+     * @param datasetName The provided dataset name
+     * @return whether a dataset exists with provided dataset name
+     */
+    public boolean hasDataset(String datasetName) {
+        return custom(DatasetMetadata.TYPE, DatasetMetadata.EMPTY).get(datasetName) != null;
     }
 
     /**
@@ -1490,6 +1502,20 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return (ViewMetadata) this.customs.getOrDefault(ViewMetadata.TYPE, ViewMetadata.EMPTY);
         }
 
+        public Builder datasets(Map<String, Dataset> datasets) {
+            previousIndicesLookup = null;
+            this.customs.put(DatasetMetadata.TYPE, new DatasetMetadata(datasets));
+            return this;
+        }
+
+        public DatasetMetadata datasetMetadata() {
+            return (DatasetMetadata) this.customs.getOrDefault(DatasetMetadata.TYPE, DatasetMetadata.EMPTY);
+        }
+
+        public Dataset dataset(String datasetName) {
+            return datasetMetadata().datasets().get(datasetName);
+        }
+
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
             previousIndicesLookup = null;
             DataStreamMetadata existing = dataStreamMetadata();
@@ -1669,7 +1695,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 indicesLookup = previousIndicesLookup;
             } else if (skipNameCollisionChecks == false) {
                 // we have changes to the entity names so we ensure we have no naming collisions
-                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata(), viewMetadata());
+                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata(), viewMetadata(), datasetMetadata());
             }
             assert assertDataStreams(indicesMap, dataStreamMetadata());
 
@@ -1717,7 +1743,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             SortedMap<String, IndexAbstraction> previousIndicesLookup,
             ImmutableOpenMap<String, IndexMetadata> indicesMap
         ) {
-            SortedMap<String, IndexAbstraction> newIndicesLookup = buildIndicesLookup(dataStreamMetadata(), viewMetadata(), indicesMap);
+            SortedMap<String, IndexAbstraction> newIndicesLookup = buildIndicesLookup(
+                dataStreamMetadata(),
+                viewMetadata(),
+                datasetMetadata(),
+                indicesMap
+            );
             if (previousIndicesLookup.equals(newIndicesLookup)) {
                 // They are identical and the lookup can be reused.
                 return true;
@@ -1738,17 +1769,22 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return false;
         }
 
+        /**
+         * Verifies that the names of indices, aliases, data streams, views, and datasets do not collide with each other.
+         */
         static void ensureNoNameCollisions(
             Set<String> indexAliases,
             ImmutableOpenMap<String, IndexMetadata> indicesMap,
             DataStreamMetadata dataStreamMetadata,
-            ViewMetadata viewMetadata
+            ViewMetadata viewMetadata,
+            DatasetMetadata datasetMetadata
         ) {
             List<String> duplicates = new ArrayList<>();
             Set<String> aliasDuplicatesWithIndices = new HashSet<>();
             Set<String> aliasDuplicatesWithDataStreams = new HashSet<>();
             var allDataStreams = dataStreamMetadata.dataStreams();
             var allViewNames = viewMetadata.views().keySet();
+            var allDatasetNames = datasetMetadata.datasets().keySet();
             // Adding data stream aliases:
             for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
                 if (indexAliases.contains(dataStreamAlias)) {
@@ -1763,6 +1799,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 if (allViewNames.contains(dataStreamAlias)) {
                     duplicates.add("data stream alias and view have the same name (" + dataStreamAlias + ")");
                 }
+                if (allDatasetNames.contains(dataStreamAlias)) {
+                    duplicates.add("data stream alias and dataset have the same name (" + dataStreamAlias + ")");
+                }
             }
             for (String alias : indexAliases) {
                 if (allDataStreams.containsKey(alias)) {
@@ -1774,6 +1813,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 if (allViewNames.contains(alias)) {
                     duplicates.add("alias and view have the same name (" + alias + ")");
                 }
+                if (allDatasetNames.contains(alias)) {
+                    duplicates.add("alias and dataset have the same name (" + alias + ")");
+                }
             }
             allDataStreams.forEach((key, value) -> {
                 if (indicesMap.containsKey(key)) {
@@ -1782,10 +1824,21 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 if (allViewNames.contains(key)) {
                     duplicates.add("data stream [" + key + "] conflicts with view");
                 }
+                if (allDatasetNames.contains(key)) {
+                    duplicates.add("data stream [" + key + "] conflicts with dataset");
+                }
             });
             allViewNames.forEach(key -> {
                 if (indicesMap.containsKey(key)) {
                     duplicates.add("view [" + key + "] conflicts with index");
+                }
+                if (allDatasetNames.contains(key)) {
+                    duplicates.add("view [" + key + "] conflicts with dataset");
+                }
+            });
+            allDatasetNames.forEach(key -> {
+                if (indicesMap.containsKey(key)) {
+                    duplicates.add("dataset [" + key + "] conflicts with index");
                 }
             });
             if (aliasDuplicatesWithIndices.isEmpty() == false) {
@@ -1795,12 +1848,15 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 collectAliasDuplicates(indicesMap, dataStreamMetadata, aliasDuplicatesWithDataStreams, duplicates);
             }
             if (duplicates.isEmpty() == false) {
-                throw new IllegalStateException(
-                    "index, alias, data stream, and view names need to be unique, but the following duplicates "
-                        + "were found ["
-                        + Strings.collectionToCommaDelimitedString(duplicates)
-                        + "]"
-                );
+                // The preamble enumeration is gated by the ES|QL external data sources feature flag. When the flag is
+                // off, datasets are not user-visible (no CRUD API) and must not appear in messages users can hit during
+                // ordinary index/alias/data-stream/view operations. The specific duplicate strings above already mention
+                // "dataset" when a dataset is actually involved in a collision, but that can only happen after datasets
+                // exist in cluster state, which requires the feature flag to be on.
+                String preamble = DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+                    ? "index, alias, data stream, view, and dataset names need to be unique, but the following duplicates were found ["
+                    : "index, alias, data stream, and view names need to be unique, but the following duplicates were found [";
+                throw new IllegalStateException(preamble + Strings.collectionToCommaDelimitedString(duplicates) + "]");
             }
         }
 
@@ -1849,15 +1905,17 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         static SortedMap<String, IndexAbstraction> buildIndicesLookup(
             DataStreamMetadata dataStreamMetadata,
             ViewMetadata viewMetadata,
+            DatasetMetadata datasetMetadata,
             ImmutableOpenMap<String, IndexMetadata> indices
         ) {
-            if (indices.isEmpty() && viewMetadata.views().isEmpty()) {
+            if (indices.isEmpty() && viewMetadata.views().isEmpty() && datasetMetadata.datasets().isEmpty()) {
                 return Collections.emptySortedMap();
             }
             Map<String, IndexAbstraction> indicesLookup = new HashMap<>();
             Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
             collectDataStreams(dataStreamMetadata, indicesLookup, indexToDataStreamLookup);
             indicesLookup.putAll(viewMetadata.views());
+            indicesLookup.putAll(datasetMetadata.datasets());
 
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
             collectIndices(indices, indexToDataStreamLookup, indicesLookup, aliasToIndices);

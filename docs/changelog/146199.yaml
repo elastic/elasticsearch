@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 126665
+pr: 146199
+summary: Fix `terminate_after` not honored for aggs when size=0
+type: bug

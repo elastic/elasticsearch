@@ -283,8 +283,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }
     }
 
-    private static void assertMultiField(int shingleSize, MapperService mapperService, String suggestPath, String textPath)
-        throws IOException {
+    private void assertMultiField(int shingleSize, MapperService mapperService, String suggestPath, String textPath) throws IOException {
         List<String> fields = new ArrayList<>();
         fields.add(suggestPath);
         fields.add(textPath);

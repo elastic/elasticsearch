@@ -206,6 +206,10 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         // to handle inner aggregates that are SurrogateExpressions (e.g., AVG → Div(Sum, Count)). We apply the substitution here to ensure
         // that any inner aggregates are properly replaced with their surrogates in the first phase plan.
         LogicalPlan phase1Plan = new SubstituteSurrogateAggregations().apply(aggregate);
+        // For the same reason, ReplaceAggregateNestedExpressionWithEval has already run and will not run again. Apply it here so
+        // that non-trivial scalar expressions in the inner aggregate's field (e.g. SUM(SIN(salary))) are extracted into a preceding
+        // Eval, ensuring the physical planner assigns a correctly-typed channel to the aggregator.
+        phase1Plan = new ReplaceAggregateNestedExpressionWithEval().apply(phase1Plan);
         return new FirstPhaseAggregateData(phase1Plan, sparklineValueAliases, toPartialAliases, originalAggFuncs, dateBucketAttr);
     }
 

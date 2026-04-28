@@ -248,4 +248,17 @@ class PushDownUtils {
 
         return hasEsRelation.get() && hasPipelineBreaker.get() == false;
     }
+
+    public static Map<Expression, Expression> outputMap(LogicalPlan plan, LogicalPlan otherPlan) {
+        Map<Expression, Expression> outputMap = new HashMap<>();
+
+        for (Attribute attr : plan.output()) {
+            for (Attribute otherAttr : otherPlan.output()) {
+                if (attr.name().equals(otherAttr.name())) {
+                    outputMap.put(attr, otherAttr);
+                }
+            }
+        }
+        return outputMap;
+    }
 }

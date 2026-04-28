@@ -215,10 +215,7 @@ public class ReindexFromRemoteIT extends ESRestTestCase {
      * The open PIT request should now include {@code index_filter} when applicable, since it was introduced in version 8.12
      */
     public void testReindexFromRemote812() throws IOException {
-        assumeTrue(
-            "remote 8.12 fixture not run",
-            Booleans.parseBoolean(System.getProperty("tests.fromRemoteEs812", "true"))
-        );
+        assumeTrue("remote 8.12 fixture not run", Booleans.parseBoolean(System.getProperty("tests.fromRemoteEs812", "true")));
         reindexFromRemoteCluster("es812.port", "reindex_remote_812_src", "reindex_remote_812_dest", RemoteIndexLayout.ES_7_PLUS);
     }
 
@@ -229,10 +226,7 @@ public class ReindexFromRemoteIT extends ESRestTestCase {
      * since it was introduced in version 8.16
      */
     public void testReindexFromRemote816() throws IOException {
-        assumeTrue(
-            "remote 8.16 fixture not run",
-            Booleans.parseBoolean(System.getProperty("tests.fromRemoteEs816", "true"))
-        );
+        assumeTrue("remote 8.16 fixture not run", Booleans.parseBoolean(System.getProperty("tests.fromRemoteEs816", "true")));
         reindexFromRemoteCluster("es816.port", "reindex_remote_816_src", "reindex_remote_816_dest", RemoteIndexLayout.ES_7_PLUS);
     }
 
@@ -242,10 +236,7 @@ public class ReindexFromRemoteIT extends ESRestTestCase {
      * This is a defensive test to ensure we correctly gate on the {@code project_routing} query parameter
      */
     public void testReindexFromRemote93() throws IOException {
-        assumeTrue(
-            "remote 9.3 fixture not run",
-            Booleans.parseBoolean(System.getProperty("tests.fromRemoteEs93", "true"))
-        );
+        assumeTrue("remote 9.3 fixture not run", Booleans.parseBoolean(System.getProperty("tests.fromRemoteEs93", "true")));
         reindexFromRemoteCluster("es93.port", "reindex_remote_93_src", "reindex_remote_93_dest", RemoteIndexLayout.ES_7_PLUS);
     }
 }

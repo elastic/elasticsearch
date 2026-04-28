@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.IOUtils;
@@ -426,19 +425,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
         return true;
     }
 
-    public void start(Model model, ActionListener<Boolean> listener) {
-        start(model, null, listener);
-    }
-
     @Override
     public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
-        SubscribableListener.<Void>newForked(l -> sender.startAsynchronously(l, timeout))
-            .<Boolean>andThen((doStartListener) -> doStart(model, doStartListener))
-            .addListener(listener);
-    }
-
-    protected void doStart(Model model, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
+        listener.onResponse(Boolean.TRUE);
     }
 
     @Override

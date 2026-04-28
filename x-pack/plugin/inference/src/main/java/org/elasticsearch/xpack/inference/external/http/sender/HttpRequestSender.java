@@ -95,6 +95,7 @@ public class HttpRequestSender implements Sender {
     }
 
     /**
+     * This should only be called internally to the class or directly by tests.
      * Start various internal services asynchronously. This is required before sending requests.
      * All callers (including concurrent ones) are notified via {@code listener} when startup completes
      * or fails, without blocking any thread pool threads while waiting.
@@ -107,8 +108,7 @@ public class HttpRequestSender implements Sender {
      * @param timeout if non-null, the maximum time this specific caller will wait for startup;
      *                other callers are unaffected if this caller's timeout fires.
      */
-    @Override
-    public void startAsynchronously(ActionListener<Void> listener, @Nullable TimeValue timeout) {
+    void startAsynchronously(ActionListener<Void> listener, @Nullable TimeValue timeout) {
         if (startInitiated.compareAndSet(false, true)) {
             try {
                 threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(this::startInternal);
@@ -127,8 +127,9 @@ public class HttpRequestSender implements Sender {
         // Preserve context before wrapping with timeout so both the normal completion path and
         // the timeout action restore the original thread context when notifying the caller.
         var contextPreservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
-        var wrappedListener = timeout != null
-            ? ListenerTimeouts.wrapWithTimeout(
+        var wrappedListener = timeout == null
+            ? contextPreservedListener
+            : ListenerTimeouts.wrapWithTimeout(
                 threadPool,
                 timeout,
                 threadPool.executor(UTILITY_THREAD_POOL_NAME),
@@ -136,8 +137,7 @@ public class HttpRequestSender implements Sender {
                 ignored -> contextPreservedListener.onFailure(
                     new ElasticsearchStatusException("Http sender startup did not complete in time", RestStatus.SERVICE_UNAVAILABLE)
                 )
-            )
-            : contextPreservedListener;
+            );
         // All callers — first and concurrent — register here. SubscribableListener fires immediately
         // if startup is already done, otherwise queues the listener until startInternal completes.
         startupNotifier.addListener(wrappedListener);
@@ -157,16 +157,6 @@ public class HttpRequestSender implements Sender {
                 new ElasticsearchStatusException("Failed to initialize inference components", RestStatus.INTERNAL_SERVER_ERROR, e)
             );
         }
-    }
-
-    /**
-     * Start various internal services synchronously. This is required before sending requests.
-     *
-     * @deprecated use {@link #startAsynchronously(ActionListener, TimeValue)} instead
-     */
-    @Override
-    public void startSynchronously() {
-        throw new UnsupportedOperationException("Synchronous startup is not supported; use startAsynchronously() instead");
     }
 
     @Override

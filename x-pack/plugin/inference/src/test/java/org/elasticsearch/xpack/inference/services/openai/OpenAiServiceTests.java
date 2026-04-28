@@ -114,8 +114,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -554,11 +552,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
 
     public void testInfer_ReturnsErrorWhenCallingInfer_WithChatCompletion() throws IOException {
         var sender = mock(HttpRequestSender.class);
-        doAnswer(invocation -> {
-            ActionListener<Void> listener = invocation.getArgument(0);
-            listener.onResponse(null);
-            return Void.TYPE;
-        }).when(sender).startAsynchronously(any(), any());
 
         var s = mock(HttpRequestSender.Factory.class);
         when(s.createSender()).thenReturn(sender);

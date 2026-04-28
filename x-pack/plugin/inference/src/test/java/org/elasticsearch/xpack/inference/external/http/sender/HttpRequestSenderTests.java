@@ -122,17 +122,6 @@ public class HttpRequestSenderTests extends ESTestCase {
         assertThat(sender1, sameInstance(sender2));
     }
 
-    public void testStartSynchronously_ThrowsUnsupportedOperationException() {
-        var sender = new HttpRequestSender(
-            threadPool,
-            createMockHttpClientManager(),
-            mock(RequestSender.class),
-            mock(RequestExecutor.class)
-        );
-
-        expectThrows(UnsupportedOperationException.class, sender::startSynchronously);
-    }
-
     public void testCreateSender_CanCallStartMultipleTimes() throws Exception {
         var mockManager = createMockHttpClientManager();
 
@@ -164,23 +153,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var sender = senderFactory.createSender()) {
+        try (var sender = (HttpRequestSender) senderFactory.createSender()) {
             var exception = expectThrows(ElasticsearchException.class, () -> startSynchronously(sender));
 
             assertThat(exception.getMessage(), is("Failed to initialize inference components"));
             assertThat(exception.getCause().getMessage(), is("failed"));
         }
-    }
-
-    public void testStartSync_ThrowsServiceUnavailableWhenStartupTimesOut() {
-        var mockManager = createMockHttpClientManager();
-
-        var mockService = createMockRequestExecutorThatBlocksOnStart();
-        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mockService);
-
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> startSynchronously(sender, TimeValue.timeValueMillis(1)));
-        assertThat(exception.getMessage(), is("Http sender startup did not complete in time"));
-        assertThat(exception.status(), is(RestStatus.SERVICE_UNAVAILABLE));
     }
 
     private RequestExecutor createMockRequestExecutorThatBlocksOnStart() {
@@ -221,10 +199,17 @@ public class HttpRequestSenderTests extends ESTestCase {
         assertThat(ex.getMessage(), is("Http sender startup did not complete in time"));
         assertThat(ex.status(), is(RestStatus.SERVICE_UNAVAILABLE));
 
+        // Second caller with no timeout should get notified when startup completes, not get a timeout from the first caller's timeout
+        var noTimeoutListener = new TestPlainActionFuture<Void>();
+        sender.startAsynchronously(noTimeoutListener, null);
+
         // Unblock startup so startupNotifier resolves successfully
         blockStartLatch.countDown();
 
-        // Second caller with no timeout should succeed — startupNotifier was not poisoned
+        // The second caller should succeed, indicating that the first caller's timeout did not poison the shared startup state
+        assertNull(noTimeoutListener.actionGet(TEST_REQUEST_TIMEOUT));
+
+        // Third caller with no timeout should succeed after the shared startup state is successfully resolved
         var successListener = new TestPlainActionFuture<Void>();
         sender.startAsynchronously(successListener, null);
         assertNull(successListener.actionGet(TEST_REQUEST_TIMEOUT));
@@ -585,15 +570,15 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
     }
 
-    public static Sender createSender(HttpRequestSender.Factory factory) {
-        return factory.createSender();
+    public static HttpRequestSender createSender(HttpRequestSender.Factory factory) {
+        return (HttpRequestSender) factory.createSender();
     }
 
-    private static void startSynchronously(Sender sender) {
+    private static void startSynchronously(HttpRequestSender sender) {
         startSynchronously(sender, TEST_REQUEST_TIMEOUT);
     }
 
-    private static void startSynchronously(Sender sender, TimeValue timeout) {
+    private static void startSynchronously(HttpRequestSender sender, TimeValue timeout) {
         var listener = new TestPlainActionFuture<Void>();
         sender.startAsynchronously(listener, timeout);
         // Intentionally using a test timeout. That way a short timeout can be passed to startAsynchronously

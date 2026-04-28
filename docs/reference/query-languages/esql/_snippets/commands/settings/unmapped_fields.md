@@ -7,8 +7,7 @@ stack: preview 9.3.0
 ```
 Determines how unmapped fields are treated. Possible values are:
 
-- `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)
-may treat them differently.
+- `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields.
 - `NULLIFY` : Treats unmapped fields as null values.
 - `LOAD` : Loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
 with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`stack: preview 9.4`
@@ -16,8 +15,10 @@ with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`st
 An `unmapped field` is a field referenced in a query that does not exist in the mapping of the index being queried. When querying
 multiple indices, a field is considered `partially unmapped` if it exists in the mapping of some indices but not others.
 
+[`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
+
 Special notes about the `LOAD` option:
-- `PromQL`, `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.
+- `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.
 - Referencing subfields of `flattened` parents is not supported.
 - Referencing partially unmapped non-keyword fields must be inside a cast or a conversion function (e.g. `::TYPE` or `TO_TYPE`),
 unless referenced in a `KEEP` or `DROP`.

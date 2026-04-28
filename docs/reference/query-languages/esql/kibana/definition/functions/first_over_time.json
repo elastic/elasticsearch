@@ -62,6 +62,42 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "the metric field to calculate the value for"
@@ -116,6 +152,42 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "long",
           "optional" : false,
           "description" : "the metric field to calculate the value for"
@@ -147,6 +219,24 @@
       ],
       "variadic" : false,
       "returnType" : "tdigest"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
     }
   ],
   "examples" : [

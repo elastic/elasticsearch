@@ -7,71 +7,85 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+
+import java.util.concurrent.Executor;
 
 /**
  * Utility for draining pages from a {@link CloseableIterator} into an {@link AsyncExternalSourceBuffer}
- * with backpressure. Uses blocking wait instead of spin-wait, relying on the buffer's
- * {@code notifyNotFull()} in {@code finish()} to wake producers when no more input is needed.
+ * with non-blocking backpressure.
  *
- * <p>Buffer-space blocking uses {@link AsyncExternalSourceBuffer#awaitSpaceForProducer} (a timed condition wait
- * on the buffer's not-full lock), not {@link org.elasticsearch.action.support.PlainActionFuture}, so a
- * producer and a consumer on different threads of the same named pool (e.g. {@code esql_worker}) do not
- * trip {@code PlainActionFuture}'s same-pool completion assertion.
+ * <p>Runs synchronously while the buffer has space (hot path), yields the thread when the buffer is
+ * full, and resumes via the provided {@link Executor} when space is freed (cold path). No timeout is
+ * needed — cancellation propagates via {@link AsyncExternalSourceBuffer#finish(boolean)} setting
+ * {@code noMoreInputs}, which causes {@link AsyncExternalSourceBuffer#waitForSpace()} to return an
+ * already-completed listener so the drain loop exits promptly.
  */
 public final class ExternalSourceDrainUtils {
 
-    static final TimeValue DEFAULT_DRAIN_TIMEOUT = TimeValue.timeValueMinutes(5);
-
     private ExternalSourceDrainUtils() {}
 
-    public static void drainPages(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer) {
-        drainPages(pages, buffer, DEFAULT_DRAIN_TIMEOUT);
-    }
-
-    public static void drainPages(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer, TimeValue timeout) {
-        while (pages.hasNext() && buffer.noMoreInputs() == false) {
-            buffer.awaitSpaceForProducer(timeout);
-            if (buffer.noMoreInputs()) {
-                break;
-            }
-            Page page = pages.next();
-            page.allowPassingToDifferentDriver();
-            buffer.addPage(page);
-        }
-    }
-
-    public static int drainPagesWithBudget(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer) {
-        return drainPagesWithBudget(pages, buffer, FormatReader.NO_LIMIT, DEFAULT_DRAIN_TIMEOUT);
-    }
-
-    public static int drainPagesWithBudget(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer, int rowLimit) {
-        return drainPagesWithBudget(pages, buffer, rowLimit, DEFAULT_DRAIN_TIMEOUT);
-    }
-
-    public static int drainPagesWithBudget(
+    /**
+     * Drains pages from iterator into buffer asynchronously.
+     * Runs synchronously while the buffer has space; yields the thread
+     * when the buffer is full and resumes via {@code executor} when space is freed.
+     * Completion (success or failure) is reported via the listener.
+     *
+     * <p><b>Iterator ownership:</b> This method does NOT close the iterator.
+     * The caller must close it regardless of outcome (e.g. via
+     * {@link ActionListener#runAfter}).
+     *
+     * <p><b>Executor contract:</b> The {@code executor} must be a real thread-pool
+     * executor (e.g. {@code generic}), never {@code DIRECT_EXECUTOR_SERVICE}.
+     * Continuations resume on this executor to avoid running producer I/O
+     * on the Driver thread. The executor captures and restores thread context
+     * at submission time, so no explicit context-preserving wrapper is needed.
+     *
+     * <p><b>Cancellation:</b> No timeout. Cancellation comes from
+     * {@code buffer.finish(true)} setting {@code noMoreInputs}, which causes
+     * {@code waitForSpace()} to return an already-completed listener.
+     */
+    public static void drainPagesAsync(
         CloseableIterator<Page> pages,
         AsyncExternalSourceBuffer buffer,
-        int rowLimit,
-        TimeValue timeout
+        Executor executor,
+        ActionListener<Void> listener
     ) {
-        int totalRows = 0;
-        while (pages.hasNext() && buffer.noMoreInputs() == false) {
-            if (rowLimit != FormatReader.NO_LIMIT && totalRows >= rowLimit) {
-                break;
-            }
-            buffer.awaitSpaceForProducer(timeout);
-            if (buffer.noMoreInputs()) {
-                break;
-            }
-            Page page = pages.next();
-            totalRows += page.getPositionCount();
-            page.allowPassingToDifferentDriver();
-            buffer.addPage(page);
-        }
-        return totalRows;
+        drainBatch(pages, buffer, executor, listener);
     }
+
+    private static void drainBatch(
+        CloseableIterator<Page> pages,
+        AsyncExternalSourceBuffer buffer,
+        Executor executor,
+        ActionListener<Void> listener
+    ) {
+        try {
+            while (pages.hasNext() && buffer.noMoreInputs() == false) {
+                SubscribableListener<Void> space = buffer.waitForSpace();
+                if (space.isDone()) {
+                    if (buffer.noMoreInputs()) break;
+                    Page page = pages.next();
+                    page.allowPassingToDifferentDriver();
+                    buffer.addPage(page);
+                } else {
+                    space.addListener(ActionListener.wrap(v -> {
+                        try {
+                            executor.execute(() -> drainBatch(pages, buffer, executor, listener));
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }, listener::onFailure));
+                    return;
+                }
+            }
+            listener.onResponse(null);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
 }

@@ -39,7 +39,7 @@ dependencies {
     // lz4-java is provided by the server (libs/lz4); exclude to prevent jar hell
     exclude group: 'at.yawk.lz4', module: 'lz4-java'
     exclude group: 'com.aayushatharva.brotli4j', module: 'brotli4j'
-    // Replaced by hadoop-common (non-transitive) + woodstox + hadoop-shaded-guava
+    // Replaced by hadoop-common (non-transitive) + woodstox + Strings stub
     exclude group: 'org.apache.hadoop', module: 'hadoop-client-api'
     exclude group: 'org.apache.hadoop', module: 'hadoop-client-runtime'
   }
@@ -57,14 +57,17 @@ dependencies {
   // Instead of the massive hadoop-client-api (19 MB) + hadoop-client-runtime (29 MB)
   // which bundle shaded Jetty, ZooKeeper, Curator, Avro, etc. (and attract CVE flags),
   // we use hadoop-common (4.5 MB, non-transitive) plus only the jars it actually needs
-  // at runtime: Woodstox for Configuration's XML parsing and hadoop-shaded-guava for
-  // Configuration.get() which calls Strings.isNullOrEmpty().
+  // at runtime: Woodstox for Configuration's XML parsing; Configuration.get() calls
+  // Strings.isNullOrEmpty() which is provided by a tiny stub class replacing
+  // the 3.5 MB hadoop-shaded-guava jar.
   implementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
     transitive = false
   }
   implementation("com.fasterxml.woodstox:woodstox-core:5.4.0")
   implementation("org.codehaus.woodstox:stax2-api:4.2.1")
-  implementation("org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.5.0")
+  // hadoop-shaded-guava (3.5 MB) replaced by a tiny stub class in
+  // org.apache.hadoop.thirdparty.com.google.common.base.Strings
+  // which is the only class Configuration actually needs at runtime.
   implementation("org.apache.commons:commons-collections4:4.4")
 
   // Re-add slf4j-api at the platform version to avoid jar hell with x-pack-core
@@ -78,12 +81,11 @@ dependencies {
   testImplementation "io.airlift:aircompressor:${versions.aircompressor}"
   testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
   testImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
-  // ORC's writer path loads HadoopShimsCurrent which references HdfsDataOutputStream.
-  // Only needed for tests that create ORC files; not needed at production runtime
-  // since we only read ORC. Non-transitive to avoid pulling the Hadoop ecosystem.
-  testImplementation("org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop}") {
-    transitive = false
-  }
+  // ORC's HadoopShimsCurrent references HdfsDataOutputStream$SyncFlag which triggers
+  // NoClassDefFoundError if hadoop-hdfs-client is absent. A stub class in
+  // org.apache.hadoop.hdfs.client.HdfsDataOutputStream provides the type at class-load
+  // time; the instanceof check in HadoopShimsCurrent always returns false so the
+  // HDFS-specific code path is never executed. This eliminates the 5.3 MB hadoop-hdfs-client jar.
 }
 
 // Compression libraries (aircompressor, zstd-jni, snappy-java) are provided by
@@ -117,12 +119,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.service.launcher.InterruptEscalator',
     'org.apache.hadoop.service.launcher.IrqHandler',
     'org.apache.hadoop.util.SignalLogger$Handler',
-    // Hadoop thirdparty Guava uses sun.misc.Unsafe
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     // Protobuf uses sun.misc.Unsafe
     'com.google.protobuf.MessageSchema',
     'com.google.protobuf.UnsafeUtil',

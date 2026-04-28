@@ -24,6 +24,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.ForUtil;
 
 import java.io.IOException;
@@ -31,6 +32,11 @@ import java.util.Arrays;
 import java.util.Random;
 
 public class DocValuesForUtilTests extends LuceneTestCase {
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
+    }
     int NUMERIC_BLOCK_SIZE = 1 << random().nextInt(7, 14);
 
     public void testEncodeDecode() throws IOException {

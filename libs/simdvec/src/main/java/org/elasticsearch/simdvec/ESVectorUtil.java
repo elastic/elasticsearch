@@ -556,6 +556,54 @@ public class ESVectorUtil {
     }
 
     /**
+     * Decodes {@code count} values packed as {@code bytesPerValue} little-endian bytes each from
+     * {@code in} into {@code out}. {@code bytesPerValue} must be 5, 6, or 7.
+     */
+    public static void decodeMultiByteLongs(byte[] in, int bytesPerValue, long[] out, int count) {
+        IMPL.decodeMultiByteLongs(in, bytesPerValue, out, count);
+    }
+
+    /** Unpacks 16 packed longs at arr[offset] into 128 longs; each source long holds 8 byte-sized values. */
+    public static void expandLongs8(long[] arr, int offset) {
+        IMPL.expandLongs8(arr, offset);
+    }
+
+    /** Unpacks 32 packed longs at arr[offset] into 128 longs; each source long holds 4 short-sized values. */
+    public static void expandLongs16(long[] arr, int offset) {
+        IMPL.expandLongs16(arr, offset);
+    }
+
+    /** Unpacks 64 packed longs at arr[offset] into 128 longs; each source long holds 2 int-sized values. */
+    public static void expandLongs32(long[] arr, int offset) {
+        IMPL.expandLongs32(arr, offset);
+    }
+
+    /** Like expandLongs8 but stores two byte-sized values per output long (decodeTo32 format). Output is 64 longs. */
+    public static void expandLongs8To32(long[] arr, int offset) {
+        IMPL.expandLongs8To32(arr, offset);
+    }
+
+    /** Like expandLongs16 but stores two short-sized values per output long (decodeTo32 format). Output is 64 longs. */
+    public static void expandLongs16To32(long[] arr, int offset) {
+        IMPL.expandLongs16To32(arr, offset);
+    }
+
+    /** Packs 128 longs at arr[offset] into 16 longs by combining 8 byte-sized values per output long. */
+    public static void collapseLongs8(long[] arr, int offset) {
+        IMPL.collapseLongs8(arr, offset);
+    }
+
+    /** Packs 128 longs at arr[offset] into 32 longs by combining 4 short-sized values per output long. */
+    public static void collapseLongs16(long[] arr, int offset) {
+        IMPL.collapseLongs16(arr, offset);
+    }
+
+    /** Packs 128 longs at arr[offset] into 64 longs by combining 2 int-sized values per output long. */
+    public static void collapseLongs32(long[] arr, int offset) {
+        IMPL.collapseLongs32(arr, offset);
+    }
+
+    /**
      * Count the number of Unicode code points in a utf-8 encoded string. Assumes that the input
      * string is correctly encoded. If the input string is incorrectly encoded, no errors will be
      * thrown, but invalid results will be returned.

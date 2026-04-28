@@ -117,4 +117,62 @@ public interface ESVectorUtilSupport {
     float logSumExpNQTDiff(float[] v1, float[] v2, float eps);
 
     void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
+
+    /**
+     * Decodes {@code count} values packed as {@code bytesPerValue} little-endian bytes each from
+     * {@code in} into {@code out}. {@code bytesPerValue} must be 5, 6, or 7.
+     * The caller must ensure {@code in} has at least {@code count * bytesPerValue} readable bytes
+     * and {@code out} has at least {@code count} elements.
+     */
+    void decodeMultiByteLongs(byte[] in, int bytesPerValue, long[] out, int count);
+
+    /**
+     * Unpacks 16 longs at {@code arr[offset..offset+15]}, each containing 8 packed byte-sized
+     * values, into 128 longs at {@code arr[offset..offset+127]}.
+     */
+    void expandLongs8(long[] arr, int offset);
+
+    /**
+     * Unpacks 32 longs at {@code arr[offset..offset+31]}, each containing 4 packed short-sized
+     * values, into 128 longs at {@code arr[offset..offset+127]}.
+     */
+    void expandLongs16(long[] arr, int offset);
+
+    /**
+     * Unpacks 64 longs at {@code arr[offset..offset+63]}, each containing 2 packed int-sized
+     * values, into 128 longs at {@code arr[offset..offset+127]}.
+     */
+    void expandLongs32(long[] arr, int offset);
+
+    /**
+     * Like {@link #expandLongs8} but leaves pairs of byte-sized values packed into each output long
+     * in the decodeTo32 representation used by {@code ForUtil.decodeTo32}.
+     * Output occupies {@code arr[offset..offset+63]}.
+     */
+    void expandLongs8To32(long[] arr, int offset);
+
+    /**
+     * Like {@link #expandLongs16} but leaves pairs of short-sized values packed into each output
+     * long in the decodeTo32 representation used by {@code ForUtil.decodeTo32}.
+     * Output occupies {@code arr[offset..offset+63]}.
+     */
+    void expandLongs16To32(long[] arr, int offset);
+
+    /**
+     * Packs 128 longs at {@code arr[offset..offset+127]} into 16 longs at
+     * {@code arr[offset..offset+15]} by OR-ing 8 byte-sized values per output long.
+     */
+    void collapseLongs8(long[] arr, int offset);
+
+    /**
+     * Packs 128 longs at {@code arr[offset..offset+127]} into 32 longs at
+     * {@code arr[offset..offset+31]} by OR-ing 4 short-sized values per output long.
+     */
+    void collapseLongs16(long[] arr, int offset);
+
+    /**
+     * Packs 128 longs at {@code arr[offset..offset+127]} into 64 longs at
+     * {@code arr[offset..offset+63]} by OR-ing 2 int-sized values per output long.
+     */
+    void collapseLongs32(long[] arr, int offset);
 }

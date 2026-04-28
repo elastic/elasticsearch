@@ -16,6 +16,7 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorShape;
+import jdk.incubator.vector.VectorShuffle;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.util.BitUtil;
@@ -31,6 +32,7 @@ import java.lang.foreign.MemorySegment;
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.ASHR;
 import static jdk.incubator.vector.VectorOperators.LSHL;
+import static jdk.incubator.vector.VectorOperators.LSHR;
 import static jdk.incubator.vector.VectorOperators.MAX;
 import static jdk.incubator.vector.VectorOperators.MIN;
 import static jdk.incubator.vector.VectorOperators.OR;
@@ -42,8 +44,44 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
     private static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
+    private static final VectorSpecies<Long> LONG_SPECIES = PanamaVectorConstants.PREFERRED_LONG_SPECIES;
     /** Whether integer vectors can be trusted to actually be fast. */
     static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
+
+    // For the byte-shuffle decode, VPSHUFB on x86 only shuffles within each 128-bit lane.
+    // Our shuffle indices for 5/6/7 bytes-per-value cross that lane boundary in a 256-bit vector
+    // (e.g. for bpv=5, output lane 2 at bytes 16-23 needs source bytes 10-14 from the lower half).
+    // On 512-bit machines VPERMB handles arbitrary cross-lane byte permutation in one instruction,
+    // so using the full-width species is fine. On 256-bit (AVX2-only) machines we fall back to
+    // 128-bit vectors where all source indices are guaranteed within-lane (max index = 1*7+6 = 13 < 16).
+    private static final VectorSpecies<Byte> DECODE_BYTE_SPECIES = VECTOR_BITSIZE >= 512
+        ? PanamaVectorConstants.PREFERRED_BYTE_SPECIES
+        : ByteVector.SPECIES_128;
+    private static final VectorSpecies<Long> DECODE_LONG_SPECIES = VECTOR_BITSIZE >= 512 ? LONG_SPECIES : LongVector.SPECIES_128;
+    private static final int DECODE_LONG_LANE_COUNT = DECODE_LONG_SPECIES.length();
+
+    // Per-bpv byte-shuffle that gathers source bytes into the low bytes of each 8-byte long lane.
+    // Invalid high bytes within each lane point to index 0 (a safe dummy); the AND mask cleans them.
+    private static final VectorShuffle<Byte> DECODE_SHUFFLE_5 = buildDecodeShuffleMask(5);
+    private static final VectorShuffle<Byte> DECODE_SHUFFLE_6 = buildDecodeShuffleMask(6);
+    private static final VectorShuffle<Byte> DECODE_SHUFFLE_7 = buildDecodeShuffleMask(7);
+    private static final LongVector DECODE_MASK_5 = LongVector.broadcast(DECODE_LONG_SPECIES, (1L << 40) - 1);
+    private static final LongVector DECODE_MASK_6 = LongVector.broadcast(DECODE_LONG_SPECIES, (1L << 48) - 1);
+    private static final LongVector DECODE_MASK_7 = LongVector.broadcast(DECODE_LONG_SPECIES, (1L << 56) - 1);
+
+    private static VectorShuffle<Byte> buildDecodeShuffleMask(int bytesPerValue) {
+        int laneCount = DECODE_LONG_LANE_COUNT;
+        int[] indices = new int[laneCount * Long.BYTES];
+        for (int lane = 0; lane < laneCount; lane++) {
+            for (int b = 0; b < Long.BYTES; b++) {
+                // Valid bytes: map to the correct source position in the packed input.
+                // Padding bytes (b >= bytesPerValue): map to index 0 as a harmless dummy;
+                // the subsequent AND with DECODE_MASK_N zeros them in the long output.
+                indices[lane * Long.BYTES + b] = b < bytesPerValue ? lane * bytesPerValue + b : 0;
+            }
+        }
+        return VectorShuffle.fromValues(DECODE_BYTE_SPECIES, indices);
+    }
 
     static final boolean SUPPORTS_NATIVE_VECTORS = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
@@ -1268,6 +1306,154 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             }
         }
         return true;
+    }
+
+    // BLOCK_SIZE = 128; loop bounds (16, 32, 64) are all multiples of any LONG_SPECIES.length()
+    // (2, 4, or 8), so these loops never need tail handling.
+
+    @Override
+    public void expandLongs8(long[] arr, int offset) {
+        final long MASK = 0xFFL;
+        for (int i = 0; i < 16; i += LONG_SPECIES.length()) {
+            LongVector v = LongVector.fromArray(LONG_SPECIES, arr, offset + i);
+            v.lanewise(LSHR, 56).intoArray(arr, offset + i);
+            v.lanewise(LSHR, 48).and(MASK).intoArray(arr, offset + 16 + i);
+            v.lanewise(LSHR, 40).and(MASK).intoArray(arr, offset + 32 + i);
+            v.lanewise(LSHR, 32).and(MASK).intoArray(arr, offset + 48 + i);
+            v.lanewise(LSHR, 24).and(MASK).intoArray(arr, offset + 64 + i);
+            v.lanewise(LSHR, 16).and(MASK).intoArray(arr, offset + 80 + i);
+            v.lanewise(LSHR, 8).and(MASK).intoArray(arr, offset + 96 + i);
+            v.and(MASK).intoArray(arr, offset + 112 + i);
+        }
+    }
+
+    @Override
+    public void expandLongs16(long[] arr, int offset) {
+        final long MASK = 0xFFFFL;
+        for (int i = 0; i < 32; i += LONG_SPECIES.length()) {
+            LongVector v = LongVector.fromArray(LONG_SPECIES, arr, offset + i);
+            v.lanewise(LSHR, 48).intoArray(arr, offset + i);
+            v.lanewise(LSHR, 32).and(MASK).intoArray(arr, offset + 32 + i);
+            v.lanewise(LSHR, 16).and(MASK).intoArray(arr, offset + 64 + i);
+            v.and(MASK).intoArray(arr, offset + 96 + i);
+        }
+    }
+
+    @Override
+    public void expandLongs32(long[] arr, int offset) {
+        for (int i = 0; i < 64; ++i) {
+            long l = arr[i + offset];
+            arr[i + offset] = l >>> 32;
+            arr[64 + i + offset] = l & 0xFFFFFFFFL;
+        }
+    }
+
+    @Override
+    public void expandLongs8To32(long[] arr, int offset) {
+        final long MASK = 0x000000FF000000FFL;
+        for (int i = 0; i < 16; i += LONG_SPECIES.length()) {
+            LongVector v = LongVector.fromArray(LONG_SPECIES, arr, offset + i);
+            v.lanewise(LSHR, 24).and(MASK).intoArray(arr, offset + i);
+            v.lanewise(LSHR, 16).and(MASK).intoArray(arr, offset + 16 + i);
+            v.lanewise(LSHR, 8).and(MASK).intoArray(arr, offset + 32 + i);
+            v.and(MASK).intoArray(arr, offset + 48 + i);
+        }
+    }
+
+    @Override
+    public void expandLongs16To32(long[] arr, int offset) {
+        final long MASK = 0x0000FFFF0000FFFFL;
+        for (int i = 0; i < 32; i += LONG_SPECIES.length()) {
+            LongVector v = LongVector.fromArray(LONG_SPECIES, arr, offset + i);
+            v.lanewise(LSHR, 16).and(MASK).intoArray(arr, offset + i);
+            v.and(MASK).intoArray(arr, offset + 32 + i);
+        }
+    }
+
+    @Override
+    public void collapseLongs8(long[] arr, int offset) {
+        for (int i = 0; i < 16; i += LONG_SPECIES.length()) {
+            LongVector v0 = LongVector.fromArray(LONG_SPECIES, arr, offset + i);
+            LongVector v1 = LongVector.fromArray(LONG_SPECIES, arr, offset + 16 + i);
+            LongVector v2 = LongVector.fromArray(LONG_SPECIES, arr, offset + 32 + i);
+            LongVector v3 = LongVector.fromArray(LONG_SPECIES, arr, offset + 48 + i);
+            LongVector v4 = LongVector.fromArray(LONG_SPECIES, arr, offset + 64 + i);
+            LongVector v5 = LongVector.fromArray(LONG_SPECIES, arr, offset + 80 + i);
+            LongVector v6 = LongVector.fromArray(LONG_SPECIES, arr, offset + 96 + i);
+            LongVector v7 = LongVector.fromArray(LONG_SPECIES, arr, offset + 112 + i);
+            v0.lanewise(LSHL, 56)
+                .or(v1.lanewise(LSHL, 48))
+                .or(v2.lanewise(LSHL, 40))
+                .or(v3.lanewise(LSHL, 32))
+                .or(v4.lanewise(LSHL, 24))
+                .or(v5.lanewise(LSHL, 16))
+                .or(v6.lanewise(LSHL, 8))
+                .or(v7)
+                .intoArray(arr, offset + i);
+        }
+    }
+
+    @Override
+    public void collapseLongs16(long[] arr, int offset) {
+        for (int i = 0; i < 32; i += LONG_SPECIES.length()) {
+            LongVector v0 = LongVector.fromArray(LONG_SPECIES, arr, offset + i);
+            LongVector v1 = LongVector.fromArray(LONG_SPECIES, arr, offset + 32 + i);
+            LongVector v2 = LongVector.fromArray(LONG_SPECIES, arr, offset + 64 + i);
+            LongVector v3 = LongVector.fromArray(LONG_SPECIES, arr, offset + 96 + i);
+            v0.lanewise(LSHL, 48).or(v1.lanewise(LSHL, 32)).or(v2.lanewise(LSHL, 16)).or(v3).intoArray(arr, offset + i);
+        }
+    }
+
+    @Override
+    public void collapseLongs32(long[] arr, int offset) {
+        for (int i = 0; i < 64; ++i) {
+            arr[i + offset] = (arr[i + offset] << 32) | arr[64 + i + offset];
+        }
+    }
+
+    @Override
+    public void decodeMultiByteLongs(byte[] in, int bytesPerValue, long[] out, int count) {
+        if (VECTOR_BITSIZE >= 512) {
+            // On AVX-512, VPERMB handles cross-lane byte permutation; the wide register amortizes
+            // shuffle overhead across 8 longs per iteration. On AVX2 (128-bit shuffle species,
+            // 2 longs per iteration) the overhead exceeds the benefit, so we fall through to scalar.
+            final VectorShuffle<Byte> shuffle;
+            final LongVector mask;
+            switch (bytesPerValue) {
+                case 5 -> {
+                    shuffle = DECODE_SHUFFLE_5;
+                    mask = DECODE_MASK_5;
+                }
+                case 6 -> {
+                    shuffle = DECODE_SHUFFLE_6;
+                    mask = DECODE_MASK_6;
+                }
+                case 7 -> {
+                    shuffle = DECODE_SHUFFLE_7;
+                    mask = DECODE_MASK_7;
+                }
+                default -> throw new AssertionError("unexpected bytesPerValue: " + bytesPerValue);
+            }
+            int vecInBytes = DECODE_LONG_LANE_COUNT * bytesPerValue;
+            int outOffset = 0;
+            int inOffset = 0;
+            for (; outOffset + DECODE_LONG_LANE_COUNT <= count; outOffset += DECODE_LONG_LANE_COUNT, inOffset += vecInBytes) {
+                ByteVector.fromArray(DECODE_BYTE_SPECIES, in, inOffset)
+                    .rearrange(shuffle)
+                    .reinterpretAsLongs()
+                    .and(mask)
+                    .intoArray(out, outOffset);
+            }
+            long longMask = mask.lane(0);
+            for (; outOffset < count; outOffset++, inOffset += bytesPerValue) {
+                out[outOffset] = (long) BitUtil.VH_LE_LONG.get(in, inOffset) & longMask;
+            }
+        } else {
+            long longMask = (1L << (bytesPerValue * Byte.SIZE)) - 1;
+            for (int i = 0, byteOffset = 0; i < count; i++, byteOffset += bytesPerValue) {
+                out[i] = (long) BitUtil.VH_LE_LONG.get(in, byteOffset) & longMask;
+            }
+        }
     }
 
     @Override

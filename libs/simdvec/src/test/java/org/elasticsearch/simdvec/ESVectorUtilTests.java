@@ -883,4 +883,114 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
         assertArrayEqualsPercent(result1, result2, 0.1f);
     }
+
+    public void testExpandCollapseLongs8() {
+        long[] packed = new long[128];
+        // fill 16 longs with random byte-packed values
+        for (int i = 0; i < 16; i++) {
+            packed[i] = random().nextLong();
+        }
+        long[] ref = Arrays.copyOf(packed, packed.length);
+        long[] simd = Arrays.copyOf(packed, packed.length);
+
+        defaultedProvider.getVectorUtilSupport().expandLongs8(ref, 0);
+        defOrPanamaProvider.getVectorUtilSupport().expandLongs8(simd, 0);
+        assertArrayEquals(ref, simd);
+
+        // round-trip: collapse should recover the original 16 packed longs
+        long[] collapsed = Arrays.copyOf(ref, ref.length);
+        defaultedProvider.getVectorUtilSupport().collapseLongs8(collapsed, 0);
+        assertArrayEquals(Arrays.copyOf(packed, 16), Arrays.copyOf(collapsed, 16));
+
+        long[] collapsedSimd = Arrays.copyOf(simd, simd.length);
+        defOrPanamaProvider.getVectorUtilSupport().collapseLongs8(collapsedSimd, 0);
+        assertArrayEquals(Arrays.copyOf(packed, 16), Arrays.copyOf(collapsedSimd, 16));
+    }
+
+    public void testExpandCollapseLongs16() {
+        long[] packed = new long[128];
+        for (int i = 0; i < 32; i++) {
+            packed[i] = random().nextLong();
+        }
+        long[] ref = Arrays.copyOf(packed, packed.length);
+        long[] simd = Arrays.copyOf(packed, packed.length);
+
+        defaultedProvider.getVectorUtilSupport().expandLongs16(ref, 0);
+        defOrPanamaProvider.getVectorUtilSupport().expandLongs16(simd, 0);
+        assertArrayEquals(ref, simd);
+
+        long[] collapsed = Arrays.copyOf(ref, ref.length);
+        defaultedProvider.getVectorUtilSupport().collapseLongs16(collapsed, 0);
+        assertArrayEquals(Arrays.copyOf(packed, 32), Arrays.copyOf(collapsed, 32));
+
+        long[] collapsedSimd = Arrays.copyOf(simd, simd.length);
+        defOrPanamaProvider.getVectorUtilSupport().collapseLongs16(collapsedSimd, 0);
+        assertArrayEquals(Arrays.copyOf(packed, 32), Arrays.copyOf(collapsedSimd, 32));
+    }
+
+    public void testExpandCollapseLongs32() {
+        long[] packed = new long[128];
+        for (int i = 0; i < 64; i++) {
+            packed[i] = random().nextLong();
+        }
+        long[] ref = Arrays.copyOf(packed, packed.length);
+        long[] simd = Arrays.copyOf(packed, packed.length);
+
+        defaultedProvider.getVectorUtilSupport().expandLongs32(ref, 0);
+        defOrPanamaProvider.getVectorUtilSupport().expandLongs32(simd, 0);
+        assertArrayEquals(ref, simd);
+
+        long[] collapsed = Arrays.copyOf(ref, ref.length);
+        defaultedProvider.getVectorUtilSupport().collapseLongs32(collapsed, 0);
+        assertArrayEquals(Arrays.copyOf(packed, 64), Arrays.copyOf(collapsed, 64));
+
+        long[] collapsedSimd = Arrays.copyOf(simd, simd.length);
+        defOrPanamaProvider.getVectorUtilSupport().collapseLongs32(collapsedSimd, 0);
+        assertArrayEquals(Arrays.copyOf(packed, 64), Arrays.copyOf(collapsedSimd, 64));
+    }
+
+    public void testExpandLongs8To32() {
+        long[] packed = new long[64];
+        for (int i = 0; i < 16; i++) {
+            packed[i] = random().nextLong();
+        }
+        long[] ref = Arrays.copyOf(packed, packed.length);
+        long[] simd = Arrays.copyOf(packed, packed.length);
+
+        defaultedProvider.getVectorUtilSupport().expandLongs8To32(ref, 0);
+        defOrPanamaProvider.getVectorUtilSupport().expandLongs8To32(simd, 0);
+        assertArrayEquals(ref, simd);
+    }
+
+    public void testExpandLongs16To32() {
+        long[] packed = new long[64];
+        for (int i = 0; i < 32; i++) {
+            packed[i] = random().nextLong();
+        }
+        long[] ref = Arrays.copyOf(packed, packed.length);
+        long[] simd = Arrays.copyOf(packed, packed.length);
+
+        defaultedProvider.getVectorUtilSupport().expandLongs16To32(ref, 0);
+        defOrPanamaProvider.getVectorUtilSupport().expandLongs16To32(simd, 0);
+        assertArrayEquals(ref, simd);
+    }
+
+    public void testExpandCollapseLongs32WithOffset() {
+        // test with a non-zero offset to exercise that code path
+        long[] packed = new long[256];
+        int offset = 128;
+        for (int i = 0; i < 64; i++) {
+            packed[offset + i] = random().nextLong();
+        }
+        long[] ref = Arrays.copyOf(packed, packed.length);
+        long[] simd = Arrays.copyOf(packed, packed.length);
+
+        defaultedProvider.getVectorUtilSupport().expandLongs32(ref, offset);
+        defOrPanamaProvider.getVectorUtilSupport().expandLongs32(simd, offset);
+        assertArrayEquals(ref, simd);
+
+        long[] collapsed = Arrays.copyOf(ref, ref.length);
+        defaultedProvider.getVectorUtilSupport().collapseLongs32(collapsed, offset);
+        assertArrayEquals(Arrays.copyOfRange(packed, offset, offset + 64), Arrays.copyOfRange(collapsed, offset, offset + 64));
+    }
 }

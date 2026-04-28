@@ -11,8 +11,11 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.codec.ForUtil;
+import org.elasticsearch.index.codec.SimdForUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
@@ -48,8 +51,8 @@ public final class DocValuesForUtil {
     }
 
     public void encode(long[] in, int bitsPerValue, final DataOutput out) throws IOException {
-        if (bitsPerValue <= 24) { // these bpvs are handled efficiently by ForUtil
-            ForUtil.encode(in, bitsPerValue, out);
+        if (bitsPerValue <= 24) { // these bpvs are handled efficiently by SimdForUtil
+            SimdForUtil.encode(in, bitsPerValue, out);
         } else if (bitsPerValue <= 32) {
             for (int k = 0; k < blockSize >> ForUtil.BLOCK_SIZE_SHIFT; k++) {
                 collapse32(in, k * ForUtil.BLOCK_SIZE);
@@ -77,7 +80,7 @@ public final class DocValuesForUtil {
 
     public void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         if (bitsPerValue <= 24) {
-            ForUtil.decode(bitsPerValue, in, out);
+            SimdForUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {
             for (int k = 0; k < blockSize >> ForUtil.BLOCK_SIZE_SHIFT; k++) {
                 in.readLongs(out, k * ForUtil.BLOCK_SIZE, ForUtil.BLOCK_SIZE / 2);
@@ -94,24 +97,18 @@ public final class DocValuesForUtil {
     private void decodeFiveSixOrSevenBytesPerValue(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         // NOTE: we expect multibyte values to be written "least significant byte" first
         int bytesPerValue = bitsPerValue / Byte.SIZE;
-        long mask = (1L << bitsPerValue) - 1;
         in.readBytes(this.encoded, 0, bytesPerValue * blockSize);
-        for (int i = 0; i < blockSize; ++i) {
-            out[i] = ByteUtils.readLongLE(this.encoded, i * bytesPerValue) & mask;
+        long mask = (1L << bitsPerValue) - 1;
+        for (int i = 0, byteOffset = 0; i < blockSize; i++, byteOffset += bytesPerValue) {
+            out[i] = (long) BitUtil.VH_LE_LONG.get(this.encoded, byteOffset) & mask;
         }
     }
 
     private static void collapse32(long[] arr, int offset) {
-        for (int i = 0; i < 64; ++i) {
-            arr[i + offset] = (arr[i + offset] << 32) | arr[64 + i + offset];
-        }
+        ESVectorUtil.collapseLongs32(arr, offset);
     }
 
     private static void expand32(long[] arr, int offset) {
-        for (int i = 0; i < 64; ++i) {
-            long l = arr[i + offset];
-            arr[i + offset] = l >>> 32;
-            arr[64 + i + offset] = l & 0xFFFFFFFFL;
-        }
+        ESVectorUtil.expandLongs32(arr, offset);
     }
 }

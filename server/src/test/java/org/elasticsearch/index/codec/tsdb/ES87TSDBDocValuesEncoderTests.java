@@ -16,12 +16,18 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.logging.LogConfigurator;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
 public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
+    }
 
     private final TSDBDocValuesEncoder encoder;
     private final int blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;

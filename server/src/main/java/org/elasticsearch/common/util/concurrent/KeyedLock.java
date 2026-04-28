@@ -204,8 +204,14 @@ public final class KeyedLock<T> {
 
         @Override
         void lock() {
+            final Thread current = Thread.currentThread();
+            if (owner == current) {
+                var message = "deadlock: thread [" + current.getName() + "] already has the semaphore";
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
             semaphore.acquireUninterruptibly();
-            owner = Thread.currentThread();
+            owner = current;
         }
 
         @Override

@@ -776,12 +776,37 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testAggregateMetricDoubleNotAllowedInLimitBy() {
+    public void testUnsupportedGroupKeyTypesNotAllowedInLimitBy() {
         analyzer().addK8sDownsampled()
             .stripErrorPrefix(true)
             .error(
                 "FROM k8s | LIMIT 1 BY network.eth0.tx",
                 equalTo("1:23: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM exp_histo_sample | LIMIT 1 BY responseTime",
+                equalTo("1:36: cannot group by on [exponential_histogram] type for grouping [responseTime]")
+            );
+        tsdb().error(
+            "FROM test | LIMIT 1 BY network.bytes_in",
+            equalTo("1:24: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+    }
+
+    public void testUnsupportedGroupKeyTypesNotAllowedInStatsBy() {
+        analyzer().addK8sDownsampled()
+            .stripErrorPrefix(true)
+            .error(
+                "FROM k8s | STATS count(*) BY network.eth0.tx",
+                equalTo("1:30: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM exp_histo_sample | STATS count(*) BY responseTime",
+                equalTo("1:43: cannot group by on [exponential_histogram] type for grouping [responseTime]")
             );
     }
 

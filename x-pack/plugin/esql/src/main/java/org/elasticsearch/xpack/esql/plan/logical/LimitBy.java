@@ -22,8 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.plan.logical.Aggregate.checkUnsupportedGroupingType;
 
 /**
  * Retains at most N rows per group defined by one or more grouping key expressions.
@@ -115,11 +114,7 @@ public class LimitBy extends UnaryPlan implements PostAnalysisVerificationAware,
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        groupings.forEach(e -> {
-            if (e.dataType() == AGGREGATE_METRIC_DOUBLE) {
-                failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
-            }
-        });
+        groupings.forEach(e -> checkUnsupportedGroupingType(e, failures));
     }
 
     @Override

@@ -2,5 +2,5 @@ area: ES|QL
 issues:
   - 147596
 pr: 147650
-summary: "ESQL: Validate `aggregate_metric_double` in `LIMIT BY`"
+summary: "ESQL: Validate unsupported grouping types earlier"
 type: bug

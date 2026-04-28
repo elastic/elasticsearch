@@ -499,7 +499,12 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             AtomicBoolean releasableClosed = new AtomicBoolean(false);
             Releasable releasable = () -> releasableClosed.set(true);
 
-            stream.writeChunk(createChunk(0, 5, 0), releasable);
+            FetchPhaseResponseChunk chunk = createChunk(0, 5, 0);
+            try {
+                stream.writeChunk(chunk, releasable);
+            } finally {
+                chunk.close();
+            }
 
             assertTrue("Releasable should be closed after successful write", releasableClosed.get());
         } finally {
@@ -519,10 +524,12 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             AtomicBoolean releasableClosed = new AtomicBoolean(false);
             Releasable releasable = () -> releasableClosed.set(true);
 
-            expectThrows(
-                CircuitBreakingException.class,
-                () -> { stream.writeChunk(createChunkWithSourceSize(0, 5, 0, 10000), releasable); }
-            );
+            FetchPhaseResponseChunk chunk = createChunkWithSourceSize(0, 5, 0, 10000);
+            try {
+                expectThrows(CircuitBreakingException.class, () -> stream.writeChunk(chunk, releasable));
+            } finally {
+                chunk.close();
+            }
 
             assertFalse("Releasable should not be closed on failure", releasableClosed.get());
         } finally {
@@ -539,10 +546,11 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         AtomicBoolean releasableClosed = new AtomicBoolean(false);
 
         try {
-            CircuitBreakingException e = expectThrows(
-                CircuitBreakingException.class,
-                () -> stream.writeChunk(chunk, () -> releasableClosed.set(true))
-            );
+            try {
+                expectThrows(CircuitBreakingException.class, () -> stream.writeChunk(chunk, () -> releasableClosed.set(true)));
+            } finally {
+                chunk.close();
+            }
 
             assertFalse("Releasable should not be closed on failure", releasableClosed.get());
             assertThat("No bytes should be tracked on breaker trip", breaker.getUsed(), equalTo(0L));
@@ -734,7 +742,11 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     private void writeChunk(FetchPhaseResponseStream stream, FetchPhaseResponseChunk chunk) throws IOException {
-        stream.writeChunk(chunk, () -> {});
+        try {
+            stream.writeChunk(chunk, () -> {});
+        } finally {
+            chunk.close();
+        }
     }
 
 }

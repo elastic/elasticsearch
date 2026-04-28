@@ -20,6 +20,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.ScorerSupplier;
@@ -30,6 +31,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOSupplier;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -42,6 +44,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
     private final int sliceOrd;
     private final IOSupplier<SliceAcceptDocs> sliceAcceptDocsSupplier;
+    private SliceAcceptDocs sliceAcceptDocsCache;
 
     protected ESAcceptDocs(int sliceOrd, IOSupplier<SliceAcceptDocs> sliceAcceptDocsSupplier) {
         this.sliceOrd = sliceOrd;
@@ -61,7 +64,17 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
     }
 
     public final SliceAcceptDocs sliceAcceptDocs() throws IOException {
-        return sliceAcceptDocsSupplier.get();
+        return Objects.requireNonNull(sliceAcceptDocsOrNull(), "sliceAcceptDocs is not available");
+    }
+
+    protected final SliceAcceptDocs sliceAcceptDocsOrNull() throws IOException {
+        if (sliceOrd < 0 || sliceAcceptDocsSupplier == null) {
+            return null;
+        }
+        if (sliceAcceptDocsCache == null) {
+            sliceAcceptDocsCache = sliceAcceptDocsSupplier.get();
+        }
+        return sliceAcceptDocsCache;
     }
 
     protected static BitSet createBitSet(DocIdSetIterator iterator, Bits liveDocs, int maxDoc) throws IOException {
@@ -88,7 +101,93 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
     }
 
-    public record SliceAcceptDocs(int startDoc, int endDoc) {}
+    private static BitSet sliceBitSet(BitSet bitSet, SliceAcceptDocs slice) {
+        if (slice != null) {
+            int startDoc = Math.max(0, slice.startDoc());
+            int endDoc = Math.min(bitSet.length() - 1, slice.endDoc());
+            bitSet.clear(0, startDoc);
+            bitSet.clear(endDoc + 1, bitSet.length());
+        }
+        return bitSet;
+    }
+
+    public record SliceAcceptDocs(int startDoc, int endDoc) {
+        public SliceAcceptDocs {
+            if (startDoc < 0) {
+                throw new IllegalArgumentException("startDoc must be non-negative");
+            }
+            if (endDoc < startDoc) {
+                throw new IllegalArgumentException("endDoc must be greater than or equal to startDoc");
+            }
+        }
+    }
+
+    private static Bits sliceBits(Bits bits, SliceAcceptDocs slice) {
+        if (slice == null) {
+            return bits;
+        }
+        return new SliceBits(bits, slice);
+    }
+
+    private static DocIdSetIterator sliceIterator(DocIdSetIterator iterator, SliceAcceptDocs slice) {
+        if (slice == null) {
+            return iterator;
+        }
+        int startDoc = slice.startDoc();
+        int endDoc = slice.endDoc();
+        DocIdSetIterator sliceIterator = DocIdSetIterator.range(startDoc, endDoc + 1);
+        return ConjunctionUtils.intersectIterators(List.of(iterator, sliceIterator));
+    }
+
+    private static int countBitsInRange(Bits bits, SliceAcceptDocs slice) {
+        int maxDoc = bits.length() - 1;
+        int startDoc = Math.max(0, slice.startDoc());
+        int endDoc = Math.min(maxDoc, slice.endDoc());
+        if (bits instanceof BitSet bitSet) {
+            return countBitsInRange(bitSet, startDoc, endDoc);
+        }
+        int count = 0;
+        for (int doc = startDoc; doc <= endDoc; doc++) {
+            if (bits.get(doc)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int countBitsInRange(BitSet bitSet, int startDoc, int endDoc) {
+        if (bitSet instanceof FixedBitSet fixedBitSet) {
+            return fixedBitSet.cardinality(startDoc, endDoc + 1);
+        }
+        int count = 0;
+        for (int doc = bitSet.nextSetBit(startDoc); doc != NO_MORE_DOCS && doc <= endDoc; doc = bitSet.nextSetBit(doc + 1)) {
+            count++;
+        }
+        return count;
+    }
+
+    private static final class SliceBits implements Bits {
+        private final Bits bits;
+        private final int startDoc;
+        private final int endDoc;
+
+        private SliceBits(Bits bits, SliceAcceptDocs slice) {
+            this.bits = bits;
+            int maxDoc = bits.length() - 1;
+            this.startDoc = Math.max(0, slice.startDoc());
+            this.endDoc = Math.min(maxDoc, slice.endDoc());
+        }
+
+        @Override
+        public boolean get(int index) {
+            return index >= startDoc && index <= endDoc && bits.get(index);
+        }
+
+        @Override
+        public int length() {
+            return bits.length();
+        }
+    }
 
     /** An AcceptDocs that accepts all documents. */
     public static final class ESAcceptDocsAll extends ESAcceptDocs {
@@ -102,7 +201,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
 
         @Override
-        public int approximateCost() throws IOException {
+        public int approximateCost() {
             return 0;
         }
 
@@ -128,6 +227,8 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         private final BitSet bitSetRef;
         private final int maxDoc;
         private final int approximateCost;
+        private Bits slicedBits;
+        private int sliceCost = -1;
 
         public BitsAcceptDocs(Bits bits, int maxDoc) {
             this(bits, maxDoc, -1, null);
@@ -151,33 +252,63 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
 
         @Override
-        public Bits bits() {
-            return bits;
-        }
-
-        @Override
-        public DocIdSetIterator iterator() {
-            if (bitSetRef != null) {
-                return new BitSetIterator(bitSetRef, maxDoc);
+        public Bits bits() throws IOException {
+            SliceAcceptDocs slice = sliceAcceptDocsOrNull();
+            if (slice == null) {
+                return bits;
             }
-            return new FilteredDocIdSetIterator(DocIdSetIterator.all(maxDoc)) {
-                @Override
-                protected boolean match(int doc) {
-                    return bits.get(doc);
-                }
-            };
+            if (slicedBits == null) {
+                slicedBits = sliceBits(bits, slice);
+            }
+            return slicedBits;
         }
 
         @Override
-        public int cost() {
-            // We have no better estimate. This should be ok in practice since background merges should
-            // keep the number of deletes under control (< 20% by default).
-            return maxDoc;
+        public DocIdSetIterator iterator() throws IOException {
+            DocIdSetIterator iterator;
+            if (bitSetRef != null) {
+                iterator = new BitSetIterator(bitSetRef, maxDoc);
+            } else {
+                iterator = new FilteredDocIdSetIterator(DocIdSetIterator.all(maxDoc)) {
+                    @Override
+                    protected boolean match(int doc) {
+                        return bits.get(doc);
+                    }
+                };
+            }
+            return sliceIterator(iterator, sliceAcceptDocsOrNull());
+        }
+
+        private int sliceCost() throws IOException {
+            if (sliceCost != -1) {
+                return sliceCost;
+            }
+            SliceAcceptDocs slice = sliceAcceptDocsOrNull();
+            if (slice == null) {
+                return maxDoc;
+            }
+            sliceCost = countBitsInRange(bits, slice);
+            return sliceCost;
         }
 
         @Override
-        public int approximateCost() {
-            return approximateCost;
+        public int cost() throws IOException {
+            SliceAcceptDocs slice = sliceAcceptDocsOrNull();
+            if (slice == null) {
+                // We have no better estimate. This should be ok in practice since background merges should
+                // keep the number of deletes under control (< 20% by default).
+                return maxDoc;
+            }
+            return sliceCost();
+        }
+
+        @Override
+        public int approximateCost() throws IOException {
+            SliceAcceptDocs slice = sliceAcceptDocsOrNull();
+            if (slice == null) {
+                return approximateCost;
+            }
+            return sliceCost();
         }
     }
 
@@ -206,15 +337,22 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             this.maxDoc = maxDoc;
         }
 
-        private void createBitSetIfNecessary() throws IOException {
+        private void createBitSetIfNecessary(SliceAcceptDocs slice) throws IOException {
             if (acceptBitSet == null) {
-                acceptBitSet = createBitSet(scorerSupplier.get(NO_MORE_DOCS).iterator(), liveDocs, maxDoc);
+                DocIdSetIterator iterator = scorerSupplier.get(NO_MORE_DOCS).iterator();
+                if (liveDocs == null && iterator instanceof BitSetIterator) {
+                    acceptBitSet = sliceBitSet(createBitSet(iterator, liveDocs, maxDoc), slice);
+                } else {
+                    iterator = sliceIterator(iterator, slice);
+                    acceptBitSet = createBitSet(iterator, liveDocs, maxDoc);
+                }
             }
         }
 
         @Override
         public Bits bits() throws IOException {
-            createBitSetIfNecessary();
+            SliceAcceptDocs slice = sliceAcceptDocsOrNull();
+            createBitSetIfNecessary(slice);
             return acceptBitSet;
         }
 
@@ -223,7 +361,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             if (acceptBitSet != null) {
                 return new BitSetIterator(acceptBitSet, cardinality);
             }
-            return liveDocs == null
+            DocIdSetIterator iterator = liveDocs == null
                 ? scorerSupplier.get(NO_MORE_DOCS).iterator()
                 : new FilteredDocIdSetIterator(scorerSupplier.get(NO_MORE_DOCS).iterator()) {
                     @Override
@@ -231,11 +369,13 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
                         return liveDocs.get(doc);
                     }
                 };
+            return sliceIterator(iterator, sliceAcceptDocsOrNull());
         }
 
         @Override
         public int cost() throws IOException {
-            createBitSetIfNecessary();
+            SliceAcceptDocs slice = sliceAcceptDocsOrNull();
+            createBitSetIfNecessary(slice);
             if (cardinality == -1) {
                 cardinality = acceptBitSet.cardinality();
             }
@@ -244,8 +384,16 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public int approximateCost() throws IOException {
+            if (cardinality != -1) {
+                return cardinality;
+            }
             if (acceptBitSet != null) {
-                return cardinality != -1 ? cardinality : acceptBitSet.approximateCardinality();
+                return acceptBitSet.approximateCardinality();
+            }
+            SliceAcceptDocs slice = sliceAcceptDocsOrNull();
+            if (slice != null) {
+                long sliceCost = slice.endDoc() - slice.startDoc() + 1;
+                return (int) Math.min(scorerSupplier.cost(), sliceCost);
             }
             return Math.toIntExact(scorerSupplier.cost());
         }

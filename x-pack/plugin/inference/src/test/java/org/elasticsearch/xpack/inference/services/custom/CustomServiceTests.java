@@ -131,7 +131,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 }
 
                 @Override
-                protected ModelSecrets createModelSecrets() {
+                protected ModelSecrets createModelSecrets(ConfigurationParseContext context) {
                     return new ModelSecrets(CustomSecretSettings.fromMap(createSecretSettingsMap()));
                 }
 

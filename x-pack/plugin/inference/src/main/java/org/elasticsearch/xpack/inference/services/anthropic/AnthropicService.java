@@ -20,15 +20,12 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -45,9 +42,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
 public class AnthropicService extends SenderService<AnthropicModel> {
@@ -75,55 +69,6 @@ public class AnthropicService extends SenderService<AnthropicModel> {
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public void parseRequestConfig(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        ActionListener<Model> parsedModelListener
-    ) {
-        try {
-            var serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            var taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-            var model = retrieveModelCreatorFromMapOrThrow(
-                MODEL_CREATORS,
-                inferenceEntityId,
-                taskType,
-                NAME,
-                ConfigurationParseContext.REQUEST
-            ).createFromMaps(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettingsMap,
-                taskSettingsMap,
-                null,
-                serviceSettingsMap,
-                ConfigurationParseContext.REQUEST
-            );
-
-            throwIfNotEmptyMap(config, NAME);
-            throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            throwIfNotEmptyMap(taskSettingsMap, NAME);
-
-            parsedModelListener.onResponse(model);
-        } catch (Exception e) {
-            parsedModelListener.onFailure(e);
-        }
-    }
-
-    @Override
-    public AnthropicModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return retrieveModelCreatorFromMapOrThrow(
-            MODEL_CREATORS,
-            config.getInferenceEntityId(),
-            config.getTaskType(),
-            config.getService(),
-            ConfigurationParseContext.REQUEST
-        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

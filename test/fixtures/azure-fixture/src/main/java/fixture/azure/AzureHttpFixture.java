@@ -14,10 +14,15 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
@@ -29,6 +34,8 @@ import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import javax.net.ssl.KeyManager;
@@ -51,6 +58,7 @@ public class AzureHttpFixture extends ExternalResource {
     private HttpServer server;
     private HttpServer metadataServer;
     private HttpServer oauthTokenServiceServer;
+    private ExecutorService executorService;
 
     // JWT-looking value for workload identity authentication -- the exact value has no inherent meaning
     private final String federatedToken = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9";
@@ -200,6 +208,16 @@ public class AzureHttpFixture extends ExternalResource {
                 this.metadataServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                 metadataServer.createContext("/", new AzureMetadataServiceHttpHandler(managedIdentityBearerToken));
                 metadataServer.start();
+                this.executorService = EsExecutors.newScaling(
+                    "azure-http-fixture",
+                    1,
+                    100,
+                    30,
+                    TimeUnit.SECONDS,
+                    true,
+                    TestEsExecutors.testOnlyDaemonThreadFactory("s3-http-fixture"),
+                    new ThreadContext(Settings.EMPTY)
+                );
             }
 
             switch (protocol) {
@@ -211,6 +229,7 @@ public class AzureHttpFixture extends ExternalResource {
                         "/" + account,
                         new AzureHttpHandler(account, container, actualAuthHeaderPredicate, leaseExpiryPredicate)
                     );
+                    server.setExecutor(executorService);
                     server.start();
 
                     oauthTokenServiceServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -243,6 +262,7 @@ public class AzureHttpFixture extends ExternalResource {
                             "/" + account,
                             new AzureHttpHandler(account, container, actualAuthHeaderPredicate, leaseExpiryPredicate)
                         );
+                        httpsServer.setExecutor(executorService);
                         httpsServer.start();
                     }
                     {
@@ -253,6 +273,7 @@ public class AzureHttpFixture extends ExternalResource {
                             "/",
                             new AzureOAuthTokenServiceHttpHandler(workloadIdentityBearerToken, federatedToken, tenantId, clientId)
                         );
+                        httpsServer.setExecutor(executorService);
                         httpsServer.start();
                     }
                 }
@@ -281,6 +302,7 @@ public class AzureHttpFixture extends ExternalResource {
             server.stop(0);
             metadataServer.stop(0);
             oauthTokenServiceServer.stop(0);
+            ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
         }
     }
 }

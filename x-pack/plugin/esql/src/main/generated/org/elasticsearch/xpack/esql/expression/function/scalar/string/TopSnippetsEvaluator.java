@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -30,7 +31,7 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator field;
 
-  private final ExpressionEvaluator query;
+  private final String queryString;
 
   private final ChunkingSettings chunkingSettings;
 
@@ -38,28 +39,29 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
 
   private final int numSnippets;
 
+  private final PassageFormatter highlightFormatter;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public TopSnippetsEvaluator(Source source, ExpressionEvaluator field, ExpressionEvaluator query,
+  public TopSnippetsEvaluator(Source source, ExpressionEvaluator field, String queryString,
       ChunkingSettings chunkingSettings, MemoryIndexChunkScorer scorer, int numSnippets,
-      DriverContext driverContext) {
+      PassageFormatter highlightFormatter, DriverContext driverContext) {
     this.source = source;
     this.field = field;
-    this.query = query;
+    this.queryString = queryString;
     this.chunkingSettings = chunkingSettings;
     this.scorer = scorer;
     this.numSnippets = numSnippets;
+    this.highlightFormatter = highlightFormatter;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock fieldBlock = (BytesRefBlock) field.eval(page)) {
-      try (BytesRefBlock queryBlock = (BytesRefBlock) query.eval(page)) {
-        return eval(page.getPositionCount(), fieldBlock, queryBlock);
-      }
+      return eval(page.getPositionCount(), fieldBlock);
     }
   }
 
@@ -67,18 +69,14 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += field.baseRamBytesUsed();
-    baseRamBytesUsed += query.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock, BytesRefBlock queryBlock) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!fieldBlock.isNull(p)) {
-          allBlocksAreNulls = false;
-        }
-        if (!queryBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
         if (allBlocksAreNulls) {
@@ -86,7 +84,7 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
           continue position;
         }
         try {
-          TopSnippets.process(result, p, fieldBlock, queryBlock, this.chunkingSettings, this.scorer, this.numSnippets);
+          TopSnippets.process(result, p, fieldBlock, this.queryString, this.chunkingSettings, this.scorer, this.numSnippets, this.highlightFormatter);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -98,12 +96,12 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "TopSnippetsEvaluator[" + "field=" + field + ", query=" + query + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + "]";
+    return "TopSnippetsEvaluator[" + "field=" + field + ", queryString=" + queryString + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(field, query);
+    Releasables.closeExpectNoException(field);
   }
 
   private Warnings warnings() {
@@ -118,7 +116,7 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory field;
 
-    private final ExpressionEvaluator.Factory query;
+    private final String queryString;
 
     private final ChunkingSettings chunkingSettings;
 
@@ -126,25 +124,28 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
 
     private final int numSnippets;
 
-    public Factory(Source source, ExpressionEvaluator.Factory field,
-        ExpressionEvaluator.Factory query, ChunkingSettings chunkingSettings,
-        MemoryIndexChunkScorer scorer, int numSnippets) {
+    private final PassageFormatter highlightFormatter;
+
+    public Factory(Source source, ExpressionEvaluator.Factory field, String queryString,
+        ChunkingSettings chunkingSettings, MemoryIndexChunkScorer scorer, int numSnippets,
+        PassageFormatter highlightFormatter) {
       this.source = source;
       this.field = field;
-      this.query = query;
+      this.queryString = queryString;
       this.chunkingSettings = chunkingSettings;
       this.scorer = scorer;
       this.numSnippets = numSnippets;
+      this.highlightFormatter = highlightFormatter;
     }
 
     @Override
     public TopSnippetsEvaluator get(DriverContext context) {
-      return new TopSnippetsEvaluator(source, field.get(context), query.get(context), chunkingSettings, scorer, numSnippets, context);
+      return new TopSnippetsEvaluator(source, field.get(context), queryString, chunkingSettings, scorer, numSnippets, highlightFormatter, context);
     }
 
     @Override
     public String toString() {
-      return "TopSnippetsEvaluator[" + "field=" + field + ", query=" + query + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + "]";
+      return "TopSnippetsEvaluator[" + "field=" + field + ", queryString=" + queryString + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + "]";
     }
   }
 }

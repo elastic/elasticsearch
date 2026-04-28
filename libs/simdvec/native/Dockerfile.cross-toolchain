@@ -21,8 +21,9 @@
 FROM debian:trixie-slim
 
 # clang-21 from the official LLVM apt repository.
-# libstdc++-14-dev-arm64-cross provides the aarch64 sysroot (C++ headers + libs)
-# for cross-compiling Linux aarch64 from x64.
+# Cross sysroots: libstdc++-14-dev-{arm64,amd64}-cross provide C++ headers + libs
+# for cross-compiling to the other architecture regardless of host platform.
+# This image is built for both linux/amd64 and linux/arm64.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         gnupg \
@@ -40,4 +41,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         lld-21 \
         llvm-21 \
         libstdc++-14-dev-arm64-cross \
+        libstdc++-14-dev-amd64-cross \
     && rm -rf /var/lib/apt/lists/*

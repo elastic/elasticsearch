@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 146071
+summary: Remove Lucene99FlatBulkScoringVectorsReader
+type: bug

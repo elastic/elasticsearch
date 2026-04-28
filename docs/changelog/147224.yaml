@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 147224
+summary: Use IOContext to detect random access for bloom filters
+type: enhancement

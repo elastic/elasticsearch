@@ -150,11 +150,15 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
                 client.respond(TransportSearchAction.TYPE, searchResponse);
             }
 
-            for (int i = 0; i < randomIntBetween(1, 10); ++i) {
+            int scrollCount = randomIntBetween(1, 10);
+            for (int i = 0; i < scrollCount; ++i) {
                 PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
                 assertNotNull(asyncResponse);
                 assertEquals(responses.size(), 0);
                 assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
+                for (PaginatedHitSource.Hit hit : asyncResponse.response().getHits()) {
+                    hit.release();
+                }
                 asyncResponse.done(TimeValue.ZERO);
 
                 for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
@@ -166,11 +170,14 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
                     ++expectedSearchRetries;
                 }
 
-                searchResponse.decRef();
-                searchResponse = createSearchResponse();
-                try (var ignored = threadContext.newStoredContext()) {
-                    threadContext.putHeader(testHeaderName, randomIdentifier());
-                    client.respond(TransportSearchScrollAction.TYPE, searchResponse);
+                // Only send the next scroll response if there will be another iteration to poll and release it
+                if (i + 1 < scrollCount) {
+                    searchResponse.decRef();
+                    searchResponse = createSearchResponse();
+                    try (var ignored = threadContext.newStoredContext()) {
+                        threadContext.putHeader(testHeaderName, randomIdentifier());
+                        client.respond(TransportSearchScrollAction.TYPE, searchResponse);
+                    }
                 }
             }
 
@@ -280,14 +287,14 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
     }
 
     private SearchResponse createSearchResponse() {
-        // create a simulated response.
-        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
-        SearchHits hits = SearchHits.unpooled(
-            IntStream.range(0, randomIntBetween(0, 20)).mapToObj(i -> hit).toArray(SearchHit[]::new),
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            0
-        );
-        return SearchResponseUtils.response(hits).scrollId(randomSimpleString(random(), 1, 10)).shards(5, 4, 0).build();
+        int size = randomIntBetween(0, 20);
+        SearchHit[] hitArray = IntStream.range(0, size)
+            .mapToObj(i -> new SearchHit(i, "id").sourceRef(new BytesArray("{}")))
+            .toArray(SearchHit[]::new);
+        SearchHits hits = new SearchHits(hitArray, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0);
+        SearchResponse response = SearchResponseUtils.response(hits).scrollId(randomSimpleString(random(), 1, 10)).shards(5, 4, 0).build();
+        hits.decRef(); // transfer ownership to response
+        return response;
     }
 
     private void assertSameHits(List<? extends PaginatedHitSource.Hit> actual, SearchHit[] expected) {

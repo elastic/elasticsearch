@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -24,6 +25,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import java.io.IOException;
 
 import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
+import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.ESTestCase.safeGet;
 import static org.hamcrest.Matchers.equalTo;
@@ -178,6 +180,38 @@ public final class SequenceNumbersTestUtils {
     }
 
     /**
+     * Waits until the minimum retained sequence number on the primary shard of the given index has advanced
+     * to at least the expected value.
+     *
+     * Calling `getMinRetainedSeqNo()` directly on the shard advances the cached value whenever the retention
+     * lock is not held. This method retries via `assertBusy` to find such a window, ensuring the value is
+     * stored durably.
+     *
+     * @param cluster          the cluster containing the index
+     * @param indexName        the index to check
+     * @param expectedSeqNo    the expected minimum retained sequence number
+     */
+    public static void assertMinRetainedSeqNoAdvanced(InternalTestCluster cluster, String indexName, long expectedSeqNo) throws Exception {
+        assertBusy(() -> {
+            for (var indicesService : cluster.getDataNodeInstances(IndicesService.class)) {
+                for (var indexService : indicesService) {
+                    if (indexService.index().getName().equals(indexName)) {
+                        for (var indexShard : indexService) {
+                            if (indexShard.routingEntry().primary() && indexShard.routingEntry().active()) {
+                                assertThat(
+                                    "min retained seq no on " + indexShard.shardId() + " should have advanced",
+                                    indexShard.getMinRetainedSeqNo(),
+                                    equalTo(expectedSeqNo)
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    /**
      * Waits until all retention leases on all shards of the given index have their retaining sequence number
      * equal to the expected value.
      *
@@ -186,7 +220,7 @@ public final class SequenceNumbersTestUtils {
      * @param expectedRetainingSeqNo    the expected retaining sequence number for every lease
      */
     public static void assertRetentionLeasesAdvanced(Client client, String indexName, long expectedRetainingSeqNo) throws Exception {
-        ESIntegTestCase.assertBusy(() -> {
+        assertBusy(() -> {
             var stats = client.admin().indices().prepareStats(indexName).get();
             for (var shardStats : stats.getShards()) {
                 for (RetentionLease lease : shardStats.getRetentionLeaseStats().retentionLeases().leases()) {
@@ -208,7 +242,7 @@ public final class SequenceNumbersTestUtils {
      *
      * Uses the default {@link ESIntegTestCase#internalCluster()}.
      */
-    public static void persistGlobalCheckpointOnPrimaryShards(String index) {
+    public static void persistGlobalCheckpointOnPrimaryShards(String index) throws Exception {
         persistGlobalCheckpointOnPrimaryShards(internalCluster(), index);
     }
 
@@ -219,40 +253,51 @@ public final class SequenceNumbersTestUtils {
      * This helper method is useful if you do not use replicas in your test setup.
      *
      * @param cluster the cluster containing the index
-     * @param index   the name of the index
+     * @param indexName   the name of the index
      */
-    public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String index) {
+    public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String indexName) throws Exception {
         final var future = new PlainActionFuture<Void>();
         try (var listeners = new RefCountingListener(future)) {
-            for (String node : cluster.nodesInclude(index)) {
-                for (IndexService indexService : cluster.getInstance(IndicesService.class, node)) {
-                    for (IndexShard indexShard : indexService) {
-                        if (indexShard.routingEntry().primary() == false) {
-                            continue;
-                        }
-                        assertThat(
-                            "Shard " + indexShard.getShardUuid() + " should be active",
-                            indexShard.routingEntry().active(),
-                            equalTo(true)
-                        );
-
-                        final var globalCheckpoint = indexShard.withEngine(Engine::getMaxSeqNo);
-                        final var listener = listeners.acquire(
-                            ignored -> assertThat(
-                                "Global checkpoint not synced for shard: " + indexShard.routingEntry(),
-                                indexShard.getLastSyncedGlobalCheckpoint(),
-                                equalTo(globalCheckpoint)
-                            )
-                        );
-                        indexShard.syncGlobalCheckpoint(globalCheckpoint, e -> {
-                            if (e == null) {
-                                listener.onResponse(null);
-                            } else {
-                                listener.onFailure(e);
-                            }
-                        });
+            for (String node : cluster.nodesInclude(indexName)) {
+                final var index = cluster.clusterService().state().metadata().getProject().index(indexName).getIndex();
+                IndexService indexService = cluster.getInstance(IndicesService.class, node).indexServiceSafe(index);
+                for (IndexShard indexShard : indexService) {
+                    if (indexShard.routingEntry().primary() == false) {
+                        continue;
                     }
+                    assertThat(
+                        "Shard " + indexShard.getShardUuid() + " should be active",
+                        indexShard.routingEntry().active(),
+                        equalTo(true)
+                    );
+
+                    final var maxSeqNo = indexShard.withEngine(Engine::getMaxSeqNo);
+
+                    indexShard.sync(); // sync to ensure local checkpoint is processed
+
+                    if (indexShard.getTranslogDurability() == Translog.Durability.ASYNC) {
+                        // in the async case, there is a background process that updates the global checkpoint.
+                        // We need to wait for that process to run. Alternatively, we could use indexShard.updateLocalCheckpointForShard
+                        // to enforce a sync but this would be a bit hacky.
+                        assertBusy(() -> assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(maxSeqNo)));
+                    }
+
+                    final var listener = listeners.acquire(
+                        ignored -> assertThat(
+                            "Global checkpoint not synced for shard: " + indexShard.routingEntry(),
+                            indexShard.getLastSyncedGlobalCheckpoint(),
+                            equalTo(maxSeqNo)
+                        )
+                    );
+                    indexShard.syncGlobalCheckpoint(maxSeqNo, e -> {
+                        if (e == null) {
+                            listener.onResponse(null);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    });
                 }
+
             }
         }
         safeGet(future);

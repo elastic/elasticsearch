@@ -107,7 +107,7 @@ public record SemanticTextField(
         return getChunksFieldName(fieldName) + "." + CHUNKED_OFFSET_FIELD;
     }
 
-    record ParserContext(boolean useLegacyFormat, String fieldName, XContentType xContentType) {}
+    protected record ParserContext(boolean useLegacyFormat, String fieldName, XContentType xContentType) {}
 
     static SemanticTextField parse(XContentParser parser, ParserContext context) throws IOException {
         return SEMANTIC_TEXT_FIELD_PARSER.parse(parser, context);

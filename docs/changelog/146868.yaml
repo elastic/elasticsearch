@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 146868
+summary: Pool `ClientHit` PIT hits via ref-counting
+type: enhancement

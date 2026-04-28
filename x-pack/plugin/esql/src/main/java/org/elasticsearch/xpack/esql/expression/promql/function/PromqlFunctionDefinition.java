@@ -11,14 +11,23 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateNanos;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 
 /**
  * Function definition record for registration and metadata.
@@ -55,6 +64,14 @@ public final class PromqlFunctionDefinition {
         UNSUPPORTED
     }
 
+    /**
+     * Builds an ES|QL expression for a PromQL date/time extraction function (e.g. year, month, day_of_month).
+     */
+    @FunctionalInterface
+    public interface DateTimeFunctionBuilder {
+        Expression build(Source source, Expression date, Configuration configuration);
+    }
+
     public record PromqlParamInfo(String name, PromqlDataType type, String description, boolean optional, boolean child) {
         public static PromqlParamInfo child(String name, PromqlDataType type, String description) {
             return new PromqlParamInfo(name, type, description, false, true);
@@ -66,6 +83,13 @@ public final class PromqlFunctionDefinition {
 
         public static PromqlParamInfo optional(String name, PromqlDataType type, String description) {
             return new PromqlParamInfo(name, type, description, true, false);
+        }
+
+        /**
+         * Creates a parameter that is both optional and acts as the primary child expression for the function.
+         */
+        public static PromqlParamInfo optionalChild(String name, PromqlDataType type, String description) {
+            return new PromqlParamInfo(name, type, description, true, true);
         }
     }
 
@@ -99,6 +123,10 @@ public final class PromqlFunctionDefinition {
 
         private static PromqlFunctionDefinition.PromqlFunctionArity range(int min, int max) {
             return min == max ? fixed(min) : new PromqlFunctionDefinition.PromqlFunctionArity(min, max);
+        }
+
+        private static PromqlFunctionDefinition.PromqlFunctionArity optional(int max) {
+            return new PromqlFunctionDefinition.PromqlFunctionArity(0, max);
         }
     }
 
@@ -178,6 +206,11 @@ public final class PromqlFunctionDefinition {
 
     public static final PromqlParamInfo RANGE_VECTOR = PromqlParamInfo.child("v", PromqlDataType.RANGE_VECTOR, "Range vector input.");
     public static final PromqlParamInfo INSTANT_VECTOR = PromqlParamInfo.child("v", PromqlDataType.INSTANT_VECTOR, "Instant vector input.");
+    public static final PromqlParamInfo INSTANT_VECTOR_OPTIONAL = PromqlParamInfo.optionalChild(
+        "v",
+        PromqlDataType.INSTANT_VECTOR,
+        "Optional instant vector input. If omitted, evaluation timestamp is used."
+    );
     public static final PromqlParamInfo SCALAR = PromqlParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
     public static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
     public static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
@@ -339,6 +372,37 @@ public final class PromqlFunctionDefinition {
             this.arity = PromqlFunctionArity.NONE;
             this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, ctx.step());
             this.params = List.of();
+            return this;
+        }
+
+        /**
+         * Builds a date/time extraction function that accepts an optional instant vector argument.
+         * When no argument is provided, the evaluation step timestamp (or fallback timestamp) is used.
+         * When the argument is a numeric value (seconds since epoch), it is converted to a datetime first.
+         */
+        public PromqlFunctionDefinition.Builder dateTime(DateTimeFunctionBuilder ctorRef) {
+            this.functionType = FunctionType.TIME_EXTRACTION;
+            this.arity = PromqlFunctionArity.optional(1);
+            this.builder = (source, target, ctx, extraParams) -> {
+                var step = ctx.step();
+                var defaultTimestamp = (step == null || isNull(step.dataType())) ? ctx.timestamp() : step;
+                var date = target == null ? defaultTimestamp : target;
+
+                if (isDateTime(date.dataType()) || isDateNanos(date.dataType())) {
+                    return ctorRef.build(source, date, ctx.configuration());
+                } else {
+                    return ctorRef.build(
+                        source,
+                        new ToDatetime(
+                            source,
+                            new Mul(source, new ToDouble(source, date), Literal.fromDouble(source, 1000.0)),
+                            ctx.configuration().withZoneId(ZoneOffset.UTC)
+                        ),
+                        ctx.configuration()
+                    );
+                }
+            };
+            this.params = List.of(INSTANT_VECTOR_OPTIONAL);
             return this;
         }
 

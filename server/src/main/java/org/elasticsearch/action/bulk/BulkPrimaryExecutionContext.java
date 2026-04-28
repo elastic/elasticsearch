@@ -321,6 +321,12 @@ class BulkPrimaryExecutionContext {
         assert executionResult != null && translatedResponse.getItemId() == executionResult.getItemId();
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
+        // If the primary is not searchable we know that we are in serverless and that we do not need to hold the request into memory
+        // anymore.
+        if (primary.routingEntry().isSearchable() == false) {
+            requestToExecute = null;
+        }
+
         if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent()) {
             request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
         }
@@ -332,10 +338,12 @@ class BulkPrimaryExecutionContext {
     /** builds the bulk shard response to return to the user */
     public BulkShardResponse buildShardResponse() {
         assert hasMoreOperationsToExecute() == false;
-        return new BulkShardResponse(
-            request.shardId(),
-            Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new)
-        );
+        final BulkItemRequest[] requests = request.items();
+        final BulkItemResponse[] responses = new BulkItemResponse[requests.length];
+        for (int i = 0; i < responses.length; i++) {
+            responses[i] = requests[i].getPrimaryResponse();
+        }
+        return new BulkShardResponse(request.shardId(), responses);
     }
 
     private boolean assertInvariants(ItemProcessingState... expectedCurrentState) {
@@ -361,7 +369,7 @@ class BulkPrimaryExecutionContext {
                 assert executionResult != null;
                 break;
             case COMPLETED:
-                assert requestToExecute != null;
+                // requestToExecute can be null if the primary is not searchable (serverless)
                 assert executionResult != null;
                 assert getCurrentItem().getPrimaryResponse() != null;
                 break;

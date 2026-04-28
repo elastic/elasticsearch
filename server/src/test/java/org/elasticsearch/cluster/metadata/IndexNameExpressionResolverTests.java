@@ -3407,6 +3407,115 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         };
     }
 
+    public void testDatasetNames() {
+        // Parallel to testViewNames — verifies the resolver treats datasets the same way as views when resolveDatasets()
+        // is on: exact-name and wildcard resolution via the datasets() accessor, and isolation from indices with
+        // similar names.
+        final String dataset1Name = "my-dataset-1";
+        final String dataset2Name = "other-dataset-2";
+        Dataset dataset1 = new Dataset(dataset1Name, new DataSourceReference("ds-source"), "s3://bucket/logs/*.parquet", null, Map.of());
+        Dataset dataset2 = new Dataset(dataset2Name, new DataSourceReference("ds-source"), "s3://bucket/metrics/*.parquet", null, Map.of());
+
+        final IndicesOptions defaultDatasetOptions = IndicesOptions.builder()
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).build())
+            .build();
+
+        IndexMetadata justAnIndex = IndexMetadata.builder("my-dataset-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        ProjectMetadata project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
+            .put(justAnIndex, false)
+            .datasets(Map.of(dataset1Name, dataset1, dataset2Name, dataset2))
+            .build();
+
+        // Concrete dataset name resolves to a single dataset
+        List<String> datasets = indexNameExpressionResolver.datasets(
+            project,
+            defaultDatasetOptions,
+            viewRequest(defaultDatasetOptions, dataset1Name)
+        );
+        assertThat(datasets, contains(dataset1Name));
+
+        // Both concrete dataset names
+        datasets = indexNameExpressionResolver.datasets(
+            project,
+            defaultDatasetOptions,
+            viewRequest(defaultDatasetOptions, dataset1Name, dataset2Name)
+        );
+        assertThat(datasets, containsInAnyOrder(dataset1Name, dataset2Name));
+
+        // Wildcard matching all datasets
+        datasets = indexNameExpressionResolver.datasets(project, defaultDatasetOptions, viewRequest(defaultDatasetOptions, "*dataset*"));
+        assertThat(datasets, containsInAnyOrder(dataset1Name, dataset2Name));
+
+        // Wildcard matching one dataset
+        datasets = indexNameExpressionResolver.datasets(project, defaultDatasetOptions, viewRequest(defaultDatasetOptions, "my-*"));
+        assertThat(datasets, contains(dataset1Name));
+
+        // Index name does not appear in datasets()
+        datasets = indexNameExpressionResolver.datasets(
+            project,
+            defaultDatasetOptions,
+            viewRequest(defaultDatasetOptions, "my-dataset-index")
+        );
+        assertThat(datasets, empty());
+    }
+
+    public void testResolveAllIncludesDatasetsWithFlag() {
+        // Regression test for the early-return optimization in resolveAll: if the caller asks for no data streams,
+        // no aliases, no views, BUT wants datasets, the loop that includes datasets must still run. The pre-fix code
+        // returned the concrete-only list before checking resolveDatasets, silently dropping all datasets.
+        final String datasetName = "logs-dataset";
+        Dataset dataset = new Dataset(datasetName, new DataSourceReference("ds-source"), "s3://bucket/logs/*.parquet", null, Map.of());
+
+        IndexMetadata idx = IndexMetadata.builder("concrete-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        ProjectMetadata project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
+            .put(idx, false)
+            .datasets(Map.of(datasetName, dataset))
+            .build();
+
+        // Exact combo that previously triggered the bug: no data streams, ignore aliases, no views, yes datasets.
+        // ignoreAliases() is derived from resolveAliases() == false, so we set resolveAliases=false here.
+        final IndicesOptions optionsExerciseEarlyReturn = IndicesOptions.builder()
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+            .indexAbstractionOptions(
+                IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).resolveViews(false).resolveDatasets(true).build()
+            )
+            .build();
+
+        List<String> datasets = indexNameExpressionResolver.datasets(
+            project,
+            optionsExerciseEarlyReturn,
+            viewRequest(optionsExerciseEarlyReturn, "*")
+        );
+        assertThat("dataset must still be resolved when only resolveDatasets is set", datasets, contains(datasetName));
+    }
+
+    public void testDatasetExcludedWhenResolveDatasetsFalse() {
+        // With the default resolveDatasets=false, a dataset name should NOT appear in dataset resolution.
+        final String datasetName = "my-dataset";
+        Dataset dataset = new Dataset(datasetName, new DataSourceReference("ds-source"), "s3://bucket/logs/*.parquet", null, Map.of());
+
+        ProjectMetadata project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).datasets(Map.of(datasetName, dataset)).build();
+
+        final IndicesOptions optionsNoDatasets = IndicesOptions.builder()
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(false).build())
+            .build();
+
+        List<String> datasets = indexNameExpressionResolver.datasets(project, optionsNoDatasets, viewRequest(optionsNoDatasets, "*"));
+        assertThat(datasets, empty());
+    }
+
     public void testDateMathMixedArray() {
         long now = System.currentTimeMillis();
         String dataMathIndex1 = ".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(now));

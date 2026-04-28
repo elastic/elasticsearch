@@ -12,18 +12,20 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
 
+import static java.util.stream.Collectors.toCollection;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.junit.Assert.assertEquals;
@@ -33,12 +35,11 @@ import static org.junit.Assert.assertTrue;
  * Integration tests for <em>manual</em> reindex slicing.
  * <p>
  * During manual reindexing, the client issues separate {@link ReindexRequest}s, each specifying the
- * {@link SearchSourceBuilder#slice(SliceBuilder) slice} on the search body rather than
- * relying on the {@code slices} URL parameter to fan out parallel workers in one request.
- * Each slice restricts the search to a partition of matching documents. Running slice
- * {@code 0..max-1} in separate reindex calls eventually covers the same document set as a
- * single unsliced reindex, as long as the source query and slice parameters are consistent
- * across calls.es.
+ * {@link org.elasticsearch.search.builder.SearchSourceBuilder#slice(org.elasticsearch.search.slice.SliceBuilder) slice}
+ * on the search body rather than relying on the {@code slices} URL parameter to fan out parallel workers in one request.
+ * Each slice restricts the search to a partition of matching documents. Running slice {@code 0..max-1} in separate reindex
+ * calls eventually covers the same document set as a single unsliced reindex, as long as the source query and slice
+ * parameters are consistent across calls.
  */
 public class ManualSlicingReindexIT extends ESRestTestCase {
 
@@ -69,26 +70,80 @@ public class ManualSlicingReindexIT extends ESRestTestCase {
         bulkIndexSource(sourceIndex, docCount, 0);
         assertDocCount(client(), sourceIndex, docCount);
 
-        Map<String, Object> r0 = performReindex(sourceIndex, dest1, 0, 2);
-        assertNoReindexConflicts("slice 0 to dest1", r0);
-        assertTrue("slice 0 to dest1 should index some docs", reindexCreated(r0) > 0);
+        Map<String, Object> response0 = performReindex(sourceIndex, dest1, 0, 2);
+        assertNoReindexConflicts("slice 0 to dest1", response0);
+        assertTrue("slice 0 to dest1 should index some docs", reindexCreated(response0) > 0);
 
-        Map<String, Object> r1 = performReindex(sourceIndex, dest2, 1, 2);
-        assertNoReindexConflicts("slice 1 to dest2", r1);
-        assertTrue("slice 1 to dest2 should index some docs", reindexCreated(r1) > 0);
+        Map<String, Object> response1 = performReindex(sourceIndex, dest2, 1, 2);
+        assertNoReindexConflicts("slice 1 to dest2", response1);
+        assertTrue("slice 1 to dest2 should index some docs", reindexCreated(response1) > 0);
 
         bulkIndexSource(sourceIndex, docCount, 1);
 
-        Map<String, Object> r2 = performReindex(sourceIndex, dest1, 1, 2);
-        assertNoReindexConflicts("slice 1 to dest1 after bulk", r2);
-        assertTrue("slice 1 to dest1 should index some docs", reindexCreated(r2) > 0);
+        Map<String, Object> response2 = performReindex(sourceIndex, dest1, 1, 2);
+        assertNoReindexConflicts("slice 1 to dest1 after bulk", response2);
+        assertTrue("slice 1 to dest1 should index some docs", reindexCreated(response2) > 0);
 
-        Map<String, Object> r3 = performReindex(sourceIndex, dest2, 0, 2);
-        assertNoReindexConflicts("slice 0 to dest2 after bulk", r3);
-        assertTrue("slice 0 to dest2 should index some docs", reindexCreated(r3) > 0);
+        Map<String, Object> response3 = performReindex(sourceIndex, dest2, 0, 2);
+        assertNoReindexConflicts("slice 0 to dest2 after bulk", response3);
+        assertTrue("slice 0 to dest2 should index some docs", reindexCreated(response3) > 0);
 
         assertDestinationHasAllDocIds("dest1", dest1, docCount);
         assertDestinationHasAllDocIds("dest2", dest2, docCount);
+    }
+
+    /**
+     * Runs {@code numSlices} separate reindex calls (slice ids {@code 0 .. numSlices-1}) into one destination with
+     * {@code op_type: create}. The union of slices must cover every source document exactly once: total {@code created}
+     * equals {@code docCount} and the destination contains ids {@code "0"}..{@code docCount - 1}.
+     * Slice requests are issued in a random order since correctness should not depend on slice execution order.
+     */
+    public void testReindexManualSlicesRandomOrderToSameDestination() throws IOException {
+        int numShards = randomIntBetween(2, 5);
+        int numSlices = randomIntBetween(3, 7);
+        int docCount = randomIntBetween(150, 400);
+        String sourceIndex = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
+        String destIndex = randomValueOtherThan(
+            sourceIndex,
+            () -> randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT)
+        );
+
+        createIndex(sourceIndex, Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0).build());
+        bulkIndexSource(sourceIndex, docCount, 0);
+        assertDocCount(client(), sourceIndex, docCount);
+
+        List<Integer> order = IntStream.range(0, numSlices).boxed().collect(toCollection(ArrayList::new));
+        Collections.shuffle(order, random());
+        long totalCreated = 0;
+        for (int sliceId : order) {
+            Map<String, Object> response = performReindex(sourceIndex, destIndex, sliceId, numSlices);
+            assertNoReindexConflicts("slice " + sliceId + " (shuffled) to " + destIndex, response);
+            totalCreated += reindexCreated(response);
+        }
+        assertEquals("sum of created across manual slices should equal source doc count", docCount, totalCreated);
+        assertDestinationHasAllDocIds("random order same-dest", destIndex, docCount);
+    }
+
+    /**
+     * If a {@code slice.field} is not provided then it is defaulted to {@code _id}.
+     * This asserts reindexing is correct when setting this value manually
+     */
+    public void testReindexManualSlicesWithExplicitIdFieldInBody() throws IOException {
+        int docCount = randomIntBetween(100, 250);
+        String sourceIndex = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
+        String destIndex = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
+
+        createIndex(sourceIndex, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        bulkIndexSource(sourceIndex, docCount, 0);
+
+        long totalCreated = 0;
+        for (int sliceId = 0; sliceId < 2; sliceId++) {
+            Map<String, Object> r = performReindexExplicitSliceField(sourceIndex, destIndex, sliceId, 2, "_id");
+            assertNoReindexConflicts("explicit _id field slice " + sliceId, r);
+            totalCreated += reindexCreated(r);
+        }
+        assertEquals(docCount, totalCreated);
+        assertDestinationHasAllDocIds("explicit _id field", destIndex, docCount);
     }
 
     /**
@@ -119,6 +174,38 @@ public class ManualSlicingReindexIT extends ESRestTestCase {
               }
             }
             """, sourceIndex, sliceId, sliceMax, destIndex));
+        Response response = assertOK(client().performRequest(request));
+        return entityAsMap(response);
+    }
+
+    /**
+     * Like {@link #performReindex(String, String, int, int)} but includes {@code "field"} on {@code source.slice}.
+     */
+    private static Map<String, Object> performReindexExplicitSliceField(
+        String sourceIndex,
+        String destIndex,
+        int sliceId,
+        int sliceMax,
+        String sliceField
+    ) throws IOException {
+        Request request = new Request("POST", "/_reindex");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "source": {
+                "index": "%s",
+                "slice": {
+                  "field": "%s",
+                  "id": %d,
+                  "max": %d
+                }
+              },
+              "dest": {
+                "index": "%s",
+                "op_type": "create"
+              }
+            }
+            """, sourceIndex, sliceField, sliceId, sliceMax, destIndex));
         Response response = assertOK(client().performRequest(request));
         return entityAsMap(response);
     }

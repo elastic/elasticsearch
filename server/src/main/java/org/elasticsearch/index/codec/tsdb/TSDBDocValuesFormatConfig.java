@@ -139,5 +139,6 @@ public record TSDBDocValuesFormatConfig(
     public static final int VERSION_BINARY_DV_COMPRESSION = 1;
     public static final int VERSION_NUMERIC_LARGE_BLOCKS = 2;
     public static final int VERSION_PREFIX_PARTITIONS = 4;
-    public static final int VERSION_CURRENT = VERSION_PREFIX_PARTITIONS;
+    public static final int VERSION_SEPARATE_SKIPLIST = 5;
+    public static final int VERSION_CURRENT = VERSION_SEPARATE_SKIPLIST;
 }

@@ -32,7 +32,7 @@ public class PathInstrumentation implements InstrumentationConfig {
         List<? extends Class<? extends Path>> pathClasses = StreamSupport.stream(
             FileSystems.getDefault().getRootDirectories().spliterator(),
             false
-        ).map(Path::getClass).toList();
+        ).map(Path::getClass).distinct().toList();
 
         builder.on(pathClasses, rule -> {
             rule.calling(Path::toRealPath, LinkOption[].class).enforce((path, options) -> {

@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -176,38 +175,36 @@ public class ViewResolver {
                     // Plain UnionAll (from user-written subqueries) matches the Fork case below
                     // and its children are recursed into with proper seen-set scoping.
                     planListener.onResponse(viewUnion);
-                    return;
                 }
-                case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener.delegateFailureAndWrap((l, result) -> {
+                case Fork fork -> replaceViewsFork(
+                    fork,
+                    parser,
+                    seenInner,
+                    viewQueries,
+                    depth,
+                    planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
-                    }));
-                    return;
-                }
-                case UnresolvedRelation ur -> {
-                    replaceViewsUnresolvedRelation(
-                        ur,
-                        parser,
-                        seenInner,
-                        seenWildcards,
-                        viewQueries,
-                        depth,
-                        planListener.delegateFailureAndWrap((l, result) -> {
-                            plan.forEachDown(resolvedPlans::add);
-                            // Also mark the resolved result subtree so transformDown does not
-                            // re-process view-body nodes the UR was replaced with.
-                            result.forEachDown(resolvedPlans::add);
-                            l.onResponse(result);
-                        })
-                    );
-                    return;
-                }
-                default -> {
-                }
+                    })
+                );
+                case UnresolvedRelation ur -> replaceViewsUnresolvedRelation(
+                    ur,
+                    parser,
+                    seenInner,
+                    seenWildcards,
+                    viewQueries,
+                    depth,
+                    planListener.delegateFailureAndWrap((l, result) -> {
+                        plan.forEachDown(resolvedPlans::add);
+                        // Also mark the resolved result subtree so transformDown does not
+                        // re-process view-body nodes the UR was replaced with.
+                        result.forEachDown(resolvedPlans::add);
+                        l.onResponse(result);
+                    })
+                );
+                default -> planListener.onResponse(p);
             }
-            planListener.onResponse(p);
         }, listener);
     }
 
@@ -784,25 +781,6 @@ public class ViewResolver {
             }
         }
         flat.put(firstKey, merged);
-    }
-
-    private static UnresolvedRelation mergeUnresolvedRelations(Collection<UnresolvedRelation> unresolvedRelations) {
-        UnresolvedRelation template = unresolvedRelations.iterator().next();
-        if (unresolvedRelations.size() == 1) {
-            return template;
-        }
-        List<String> patterns = new ArrayList<>();
-        for (UnresolvedRelation ur : unresolvedRelations) {
-            patterns.add(ur.indexPattern().indexPattern());
-        }
-        return new UnresolvedRelation(
-            template.source(),
-            new IndexPattern(template.indexPattern().source(), String.join(",", patterns)),
-            template.frozen(),
-            template.metadataFields(),
-            template.indexMode(),
-            template.unresolvedMessage()
-        );
     }
 
     private void traceUnionAllBranches(int depth, Map<String, LogicalPlan> plans) {

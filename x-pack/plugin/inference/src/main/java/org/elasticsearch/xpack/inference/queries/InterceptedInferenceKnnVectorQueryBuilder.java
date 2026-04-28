@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
@@ -129,18 +131,35 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             query = textEmbeddingQueryVectorBuilder.getModelText();
         } else if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
             if (eqvb.getInferenceId() == null) {
-                if (eqvb.getInput().containsMultipleInferenceStrings() || eqvb.getInput().containsNonTextEntry()) {
+                if (eqvb.getInput().containsMultipleInferenceStrings()) {
                     throw new IllegalArgumentException(
-                        "[inference_id] must be specified when using multi-input or non-text input in an embedding query vector builder"
+                        "[inference_id] must be specified when using multiple inputs in an embedding query vector builder"
                     );
                 }
-                query = eqvb.getInput().textValue();
+                if (eqvb.getInput().containsNonTextEntry() == false) {
+                    // Otherwise, getQueryInput() will retrieve the data
+                    query = eqvb.getInput().textValue();
+                }
             }
         } else if (queryVectorBuilder != null) {
             throw new IllegalStateException("Query vector builder should have been rewritten to a query vector");
         }
 
         return query;
+    }
+
+    @Override
+    @Nullable
+    protected InferenceStringGroup getQueryInput() {
+        QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
+        if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
+            if (eqvb.getInferenceId() == null
+                && eqvb.getInput().containsNonTextEntry()
+                && eqvb.getInput().containsMultipleInferenceStrings() == false) {
+                return eqvb.getInput();
+            }
+        }
+        return null;
     }
 
     @Override

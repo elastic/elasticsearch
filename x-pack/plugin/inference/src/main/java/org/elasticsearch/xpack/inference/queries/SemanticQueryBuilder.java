@@ -371,6 +371,7 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
         InferenceQueryUtils.InferenceInfoRequest inferenceInfoRequest = new InferenceQueryUtils.InferenceInfoRequest(
             Map.of(fieldName, 1.0f),
             query,
+            null,
             inferenceResultsMap,
             false,
             false,

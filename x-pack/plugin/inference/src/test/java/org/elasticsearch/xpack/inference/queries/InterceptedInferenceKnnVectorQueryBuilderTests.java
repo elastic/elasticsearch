@@ -21,7 +21,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
@@ -308,6 +310,56 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         assertThat(dataRewrittenSemanticField, instanceOf(NestedQueryBuilder.class));
     }
 
+    public void testInterceptAndRewriteSemanticFieldWithImageInputAndInferredInferenceId() throws Exception {
+        assumeTrue("Test requires semantic field support", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
+
+        final String field = "test_field";
+        final TestIndex testIndex = new TestIndex("test-index-1", Map.of(field, EMBEDDING_INFERENCE_ID), Map.of());
+        final InferenceStringGroup imageInput = new InferenceStringGroup(
+            new InferenceString(DataType.IMAGE, "data:image/jpeg;base64,abcdef1234567890")
+        );
+        final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            field,
+            new EmbeddingQueryVectorBuilder(null, imageInput, null),
+            50,
+            500,
+            50f,
+            null
+        ).boost(3.0f).queryName("bar").addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, "test-index-*"));
+
+        // Perform coordinator node rewrite
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+            Map.of(testIndex.name(), testIndex.semanticTextFields()),
+            Map.of(),
+            TransportVersion.current(),
+            null
+        );
+        queryRewriteContext = instrumentQueryRewriteContext(queryRewriteContext, assertSingleUniqueAsyncAction(queryRewriteContext));
+
+        QueryBuilder coordinatorRewritten = rewriteAndFetch(knnQuery, queryRewriteContext);
+
+        // Use a serialization cycle to strip InterceptedQueryBuilderWrapper
+        coordinatorRewritten = copyNamedWriteable(coordinatorRewritten, writableRegistry(), QueryBuilder.class);
+
+        assertThat(coordinatorRewritten, instanceOf(InterceptedInferenceKnnVectorQueryBuilder.class));
+        InterceptedInferenceKnnVectorQueryBuilder interceptedKnn = (InterceptedInferenceKnnVectorQueryBuilder) coordinatorRewritten;
+        assertThat(interceptedKnn.inferenceResultsMap, notNullValue());
+        // Inference results are populated by InferenceQueryUtils (inference ID was inferred from the field)
+        assertThat(interceptedKnn.inferenceResultsMap.isEmpty(), is(false));
+        // Query vector should be null since the QVB was not executed standalone
+        assertThat(interceptedKnn.originalQuery.queryVector(), is((VectorData) null));
+
+        // Perform data node rewrite using a semantic field
+        final QueryRewriteContext indexMetadataContextSemanticField = createIndexMetadataContext(
+            testIndex.name(),
+            testIndex.semanticTextFields(),
+            testIndex.nonInferenceFields(),
+            SemanticFieldMapper.CONTENT_TYPE
+        );
+        QueryBuilder dataRewrittenSemanticField = rewriteAndFetch(coordinatorRewritten, indexMetadataContextSemanticField);
+        assertThat(dataRewrittenSemanticField, instanceOf(NestedQueryBuilder.class));
+    }
+
     public void testEmbeddingWithoutInferenceIdOnNonInferenceFieldThrows() {
         final String field = "test_field";
         final TestIndex testIndex = new TestIndex(
@@ -343,7 +395,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> rewriteAndFetch(knnQuery, queryRewriteContext));
-        assertThat(e.getMessage(), equalTo("[inference_id] must not be null."));
+        assertThat(e.getMessage(), equalTo("[inference_id] must be specified."));
     }
 
     public void testRewriteSearchRequestOnNonInferenceField() throws Exception {

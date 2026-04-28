@@ -14,12 +14,14 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
@@ -143,6 +145,17 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * @return The original query's query text
      */
     protected abstract String getQuery();
+
+    /**
+     * Get the query input as an {@link InferenceStringGroup}. Used for non-text inputs (e.g. images) that cannot be represented as a
+     * plain string via {@link #getQuery()}. Returns {@code null} by default; subclasses may override to supply a non-text input group.
+     *
+     * @return The query input, or {@code null} if the query input is a plain text string or not available
+     */
+    @Nullable
+    protected InferenceStringGroup getQueryInput() {
+        return null;
+    }
 
     /**
      * Rewrite to a backwards-compatible form of the query builder, depending on the value of
@@ -364,6 +377,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         InferenceQueryUtils.InferenceInfoRequest inferenceInfoRequest = new InferenceQueryUtils.InferenceInfoRequest(
             getFields(),
             getQuery(),
+            getQueryInput(),
             inferenceResultsMap,
             resolveWildcards(),
             useDefaultFields(),

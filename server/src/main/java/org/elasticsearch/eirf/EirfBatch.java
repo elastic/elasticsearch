@@ -120,6 +120,10 @@ public final class EirfBatch implements Releasable, Accountable {
         return schema;
     }
 
+    public BytesReference data() {
+        return data;
+    }
+
     public int columnCount() {
         return schema.leafCount();
     }

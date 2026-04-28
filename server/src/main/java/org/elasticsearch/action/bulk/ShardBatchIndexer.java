@@ -76,7 +76,7 @@ public final class ShardBatchIndexer {
         if (batchIndexingEnabled == false) {
             return false;
         }
-        if (request.getEirfBatch() == null) {
+        if (request.getBulkShardBatch() == null) {
             return false;
         }
         for (BulkItemRequest item : request.items()) {
@@ -293,7 +293,7 @@ public final class ShardBatchIndexer {
         return new ReplicaBatchResult(processedItems, location);
     }
 
-    private static BytesReference rowToSource(EirfRowReader row, EirfSchema schema, XContentType xContentType) throws IOException {
+    static BytesReference rowToSource(EirfRowReader row, EirfSchema schema, XContentType xContentType) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             EirfRowToXContent.writeRow(row, schema, builder);
             return BytesReference.bytes(builder);

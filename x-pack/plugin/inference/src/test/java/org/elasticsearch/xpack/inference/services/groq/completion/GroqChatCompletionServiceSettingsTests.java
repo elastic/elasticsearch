@@ -57,7 +57,7 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
         );
     }
 
-    public void testFromMap_OnlyMandatoryFields_UsesDefaultRateLimit_Success() {
+    public void testFromMap_OnlyMandatoryFields_UsesDefaultValues_Success() {
         var serviceSettings = GroqChatCompletionServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, null, null, null),
             randomFrom(ConfigurationParseContext.values())

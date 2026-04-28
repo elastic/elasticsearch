@@ -4042,5 +4042,5 @@ public class InternalEngine extends Engine {
         return engineConfig.getIndexSettings().sequenceNumbersDisabled();
     }
 
-    protected void notifyLastDocIdAndVersionLookup() {};
+    protected void notifyLastDocIdAndVersionLookup() {}
 }

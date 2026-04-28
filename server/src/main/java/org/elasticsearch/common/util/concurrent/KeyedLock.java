@@ -200,7 +200,8 @@ public final class KeyedLock<T> {
 
     private static final class SemaphoreKeyLock extends KeyLock {
         private final Semaphore semaphore = new Semaphore(1);
-        private volatile Thread owner;
+        // the owner variable isn't volatile because the two equality (==) checks are against the current thread anyway
+        private Thread owner;
 
         @Override
         void lock() {

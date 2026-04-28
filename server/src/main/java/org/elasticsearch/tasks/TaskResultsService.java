@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
@@ -55,14 +56,27 @@ public class TaskResultsService {
 
     public static final String TASK_INDEX = ".tasks";
     public static final String TASK_RESULT_MAPPING_VERSION_META_FIELD = "version";
+    private static final int TASK_RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     public static final SystemIndexDescriptor TASKS_DESCRIPTOR = SystemIndexDescriptor.builder()
         .setIndexPattern(TASK_INDEX + "*")
         .setPrimaryIndex(TASK_INDEX)
         .setDescription("Task Result Index")
         .setSettings(getTaskResultIndexSettings())
-        .setMappings(getTaskResultIndexMappings())
+        .setMappings(getTaskResultIndexMappings(TASK_RESULTS_INDEX_MAPPINGS_VERSION))
         .setOrigin(TASKS_ORIGIN)
+        .setPriorSystemIndexDescriptors(
+            List.of(
+                SystemIndexDescriptor.builder()
+                    .setIndexPattern(TASK_INDEX + "*")
+                    .setPrimaryIndex(TASK_INDEX)
+                    .setDescription("Task Result Index")
+                    .setSettings(getTaskResultIndexSettings())
+                    .setMappings(getTaskResultIndexMappings(TASK_RESULTS_INDEX_MAPPINGS_VERSION - 1))
+                    .setOrigin(TASKS_ORIGIN)
+                    .build()
+            )
+        )
         .build();
 
     /**
@@ -70,7 +84,6 @@ public class TaskResultsService {
      * time is 600000 milliseconds, ten minutes.
      */
     static final BackoffPolicy STORE_BACKOFF_POLICY = BackoffPolicy.exponentialBackoff(timeValueMillis(250), 14);
-    private static final int TASK_RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     private final Client client;
 
@@ -143,7 +156,7 @@ public class TaskResultsService {
             .build();
     }
 
-    private static XContentBuilder getTaskResultIndexMappings() {
+    private static XContentBuilder getTaskResultIndexMappings(int version) {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -151,7 +164,7 @@ public class TaskResultsService {
             {
                 builder.startObject("_meta");
                 builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Build.current().version());
-                builder.field(SystemIndexDescriptor.VERSION_META_KEY, TASK_RESULTS_INDEX_MAPPINGS_VERSION);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, version);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -211,13 +224,15 @@ public class TaskResultsService {
                             builder.field("enabled", false);
                             builder.endObject();
 
-                            builder.startObject("original_task_id");
-                            builder.field("type", "keyword");
-                            builder.endObject();
+                            if (version >= 1) {
+                                builder.startObject("original_task_id");
+                                builder.field("type", "keyword");
+                                builder.endObject();
 
-                            builder.startObject("original_start_time_in_millis");
-                            builder.field("type", "long");
-                            builder.endObject();
+                                builder.startObject("original_start_time_in_millis");
+                                builder.field("type", "long");
+                                builder.endObject();
+                            }
                         }
                         builder.endObject();
                     }

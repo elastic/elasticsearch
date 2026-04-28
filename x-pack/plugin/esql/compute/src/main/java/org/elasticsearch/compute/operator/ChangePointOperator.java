@@ -72,7 +72,7 @@ public class ChangePointOperator implements Operator {
     // Pages spanning a group boundary are split via Page#slice.
     private GroupKeyEncoder encoder;
     private PagedBytesBuilder currentGroupKeyStorage;
-    private final PagedBytesCursor currentGroupKeyCursor = new PagedBytesCursor();
+    private PagedBytesCursor currentGroupKeyCursor;
     private final Deque<Page> currentGroupPages;
 
     private final Deque<Page> outputPages;
@@ -224,6 +224,7 @@ public class ChangePointOperator implements Operator {
                 "change-point-current-group-key",
                 64
             );
+            currentGroupKeyCursor = new PagedBytesCursor();
             success = true;
         } finally {
             if (success == false) {

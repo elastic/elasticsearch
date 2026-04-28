@@ -531,6 +531,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/147654
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   issue: https://github.com/elastic/elasticsearch/issues/147658
+- class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
+  method: testUpdateTransformWithProjectRouting
+  issue: https://github.com/elastic/elasticsearch/issues/147655
 
 # Examples:
 #

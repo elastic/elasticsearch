@@ -130,6 +130,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
 
     @Override
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
+        logger.info("called readWithoutBlobCache");
         final long position = getAbsolutePosition();
         final int length = b.remaining();
         if (cacheFile.tryRead(b, position)) {

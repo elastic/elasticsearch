@@ -259,6 +259,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     }
 
     private void readWithBlobCache(ByteBuffer b, ByteRange blobCacheByteRange) throws Exception {
+        logger.info("called readWithBlobCache");
         final long position = getAbsolutePosition();
         final int length = b.remaining();
         final CacheFile cacheFile = cacheFileReference.get();

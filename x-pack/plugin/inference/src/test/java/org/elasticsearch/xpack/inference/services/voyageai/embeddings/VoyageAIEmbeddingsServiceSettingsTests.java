@@ -353,7 +353,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
             case 0 -> commonSettings = randomValueOtherThan(commonSettings, VoyageAICommonServiceSettingsTests::createRandom);
             case 1 -> embeddingType = randomValueOtherThan(
                 embeddingType,
-                () -> randomFrom(randomFrom(VoyageAIEmbeddingType.values()), null)
+                () -> randomFrom(VoyageAIEmbeddingType.values())
             );
             case 2 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
             case 3 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(1, 2048), null));

@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -324,16 +323,6 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
                 validationException
             );
             return new ApiServiceSettings(dimensions, dimensionsSetByUser != null && dimensionsSetByUser, similarity, elementType);
-        }
-
-        /**
-         * {@link ApiServiceSettings} don't have any mutable fields, so this method just returns the current instance.
-         * @param serviceSettings a <b>modifiable</b> map with the new service settings
-         * @return the current instance of {@link ApiServiceSettings}
-         */
-        @Override
-        public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-            return this;
         }
     }
 }

@@ -22,17 +22,6 @@ import java.util.Map;
 public interface SageMakerStoredServiceSchema extends ServiceSettings {
     SageMakerStoredServiceSchema NO_OP = new SageMakerStoredServiceSchema() {
 
-        /**
-         * This method is used to update the service settings with new values.
-         * Since this is a no-op implementation, it simply returns the current instance without making any changes.
-         * @param serviceSettings a <b>modifiable</b> map with the new service settings
-         * @return the updated service settings, which in this case is the same instance
-         */
-        @Override
-        public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-            return this;
-        }
-
         private static final String NAME = "noop_sagemaker_service_schema";
         private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
 
@@ -90,6 +79,18 @@ public interface SageMakerStoredServiceSchema extends ServiceSettings {
      * does not do it, so we need to store the dimensions and flip the {@link #dimensionsSetByUser()} boolean.
      */
     default SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(Integer dimensions) {
+        return this;
+    }
+
+    /**
+     * Updates the service settings with the provided map. Currently, no {@link SageMakerStoredServiceSchema} implementations have
+     * any mutable settings, so this will return current service settings by default,
+     * but this is here to allow for future mutability if needed.
+     * @param serviceSettings a <b>modifiable</b> map with the new service settings
+     * @return the updated service settings
+     */
+    @Override
+    default SageMakerStoredServiceSchema updateServiceSettings(Map<String, Object> serviceSettings) {
         return this;
     }
 }

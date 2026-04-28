@@ -182,16 +182,6 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
             return DenseVectorFieldMapper.ElementType.FLOAT;
         }
 
-        /**
-         * {@link ApiServiceSettings} don't have any mutable fields, so this method just returns the current instance.
-         * @param serviceSettings a <b>modifiable</b> map with the new service settings
-         * @return the current instance of {@link ApiServiceSettings}
-         */
-        @Override
-        public ApiServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-            return this;
-        }
-
         @Override
         public SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(Integer dimensions) {
             return new ApiServiceSettings(dimensions, false);

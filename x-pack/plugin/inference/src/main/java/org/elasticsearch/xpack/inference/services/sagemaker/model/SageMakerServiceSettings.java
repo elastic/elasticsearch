@@ -225,8 +225,9 @@ public record SageMakerServiceSettings(
             validationException
         );
 
-        validationException.throwIfValidationErrorsExist();
+        var updatedApiServiceSettings = this.apiServiceSettings().updateServiceSettings(serviceSettings);
 
+        validationException.throwIfValidationErrorsExist();
         return new SageMakerServiceSettings(
             this.endpointName(),
             this.region(),
@@ -235,7 +236,7 @@ public record SageMakerServiceSettings(
             this.targetContainerHostname(),
             this.inferenceComponentName(),
             extractedBatchSize != null ? extractedBatchSize : this.batchSize(),
-            this.apiServiceSettings()
+            updatedApiServiceSettings
         );
     }
 

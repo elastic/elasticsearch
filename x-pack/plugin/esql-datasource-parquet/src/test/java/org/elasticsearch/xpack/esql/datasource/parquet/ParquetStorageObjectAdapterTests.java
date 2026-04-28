@@ -49,6 +49,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+    }
+
     public void testNullStorageObjectThrowsException() {
         QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> new ParquetStorageObjectAdapter(null));
         assertEquals("storageObject cannot be null", e.getMessage());
@@ -577,7 +583,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(tailStart);
             stream.readFully(second);
         }
-        assertEquals(2, rangeReadCount[0]);
+        // Second tail read is served from the JVM-wide FooterByteCache — no additional range read
+        assertEquals(1, rangeReadCount[0]);
         assertArrayEquals(first, second);
     }
 
@@ -1250,7 +1257,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             s.readFully(w);
             assertArrayEquals(expected, w);
         }
-        assertEquals("Second adapter should issue its own tail range read", 2, rangeReadCount[0]);
+        // Both adapters share the same (path, length) cache key, so the second read is a cache hit
+        assertEquals("FooterByteCache coalesces reads for same path+length", 1, rangeReadCount[0]);
     }
 
     /**
@@ -1337,7 +1345,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         if (failure != null) {
             throw failure;
         }
-        assertEquals("Each of 8 concurrent tail reads should open its own range stream", 8, rangeReadCount.get());
+        // FooterByteCache provides thundering-herd protection: concurrent tail reads for the same
+        // (path, length) coalesce into a single I/O via Cache.computeIfAbsent
+        assertEquals("FooterByteCache should coalesce concurrent tail reads into one range read", 1, rangeReadCount.get());
     }
 
     /**

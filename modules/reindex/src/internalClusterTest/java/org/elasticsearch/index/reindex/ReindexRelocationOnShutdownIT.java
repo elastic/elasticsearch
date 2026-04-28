@@ -264,9 +264,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         assertAcked(
             indicesAdmin().prepareUpdateSettings(TaskResultsService.TASK_INDEX)
                 .setSettings(
-                    Settings.builder()
-                        .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
-                        .build()
+                    Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO).build()
                 )
                 .origin(TransportGetTaskAction.TASKS_ORIGIN)
         );

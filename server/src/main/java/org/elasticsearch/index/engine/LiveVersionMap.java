@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Maps _uid value to its version information. */
 public final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
-    private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
+    private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>(false);
 
     private final LiveVersionMapArchive archive;
 

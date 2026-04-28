@@ -38,6 +38,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -349,6 +350,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final Map<String, BytesRegister> registers = ConcurrentCollections.newConcurrentMap();
         private final AtomicBoolean firstRegisterRead = new AtomicBoolean(true);
         private final AtomicLong prefixListCallCount = new AtomicLong();
+        private final AtomicLong outOfRangeReadCount = new AtomicLong();
 
         private final Object registerMutex = new Object();
         private long contendedRegisterValue = 0L;
@@ -399,6 +401,10 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             final byte[] contents = blobs.get(blobName);
             if (contents == null) {
                 throw new FileNotFoundException(blobName + " not found");
+            }
+            if (position >= contents.length) {
+                outOfRangeReadCount.incrementAndGet();
+                throw new RequestedRangeNotSatisfiedException(blobName, position, length);
             }
             final int truncatedLength = Math.toIntExact(Math.min(length, contents.length - position));
             return new ByteArrayInputStream(contents, Math.toIntExact(position), truncatedLength);
@@ -523,6 +529,11 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             assertThat(
                 "listBlobsByPrefix was never called by RepositoryAnalyzeAction, so verifyPrefixListing was never called",
                 prefixListCallCount.get(),
+                greaterThanOrEqualTo(1L)
+            );
+            assertThat(
+                "verifyHttpResponseCodes was never called: no out-of-range read was attempted",
+                outOfRangeReadCount.get(),
                 greaterThanOrEqualTo(1L)
             );
             synchronized (registerMutex) {

@@ -43,6 +43,7 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -726,6 +727,61 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         assertThat(ioException.getMessage(), equalTo("simulated"));
     }
 
+    /*
+     * Tests that we correctly fail if the backend returns data for a read of a non-existent blob instead of a 404.
+     */
+    public void testFailsIfReadOfNonExistentBlobSucceeds() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+        request.rareActionProbability(0.0);
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean readNonExistentBlobSucceeds() {
+                return true;
+            }
+        });
+
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    /*
+     * Tests that we correctly fail if the backend returns a 200 with an empty body for an out-of-range read instead of a 416.
+     */
+    public void testFailsIfOutOfRangeReadDoesNotThrow() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean throwRequestedRangeNotSatisfied() {
+                return false;
+            }
+        });
+
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    /*
+     * Tests that we correctly fail if the backend silently succeeds when copying from a non-existent source instead of returning a 404.
+     */
+    public void testFailsIfCopyFromNonExistentSourceSucceeds() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+        request.rareActionProbability(0.0);
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean copyFromNonExistentSourceSucceeds() {
+                return true;
+            }
+        });
+
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
     private RepositoryVerificationException analyseRepositoryExpectFailure(RepositoryAnalyzeAction.Request request) {
         return safeAwaitAndUnwrapFailure(
             RepositoryVerificationException.class,
@@ -885,6 +941,18 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         default Map<String, BlobMetadata> onPrefixList(String prefix, Map<String, BlobMetadata> filteredListing) throws IOException {
             return filteredListing;
         }
+
+        default boolean readNonExistentBlobSucceeds() {
+            return false;
+        }
+
+        default boolean throwRequestedRangeNotSatisfied() {
+            return true;
+        }
+
+        default boolean copyFromNonExistentSourceSucceeds() {
+            return false;
+        }
     }
 
     static class DisruptableBlobContainer implements BlobContainer {
@@ -916,6 +984,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
             assertPurpose(purpose);
             final byte[] actualContents = blobs.get(blobName);
+            if (actualContents == null && disruption.readNonExistentBlobSucceeds()) {
+                return new ByteArrayInputStream(new byte[0]);
+            }
             final byte[] disruptedContents = disruption.onRead(actualContents, 0L, actualContents == null ? 0L : actualContents.length);
             if (disruptedContents == null) {
                 throw new FileNotFoundException(blobName + " not found");
@@ -930,6 +1001,12 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             final byte[] disruptedContents = disruption.onRead(actualContents, position, length);
             if (disruptedContents == null) {
                 throw new FileNotFoundException(blobName + " not found");
+            }
+            if (position >= disruptedContents.length) {
+                if (disruption.throwRequestedRangeNotSatisfied()) {
+                    throw new RequestedRangeNotSatisfiedException(blobName, position, length);
+                }
+                return new ByteArrayInputStream(new byte[0]);
             }
             final int truncatedLength = Math.toIntExact(Math.min(length, disruptedContents.length - position));
             return new ByteArrayInputStream(disruptedContents, Math.toIntExact(position), truncatedLength);
@@ -1058,6 +1135,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             final var source = (DisruptableBlobContainer) sourceBlobContainer;
             final var sourceBlob = source.blobs.get(sourceBlobName);
             if (sourceBlob == null) {
+                if (disruption.copyFromNonExistentSourceSucceeds()) {
+                    blobs.put(blobName, new byte[0]);
+                    return;
+                }
                 throw new FileNotFoundException(sourceBlobName + " not found");
             }
             disruption.onCopy();

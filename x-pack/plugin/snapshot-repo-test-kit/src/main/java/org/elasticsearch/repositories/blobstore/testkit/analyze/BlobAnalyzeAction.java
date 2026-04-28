@@ -39,6 +39,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -52,6 +53,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -517,6 +519,10 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                 }
             }
 
+            if (request.getAbortWrite() == false && verifyHttpResponseCodes()) {
+                return;
+            }
+
             readOnNodes(readNodes, request.blobName, false);
             if (copySuccess) {
                 readOnNodes(readCopyNodes, request.copyBlobName, false);
@@ -575,6 +581,122 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                         )
                     );
             }
+        }
+
+        /**
+         * Verifies that the blob container correctly maps HTTP error codes to the expected Java exceptions:
+         * 404 on {@link BlobContainer#readBlob} and {@link BlobContainer#copyBlob} must throw {@link NoSuchFileException}, and
+         * 416 on a range read must throw {@link RequestedRangeNotSatisfiedException}.
+         *
+         * @return {@code true} if a verification failure was reported and the caller should abort, {@code false} if all checks passed.
+         */
+        private boolean verifyHttpResponseCodes() {
+            final String nonExistentBlob = request.blobName + "-does-not-exist";
+
+            // 404 on GetObject: reading a non-existent blob must throw NoSuchFileException
+            try (InputStream ignored = blobContainer.readBlob(OperationPurpose.REPOSITORY_ANALYSIS, nonExistentBlob)) {
+                readResponseListeners.acquire()
+                    .onFailure(
+                        new RepositoryVerificationException(
+                            request.getRepositoryName(),
+                            "reading non-existent blob [" + nonExistentBlob + "] should have thrown NoSuchFileException"
+                        )
+                    );
+                return true;
+            } catch (NoSuchFileException | FileNotFoundException expected) {
+                // correct: 404 mapped to NoSuchFileException
+            } catch (IOException e) {
+                readResponseListeners.acquire()
+                    .onFailure(
+                        new RepositoryVerificationException(
+                            request.getRepositoryName(),
+                            "reading non-existent blob [" + nonExistentBlob + "] threw unexpected exception instead of NoSuchFileException",
+                            e
+                        )
+                    );
+                return true;
+            }
+
+            // 416 on Range Read: requesting a range beyond the blob's size must throw RequestedRangeNotSatisfiedException
+            try (
+                InputStream ignored = blobContainer.readBlob(
+                    OperationPurpose.REPOSITORY_ANALYSIS,
+                    request.blobName,
+                    request.targetLength + 1,
+                    1
+                )
+            ) {
+                readResponseListeners.acquire()
+                    .onFailure(
+                        new RepositoryVerificationException(
+                            request.getRepositoryName(),
+                            "reading beyond end of blob ["
+                                + request.blobName
+                                + "] at position ["
+                                + (request.targetLength + 1)
+                                + "] should have thrown RequestedRangeNotSatisfiedException"
+                        )
+                    );
+                return true;
+            } catch (RequestedRangeNotSatisfiedException expected) {
+                // correct: 416 mapped to RequestedRangeNotSatisfiedException
+            } catch (IOException e) {
+                readResponseListeners.acquire()
+                    .onFailure(
+                        new RepositoryVerificationException(
+                            request.getRepositoryName(),
+                            "reading beyond end of blob ["
+                                + request.blobName
+                                + "] threw unexpected exception instead of RequestedRangeNotSatisfiedException",
+                            e
+                        )
+                    );
+                return true;
+            }
+
+            // 404 on CopyObject: copying from a non-existent source must throw NoSuchFileException
+            try {
+                blobContainer.copyBlob(
+                    OperationPurpose.REPOSITORY_ANALYSIS,
+                    blobContainer,
+                    nonExistentBlob,
+                    nonExistentBlob + "-copy",
+                    request.targetLength
+                );
+                // copy succeeded unexpectedly — clean up the accidental blob
+                try {
+                    blobContainer.deleteBlobsIgnoringIfNotExists(
+                        OperationPurpose.REPOSITORY_ANALYSIS,
+                        Iterators.single(nonExistentBlob + "-copy")
+                    );
+                } catch (IOException ignored) {
+                    // best effort cleanup
+                }
+                readResponseListeners.acquire()
+                    .onFailure(
+                        new RepositoryVerificationException(
+                            request.getRepositoryName(),
+                            "copying non-existent blob [" + nonExistentBlob + "] should have thrown NoSuchFileException"
+                        )
+                    );
+                return true;
+            } catch (UnsupportedOperationException uoe) {
+                // not all repositories support copy — skip this check
+            } catch (NoSuchFileException | FileNotFoundException expected) {
+                // correct: 404 mapped to NoSuchFileException
+            } catch (IOException e) {
+                readResponseListeners.acquire()
+                    .onFailure(
+                        new RepositoryVerificationException(
+                            request.getRepositoryName(),
+                            "copying non-existent blob [" + nonExistentBlob + "] threw unexpected exception instead of NoSuchFileException",
+                            e
+                        )
+                    );
+                return true;
+            }
+
+            return false;
         }
 
         /**

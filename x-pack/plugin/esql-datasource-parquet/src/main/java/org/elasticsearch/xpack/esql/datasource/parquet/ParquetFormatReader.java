@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -102,7 +103,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     static final String CONFIG_OPTIMIZED_READER = "optimized_reader";
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false, false);
+        this(blockFactory, FilterCompat.NOOP, null, false, true);
     }
 
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
@@ -342,24 +343,30 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     }
 
     /**
-     * Resolves the record filter using the schema from an already-open reader, avoiding a
-     * redundant footer read. When deferred expressions are present, builds a schema-aware
-     * FilterPredicate from the provided schema.
+     * Resolves the raw {@link FilterPredicate} from deferred pushed expressions using the
+     * actual file schema. Returns null when no expression-based filter is available (either
+     * because a pre-built {@link FilterCompat.Filter} was provided directly, or because no
+     * filter was pushed at all).
      */
-    private FilterCompat.Filter resolveRecordFilter(StorageObject object, MessageType schema) {
-        if (FilterCompat.isFilteringRequired(pushedFilter)) {
-            return pushedFilter;
-        }
+    private FilterPredicate resolveFilterPredicate(StorageObject object, MessageType schema) {
         if (pushedExpressions == null) {
-            return FilterCompat.NOOP;
+            return null;
         }
         try {
-            FilterPredicate predicate = pushedExpressions.toFilterPredicate(schema);
-            return predicate != null ? FilterCompat.get(predicate) : FilterCompat.NOOP;
+            return pushedExpressions.toFilterPredicate(schema);
         } catch (Exception e) {
             logger.warn("Failed to resolve Parquet filter predicate for [{}], proceeding without pushdown: {}", object.path(), e);
-            return FilterCompat.NOOP;
+            return null;
         }
+    }
+
+    /**
+     * Resolves the record filter from the pre-built {@link FilterCompat.Filter} field.
+     * This is only called when {@code resolveFilterPredicate} returned null (no deferred
+     * expressions), so it never re-translates pushed expressions.
+     */
+    private FilterCompat.Filter resolveRecordFilter() {
+        return FilterCompat.isFilteringRequired(pushedFilter) ? pushedFilter : FilterCompat.NOOP;
     }
 
     @Override
@@ -370,61 +377,77 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
         ParquetFileReader reader = openParquetFile(object, parquetInputFile, readOptionsBuilder().build());
-        FileMetaData fileMetaData = reader.getFileMetaData();
-        MessageType parquetSchema = fileMetaData.getSchema();
+        try {
+            FileMetaData fileMetaData = reader.getFileMetaData();
+            MessageType parquetSchema = fileMetaData.getSchema();
 
-        FilterCompat.Filter recordFilter = resolveRecordFilter(object, parquetSchema);
-        if (FilterCompat.isFilteringRequired(recordFilter)) {
-            reader.close();
-            PlainParquetReadOptions.Builder optionsBuilder = readOptionsBuilder().withRecordFilter(recordFilter);
-            reader = openParquetFile(object, parquetInputFile, optionsBuilder.build());
-            fileMetaData = reader.getFileMetaData();
-            parquetSchema = fileMetaData.getSchema();
-        }
-        List<Attribute> attributes = convertParquetSchemaToAttributes(parquetSchema);
+            boolean useOptimized = optimizedReader && forceBaselinePath == false;
+            FilterPredicate filterPredicate = resolveFilterPredicate(object, parquetSchema);
+            // The predicate serves dual purpose: parquet-mr uses it for row-group-level statistics
+            // filtering (useStatsFilter), while we use it separately for page-level RowRanges filtering
+            // via ColumnIndexRowRangesComputer. When filterPredicate != null, we disable parquet-mr's
+            // page-level filtering (useColumnIndexFilter=false) to avoid double-filtering.
+            FilterCompat.Filter recordFilter = filterPredicate != null ? FilterCompat.get(filterPredicate) : resolveRecordFilter();
 
-        List<Attribute> projectedAttributes;
-        if (projectedColumns == null || projectedColumns.isEmpty()) {
-            projectedAttributes = attributes;
-        } else {
-            projectedAttributes = new ArrayList<>();
-            Map<String, Attribute> attributeMap = new HashMap<>();
-            for (Attribute attr : attributes) {
-                attributeMap.put(attr.name(), attr);
+            if (FilterCompat.isFilteringRequired(recordFilter)) {
+                reader.close();
+                PlainParquetReadOptions.Builder optionsBuilder = readOptionsBuilder().withRecordFilter(recordFilter);
+                if (useOptimized && filterPredicate != null) {
+                    optionsBuilder.withUseColumnIndexFilter(false);
+                }
+                reader = openParquetFile(object, parquetInputFile, optionsBuilder.build());
+                fileMetaData = reader.getFileMetaData();
+                parquetSchema = fileMetaData.getSchema();
             }
-            for (String columnName : projectedColumns) {
-                Attribute attr = attributeMap.get(columnName);
-                attr = attr == null ? new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL) : attr;
-                projectedAttributes.add(attr);
-            }
-        }
+            List<Attribute> attributes = convertParquetSchemaToAttributes(parquetSchema);
 
-        MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
-        String createdBy = fileMetaData.getCreatedBy();
-        boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
-        if (optimizedReader && hasRecordFilter == false) {
-            return createOptimizedIterator(
+            List<Attribute> projectedAttributes;
+            if (projectedColumns == null || projectedColumns.isEmpty()) {
+                projectedAttributes = attributes;
+            } else {
+                projectedAttributes = new ArrayList<>();
+                Map<String, Attribute> attributeMap = new HashMap<>();
+                for (Attribute attr : attributes) {
+                    attributeMap.put(attr.name(), attr);
+                }
+                for (String columnName : projectedColumns) {
+                    Attribute attr = attributeMap.get(columnName);
+                    attr = attr == null ? new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL) : attr;
+                    projectedAttributes.add(attr);
+                }
+            }
+
+            MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
+            String createdBy = fileMetaData.getCreatedBy();
+            boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
+            if (useOptimized) {
+                return createOptimizedIterator(
+                    reader,
+                    projectedSchema,
+                    projectedAttributes,
+                    batchSize,
+                    rowLimit,
+                    createdBy,
+                    object,
+                    parquetInputFile,
+                    filterPredicate
+                );
+            }
+            return new ParquetColumnIterator(
                 reader,
                 projectedSchema,
                 projectedAttributes,
                 batchSize,
+                blockFactory,
                 rowLimit,
                 createdBy,
-                object,
-                parquetInputFile
+                object.path().toString(),
+                hasRecordFilter
             );
+        } catch (Throwable t) {
+            reader.close();
+            throw t;
         }
-        return new ParquetColumnIterator(
-            reader,
-            projectedSchema,
-            projectedAttributes,
-            batchSize,
-            blockFactory,
-            rowLimit,
-            createdBy,
-            object.path().toString(),
-            hasRecordFilter
-        );
     }
 
     @Override
@@ -584,66 +607,78 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     ) throws IOException {
         InputFile parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart);
         ParquetFileReader reader = openParquetFile(object, parquetInputFile, readOptionsBuilder().withRange(rangeStart, rangeEnd).build());
-        FileMetaData fileMetaData = reader.getFileMetaData();
-        MessageType parquetSchema = fileMetaData.getSchema();
+        try {
+            FileMetaData fileMetaData = reader.getFileMetaData();
+            MessageType parquetSchema = fileMetaData.getSchema();
 
-        FilterCompat.Filter recordFilter = resolveRecordFilter(object, parquetSchema);
-        if (FilterCompat.isFilteringRequired(recordFilter)) {
-            reader.close();
-            PlainParquetReadOptions.Builder optionsBuilder = readOptionsBuilder().withRange(rangeStart, rangeEnd)
-                .withRecordFilter(recordFilter);
-            reader = openParquetFile(object, parquetInputFile, optionsBuilder.build());
-            fileMetaData = reader.getFileMetaData();
-            parquetSchema = fileMetaData.getSchema();
-        }
-        // The framework passes planning-time resolved attributes for this query (AsyncExternalSourceOperatorFactory).
-        // Reuse them to avoid redundant schema conversion work per split. We still read Parquet metadata to drive row groups.
-        final List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
-            ? resolvedAttributes
-            : convertParquetSchemaToAttributes(parquetSchema);
+            boolean useOptimized = optimizedReader && forceBaselinePath == false;
+            FilterPredicate filterPredicate = resolveFilterPredicate(object, parquetSchema);
+            FilterCompat.Filter recordFilter = filterPredicate != null ? FilterCompat.get(filterPredicate) : resolveRecordFilter();
 
-        List<Attribute> projectedAttributes;
-        if (projectedColumns == null || projectedColumns.isEmpty()) {
-            projectedAttributes = attributes;
-        } else {
-            projectedAttributes = new ArrayList<>();
-            Map<String, Attribute> attributeMap = new HashMap<>();
-            for (Attribute attr : attributes) {
-                attributeMap.put(attr.name(), attr);
+            if (FilterCompat.isFilteringRequired(recordFilter)) {
+                reader.close();
+                PlainParquetReadOptions.Builder optionsBuilder = readOptionsBuilder().withRange(rangeStart, rangeEnd)
+                    .withRecordFilter(recordFilter);
+                if (useOptimized && filterPredicate != null) {
+                    optionsBuilder.withUseColumnIndexFilter(false);
+                }
+                reader = openParquetFile(object, parquetInputFile, optionsBuilder.build());
+                fileMetaData = reader.getFileMetaData();
+                parquetSchema = fileMetaData.getSchema();
             }
-            for (String columnName : projectedColumns) {
-                Attribute attr = attributeMap.get(columnName);
-                attr = attr == null ? new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL) : attr;
-                projectedAttributes.add(attr);
-            }
-        }
+            // The framework passes planning-time resolved attributes for this query (AsyncExternalSourceOperatorFactory).
+            // Reuse them to avoid redundant schema conversion work per split. We still read Parquet metadata to drive row groups.
+            final List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
+                ? resolvedAttributes
+                : convertParquetSchemaToAttributes(parquetSchema);
 
-        MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
-        String createdBy = fileMetaData.getCreatedBy();
-        boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
-        if (optimizedReader && hasRecordFilter == false) {
-            return createOptimizedIterator(
+            List<Attribute> projectedAttributes;
+            if (projectedColumns == null || projectedColumns.isEmpty()) {
+                projectedAttributes = attributes;
+            } else {
+                projectedAttributes = new ArrayList<>();
+                Map<String, Attribute> attributeMap = new HashMap<>();
+                for (Attribute attr : attributes) {
+                    attributeMap.put(attr.name(), attr);
+                }
+                for (String columnName : projectedColumns) {
+                    Attribute attr = attributeMap.get(columnName);
+                    attr = attr == null ? new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL) : attr;
+                    projectedAttributes.add(attr);
+                }
+            }
+
+            MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
+            String createdBy = fileMetaData.getCreatedBy();
+            boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
+            if (useOptimized) {
+                return createOptimizedIterator(
+                    reader,
+                    projectedSchema,
+                    projectedAttributes,
+                    batchSize,
+                    NO_LIMIT,
+                    createdBy,
+                    object,
+                    parquetInputFile,
+                    filterPredicate
+                );
+            }
+            return new ParquetColumnIterator(
                 reader,
                 projectedSchema,
                 projectedAttributes,
                 batchSize,
+                blockFactory,
                 NO_LIMIT,
                 createdBy,
-                object,
-                parquetInputFile
+                object.path().toString(),
+                hasRecordFilter
             );
+        } catch (Throwable t) {
+            reader.close();
+            throw t;
         }
-        return new ParquetColumnIterator(
-            reader,
-            projectedSchema,
-            projectedAttributes,
-            batchSize,
-            blockFactory,
-            NO_LIMIT,
-            createdBy,
-            object.path().toString(),
-            hasRecordFilter
-        );
     }
 
     private CloseableIterator<Page> createOptimizedIterator(
@@ -654,7 +689,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         int rowLimit,
         String createdBy,
         StorageObject storageObject,
-        InputFile inputFile
+        InputFile inputFile,
+        FilterPredicate filterPredicate
     ) {
         if (inputFile instanceof ParquetStorageObjectAdapter == false) {
             throw new ElasticsearchException(
@@ -665,6 +701,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ColumnInfo[] columnInfos = buildColumnInfos(projectedSchema, projectedAttributes);
         validatePlannerTypesAgainstFile(logger, storageObject.path().toString(), reader, projectedAttributes, columnInfos);
         PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(reader, storageObject);
+
+        RowRanges[] allRowRanges = null;
+        if (filterPredicate != null) {
+            List<BlockMetaData> blocks = reader.getRowGroups();
+            allRowRanges = new RowRanges[blocks.size()];
+            for (int i = 0; i < blocks.size(); i++) {
+                allRowRanges[i] = ColumnIndexRowRangesComputer.compute(filterPredicate, preloadedMetadata, i, blocks.get(i).getRowCount());
+            }
+        }
+
         return new OptimizedParquetColumnIterator(
             reader,
             projectedSchema,
@@ -677,7 +723,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             columnInfos,
             preloadedMetadata,
             storageObject,
-            adapter
+            adapter,
+            allRowRanges
         );
     }
 
@@ -800,7 +847,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     /**
      * When the query plan type cannot be satisfied from this file's Parquet-derived ESQL type (after
      * applying the same widening rules as {@link EsqlDataTypeConverter#commonType}, plus KEYWORD/TEXT
-     * interchangeability), log a warning and read the column as null instead of failing at decode time.
+     * interchangeability), emit a response Warning header (and log a warning) and read the column as
+     * null instead of failing at decode time. The warning header lets clients see — alongside other
+     * recoverable ES|QL warnings — exactly which columns were silently null-replaced.
      */
     private static void validatePlannerTypesAgainstFile(
         Logger logger,
@@ -810,6 +859,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ColumnInfo[] columnInfos
     ) {
         MessageType fullSchema = reader.getFileMetaData().getSchema();
+        SkipWarnings skipWarnings = null;
         for (int i = 0; i < attributes.size(); i++) {
             if (columnInfos[i] == null) {
                 continue;
@@ -823,6 +873,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
             DataType actualInFile = convertParquetTypeToEsql(fullSchema.getType(attr.name()));
             if (plannerTypeCompatibleWithFileDerivedType(attr.dataType(), actualInFile) == false) {
+                if (skipWarnings == null) {
+                    skipWarnings = new SkipWarnings(
+                        "Parquet file ["
+                            + fileLocation
+                            + "] has columns whose on-disk type is incompatible with the planner type; "
+                            + "they are returned as null"
+                    );
+                }
+                skipWarnings.add(
+                    "Column ["
+                        + attr.name()
+                        + "] in file ["
+                        + fileLocation
+                        + "] has type ["
+                        + actualInFile
+                        + "] incompatible with planner type ["
+                        + attr.dataType()
+                        + "]; returning nulls for this column"
+                );
                 logger.warn(
                     "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}] after widening; "
                         + "returning nulls for this column",
@@ -967,9 +1036,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             pageBatchIndexInRowGroup = 0;
             rowsRemainingInGroup = rowGroup.getRowCount();
 
-            // TODO: when selective reading (Stage 7) is implemented, pass filter-derived RowRanges
-            // instead of RowRanges.all(), and remove the hasRecordFilter bypass so PageColumnReader
-            // handles page-index filtering natively.
             if (hasRecordFilter == false) {
                 RowRanges allRows = RowRanges.all(rowsRemainingInGroup);
                 pageColumnReaders = new PageColumnReader[columnInfos.length];

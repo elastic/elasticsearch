@@ -38,6 +38,10 @@ dependencies {
   testImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
   testImplementation("org.apache.hadoop:hadoop-client-api:3.4.3")
   testImplementation("org.apache.hadoop:hadoop-client-runtime:3.4.3")
+  // jts-core is needed at test time: parquet-hadoop-bundle's ColumnChunkPageWriteStore
+  // references GeospatialStatistics which requires JTS. Normally resolved transitively
+  // via esql-core, but this module does not depend on esql-core.
+  testImplementation("org.locationtech.jts:jts-core:1.20.0")
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))

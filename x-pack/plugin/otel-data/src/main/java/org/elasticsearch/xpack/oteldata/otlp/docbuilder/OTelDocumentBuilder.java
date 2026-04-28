@@ -14,6 +14,7 @@ import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
 
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
@@ -53,6 +54,12 @@ public abstract class OTelDocumentBuilder {
         if (value != null && value.isEmpty() == false) {
             builder.field(name);
             byteStringAccessor.utf8Value(builder, value);
+        }
+    }
+
+    protected void addHexFieldIfNotEmpty(XContentBuilder builder, String name, ByteString value) throws IOException {
+        if (value != null && value.isEmpty() == false) {
+            builder.field(name, MessageDigests.toHexString(value.toByteArray()));
         }
     }
 
@@ -110,7 +117,18 @@ public abstract class OTelDocumentBuilder {
                 }
                 builder.endArray();
             }
-            default -> throw new IllegalArgumentException("Unsupported attribute value type: " + value.getValueCase());
+            case KVLIST_VALUE -> {
+                builder.startObject();
+                List<KeyValue> kvList = value.getKvlistValue().getValuesList();
+                for (int i = 0, kvListSize = kvList.size(); i < kvListSize; i++) {
+                    KeyValue kv = kvList.get(i);
+                    builder.field(kv.getKey());
+                    buildAnyValue(builder, kv.getValue());
+                }
+                builder.endObject();
+            }
+            case BYTES_VALUE -> builder.value(value.getBytesValue().toByteArray());
+            case VALUE_NOT_SET -> builder.nullValue();
         }
     }
 }

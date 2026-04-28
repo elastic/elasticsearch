@@ -239,20 +239,16 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         trackIndexRequests(bulkRequest);
 
         for (String index : bulkRequest.getIndices()) {
-            try {
-                switch (index) {
-                    case "CorruptStateException":
-                        throw new CorruptStateException("Test");
-                    case "ElasticsearchCorruptionException":
-                        throw new ElasticsearchCorruptionException("Test");
-                    case "TranslogCorruptedException":
-                        throw new TranslogCorruptedException("Test", "with details");
-                    case "CorruptIndexException":
-                        throw new CorruptIndexException("Test", "resource description");
-                    default:
-                }
-            } catch (Exception e) {
-                throw new ElasticsearchException(e);
+            switch (index) {
+                case "CorruptStateException":
+                    throw new CorruptStateException("Test");
+                case "ElasticsearchCorruptionException":
+                    throw new ElasticsearchCorruptionException("Test");
+                case "TranslogCorruptedException":
+                    throw new TranslogCorruptedException("Test", "with details");
+                case "CorruptIndexException":
+                    throw new CorruptIndexException("Test", "resource description");
+                default:
             }
         }
 

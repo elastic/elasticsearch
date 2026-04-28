@@ -181,7 +181,7 @@
         - method: PUT
           path: /_component_template/{name}
           capabilities: [ "dlm.frozen_after" ]
-      test_runner_features: [ "capabilities" ]
+      test_runner_features: [ "capabilities", "allowed_warnings" ]
       reason: "Frozen after added"
 
   - do:

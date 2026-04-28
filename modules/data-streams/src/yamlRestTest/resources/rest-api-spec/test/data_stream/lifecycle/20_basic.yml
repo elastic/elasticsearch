@@ -231,7 +231,7 @@ teardown:
         - method: PUT
           path: /_data_stream/{name}/_lifecycle
           capabilities: [ "dlm.frozen_after" ]
-      test_runner_features: [ "capabilities" ]
+      test_runner_features: [ "capabilities", "allowed_warnings" ]
       reason: "Frozen after added"
 
   - do:

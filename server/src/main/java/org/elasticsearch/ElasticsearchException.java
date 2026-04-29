@@ -90,6 +90,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VAL
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.index.SliceIndexing.SLICE_MISSING_EXCEPTION_VERSION;
 import static org.elasticsearch.index.engine.OCCNotSupportedException.OCC_NOT_SUPPORTED_EXCEPTION_VERSION;
 import static org.elasticsearch.index.reindex.TaskRelocatedException.TASK_RELOCATED_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
@@ -2092,7 +2093,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             192,
             INVALID_PROJECT_ROUTING_EXCEPTION_VERSION
         ),
-        TASK_RELOCATED_EXCEPTION(TaskRelocatedException.class, TaskRelocatedException::new, 193, TASK_RELOCATED_EXCEPTION_VERSION);
+        TASK_RELOCATED_EXCEPTION(TaskRelocatedException.class, TaskRelocatedException::new, 193, TASK_RELOCATED_EXCEPTION_VERSION),
+        SLICE_MISSING_EXCEPTION(
+            org.elasticsearch.action.SliceMissingException.class,
+            org.elasticsearch.action.SliceMissingException::new,
+            194,
+            SLICE_MISSING_EXCEPTION_VERSION
+        );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

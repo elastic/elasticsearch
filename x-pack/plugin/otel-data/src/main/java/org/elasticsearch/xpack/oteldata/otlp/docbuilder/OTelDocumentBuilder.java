@@ -14,13 +14,16 @@ import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Base class for constructing Elasticsearch document representations of OTel data (metrics, logs, traces).
@@ -28,6 +31,10 @@ import java.util.List;
  */
 public abstract class OTelDocumentBuilder {
 
+    private static final String DATA_STREAM_TYPE = "data_stream.type";
+    private static final String ELASTIC_MAPPING_MODE = "elastic.mapping.mode";
+    private static final String ELASTICSEARCH_DOCUMENT_ID = "elasticsearch.document_id";
+    private static final HexFormat HEX = HexFormat.of();
     private final BufferedByteStringAccessor byteStringAccessor;
 
     public OTelDocumentBuilder(BufferedByteStringAccessor byteStringAccessor) {
@@ -63,6 +70,16 @@ public abstract class OTelDocumentBuilder {
         }
     }
 
+    protected void addEpochMillisNanosField(XContentBuilder builder, String fieldName, long unixNanos) throws IOException {
+        long millis = TimeUnit.NANOSECONDS.toMillis(unixNanos);
+        long nanosRemainder = unixNanos - TimeUnit.MILLISECONDS.toNanos(millis);
+        if (nanosRemainder == 0) {
+            builder.field(fieldName, millis);
+        } else {
+            builder.field(fieldName, Strings.format("%d.%06d", millis, nanosRemainder));
+        }
+    }
+
     protected void buildDataStream(XContentBuilder builder, TargetIndex targetIndex) throws IOException {
         if (targetIndex.isDataStream() == false) {
             return;
@@ -93,13 +110,17 @@ public abstract class OTelDocumentBuilder {
     /**
      * Checks if the given attribute key is an ignored attribute.
      * Ignored attributes are well-known Elastic-specific attributes
-     * that influence how the documents are indexed but are not stored themselves.
+     * that control routing, mapping, or document metadata but are not stored themselves.
      *
      * @param attributeKey the attribute key to check
      * @return true if the attribute is ignored, false otherwise
      */
     public static boolean isIgnoredAttribute(String attributeKey) {
-        return TargetIndex.isTargetIndexAttribute(attributeKey) || MappingHints.isMappingHintsAttribute(attributeKey);
+        return TargetIndex.isTargetIndexAttribute(attributeKey)
+            || MappingHints.isMappingHintsAttribute(attributeKey)
+            || DATA_STREAM_TYPE.equals(attributeKey)
+            || ELASTIC_MAPPING_MODE.equals(attributeKey)
+            || ELASTICSEARCH_DOCUMENT_ID.equals(attributeKey);
     }
 
     protected void buildAnyValue(XContentBuilder builder, AnyValue value) throws IOException {
@@ -129,6 +150,20 @@ public abstract class OTelDocumentBuilder {
             }
             case BYTES_VALUE -> builder.value(value.getBytesValue().toByteArray());
             case VALUE_NOT_SET -> builder.nullValue();
+        }
+    }
+
+    protected void addSpanId(XContentBuilder builder, byte[] spanId) throws IOException {
+        addHexIdIfNotEmpty(builder, "span_id", spanId);
+    }
+
+    protected void addTraceId(XContentBuilder builder, byte[] traceId) throws IOException {
+        addHexIdIfNotEmpty(builder, "trace_id", traceId);
+    }
+
+    private static void addHexIdIfNotEmpty(XContentBuilder builder, String fieldName, byte[] id) throws IOException {
+        if (id.length > 0) {
+            builder.field(fieldName, HEX.formatHex(id));
         }
     }
 }

@@ -71,6 +71,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -544,29 +545,32 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         int[] depths = { 1, 2, 4, 8 };
         TopDocs[] allResults = new TopDocs[depths.length];
 
-        for (int d = 0; d < depths.length; d++) {
-            KnnVectorsFormat depthFormat = new PrefetchDepthOverrideFormat(depths[d]);
-            try (Directory dir = newDirectory()) {
-                IndexWriterConfig iwc = newIndexWriterConfig();
-                iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(depthFormat));
-                iwc.setMaxBufferedDocs(numDocs + 1);
-                iwc.setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(new PrefetchDepthOverrideFormat()));
+            iwc.setMaxBufferedDocs(numDocs + 1);
+            iwc.setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
 
-                Random rng = new Random(seed);
-                try (IndexWriter w = new IndexWriter(dir, iwc)) {
-                    for (int i = 0; i < numDocs; i++) {
-                        Document doc = new Document();
-                        float[] vec = new float[dimensions];
-                        for (int v = 0; v < dimensions; v++) {
-                            vec[v] = rng.nextFloat() - 0.5f;
-                        }
-                        VectorUtil.l2normalize(vec);
-                        doc.add(new KnnFloatVectorField("field", vec, VectorSimilarityFunction.DOT_PRODUCT));
-                        w.addDocument(doc);
+            Random rng = new Random(seed);
+            prefetchRingDepthForTests.set(1);
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    float[] vec = new float[dimensions];
+                    for (int v = 0; v < dimensions; v++) {
+                        vec[v] = rng.nextFloat() - 0.5f;
                     }
-                    w.forceMerge(1);
+                    VectorUtil.l2normalize(vec);
+                    doc.add(new KnnFloatVectorField("field", vec, VectorSimilarityFunction.DOT_PRODUCT));
+                    w.addDocument(doc);
                 }
+                w.forceMerge(1);
+            } finally {
+                prefetchRingDepthForTests.remove();
+            }
 
+            for (int d = 0; d < depths.length; d++) {
+                prefetchRingDepthForTests.set(depths[d]);
                 try (IndexReader reader = DirectoryReader.open(dir)) {
                     LeafReader leaf = getOnlyLeafReader(reader);
                     allResults[d] = leaf.searchNearestVectors(
@@ -576,6 +580,8 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                         AcceptDocs.fromLiveDocs(leaf.getLiveDocs(), leaf.maxDoc()),
                         Integer.MAX_VALUE
                     );
+                } finally {
+                    prefetchRingDepthForTests.remove();
                 }
             }
         }
@@ -613,29 +619,32 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         int[] depths = { 1, 4, 8 };
         TopDocs[] allResults = new TopDocs[depths.length];
 
-        for (int d = 0; d < depths.length; d++) {
-            KnnVectorsFormat depthFormat = new PrefetchDepthOverrideFormat(depths[d]);
-            try (Directory dir = newDirectory()) {
-                IndexWriterConfig iwc = newIndexWriterConfig();
-                iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(depthFormat));
-                iwc.setMaxBufferedDocs(numDocs + 1);
-                iwc.setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(new PrefetchDepthOverrideFormat()));
+            iwc.setMaxBufferedDocs(numDocs + 1);
+            iwc.setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
 
-                Random rng = new Random(seed);
-                try (IndexWriter w = new IndexWriter(dir, iwc)) {
-                    for (int i = 0; i < numDocs; i++) {
-                        Document doc = new Document();
-                        float[] vec = new float[dimensions];
-                        for (int v = 0; v < dimensions; v++) {
-                            vec[v] = rng.nextFloat() - 0.5f;
-                        }
-                        VectorUtil.l2normalize(vec);
-                        doc.add(new KnnFloatVectorField("field", vec, VectorSimilarityFunction.DOT_PRODUCT));
-                        w.addDocument(doc);
+            Random rng = new Random(seed);
+            prefetchRingDepthForTests.set(1);
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    float[] vec = new float[dimensions];
+                    for (int v = 0; v < dimensions; v++) {
+                        vec[v] = rng.nextFloat() - 0.5f;
                     }
-                    w.forceMerge(1);
+                    VectorUtil.l2normalize(vec);
+                    doc.add(new KnnFloatVectorField("field", vec, VectorSimilarityFunction.DOT_PRODUCT));
+                    w.addDocument(doc);
                 }
+                w.forceMerge(1);
+            } finally {
+                prefetchRingDepthForTests.remove();
+            }
 
+            for (int d = 0; d < depths.length; d++) {
+                prefetchRingDepthForTests.set(depths[d]);
                 try (IndexReader reader = DirectoryReader.open(dir)) {
                     LeafReader leaf = getOnlyLeafReader(reader);
                     Bits evenDocs = new Bits() {
@@ -656,6 +665,8 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                         AcceptDocs.fromLiveDocs(evenDocs, leaf.maxDoc()),
                         Integer.MAX_VALUE
                     );
+                } finally {
+                    prefetchRingDepthForTests.remove();
                 }
             }
         }
@@ -684,15 +695,20 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     }
 
     /**
+     * Ring depth for {@link PrefetchDepthOverrideFormat} is read from this thread-local so the same
+     * on-disk index can be searched with different prefetch depths (codec reload only stores the
+     * codec name, not per-open parameters).
+     */
+    private static final ThreadLocal<Integer> prefetchRingDepthForTests = new ThreadLocal<>();
+
+    /**
      * An {@link ESNextDiskBBQVectorsFormat} subclass that produces a reader with a configurable
      * prefetch depth, allowing tests to verify that different depths yield identical results.
      */
     private static class PrefetchDepthOverrideFormat extends ESNextDiskBBQVectorsFormat {
-        private final int prefetchDepth;
 
-        PrefetchDepthOverrideFormat(int prefetchDepth) {
+        PrefetchDepthOverrideFormat() {
             super(128, 4, null);
-            this.prefetchDepth = prefetchDepth;
         }
 
         @Override
@@ -713,6 +729,10 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     int ringPrefetchDepth
                 ) throws IOException {
                     // match PrefetchingCentroidIterator-only behavior: vary ring depth, no initial centroid batch.
+                    int prefetchDepth = Objects.requireNonNull(
+                        prefetchRingDepthForTests.get(),
+                        "prefetchRingDepthForTests must be set while using PrefetchDepthOverrideFormat"
+                    );
                     return new BudgetPrefetchCentroidIterator(centroidIterator, postingListSlice, 0, prefetchDepth);
                 }
             };

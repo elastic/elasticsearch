@@ -324,6 +324,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     private interface Cache<K, T> extends Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
+        @Nullable
+        CacheEntry<T> getIfPresent(K cacheKey, int region);
+
         int forceEvict(Predicate<K> cacheKeyPredicate);
 
         void forceEvictAsync(Predicate<K> cacheKey);
@@ -1357,11 +1360,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     // nothing to read, skip
                     continue;
                 }
-                var fileRegion = lastAccessedRegion;
+                CacheEntry<CacheFileRegion<KeyType>> fileRegion;
                 try {
-                    fileRegion = cache.get(cacheKey, this.length, region);
+                    fileRegion = cache.getIfPresent(cacheKey, region);
                 } catch (AlreadyClosedException exc) {
                     // consider missing
+                    continue;
+                }
+                if (fileRegion == null) {
                     continue;
                 }
                 final var chunk = fileRegion.chunk;
@@ -1383,14 +1389,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (startRegion != endRegion) {
                 return false;
             }
-            var fileRegion = lastAccessedRegion;
+            CacheEntry<CacheFileRegion<KeyType>> fileRegion = lastAccessedRegion;
             boolean incrementReads = false;
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
                 // existing item, check if we need to promote item
                 fileRegion.touch();
-
             } else {
-                fileRegion = cache.get(cacheKey, length, startRegion);
+                fileRegion = cache.getIfPresent(cacheKey, startRegion);
+                if (fileRegion == null) {
+                    return false;
+                }
                 incrementReads = true;
             }
             final var region = fileRegion.chunk;
@@ -1419,11 +1427,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (startRegion != endRegion) {
                 return false;
             }
-            var fileRegion = lastAccessedRegion;
+            CacheEntry<CacheFileRegion<KeyType>> fileRegion = lastAccessedRegion;
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
                 fileRegion.touch();
             } else {
-                fileRegion = cache.get(cacheKey, this.length, startRegion);
+                fileRegion = cache.getIfPresent(cacheKey, startRegion);
+                if (fileRegion == null) {
+                    return false;
+                }
             }
             final var region = fileRegion.chunk;
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
@@ -1459,7 +1470,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         return false;
                     }
 
-                    final var entry = cache.get(cacheKey, this.length, regionIdx);
+                    final var entry = cache.getIfPresent(cacheKey, regionIdx);
+                    if (entry == null) {
+                        return false;
+                    }
                     final var region = entry.chunk;
 
                     final long regionEnd = offset + length - getRegionStart(regionIdx);
@@ -1975,6 +1989,33 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     regionKey,
                     key -> new LFUCacheEntry(new CacheFileRegion<KeyType>(SharedBlobCacheService.this, key, effectiveRegionSize), now)
                 );
+            }
+            // checks using volatile, double locking is fine, as long as we assign io last.
+            if (entry.chunk.volatileIO() == null) {
+                synchronized (entry.chunk) {
+                    if (entry.chunk.volatileIO() == null && entry.chunk.isEvicted() == false) {
+                        return initChunk(entry);
+                    }
+                }
+            }
+            assert assertChunkActiveOrEvicted(entry);
+
+            // existing item, check if we need to promote item
+            if (now > entry.lastAccessedEpoch) {
+                maybePromote(now, entry);
+            }
+
+            return entry;
+        }
+
+        @Override
+        @Nullable
+        public LFUCacheEntry getIfPresent(KeyType cacheKey, int region) {
+            final RegionKey<KeyType> regionKey = new RegionKey<>(cacheKey, region);
+            final long now = epoch.get();
+            var entry = keyMapping.get(cacheKey.shardId(), regionKey);
+            if (entry == null) {
+                return null;
             }
             // checks using volatile, double locking is fine, as long as we assign io last.
             if (entry.chunk.volatileIO() == null) {

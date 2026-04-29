@@ -496,3 +496,6 @@ tests:
 - class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
   method: testDoExecutePreservesContextIdInFinalResult
   issue: https://github.com/elastic/elasticsearch/issues/147840
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/147849

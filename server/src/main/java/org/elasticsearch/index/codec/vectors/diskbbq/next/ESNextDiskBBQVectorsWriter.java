@@ -66,7 +66,6 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 
@@ -80,75 +79,6 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
  */
 public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private static final Logger logger = LogManager.getLogger(ESNextDiskBBQVectorsWriter.class);
-    private static final String MERGE_EXPERIMENT_PROPERTY = "es.diskbbq.merge.experiment";
-
-    enum MergeExperiment {
-        AUTO,
-        FULL_REBUILD,
-        CONCATENATION,
-        CONCATENATION_WEIGHTED,
-        CONCATENATION_NO_REFINEMENT,
-        CONCATENATION_WEIGHTED_NO_REFINEMENT,
-        INSERTION;
-
-        static MergeExperiment current() {
-            String value = System.getProperty(MERGE_EXPERIMENT_PROPERTY, AUTO.name());
-            try {
-                return MergeExperiment.valueOf(value.toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(
-                    "Invalid value [" + value + "] for system property [" + MERGE_EXPERIMENT_PROPERTY + "]",
-                    e
-                );
-            }
-        }
-
-        boolean forceStrategy() {
-            return this != AUTO;
-        }
-
-        TieredMergeStrategy.Strategy strategy() {
-            return switch (this) {
-                case FULL_REBUILD -> TieredMergeStrategy.Strategy.FULL_REBUILD;
-                case INSERTION -> TieredMergeStrategy.Strategy.INSERTION;
-                default -> TieredMergeStrategy.Strategy.CONCATENATION;
-            };
-        }
-
-        boolean weightedConcatenation() {
-            return this == CONCATENATION_WEIGHTED || this == CONCATENATION_WEIGHTED_NO_REFINEMENT;
-        }
-
-        boolean refinementPass() {
-            return this != CONCATENATION_NO_REFINEMENT && this != CONCATENATION_WEIGHTED_NO_REFINEMENT;
-        }
-
-        MergeExperiment resolveConcatenationExperiment(VectorSimilarityFunction similarityFunction) {
-            if (this != AUTO) {
-                return this;
-            }
-            // Benchmarking across SIFT (128d/Euclidean), Wiki-Cohere (768d/DOT_PRODUCT),
-            // GIST (960d/Euclidean), and DBPedia-Arctic (768d/cosine) showed that skipping
-            // the refinement pass consistently wins or ties on recall while saving 15-25%
-            // merge time. The refinement pass never justified its cost on any dataset.
-            return CONCATENATION_NO_REFINEMENT;
-        }
-    }
-
-    record MergeSignalStats(
-        int segmentsWithCentroids,
-        int totalCentroids,
-        double interSegmentSpread,
-        double intraSegmentCentroidSpread,
-        double interToIntraSpreadRatio
-    ) {
-        MergeExperiment suggestedExperiment() {
-            if (segmentsWithCentroids < 2) {
-                return MergeExperiment.CONCATENATION_NO_REFINEMENT;
-            }
-            return interToIntraSpreadRatio <= 1.0d ? MergeExperiment.CONCATENATION_NO_REFINEMENT : MergeExperiment.CONCATENATION;
-        }
-    }
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
@@ -159,123 +89,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private final boolean doPrecondition;
     // field for slicing, null for no slicing
     private final String sliceField;
-
-    static MergeSignalStats computeMergeSignalStats(
-        VectorSimilarityFunction similarityFunction,
-        int dimension,
-        int[] segmentSizes,
-        IVFVectorsReader.CentroidData[] segmentCentroidData
-    ) {
-        float[] mergedGlobalCentroid = new float[dimension];
-        long totalVectors = 0L;
-        int segmentsWithCentroids = 0;
-        int totalCentroids = 0;
-
-        for (int i = 0; i < segmentCentroidData.length; i++) {
-            IVFVectorsReader.CentroidData data = segmentCentroidData[i];
-            int segmentSize = i < segmentSizes.length ? segmentSizes[i] : 0;
-            if (data == null || data.globalCentroid() == null || segmentSize <= 0) {
-                continue;
-            }
-            segmentsWithCentroids++;
-            totalCentroids += data.centroids().length;
-            totalVectors += segmentSize;
-            float[] globalCentroid = data.globalCentroid();
-            for (int dim = 0; dim < dimension; dim++) {
-                mergedGlobalCentroid[dim] += globalCentroid[dim] * segmentSize;
-            }
-        }
-
-        if (totalVectors == 0L) {
-            return new MergeSignalStats(0, 0, 0.0d, 0.0d, 0.0d);
-        }
-
-        for (int dim = 0; dim < dimension; dim++) {
-            mergedGlobalCentroid[dim] /= totalVectors;
-        }
-
-        double interSegmentSpread = 0.0d;
-        double intraSegmentCentroidSpread = 0.0d;
-        for (int i = 0; i < segmentCentroidData.length; i++) {
-            IVFVectorsReader.CentroidData data = segmentCentroidData[i];
-            int segmentSize = i < segmentSizes.length ? segmentSizes[i] : 0;
-            if (data == null || data.globalCentroid() == null || segmentSize <= 0) {
-                continue;
-            }
-            float[] globalCentroid = data.globalCentroid();
-            interSegmentSpread += segmentSize * normalizedCentroidDistance(
-                similarityFunction,
-                dimension,
-                globalCentroid,
-                mergedGlobalCentroid
-            );
-
-            float[][] centroids = data.centroids();
-            int[] clusterSizes = data.clusterSizes();
-            double centroidWeightSum = 0.0d;
-            if (clusterSizes != null && clusterSizes.length == centroids.length) {
-                for (int clusterSize : clusterSizes) {
-                    centroidWeightSum += Math.max(clusterSize, 0);
-                }
-            }
-
-            for (int centroidOrd = 0; centroidOrd < centroids.length; centroidOrd++) {
-                double centroidWeight;
-                if (centroidWeightSum > 0.0d) {
-                    centroidWeight = segmentSize * ((double) Math.max(clusterSizes[centroidOrd], 0) / centroidWeightSum);
-                } else {
-                    centroidWeight = (double) segmentSize / centroids.length;
-                }
-                intraSegmentCentroidSpread += centroidWeight * normalizedCentroidDistance(
-                    similarityFunction,
-                    dimension,
-                    centroids[centroidOrd],
-                    globalCentroid
-                );
-            }
-        }
-
-        double averageInterSegmentSpread = interSegmentSpread / totalVectors;
-        double averageIntraSegmentCentroidSpread = intraSegmentCentroidSpread / totalVectors;
-        double spreadRatio = averageIntraSegmentCentroidSpread == 0.0d
-            ? (averageInterSegmentSpread == 0.0d ? 0.0d : Double.POSITIVE_INFINITY)
-            : averageInterSegmentSpread / averageIntraSegmentCentroidSpread;
-
-        return new MergeSignalStats(
-            segmentsWithCentroids,
-            totalCentroids,
-            averageInterSegmentSpread,
-            averageIntraSegmentCentroidSpread,
-            spreadRatio
-        );
-    }
-
-    private static double normalizedCentroidDistance(
-        VectorSimilarityFunction similarityFunction,
-        int dimension,
-        float[] left,
-        float[] right
-    ) {
-        return switch (similarityFunction) {
-            case EUCLIDEAN -> Math.sqrt(ESVectorUtil.squareDistance(left, right) / dimension);
-            case COSINE, DOT_PRODUCT, MAXIMUM_INNER_PRODUCT -> cosineDistance(left, right);
-        };
-    }
-
-    private static double cosineDistance(float[] left, float[] right) {
-        double dot = ESVectorUtil.dotProduct(left, right);
-        double leftNorm = 0.0d;
-        double rightNorm = 0.0d;
-        for (int i = 0; i < left.length; i++) {
-            leftNorm += left[i] * left[i];
-            rightNorm += right[i] * right[i];
-        }
-        if (leftNorm == 0.0d || rightNorm == 0.0d) {
-            return leftNorm == rightNorm ? 0.0d : 1.0d;
-        }
-        double cosine = dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm));
-        return 1.0d - Math.clamp(cosine, -1.0d, 1.0d);
-    }
 
     public ESNextDiskBBQVectorsWriter(
         SegmentWriteState state,
@@ -1080,23 +893,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             }
         }
 
-        MergeExperiment requestedExperiment = MergeExperiment.current();
         // Select merge strategy
-        TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster, fieldInfo.getVectorDimension());
-        TieredMergeStrategy.Strategy strategy = requestedExperiment.forceStrategy()
-            ? requestedExperiment.strategy()
-            : tieredStrategy.selectStrategy(segmentSizes, segmentCentroidCounts);
-        MergeSignalStats mergeSignalStats = strategy == TieredMergeStrategy.Strategy.CONCATENATION
-            ? computeMergeSignalStats(
-                fieldInfo.getVectorSimilarityFunction(),
-                fieldInfo.getVectorDimension(),
-                segmentSizes,
-                segmentCentroidData
-            )
-            : null;
-        MergeExperiment effectiveExperiment = strategy == TieredMergeStrategy.Strategy.CONCATENATION
-            ? requestedExperiment.resolveConcatenationExperiment(fieldInfo.getVectorSimilarityFunction())
-            : requestedExperiment;
+        TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster);
+        TieredMergeStrategy.Strategy strategy = tieredStrategy.selectStrategy(segmentSizes, segmentCentroidCounts);
 
         if (logger.isInfoEnabled()) {
             int totalVectors = 0;
@@ -1107,42 +906,14 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             for (int c : segmentCentroidCounts) {
                 totalCentroids += c;
             }
-            if (strategy == TieredMergeStrategy.Strategy.CONCATENATION) {
-                logger.info(
-                    "DiskBBQ merge for field [{}]: selected strategy [{}], requested experiment [{}], "
-                        + "effective experiment [{}], segments={}, totalVectors={}, totalCentroids={}",
-                    fieldInfo.name,
-                    strategy,
-                    requestedExperiment,
-                    effectiveExperiment,
-                    numSegments,
-                    totalVectors,
-                    totalCentroids
-                );
-                if (mergeSignalStats != null) {
-                    logger.info(
-                        "DiskBBQ merge signals for field [{}]: segmentsWithCentroids={}, interSegmentSpread={}, "
-                            + "intraSegmentCentroidSpread={}, interToIntraSpreadRatio={}, signalSuggestedExperiment=[{}]",
-                        fieldInfo.name,
-                        mergeSignalStats.segmentsWithCentroids(),
-                        mergeSignalStats.interSegmentSpread(),
-                        mergeSignalStats.intraSegmentCentroidSpread(),
-                        mergeSignalStats.interToIntraSpreadRatio(),
-                        mergeSignalStats.suggestedExperiment()
-                    );
-                }
-            } else {
-                logger.info(
-                    "DiskBBQ merge for field [{}]: selected strategy [{}], experiment [{}], "
-                        + "segments={}, totalVectors={}, totalCentroids={}",
-                    fieldInfo.name,
-                    strategy,
-                    requestedExperiment,
-                    numSegments,
-                    totalVectors,
-                    totalCentroids
-                );
-            }
+            logger.info(
+                "DiskBBQ merge for field [{}]: selected strategy [{}], segments={}, totalVectors={}, totalCentroids={}",
+                fieldInfo.name,
+                strategy,
+                numSegments,
+                totalVectors,
+                totalCentroids
+            );
         }
 
         switch (strategy) {
@@ -1165,31 +936,12 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             }
             case CONCATENATION -> {
                 java.util.List<float[]> allPriorCentroids = new java.util.ArrayList<>();
-                java.util.List<Integer> allPriorWeights = effectiveExperiment.weightedConcatenation() ? new java.util.ArrayList<>() : null;
-                boolean missingWeights = false;
                 for (IVFVectorsReader.CentroidData data : segmentCentroidData) {
                     if (data != null) {
-                        float[][] centroids = data.centroids();
-                        int[] clusterSizes = data.clusterSizes();
-                        boolean hasWeights = clusterSizes != null && clusterSizes.length == centroids.length;
-                        for (int i = 0; i < centroids.length; i++) {
-                            allPriorCentroids.add(centroids[i]);
-                            if (allPriorWeights != null && hasWeights) {
-                                allPriorWeights.add(clusterSizes[i]);
-                            } else if (allPriorWeights != null) {
-                                missingWeights = true;
-                            }
-                        }
+                        java.util.Collections.addAll(allPriorCentroids, data.centroids());
                     }
                 }
                 float[][] initialCentroids = allPriorCentroids.toArray(new float[0][]);
-                int[] initialWeights = null;
-                if (allPriorWeights != null && missingWeights == false) {
-                    initialWeights = new int[allPriorWeights.size()];
-                    for (int i = 0; i < allPriorWeights.size(); i++) {
-                        initialWeights[i] = allPriorWeights.get(i);
-                    }
-                }
                 HierarchicalKMeans hierarchicalKMeans;
                 if (mergeExec != null) {
                     hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
@@ -1199,9 +951,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 KMeansResult kMeansResult = hierarchicalKMeans.clusterByConcatenation(
                     floatVectorValues,
                     initialCentroids,
-                    initialWeights,
-                    vectorPerCluster,
-                    effectiveExperiment.refinementPass()
+                    vectorPerCluster
                 );
                 return new CentroidAssignments(
                     fieldInfo.getVectorDimension(),

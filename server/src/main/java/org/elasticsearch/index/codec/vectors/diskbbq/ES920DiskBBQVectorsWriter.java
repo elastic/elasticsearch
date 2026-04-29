@@ -667,7 +667,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         // Select merge strategy
-        TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster, fieldInfo.getVectorDimension());
+        TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster);
         TieredMergeStrategy.Strategy strategy = tieredStrategy.selectStrategy(segmentSizes, segmentCentroidCounts);
 
         if (logger.isInfoEnabled()) {

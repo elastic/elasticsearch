@@ -266,63 +266,6 @@ public class HierarchicalKMeans {
         return intermediate.centroids();
     }
 
-    /**
-     * Reduce a large set of centroids to targetCount using lightweight weighted K-means.
-     * Each centroid is weighted by its source posting-list size so seed reduction preserves
-     * the influence of large source clusters.
-     */
-    private float[][] reduceCentroids(float[][] centroids, int[] weights, int targetCount) throws IOException {
-        if (weights == null || weights.length != centroids.length) {
-            return reduceCentroids(centroids, targetCount);
-        }
-
-        ClusteringFloatVectorValues centroidValues = KMeansFloatVectorValues.build(java.util.Arrays.asList(centroids), null, dimension);
-        float[][] reduced = KMeansLocal.pickInitialCentroids(centroidValues, targetCount);
-        int[] assignments = new int[centroids.length];
-        Arrays.fill(assignments, -1);
-        float[] distances = new float[4];
-
-        for (int iteration = 0; iteration < 3; iteration++) {
-            boolean changed = false;
-            float[][] weightedSums = new float[targetCount][dimension];
-            long[] totalWeights = new long[targetCount];
-
-            for (int i = 0; i < centroids.length; i++) {
-                int bestCentroid = findNearestCentroid(centroids[i], reduced, distances);
-                if (assignments[i] != bestCentroid) {
-                    assignments[i] = bestCentroid;
-                    changed = true;
-                }
-
-                int weight = Math.max(1, weights[i]);
-                totalWeights[bestCentroid] += weight;
-                float[] centroid = centroids[i];
-                float[] sum = weightedSums[bestCentroid];
-                for (int d = 0; d < dimension; d++) {
-                    sum[d] += centroid[d] * weight;
-                }
-            }
-
-            for (int c = 0; c < targetCount; c++) {
-                if (totalWeights[c] == 0) {
-                    continue;
-                }
-                float invWeight = 1.0f / totalWeights[c];
-                float[] centroid = reduced[c];
-                float[] sum = weightedSums[c];
-                for (int d = 0; d < dimension; d++) {
-                    centroid[d] = sum[d] * invWeight;
-                }
-            }
-
-            if (changed == false) {
-                break;
-            }
-        }
-
-        return reduced;
-    }
-
     private static int findNearestCentroid(float[] vector, float[][] centroids, float[] distances) {
         int bestCentroid = 0;
         float minDistance = Float.MAX_VALUE;
@@ -509,16 +452,6 @@ public class HierarchicalKMeans {
      */
     public KMeansResult clusterByConcatenation(ClusteringFloatVectorValues vectors, float[][] allPriorCentroids, int targetSize)
         throws IOException {
-        return clusterByConcatenation(vectors, allPriorCentroids, null, targetSize, true);
-    }
-
-    public KMeansResult clusterByConcatenation(
-        ClusteringFloatVectorValues vectors,
-        float[][] allPriorCentroids,
-        int[] allPriorWeights,
-        int targetSize,
-        boolean refineCentroids
-    ) throws IOException {
         if (vectors.size() == 0) {
             return new KMeansIntermediate();
         }
@@ -543,9 +476,7 @@ public class HierarchicalKMeans {
         if (allPriorCentroids.length == k) {
             seedCentroids = deepCopy(allPriorCentroids);
         } else if (allPriorCentroids.length > k) {
-            seedCentroids = allPriorWeights == null
-                ? reduceCentroids(allPriorCentroids, k)
-                : reduceCentroids(allPriorCentroids, allPriorWeights, k);
+            seedCentroids = reduceCentroids(allPriorCentroids, k);
         } else {
             seedCentroids = supplementCentroids(allPriorCentroids, vectors, k);
         }
@@ -567,14 +498,9 @@ public class HierarchicalKMeans {
         }
         resolveOversizedAndEmptyClusters(kMeansIntermediate, vectors, centroidVectorCount, targetSize);
 
-        // SOAR refinement with single pass
+        // SOAR assignment only — benchmarks showed refinement pass never justifies its cost
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
-            if (refineCentroids) {
-                KMeansLocal refinementKMeans = buildKmeansLocal(vectors.size(), vectors.size(), 1);
-                refinementKMeans.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
-            } else {
-                assignSoarOnly(vectors, kMeansIntermediate);
-            }
+            assignSoarOnly(vectors, kMeansIntermediate);
         }
 
         return kMeansIntermediate;

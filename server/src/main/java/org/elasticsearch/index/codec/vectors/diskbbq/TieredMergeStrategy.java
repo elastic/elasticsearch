@@ -37,11 +37,9 @@ public class TieredMergeStrategy {
     static final float INSERTION_DOMINANT_RATIO = 0.8f;
 
     private final int vectorsPerCluster;
-    private final int dimension;
 
-    public TieredMergeStrategy(int vectorsPerCluster, int dimension) {
+    public TieredMergeStrategy(int vectorsPerCluster) {
         this.vectorsPerCluster = vectorsPerCluster;
-        this.dimension = dimension;
     }
 
     public enum Strategy {

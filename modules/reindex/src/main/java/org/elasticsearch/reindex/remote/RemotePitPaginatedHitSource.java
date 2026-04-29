@@ -71,7 +71,6 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         PointInTimeBuilder pitBuilder = source.pointInTimeBuilder();
         this.pitId = new AtomicReference<>(pitBuilder.getEncodedId());
         TimeValue keepAlive = pitBuilder.getKeepAlive();
-        // TODO - https://github.com/elastic/elasticsearch-team/issues/2334
         this.baseKeepAlive = keepAlive != null ? keepAlive : TimeValue.timeValueMinutes(5);
     }
 
@@ -107,7 +106,6 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
 
     @Override
     protected void doNextPitSearch(Object[] searchAfter, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
-        // TODO - https://github.com/elastic/elasticsearch-team/issues/2334
         TimeValue keepAlive = timeValueNanos(baseKeepAlive.nanos() + extraKeepAlive.nanos());
         execute(
             RemoteRequestBuilders.pitSearch(searchRequest, remote.getQuery(), pitId.get(), keepAlive, searchAfter, remoteVersion),

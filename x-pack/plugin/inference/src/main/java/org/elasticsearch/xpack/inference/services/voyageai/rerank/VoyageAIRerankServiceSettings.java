@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.rerank;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,8 +16,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
@@ -28,31 +26,29 @@ import java.util.Objects;
 public class VoyageAIRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, VoyageAIRateLimitServiceSettings {
     public static final String NAME = "voyageai_rerank_service_settings";
 
-    private static final Logger logger = LogManager.getLogger(VoyageAIRerankServiceSettings.class);
-
     private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
     public static VoyageAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
+
+        var commonServiceSettings = VoyageAICommonServiceSettings.fromMap(map, context, validationException);
 
         validationException.throwIfValidationErrorsExist();
-
-        var commonServiceSettings = VoyageAIServiceSettings.fromMap(map, context);
 
         return new VoyageAIRerankServiceSettings(commonServiceSettings);
     }
 
-    private final VoyageAIServiceSettings commonSettings;
+    private final VoyageAICommonServiceSettings commonSettings;
 
-    public VoyageAIRerankServiceSettings(VoyageAIServiceSettings commonSettings) {
+    public VoyageAIRerankServiceSettings(VoyageAICommonServiceSettings commonSettings) {
         this.commonSettings = commonSettings;
     }
 
     public VoyageAIRerankServiceSettings(StreamInput in) throws IOException {
-        this.commonSettings = new VoyageAIServiceSettings(in);
+        this.commonSettings = new VoyageAICommonServiceSettings(in);
     }
 
-    public VoyageAIServiceSettings getCommonSettings() {
+    public VoyageAICommonServiceSettings getCommonSettings() {
         return commonSettings;
     }
 
@@ -64,6 +60,17 @@ public class VoyageAIRerankServiceSettings extends FilteredXContentObject implem
     @Override
     public RateLimitSettings rateLimitSettings() {
         return commonSettings.rateLimitSettings();
+    }
+
+    @Override
+    public VoyageAIRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var updatedCommonSettings = this.commonSettings.updateCommonServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new VoyageAIRerankServiceSettings(updatedCommonSettings);
     }
 
     @Override

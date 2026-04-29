@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -21,16 +23,19 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -237,6 +242,83 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
             assertEquals(timeValueSeconds(0), task.getStatus().getThrottledUntil());
         } finally {
             threadPool.shutdown();
+        }
+    }
+
+    public void testRethrottleWithRelocationGuardNonSliced() {
+        final float rps = randomFloatBetween(0.1f, 1000f, true);
+        workerState.rethrottleWithRelocationGuard(rps);
+        assertThat(workerState.getStatus().getRequestsPerSecond(), equalTo(rps));
+
+        final float captured = workerState.captureRequestsPerSecondForRelocation();
+        assertThat(captured, equalTo(rps));
+
+        final float anotherRps = randomFloatBetween(0.1f, 1000f, true);
+        final ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> workerState.rethrottleWithRelocationGuard(anotherRps)
+        );
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+    }
+
+    public void testRethrottleWithRelocationGuardSlicedChild() {
+        final int sliceId = randomIntBetween(0, 100);
+        final BulkByScrollTask slicedTask = new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false,
+            null
+        );
+        final float initialRps = randomFloatBetween(0.1f, 1000f, true);
+        slicedTask.setWorker(initialRps, sliceId);
+        final WorkerBulkByScrollTaskState slicedWorker = slicedTask.getWorkerState();
+
+        final float newRps = randomFloatBetween(0.1f, 1000f, true);
+        slicedWorker.rethrottleWithRelocationGuard(newRps);
+        assertThat(slicedTask.getStatus().getRequestsPerSecond(), equalTo(newRps));
+    }
+
+    public void testCaptureAndRethrottleRaceCondition() throws Exception {
+        final float initialRps = randomFloatBetween(0.1f, 500f, true);
+        final float rethrottledRps = randomFloatBetween(501f, 1000f, true);
+        workerState.rethrottleWithRelocationGuard(initialRps);
+
+        final CountDownLatch ready = new CountDownLatch(2);
+        final CountDownLatch go = new CountDownLatch(1);
+        final AtomicReference<Float> captured = new AtomicReference<>();
+        final AtomicReference<Exception> rethrottleError = new AtomicReference<>();
+
+        final Thread captureThread = new Thread(() -> {
+            ready.countDown();
+            safeAwait(go);
+            captured.set(workerState.captureRequestsPerSecondForRelocation());
+        });
+        final Thread rethrottleThread = new Thread(() -> {
+            ready.countDown();
+            safeAwait(go);
+            try {
+                workerState.rethrottleWithRelocationGuard(rethrottledRps);
+            } catch (ElasticsearchStatusException e) {
+                rethrottleError.set(e);
+            }
+        });
+
+        captureThread.start();
+        rethrottleThread.start();
+        safeAwait(ready);
+        go.countDown();
+        captureThread.join(10_000);
+        rethrottleThread.join(10_000);
+
+        if (rethrottleError.get() != null) {
+            assertThat(captured.get(), equalTo(initialRps));
+            assertThat(((ElasticsearchStatusException) rethrottleError.get()).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        } else {
+            assertThat(captured.get(), equalTo(rethrottledRps));
         }
     }
 

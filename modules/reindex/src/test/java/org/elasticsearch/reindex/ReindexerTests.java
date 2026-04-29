@@ -94,6 +94,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -511,6 +512,143 @@ public class ReindexerTests extends ESTestCase {
         verify(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
         verify(resumeListener).onResponse(any());
         verifyNoMoreInteractions(resumeListener);
+    }
+
+    public void testRelocationPatchesRpsOnWorkerResumeInfo() {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("source-node").build();
+        final DiscoveryNode targetNode = DiscoveryNodeUtils.builder("target-node").build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.localNode()).thenReturn(sourceNode);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.get("target-node")).thenReturn(targetNode);
+
+        final float workerRps = randomFloatBetween(0.1f, 1000f, true);
+        final AtomicReference<ResumeBulkByScrollRequest> capturedRequest = new AtomicReference<>();
+        final TransportService transportService = mock(TransportService.class);
+        doAnswer(invocation -> {
+            capturedRequest.set(invocation.getArgument(2));
+            TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
+            return null;
+        }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+
+        final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorker(workerRps, null);
+        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.requestRelocation();
+
+        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final ReindexRequest request = reindexRequest();
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            request,
+            ActionListener.noop(),
+            future
+        );
+        wrapped.onResponse(reindexResponseWithResumeInfo());
+
+        assertTrue(future.isDone());
+        assertNotNull(capturedRequest.get());
+        final ReindexRequest delegateRequest = (ReindexRequest) capturedRequest.get().getDelegate();
+        assertThat(delegateRequest.getRequestsPerSecond(), equalTo(workerRps));
+        final ResumeInfo resumeInfo = delegateRequest.getResumeInfo().get();
+        assertThat(resumeInfo.worker().status().getRequestsPerSecond(), equalTo(workerRps));
+    }
+
+    public void testRelocationPatchesRpsOnSlicedResumeInfo() {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("source-node").build();
+        final DiscoveryNode targetNode = DiscoveryNodeUtils.builder("target-node").build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.localNode()).thenReturn(sourceNode);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.get("target-node")).thenReturn(targetNode);
+
+        final float leaderRps = randomFloatBetween(1f, 1000f, true);
+        final int totalSlices = randomIntBetween(3, 6);
+        final int completedSliceCount = randomIntBetween(1, totalSlices - 1);
+        final int incompleteSliceCount = totalSlices - completedSliceCount;
+        final float expectedPerSliceRps = leaderRps / incompleteSliceCount;
+
+        final AtomicReference<ResumeBulkByScrollRequest> capturedRequest = new AtomicReference<>();
+        final TransportService transportService = mock(TransportService.class);
+        doAnswer(invocation -> {
+            capturedRequest.set(invocation.getArgument(2));
+            TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
+            return null;
+        }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+
+        final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorkerCount(totalSlices, leaderRps);
+        task.getLeaderState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.requestRelocation();
+
+        final Map<Integer, ResumeInfo.SliceStatus> slices = new LinkedHashMap<>();
+        for (int i = 0; i < completedSliceCount; i++) {
+            final BulkByScrollResponse sliceResponse = new BulkByScrollResponse(
+                TimeValue.ZERO,
+                new BulkByScrollTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
+                List.of(),
+                List.of(),
+                false
+            );
+            slices.put(i, new ResumeInfo.SliceStatus(i, null, new ResumeInfo.WorkerResult(sliceResponse, null)));
+        }
+        final float originalSliceRps = randomFloatBetween(0.1f, 100f, true);
+        for (int i = completedSliceCount; i < totalSlices; i++) {
+            final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
+                randomAlphaOfLength(10),
+                System.nanoTime(),
+                new BulkByScrollTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), originalSliceRps, null, timeValueMillis(0)),
+                null
+            );
+            slices.put(i, new ResumeInfo.SliceStatus(i, workerResumeInfo, null));
+        }
+
+        final ResumeInfo.RelocationOrigin origin = randomOrigin();
+        final BulkByScrollResponse response = new BulkByScrollResponse(
+            TimeValue.MINUS_ONE,
+            new BulkByScrollTask.Status(List.of(), null),
+            List.of(),
+            List.of(),
+            false,
+            new ResumeInfo(origin, null, slices)
+        );
+
+        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final ReindexRequest request = reindexRequest();
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            request,
+            ActionListener.noop(),
+            future
+        );
+        wrapped.onResponse(response);
+
+        assertTrue(future.isDone());
+        assertNotNull(capturedRequest.get());
+        final ReindexRequest delegateRequest = (ReindexRequest) capturedRequest.get().getDelegate();
+        assertThat(delegateRequest.getRequestsPerSecond(), equalTo(leaderRps));
+
+        final Map<Integer, ResumeInfo.SliceStatus> patchedSlices = delegateRequest.getResumeInfo().get().slices();
+        assertThat(patchedSlices.size(), equalTo(totalSlices));
+        for (int i = 0; i < completedSliceCount; i++) {
+            assertTrue("completed slice " + i + " should stay completed", patchedSlices.get(i).isCompleted());
+        }
+        for (int i = completedSliceCount; i < totalSlices; i++) {
+            assertFalse("incomplete slice " + i + " should not be completed", patchedSlices.get(i).isCompleted());
+            assertThat(patchedSlices.get(i).resumeInfo().status().getRequestsPerSecond(), equalTo(expectedPerSliceRps));
+        }
     }
 
     public void testExecuteStoresSourceTaskResult() throws Exception {

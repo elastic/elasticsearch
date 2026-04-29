@@ -9,10 +9,12 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -23,6 +25,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -310,6 +314,80 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             final ResumeInfo.SliceStatus sliceStatus = resumeInfo.slices().get(i);
             assertNull("slice " + i + " should not have a result", sliceStatus.result());
             assertSame(resumeResponses[i - 1].getTaskResumeInfo().get().worker(), sliceStatus.resumeInfo());
+        }
+    }
+
+    public void testCaptureRequestsPerSecondForRelocation() {
+        final float initialRPS = randomFloatBetween(0.1f, 1000f, true);
+        final BulkByScrollTask leaderTask = new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            false,
+            randomBoolean() ? null : randomOrigin()
+        );
+        leaderTask.setWorkerCount(between(2, 10), initialRPS);
+        final LeaderBulkByScrollTaskState state = leaderTask.getLeaderState();
+
+        assertThat(state.captureRequestsPerSecondForRelocation(), equalTo(initialRPS));
+    }
+
+    public void testSetRequestsPerSecondWithRelocationGuardUpdatesValue() {
+        final float newRPS = randomFloatBetween(0.1f, 1000f, true);
+        taskState.setRequestsPerSecondWithRelocationGuard(newRPS);
+        assertThat(taskState.captureRequestsPerSecondForRelocation(), equalTo(newRPS));
+    }
+
+    public void testSetRequestsPerSecondWithRelocationGuardThrows503AfterCapture() {
+        taskState.captureRequestsPerSecondForRelocation();
+        final float rps = randomFloatBetween(0.1f, 1000f, true);
+        final ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> taskState.setRequestsPerSecondWithRelocationGuard(rps)
+        );
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+    }
+
+    public void testCaptureAndRethrottleRaceCondition() throws Exception {
+        final float initialRps = randomFloatBetween(0.1f, 500f, true);
+        final float rethrottledRps = randomFloatBetween(501f, 1000f, true);
+        taskState.setRequestsPerSecondWithRelocationGuard(initialRps);
+
+        final CountDownLatch ready = new CountDownLatch(2);
+        final CountDownLatch go = new CountDownLatch(1);
+        final AtomicReference<Float> captured = new AtomicReference<>();
+        final AtomicReference<Exception> rethrottleError = new AtomicReference<>();
+
+        final Thread captureThread = new Thread(() -> {
+            ready.countDown();
+            safeAwait(go);
+            captured.set(taskState.captureRequestsPerSecondForRelocation());
+        });
+        final Thread rethrottleThread = new Thread(() -> {
+            ready.countDown();
+            safeAwait(go);
+            try {
+                taskState.setRequestsPerSecondWithRelocationGuard(rethrottledRps);
+            } catch (ElasticsearchStatusException e) {
+                rethrottleError.set(e);
+            }
+        });
+
+        captureThread.start();
+        rethrottleThread.start();
+        safeAwait(ready);
+        go.countDown();
+        captureThread.join(10_000);
+        rethrottleThread.join(10_000);
+
+        if (rethrottleError.get() != null) {
+            assertThat(captured.get(), equalTo(initialRps));
+            assertThat(((ElasticsearchStatusException) rethrottleError.get()).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        } else {
+            assertThat(captured.get(), equalTo(rethrottledRps));
         }
     }
 

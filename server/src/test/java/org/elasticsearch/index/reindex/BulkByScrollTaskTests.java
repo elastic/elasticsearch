@@ -255,6 +255,61 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertEquals(reasonCancelled, merged.getReasonCancelled());
     }
 
+    public void testStatusWithRequestsPerSecond() {
+        final Integer sliceId = randomBoolean() ? null : randomIntBetween(0, 100);
+        final long total = randomNonNegativeLong();
+        final long updated = randomNonNegativeLong();
+        final long created = randomNonNegativeLong();
+        final long deleted = randomNonNegativeLong();
+        final int batches = randomNonNegativeInt();
+        final long versionConflicts = randomNonNegativeLong();
+        final long noops = randomNonNegativeLong();
+        final long bulkRetries = randomNonNegativeLong();
+        final long searchRetries = randomNonNegativeLong();
+        final TimeValue throttled = randomPositiveTimeValue();
+        final float originalRps = randomFloatBetween(0.1f, 1000f, true);
+        final String reasonCancelled = randomBoolean() ? null : randomAlphaOfLength(5);
+        final TimeValue throttledUntil = randomPositiveTimeValue();
+
+        final BulkByScrollTask.Status original = new BulkByScrollTask.Status(
+            sliceId,
+            total,
+            updated,
+            created,
+            deleted,
+            batches,
+            versionConflicts,
+            noops,
+            bulkRetries,
+            searchRetries,
+            throttled,
+            originalRps,
+            reasonCancelled,
+            throttledUntil
+        );
+
+        final float newRps = randomValueOtherThan(originalRps, () -> randomFloatBetween(0.1f, 1000f, true));
+        final BulkByScrollTask.Status copy = original.withRequestsPerSecond(newRps);
+
+        final BulkByScrollTask.Status expected = new BulkByScrollTask.Status(
+            sliceId,
+            total,
+            updated,
+            created,
+            deleted,
+            batches,
+            versionConflicts,
+            noops,
+            bulkRetries,
+            searchRetries,
+            throttled,
+            newRps,
+            reasonCancelled,
+            throttledUntil
+        );
+        assertThat(copy, equalTo(expected));
+    }
+
     /**
      * Verifies that {@link BulkByScrollTask#getStatus()} returns an empty status (merged from empty slice list)
      * when the task is neither a leader nor a worker.

@@ -774,7 +774,7 @@ public class SparseFileTrackerTests extends ESTestCase {
                 actionListener
             ).map(SparseFileTracker.Gaps::claim).orElse(List.of());
 
-            long gapSum = gaps.stream().mapToLong(g -> g.end() - g.start()).sum();
+            long gapSum = gaps.stream().mapToLong(g -> Math.min(g.end(), rangeEnd) - Math.max(g.start(), rangeStart)).sum();
             assertThat(sparseFileTracker.getAbsentBytesWithin(ByteRange.of(rangeStart, rangeEnd)), greaterThanOrEqualTo(gapSum));
             gaps.forEach(g -> {
                 assertThat(sparseFileTracker.getAbsentBytesWithin(ByteRange.of(g.start(), g.end())), equalTo(g.end() - g.start()));

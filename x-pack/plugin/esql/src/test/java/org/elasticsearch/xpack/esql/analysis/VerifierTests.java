@@ -97,6 +97,41 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testEnrichOnByteLongConflictedMatchField() {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("byte", Set.of("test1"));
+        typesToIndices.put("long", Set.of("test2"));
+
+        Map<String, EsField> mapping = Map.of("multi_typed_int", new InvalidMappedField("multi_typed_int", typesToIndices));
+        TestAnalyzer analyzer = analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping)))
+            .addEnrichPolicy(EnrichPolicy.RANGE_TYPE, "ages_policy", "age_range", "ages", "mapping-ages.json")
+            .stripErrorPrefix(true);
+
+        analyzer.error(
+            "from test* | enrich ages_policy on multi_typed_int",
+            equalTo(
+                "1:36: Cannot use field [multi_typed_int] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [byte] in [test1], [long] in [test2]"
+            )
+        );
+    }
+
+    public void testEnrichOnDateNanosConflictedMatchField() {
+        EsField field = new InvalidMappedField("multi_typed_date", Map.of("date", Set.of("test1"), "date_nanos", Set.of("test2")));
+        Map<String, EsField> mapping = Map.of("multi_typed_date", field);
+        TestAnalyzer analyzer = analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping)))
+            .addEnrichPolicy(EnrichPolicy.RANGE_TYPE, "decades_policy", "date_range", "decades", "mapping-decades.json")
+            .stripErrorPrefix(true);
+
+        analyzer.error(
+            "from test* | enrich decades_policy on multi_typed_date",
+            equalTo(
+                "1:39: Unsupported type [date_nanos] for enrich matching field [multi_typed_date];"
+                    + " only [keyword, text, ip, long, integer, float, double, datetime] allowed for type [range]"
+            )
+        );
+    }
+
     public void testUnsupportedAndMultiTypedFields() {
         final String unsupported = "unsupported";
         final String multiTyped = "multi_typed";
@@ -157,8 +192,8 @@ public class VerifierTests extends ESTestCase {
         analyzer.error(
             "from test* | enrich client_cidr on multi_typed",
             equalTo(
-                "1:36: Unsupported type [unsupported] for enrich matching field [multi_typed];"
-                    + " only [keyword, text, ip, long, integer, float, double, datetime] allowed for type [range]"
+                "1:36: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
             )
         );
 
@@ -1644,6 +1679,22 @@ public class VerifierTests extends ESTestCase {
             "from test | mv_expand id | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
         );
+        fullText().error(
+            "from test | limit 1 by id | where " + functionInvocation,
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
+        );
+        fullText().error(
+            "from test | sort id | limit 1 by id | where " + functionInvocation,
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
+        );
+        fullText().stripErrorPrefix(false)
+            .error(
+                "from test | mv_expand " + fieldName + " | where " + functionInvocation,
+                allOf(
+                    containsString("Found 1 problem"),
+                    containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
+                )
+            );
     }
 
     // These should pass eventually once we lift some restrictions on match function
@@ -3336,18 +3387,10 @@ public class VerifierTests extends ESTestCase {
 
     public void testNoDimensionsInAggsOnlyInByClause() {
         tsdb().error(
-            "TS test | STATS count(host) BY bucket(@timestamp, 1 minute)",
+            "TS test | STATS count(bool_field) BY bucket(@timestamp, 1 minute)",
             equalTo(
-                "1:23: argument of [implicit time-series aggregation function (LastOverTime) for host] must be "
-                    + "[numeric except unsigned_long], found value [host] type [keyword]; "
-                    + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
-            )
-        );
-        tsdb().error(
-            "TS test | STATS max(name) BY bucket(@timestamp, 1 minute)",
-            equalTo(
-                "1:21: argument of [implicit time-series aggregation function (LastOverTime) for name] must be "
-                    + "[numeric except unsigned_long], found value [name] type [keyword]; "
+                "1:23: argument of [implicit time-series aggregation function (LastOverTime) for bool_field] must be "
+                    + "[numeric except unsigned_long], found value [bool_field] type [boolean]; "
                     + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
             )
         );
@@ -3431,7 +3474,9 @@ public class VerifierTests extends ESTestCase {
         TestAnalyzer analyzer = defaultAnalyzer().addInferenceResolution(EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING);
         analyzer.error(
             "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"invalid_type\"})",
-            equalTo("1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], must be one of [text, image]"),
+            equalTo(
+                "1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], must be one of [text, image, audio, video, pdf]"
+            ),
             "query text",
             EMBEDDING_INFERENCE_ID
         );
@@ -3832,6 +3877,10 @@ public class VerifierTests extends ESTestCase {
                 "1:29: Invalid option [num_words] in [TOP_SNIPPETS(body, \"query\", {\"num_words\": true})], "
                     + "cannot cast [true] to [integer]"
             )
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"order\": \"invalid\"})",
+            equalTo("1:29: 'order' option must be 'score' or 'none', found [invalid]")
         );
     }
 

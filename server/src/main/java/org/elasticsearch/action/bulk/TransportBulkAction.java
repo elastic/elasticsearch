@@ -48,7 +48,9 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
@@ -62,6 +64,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -231,7 +234,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             : "TransportBulkAction should never be called with a SimulateBulkRequest";
         assert bulkRequest.getComponentTemplateSubstitutions().isEmpty()
             : "Component template substitutions are not allowed in a non-simulated bulk";
-        trackIndexRequests(bulkRequest);
+        preprocessBulkRequest(bulkRequest);
         Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();
@@ -250,18 +253,24 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     }
 
     /**
-     * Track the number of index requests in our APM metrics. We'll track almost all docs here (pipeline or no pipeline,
-     * failure store or original), but some docs don't reach this place (dropped and rejected docs), so we increment for those docs in
-     * different places.
+     * Preprocesses the bulk request before index auto-creation/rollover checks.
+     * Validates slice requirements when the feature is enabled and tracks index requests for metrics.
      */
-    private void trackIndexRequests(BulkRequest bulkRequest) {
-        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+    private void preprocessBulkRequest(BulkRequest bulkRequest) {
+        final ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+        final SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
+        final Function<Index, IndexMetadata> indexMetadataProvider = project::index;
+        final boolean validateSliceRouting = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
+
         for (DocWriteRequest<?> request : bulkRequest.requests) {
+            final String concreteName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
+            final IndexAbstraction indexAbstraction = indicesLookup.get(concreteName);
+            if (validateSliceRouting) {
+                requireSliceRoutingWhenEnabled(request, indexAbstraction, indexMetadataProvider);
+            }
             if (request instanceof IndexRequest == false) {
                 continue;
             }
-            String resolvedIndexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
-            IndexAbstraction indexAbstraction = project.getIndicesLookup().get(resolvedIndexName);
             DataStream dataStream = DataStream.resolveDataStream(indexAbstraction, project);
             // We only track index requests into data streams.
             if (dataStream != null) {
@@ -588,6 +597,32 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                         + "not enabled in the data stream's template."
                 );
             }
+        }
+    }
+
+    static void requireSliceRoutingWhenEnabled(
+        DocWriteRequest<?> writeRequest,
+        IndexAbstraction indexAbstraction,
+        Function<Index, IndexMetadata> indexMetadataProvider
+    ) {
+        if (indexAbstraction == null) {
+            // The target may be auto-created; perform authoritative validation after concrete index resolution.
+            return;
+        }
+        boolean sliceEnabled = Optional.ofNullable(indexAbstraction)
+            .map(IndexAbstraction::getWriteIndex)
+            .map(indexMetadataProvider)
+            .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
+            .orElse(false);
+        if (sliceEnabled == false && writeRequest.isRoutingFromSlice()) {
+            throw new IllegalArgumentException(
+                "[_slice] is not allowed when [index.slice.enabled] is false for bulk item targeting [" + writeRequest.index() + "]"
+            );
+        }
+        if (sliceEnabled && writeRequest.routing() == null) {
+            throw new IllegalArgumentException(
+                "[_slice] is required when [index.slice.enabled] is true for bulk item targeting [" + writeRequest.index() + "]"
+            );
         }
     }
 

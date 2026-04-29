@@ -323,7 +323,7 @@ public class FsBlobContainerTests extends ESTestCase {
     }
 
     public void testAtomicWriteMetadataWithoutAtomicOverwrite() throws IOException {
-        this.fileSystem = new FilterFileSystemProvider("nooverwritefs://", fileSystem) {
+        final var noOverwriteFs = new FilterFileSystemProvider("nooverwritefs://", fileSystem) {
             @Override
             public void move(Path source, Path target, CopyOption... options) throws IOException {
                 if (Set.of(options).contains(StandardCopyOption.ATOMIC_MOVE) && Files.exists(target)) {
@@ -334,8 +334,12 @@ public class FsBlobContainerTests extends ESTestCase {
                 }
             }
         }.getFileSystem(null);
-        PathUtilsForTesting.installMock(fileSystem); // restored by restoreFileSystem in ESTestCase
-        checkAtomicWrite();
+        PathUtilsForTesting.installMock(noOverwriteFs);
+        try {
+            checkAtomicWrite();
+        } finally {
+            PathUtilsForTesting.installMock(fileSystem);
+        }
     }
 
     public void testAtomicWriteDefaultFs() throws Exception {
@@ -375,6 +379,32 @@ public class FsBlobContainerTests extends ESTestCase {
             )
         );
         for (String blob : container.listBlobs(randomPurpose()).keySet()) {
+            assertFalse("unexpected temp blob [" + blob + "]", FsBlobContainer.isTempBlobName(blob));
+        }
+    }
+
+    public void testConcurrentAtomicWriteOverwriteProtection() throws Exception {
+        restoreFileSystem();
+        final var blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final var path = createTempDir();
+        final var container = new FsBlobContainer(new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false), BlobPath.EMPTY, path);
+        final var threadCount = between(2, 8);
+        final var success = new AtomicBoolean();
+
+        startInParallel(threadCount, ignored -> {
+            final var data = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
+            try {
+                container.writeBlobAtomic(randomNonDataPurpose(), blobName, data, true);
+                assertTrue("there should be exactly one successful writer", success.compareAndSet(false, true));
+            } catch (FileAlreadyExistsException e) {
+                // expected for all but one thread
+            } catch (Exception e) {
+                fail(e, "unexpected exception");
+            }
+        });
+
+        assertTrue("there should be exactly one successful writer", success.get());
+        for (final String blob : container.listBlobs(randomPurpose()).keySet()) {
             assertFalse("unexpected temp blob [" + blob + "]", FsBlobContainer.isTempBlobName(blob));
         }
     }

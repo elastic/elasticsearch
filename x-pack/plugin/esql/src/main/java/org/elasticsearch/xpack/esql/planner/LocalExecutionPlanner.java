@@ -473,7 +473,7 @@ public class LocalExecutionPlanner {
         ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(context.foldCtx(), completion.prompt(), source.layout);
 
         return source.with(
-            new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings),
+            new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings, completion.timeout()),
             outputLayout
         );
     }
@@ -825,7 +825,8 @@ public class LocalExecutionPlanner {
                 queryText,
                 rerankFieldsEvaluators,
                 scoreChannel,
-                RerankOperator.DEFAULT_BATCH_SIZE
+                RerankOperator.DEFAULT_BATCH_SIZE,
+                rerank.timeout()
             ),
             outputLayout
         );

@@ -502,3 +502,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/147850
+- class: org.elasticsearch.backwards.RareTermsIT
+  method: testSingleValuedString
+  issue: https://github.com/elastic/elasticsearch/issues/147853

@@ -517,3 +517,18 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/147482
+- class: org.elasticsearch.xpack.sql.jdbc.JdbcPreparedStatementTests
+  method: testSettingSqlDateValues
+  issue: https://github.com/elastic/elasticsearch/issues/147874
+- class: org.elasticsearch.xpack.stateless.StatelessMergeIT
+  method: testOnlyForceMergesAreAllowedDuringRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/147880
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
+  method: testOldCommitsAreRetainedIfSearchNodesUseThem
+  issue: https://github.com/elastic/elasticsearch/issues/147888
+- class: org.elasticsearch.xpack.security.authc.HttOptionsNoAuthnIntegTests
+  method: testNoAuthnForPreFlightRequest
+  issue: https://github.com/elastic/elasticsearch/issues/147898
+- class: org.elasticsearch.xpack.security.authc.HttOptionsNoAuthnIntegTests
+  method: testNoAuthnForResourceOptionsMethod
+  issue: https://github.com/elastic/elasticsearch/issues/147899

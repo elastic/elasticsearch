@@ -74,10 +74,7 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
     // Full-text functions (match, match_phrase, qstr) pushed down to Lucene can fail with
     // "failed to create query" on random mappings where field types are incompatible (e.g., non-indexed
     // fields, numeric fields receiving text input). https://github.com/elastic/elasticsearch/issues/147610
-    private static final Pattern FAILED_TO_CREATE_QUERY = Pattern.compile(
-        ".*failed to create query.*",
-        Pattern.DOTALL
-    );
+    private static final Pattern FAILED_TO_CREATE_QUERY = Pattern.compile(".*failed to create query.*", Pattern.DOTALL);
 
     @Before
     public void setupRandomIndices() throws IOException {

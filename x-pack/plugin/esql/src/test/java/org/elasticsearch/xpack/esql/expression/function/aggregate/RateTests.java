@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.aggregation.Temporality;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -36,6 +38,23 @@ public class RateTests extends AbstractAggregationTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
+    enum TemporalityParameter {
+        NULL_TEMPORALITY(null),
+        CUMULATIVE(Temporality.CUMULATIVE.bytesRef()),
+        DELTA(Temporality.DELTA.bytesRef()),
+        INVALID(new BytesRef("gotcha"));
+
+        private final BytesRef byteValue;
+
+        TemporalityParameter(BytesRef byteValue) {
+            this.byteValue = byteValue;
+        }
+
+        BytesRef byteValue() {
+            return byteValue;
+        }
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
@@ -44,12 +63,12 @@ public class RateTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.longCases(1, 1000, 0, 1000_000_000, true),
             MultiRowTestCaseSupplier.intCases(1, 1000, 0, 1000_000_000, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, 0, 1000_000_000, true)
-
         );
         for (List<TestCaseSupplier.TypedDataSupplier> valuesSupplier : valuesSuppliers) {
             for (TestCaseSupplier.TypedDataSupplier fieldSupplier : valuesSupplier) {
-                TestCaseSupplier testCaseSupplier = makeSupplier(fieldSupplier);
-                suppliers.add(testCaseSupplier);
+                for (TemporalityParameter temporality : TemporalityParameter.values()) {
+                    suppliers.add(makeSupplier(fieldSupplier, temporality));
+                }
             }
         }
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
@@ -84,10 +103,10 @@ public class RateTests extends AbstractAggregationTestCase {
         };
     }
 
-    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier, TemporalityParameter temporality) {
         DataType type = counterType(fieldSupplier.type());
         return new TestCaseSupplier(
-            fieldSupplier.name(),
+            fieldSupplier.name() + " temporality=" + temporality,
             List.of(type, DataType.DATETIME, DataType.KEYWORD, DataType.INTEGER, DataType.LONG),
             () -> {
                 TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
@@ -109,10 +128,11 @@ public class RateTests extends AbstractAggregationTestCase {
                 List<Integer> slices = new ArrayList<>();
                 List<Long> maxTimestamps = new ArrayList<>();
                 long lastTimestamp = randomLongBetween(0, 1_000_000);
+                BytesRef temporalityValue = temporality.byteValue();
                 for (int row = 0; row < dataRows.size(); row++) {
                     lastTimestamp += randomLongBetween(1, 10_000);
                     timestamps.add(lastTimestamp);
-                    temporalities.add(null);
+                    temporalities.add(temporalityValue);
                     slices.add(0);
                     maxTimestamps.add(Long.MAX_VALUE);
                 }
@@ -132,35 +152,43 @@ public class RateTests extends AbstractAggregationTestCase {
                     DataType.LONG,
                     "_max_timestamp"
                 );
-                dataRows = dataRows.stream().filter(Objects::nonNull).toList();
-                final Matcher<?> matcher;
-                if (dataRows.size() < 2) {
-                    matcher = Matchers.nullValue();
-                } else {
-                    var maxrate = switch (fieldTypedData.type().widenSmallNumeric()) {
-                        case INTEGER, COUNTER_INTEGER -> dataRows.stream().mapToInt(v -> (Integer) v).max().orElse(0);
-                        case LONG, COUNTER_LONG -> dataRows.stream().mapToLong(v -> (Long) v).max().orElse(0L);
-                        case DOUBLE, COUNTER_DOUBLE -> dataRows.stream().mapToDouble(v -> (Double) v).max().orElse(0.0);
-                        default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
-                    };
-                    var minrate = switch (fieldTypedData.type().widenSmallNumeric()) {
-                        case INTEGER, COUNTER_INTEGER -> dataRows.stream().mapToInt(v -> (Integer) v).min().orElse(0);
-                        case LONG, COUNTER_LONG -> dataRows.stream().mapToLong(v -> (Long) v).min().orElse(0L);
-                        case DOUBLE, COUNTER_DOUBLE -> dataRows.stream().mapToDouble(v -> (Double) v).min().orElse(0.0);
-                        default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
-                    };
-                    minrate = Math.min(minrate, 0);
-                    maxrate = Math.max(maxrate, maxrate - minrate);
-                    matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(minrate), Matchers.lessThanOrEqualTo(maxrate));
-                }
-                return new TestCaseSupplier.TestCase(
+
+                List<Object> nonNullDataRows = dataRows.stream().filter(Objects::nonNull).toList();
+                final Matcher<?> matcher = rateMatcher(nonNullDataRows, temporality);
+                TestCaseSupplier.TestCase result = new TestCaseSupplier.TestCase(
                     List.of(fieldTypedData, timestampsField, temporalityType, sliceIndexType, nextTimestampType),
                     standardAggregatorName("Rate", fieldTypedData.type()),
                     DataType.DOUBLE,
                     matcher
                 );
+                if (temporality == TemporalityParameter.INVALID && nonNullDataRows.isEmpty() == false) {
+                    return result.withWarning(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                    )
+                        .withWarning(
+                            "Line 1:1: org.elasticsearch.compute.aggregation.InvalidTemporalityException: "
+                                + "Invalid temporality value: [gotcha], expected [cumulative] or [delta]"
+                        );
+                }
+                return result;
             }
         );
+    }
+
+    private static Matcher<?> rateMatcher(List<Object> nonNullDataRows, TemporalityParameter temporality) {
+        if (nonNullDataRows.size() < 2) {
+            return Matchers.nullValue();
+        }
+        double sum = nonNullDataRows.stream().mapToDouble(v -> ((Number) v).doubleValue()).sum();
+        double max = nonNullDataRows.stream().mapToDouble(v -> ((Number) v).doubleValue()).max().orElse(0.0);
+        if (max == -0.0) {
+            max = 0.0;
+        }
+        return switch (temporality) {
+            case CUMULATIVE, NULL_TEMPORALITY -> Matchers.allOf(Matchers.greaterThanOrEqualTo(-0.0), Matchers.lessThanOrEqualTo(max));
+            case DELTA -> Matchers.allOf(Matchers.greaterThanOrEqualTo(-0.0), Matchers.lessThanOrEqualTo(sum));
+            case INVALID -> Matchers.nullValue();
+        };
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {

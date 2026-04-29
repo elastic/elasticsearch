@@ -52,8 +52,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
     private final SyntheticVectorsLoader syntheticVectorPatchLoader;
     private SyntheticVectorsLoader.Leaf syntheticVectorPatchLoaderLeaf;
 
-    /** Whether routing is stored as sorted doc values rather than a stored field. */
-    private final RoutingDocValues routingDocValues;
+    private final DocValuesOrdinalToRoutingLookup ordinalToRoutingLookup;
 
     private final Thread creationThread; // for assertion
 
@@ -89,7 +88,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         this.syntheticVectorPatchLoader = mapperService.mappingLookup().getMapping().syntheticVectorsLoader(null);
         RoutingFieldMapper routingMapper = (RoutingFieldMapper) mapperService.mappingLookup().getMapper(RoutingFieldMapper.NAME);
         boolean routingStoredAsDocValues = routingMapper != null && routingMapper.docValues();
-        this.routingDocValues = routingStoredAsDocValues ? new RoutingDocValues() : null;
+        this.ordinalToRoutingLookup = routingStoredAsDocValues ? new DocValuesOrdinalToRoutingLookup() : null;
         fillParallelArray(topDocs.scoreDocs, parallelArray);
     }
 
@@ -167,7 +166,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             int readerIndex = 0;
             CombinedDocValues combinedDocValues = null;
             LeafReaderContext leaf = null;
-            SortedDocValues routingDocValuesReader = null;
+            SortedDocValues routingDocValues = null;
             for (ScoreDoc scoreDoc : scoreDocs) {
                 if (scoreDoc.doc >= docBase + maxDoc) {
                     do {
@@ -176,8 +175,8 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                         maxDoc = leaf.reader().maxDoc();
                     } while (scoreDoc.doc >= docBase + maxDoc);
                     combinedDocValues = new CombinedDocValues(leaf.reader());
-                    if (routingDocValues != null) {
-                        routingDocValuesReader = leaf.reader().getSortedDocValues(RoutingFieldMapper.NAME);
+                    if (ordinalToRoutingLookup != null) {
+                        routingDocValues = leaf.reader().getSortedDocValues(RoutingFieldMapper.NAME);
                     }
                 }
                 final int segmentDocID = scoreDoc.doc - docBase;
@@ -189,8 +188,10 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                 parallelArray.version[index] = combinedDocValues.docVersion(segmentDocID);
                 parallelArray.isTombStone[index] = combinedDocValues.isTombstone(segmentDocID);
                 parallelArray.hasRecoverySource[index] = combinedDocValues.hasRecoverySource(segmentDocID);
-                if (routingDocValuesReader != null && routingDocValuesReader.advanceExact(segmentDocID)) {
-                    parallelArray.routingOrdinals[index] = routingDocValuesReader.ordValue();
+                // If _routing isn't configured to be required then isn't guaranteed that all documents have a routing value.
+                // This why this docId check is required here.
+                if (routingDocValues != null && routingDocValues.advanceExact(segmentDocID)) {
+                    parallelArray.routingOrdinals[index] = routingDocValues.ordValue();
                 }
             }
             // now sort back based on the shardIndex. we use this to store the previous index
@@ -261,10 +262,10 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             : fields.source();
 
         String routing;
-        if (routingDocValues != null) {
+        if (ordinalToRoutingLookup != null) {
             assert fields.routing() == null : "routing shouldn't exist in stored fields if doc_values is enabled for routing field";
             int routingOrdinal = parallelArray.routingOrdinals[docIndex];
-            routing = routingDocValues.lookupRoutingOrdinal(leaf, routingOrdinal);
+            routing = ordinalToRoutingLookup.lookupRoutingOrdinal(leaf, routingOrdinal);
         } else {
             routing = fields.routing();
         }
@@ -335,7 +336,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         return super.addSyntheticFields(newSource, segmentDocID);
     }
 
-    private static final class RoutingDocValues {
+    private static final class DocValuesOrdinalToRoutingLookup {
 
         private int routingDocValuesOrd = -1;
         private SortedDocValues routingDocValuesReader;

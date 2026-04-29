@@ -2945,9 +2945,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // null function ⇒ use codec-bound scorer; non-null ⇒ raw iteration with this function.
             VectorSimilarityFunction function = (useQuantized && similarityOverride == null)
                 ? null
-                : (similarityOverride != null
-                    ? toLuceneFunction(effectiveSimilarity)
-                    : effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType()));
+                : effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType());
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = switch (element.elementType()) {
                 case BYTE -> createExactKnnByteQuery(resolvedQueryVector.asByteVector(), effectiveSimilarity, function);
@@ -3013,15 +3011,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 normalized[i] /= length;
             }
             return normalized;
-        }
-
-        private static VectorSimilarityFunction toLuceneFunction(VectorSimilarity similarity) {
-            return switch (similarity) {
-                case L2_NORM -> VectorSimilarityFunction.EUCLIDEAN;
-                case COSINE -> VectorSimilarityFunction.COSINE;
-                case DOT_PRODUCT -> VectorSimilarityFunction.DOT_PRODUCT;
-                case MAX_INNER_PRODUCT -> VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
-            };
         }
 
         public Query createKnnQuery(

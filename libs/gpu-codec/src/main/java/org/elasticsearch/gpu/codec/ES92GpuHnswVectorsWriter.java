@@ -34,6 +34,7 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.apache.lucene.util.IORunnable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
@@ -568,7 +569,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     }
 
     @Override
-    public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    public IORunnable mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         // Note: Merged raw vectors are already in sorted order. The flatVectorWriter and MergedVectorValues utilities
         // apply mergeState.docMaps internally, so vectors are returned in the final sorted document order.
         // Unlike flush(), we don't need to explicitly handle sorting here.

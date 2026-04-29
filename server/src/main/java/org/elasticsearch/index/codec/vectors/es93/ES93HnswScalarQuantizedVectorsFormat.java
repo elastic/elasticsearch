@@ -97,7 +97,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         return new Lucene99HnswVectorsWriter(
             state,
             maxConn,
-            beamWidth,
+            beamWidth,flatVectorFormat,
             flatVectorFormat.fieldsWriter(state),
             numMergeWorkers,
             mergeExec,

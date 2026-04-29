@@ -150,13 +150,8 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-            delegate.mergeOneField(fieldInfo, mergeState);
-        }
-
-        @Override
-        public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-            return delegate.mergeOneFieldToIndex(fieldInfo, mergeState);
+        public void mergeOneFlatVectorField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+            delegate.mergeOneFlatVectorField(fieldInfo, mergeState);
         }
 
         @Override
@@ -199,6 +194,12 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
             return delegate.getRandomVectorScorer(field, target);
+        }
+
+        @Override
+        public CloseableRandomVectorScorerSupplier getRandomVectorScorerSupplierForMerge(
+            FieldInfo fieldInfo, SegmentWriteState segmentWriteState) throws IOException {
+            return delegate.getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState);
         }
 
         @Override

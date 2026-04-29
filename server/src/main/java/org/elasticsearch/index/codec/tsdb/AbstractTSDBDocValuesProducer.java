@@ -1350,7 +1350,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     public abstract static class BaseDenseNumericValues extends NumericDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            BlockLoader.NumericRangeReader,
             BlockLoader.OptionalNumericRangeReader {
         private final int maxDoc;
         protected int doc = -1;
@@ -1405,18 +1404,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         BlockLoader.Block tryRead(BlockLoader.SingletonLongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
             return null;
-        }
-
-        @Override
-        public void collectMatches(LeafCollector collector, int firstDoc, int lastDoc, long lowerValue, long upperValue)
-            throws IOException {
-            for (int d = firstDoc; d <= lastDoc; d++) {
-                advanceExact(d);
-                long v = longValue();
-                if (lowerValue <= v && v <= upperValue) {
-                    collector.collect(d);
-                }
-            }
         }
 
         @Nullable
@@ -2372,28 +2359,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         } else {
                             decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
                         }
-                    }
-                }
-
-                final FixedBitSet matches = new FixedBitSet(new long[(numericBlockMask + 1) >>> 6], numericBlockMask + 1);
-
-                @Override
-                public void collectMatches(LeafCollector collector, int firstDoc, int lastDoc, long lowerValue, long upperValue)
-                    throws IOException {
-                    int firstBlock = firstDoc >>> numericBlockShift;
-                    int lastBlock = lastDoc >>> numericBlockShift;
-                    for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
-                        matches.clear();
-                        loadBlock(blockId);
-                        ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, matches.getBits());
-                        // For the first and last blocks, clear bits that fall outside the
-                        // requested doc range. Middle blocks are always fully covered.
-                        int firstInBlock = blockId == firstBlock ? firstDoc & numericBlockMask : 0;
-                        int lastInBlock = blockId == lastBlock ? lastDoc & numericBlockMask : numericBlockMask;
-                        matches.clear(0, firstInBlock);
-                        matches.clear(lastInBlock + 1, matches.length());
-                        var docIdMatches = new BitSetDocIdStream(matches, blockId << numericBlockShift);
-                        collector.collect(docIdMatches);
                     }
                 }
 

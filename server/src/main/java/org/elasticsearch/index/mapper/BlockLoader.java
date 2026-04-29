@@ -258,18 +258,6 @@ public interface BlockLoader {
     }
 
     /**
-     * An interface for numeric doc values readers that can produce a {@link DocIdSetIterator}
-     * matching documents whose value falls within a given range without going through the
-     * standard per-document decode path.
-     * <p>
-     * The returned iterator does not handle {@link org.apache.lucene.index.DocValuesSkipper};
-     * callers are responsible for applying block-level skipping on top.
-     */
-    interface NumericRangeReader {
-        void collectMatches(LeafCollector collect, int firstDoc, int lastDoc, long lowerValue, long upperValue) throws IOException;
-    }
-
-    /**
      * An interface for numeric doc values readers that can optionally produce a {@link DocIdSetIterator}
      * optimized for range queries, incorporating block-level skipping via a {@link DocValuesSkipper}.
      * <p>

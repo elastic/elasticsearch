@@ -572,7 +572,9 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         // during selectivity computation is reused on the fallback path and across repeated
         // queries. Only the flat (exact-KNN) branch keeps the raw filter — flat doesn't benefit
         // from bitset caching.
-        // todo: pass index sort to createKnnQuery to disable post filtering
+        // Index-sorted segments don't compose with the HNSW retry path (seedDocs / ExcludeDocsQuery
+        // operate on a sort-shuffled doc-id space) so disable the post-filter wrap entirely when the
+        // index has a sort — the inner pre-filter knn query is used as-is.
         boolean hasIndexSort = context.getIndexSettings().getIndexSortConfig().hasIndexSort();
         return vectorFieldType.createKnnQuery(
             queryVector,
@@ -585,7 +587,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             parentBitSet,
             heuristic,
             hnswEarlyTermination,
-            postFilterSelectivityThreshold
+            postFilterSelectivityThreshold,
+            hasIndexSort
         );
     }
 

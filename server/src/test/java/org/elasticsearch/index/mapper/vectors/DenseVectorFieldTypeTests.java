@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
@@ -53,6 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     private final boolean indexed;
@@ -338,7 +341,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 producer,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                false
             );
             if (query instanceof RescoreKnnVectorQuery rescoreKnnVectorQuery) {
                 query = rescoreKnnVectorQuery.innerQuery();
@@ -381,7 +385,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 producer,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                false
             );
             if (field.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
@@ -401,7 +406,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 producer,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                false
             );
             if (field.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
@@ -481,7 +487,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                false
             )
         );
         assertThat(e.getMessage(), containsString("to perform knn search on field [f], its mapping must have [index] set to [true]"));
@@ -514,7 +521,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                false
             )
         );
         assertThat(e.getMessage(), containsString("The [dot_product] similarity can only be used with unit-length vectors."));
@@ -543,7 +551,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                false
             )
         );
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
@@ -577,7 +586,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                false
             );
             if (query instanceof RescoreKnnVectorQuery rescoreKnnVectorQuery) {
                 query = rescoreKnnVectorQuery.innerQuery();
@@ -617,7 +627,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                false
             );
             if (fieldWith4096dims.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DenseVectorQuery.Bytes.class));
@@ -652,7 +663,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                false
             )
         );
         assertThat(e.getMessage(), containsString("to perform knn search on field [f], its mapping must have [index] set to [true]"));
@@ -681,7 +693,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                false
             )
         );
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
@@ -699,7 +712,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                false
             )
         );
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
@@ -730,7 +744,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             null,
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
             randomBoolean(),
-            PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+            PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+            false
         );
 
         if (elementType == BYTE) {
@@ -797,7 +812,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             null,
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
             randomBoolean(),
-            PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+            PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+            false
         );
         if (fieldType.getIndexOptions().isFlat()) {
             assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
@@ -828,7 +844,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             null,
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
             randomBoolean(),
-            PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+            PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+            false
         );
         assertTrue(query instanceof RescoreKnnVectorQuery);
         RescoreKnnVectorQuery rescoreKnnVectorQuery = (RescoreKnnVectorQuery) query;
@@ -871,7 +888,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 DenseVectorFieldMapper.FilterHeuristic.FANOUT,
                 randomBoolean(),
-                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                false
             );
             KnnSearchStrategy strategy = tuple.v2().apply(query);
             if (strategy != null) {
@@ -889,7 +907,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                     null,
                     DenseVectorFieldMapper.FilterHeuristic.ACORN,
                     randomBoolean(),
-                    PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+                    PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                    false
                 );
                 strategy = tuple.v2().apply(query);
                 if (strategy != null) {
@@ -898,6 +917,60 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 }
             }
         }
+    }
+
+    public void testHasIndexSortDisablesPostFilter() {
+        // With a high-selectivity filter the post-filter pipeline normally fires; assert that
+        // setting hasIndexSort=true skips the PostFilterKnnQuery wrap and returns the inner
+        // pre-filter knn query directly. The HNSW retry path's seedDocs / ExcludeDocsQuery
+        // semantics don't compose with index-sorted segments.
+        DenseVectorFieldType fieldType = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            FLOAT,
+            3,
+            true,
+            VectorSimilarity.COSINE,
+            randomIndexOptionsHnswQuantized(),
+            Collections.emptyMap(),
+            false
+        );
+        Query filter = new TermQuery(new Term("tag", "match"));
+
+        // Sanity: hasIndexSort=false → post-filter wrap is in place.
+        Query unsorted = fieldType.createKnnQuery(
+            VectorData.fromFloats(new float[] { 1, 4, 10 }),
+            10,
+            100,
+            null,
+            0f,
+            filter,
+            null,
+            null,
+            DenseVectorFieldMapper.FilterHeuristic.ACORN,
+            randomBoolean(),
+            PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+            false
+        );
+        assertThat(unsorted, instanceOf(PostFilterKnnQuery.class));
+
+        // hasIndexSort=true → post-filter wrap is skipped; the inner pre-filter query is returned.
+        Query sorted = fieldType.createKnnQuery(
+            VectorData.fromFloats(new float[] { 1, 4, 10 }),
+            10,
+            100,
+            null,
+            0f,
+            filter,
+            null,
+            null,
+            DenseVectorFieldMapper.FilterHeuristic.ACORN,
+            randomBoolean(),
+            PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+            true
+        );
+        assertThat(sorted, not(instanceOf(PostFilterKnnQuery.class)));
+        assertThat(sorted, instanceOf(ESKnnFloatVectorQuery.class));
     }
 
     private static void checkRescoreQueryParameters(
@@ -921,7 +994,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             null,
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
             randomBoolean(),
-            PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+            PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+            false
         );
         RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
         Query innerQuery = rescoreQuery.innerQuery();

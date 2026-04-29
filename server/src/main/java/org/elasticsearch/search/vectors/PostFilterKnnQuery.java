@@ -114,9 +114,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         Query delegate = (Query) postFilterQuery;
         for (int round = 0; round < MAX_ROUNDS; round++) {
             if (round > 0) {
-                // Round 1+ means round 0 didn't yield k results after filter — log so we can profile
-                // how often the retry path fires per workload (selectivity vs round-1 oversample).
-                logger.warn(
+                logger.debug(
                     "post-filter retry round [{}/{}] firing for field=[{}], k=[{}], selectivity=[{}], scoreDocs so far=[{}]",
                     round + 1,
                     MAX_ROUNDS,
@@ -142,10 +140,6 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
                 scoreDocs = deduplicateByParent(scoreDocs, searcher.getIndexReader(), parentsFilter);
             }
             if (scoreDocs.length >= k) {
-                break;
-            }
-            // No more rounds — skip the retry-only bookkeeping below.
-            if (round + 1 >= MAX_ROUNDS) {
                 break;
             }
 

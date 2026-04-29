@@ -225,7 +225,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return value;
         },
         Setting.Property.IndexScope,
-        Setting.Property.ServerlessPublic,
         Setting.Property.Dynamic
     );
 
@@ -3005,7 +3004,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BitSetProducer parentFilter,
             FilterHeuristic heuristic,
             boolean hnswEarlyTermination,
-            float postFilterSelectivityThreshold
+            float postFilterSelectivityThreshold,
+            boolean hasIndexSort
         ) {
             if (indexType.hasVectors() == false) {
                 throw new IllegalArgumentException(
@@ -3028,7 +3028,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     parentFilter,
                     knnSearchStrategy,
                     hnswEarlyTermination,
-                    postFilterSelectivityThreshold
+                    postFilterSelectivityThreshold,
+                    hasIndexSort
                 );
                 case FLOAT, BFLOAT16 -> createKnnFloatQuery(
                     resolvedQueryVector.asFloatVector(),
@@ -3041,7 +3042,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     parentFilter,
                     knnSearchStrategy,
                     hnswEarlyTermination,
-                    postFilterSelectivityThreshold
+                    postFilterSelectivityThreshold,
+                    hasIndexSort
                 );
                 case BIT -> createKnnBitQuery(
                     resolvedQueryVector.asByteVector(),
@@ -3052,7 +3054,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     parentFilter,
                     knnSearchStrategy,
                     hnswEarlyTermination,
-                    postFilterSelectivityThreshold
+                    postFilterSelectivityThreshold,
+                    hasIndexSort
                 );
             };
         }
@@ -3081,7 +3084,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BitSetProducer parentFilter,
             KnnSearchStrategy searchStrategy,
             boolean hnswEarlyTermination,
-            float postFilterSelectivityThreshold
+            float postFilterSelectivityThreshold,
+            boolean hasIndexSort
         ) {
             element.checkDimensions(dims, queryVector.length);
             // Pre-filter consumers eagerly materialize the filter into a bitset; PostFilterKnnQuery
@@ -3111,7 +3115,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
-            if (filter != null && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (filter != null && hasIndexSort == false && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, cachedFilter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (similarityThreshold != null) {
@@ -3133,7 +3137,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BitSetProducer parentFilter,
             KnnSearchStrategy searchStrategy,
             boolean hnswEarlyTermination,
-            float postFilterSelectivityThreshold
+            float postFilterSelectivityThreshold,
+            boolean hasIndexSort
         ) {
             element.checkDimensions(dims, queryVector.length);
 
@@ -3168,7 +3173,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
-            if (filter != null && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (filter != null && hasIndexSort == false && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, cachedFilter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (similarityThreshold != null) {
@@ -3192,7 +3197,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BitSetProducer parentFilter,
             KnnSearchStrategy knnSearchStrategy,
             boolean hnswEarlyTermination,
-            float postFilterSelectivityThreshold
+            float postFilterSelectivityThreshold,
+            boolean hasIndexSort
         ) {
             element.checkDimensions(dims, queryVector.length);
             element.checkVectorBounds(queryVector);
@@ -3283,7 +3289,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         hnswEarlyTermination
                     );
             }
-            if (filter != null && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (filter != null && hasIndexSort == false && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(
                     pfknnQuery,
                     cachedFilter,

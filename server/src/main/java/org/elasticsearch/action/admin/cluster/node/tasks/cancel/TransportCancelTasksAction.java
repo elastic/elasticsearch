@@ -72,7 +72,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         if (request.getTargetTaskId().isSet() && tasks.isEmpty() && taskOperationFailures.isEmpty() && failedNodeExceptions.isEmpty()) {
             // For BwC: Now that we fan out to every node (to find potentially relocated targets by their original task id), the node
             // identified by the target task id no longer throws ResourceNotFoundException from its per-node processTasks.
-            // Re-surface the same ResourceNotFoundException wrapped in a FailedNodeException if no task is found by the taget task Id.
+            // Re-surface the same ResourceNotFoundException wrapped in a FailedNodeException if no task is found by the target task Id.
             // The double-broadcast merge filters this out if either pass captured the task.
             final TaskId target = request.getTargetTaskId();
             final FailedNodeException notFound = new FailedNodeException(
@@ -127,8 +127,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     /// Merges two cancel-tasks responses into one that's relocation-agnostic to the caller:
     ///
     /// - Captured tasks are deduplicated by `originalTaskId`; second pass wins, [#preferNewer] resolves intra-pass ties.
-    /// - Per-task failures are kept unless they refer to a logical task we already captured (e.g. the source side's `503 Service
-    ///   Unavailable` is irrelevant once the relocated successor was cancelled).
+    /// - Per-task failures are kept unless they refer to a logical task we already captured (e.g. the source side's `409 Conflict` is
+    ///   irrelevant once the relocated successor was cancelled).
     /// - Node failures are deduplicated; any failure with a [ResourceNotFoundException] in its cause chain is dropped when the merge
     ///   captured any task for a targeted cancel.
     static ListTasksResponse mergeResponses(

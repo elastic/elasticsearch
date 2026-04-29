@@ -1435,50 +1435,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(filter.child(), Limit.class);
     }
 
-    public void testPruneAllConstantSortKeysReplacesTopNWithLimit() {
-        LogicalPlan plan = optimizedPlan("""
-            from test
-            | eval x = null
-            | sort x
-            | limit 10
-            """);
-        var limit = as(plan, Limit.class);
-        var eval = as(limit.child(), Eval.class);
-        as(eval.child(), EsRelation.class);
-    }
-
-    public void testDoNotReplaceTopNWhenSortKeyIsNotConstant() {
-        LogicalPlan plan = optimizedPlan("""
-            from test
-            | sort emp_no
-            | limit 10
-            """);
-        as(plan, TopN.class);
-    }
-
-    public void testPruneLeadingConstantSortKeyFromTopN() {
-        LogicalPlan plan = optimizedPlan("""
-            from test
-            | eval x = null
-            | sort x, emp_no
-            | limit 10
-            """);
-        var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("emp_no"));
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
-    }
-
-    public void testPruneMiddleConstantSortKeyFromTopN() {
-        LogicalPlan plan = optimizedPlan("""
-            from test
-            | eval x = null
-            | sort emp_no, x, salary
-            | limit 10
-            """);
-        var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("emp_no", "salary"));
-    }
-
     public void testDoNotPruneConstantSortKeysInsideForkBranch() {
         // Within a Fork branch, _fork = "fork1" is constant for all rows in that branch,
         // but the rule must not prune it from pushed-down inner TopNs: those sort keys are

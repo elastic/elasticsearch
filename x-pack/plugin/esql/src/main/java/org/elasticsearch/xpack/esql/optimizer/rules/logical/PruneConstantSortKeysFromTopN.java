@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -24,9 +25,8 @@ import java.util.List;
 /**
  * Simplifies a {@link TopN} by removing sort keys that are foldable (constant), since sorting by a
  * constant is a no-op. If all keys are constant the {@link TopN} is replaced entirely by a
- * {@link Limit}, which also enables {@code PushLimitToSource} in local physical planning, allowing
- * Lucene to stop reading after {@code n} documents. If only some keys are constant the {@link TopN}
- * is rebuilt with just the remaining non-constant keys.
+ * {@link Limit}. If only some keys are constant the {@link TopN} is rebuilt with just the remaining
+ * non-constant keys.
  *
  * <p>The rule intentionally skips {@link TopN} nodes that have been pushed down into {@link Fork}
  * branches by {@link PushDownLimitAndOrderByIntoFork}. Those inner TopNs carry sort keys that look
@@ -52,7 +52,7 @@ public final class PruneConstantSortKeysFromTopN extends ParameterizedRule<Logic
     // needed for the outer coordinator merge sort, so we must not prune them.
     // If ES|QL ever supports nested Fork, this is the place to handle TopNs that sit above
     // a nested inner Fork inside a branch.
-    private LogicalPlan applyRecursive(LogicalPlan plan, LogicalOptimizerContext ctx) {
+    private static LogicalPlan applyRecursive(LogicalPlan plan, LogicalOptimizerContext ctx) {
         if (plan instanceof Fork) {
             return plan;
         }
@@ -61,16 +61,18 @@ public final class PruneConstantSortKeysFromTopN extends ParameterizedRule<Logic
         boolean changed = false;
         for (LogicalPlan child : result.children()) {
             LogicalPlan newChild = applyRecursive(child, ctx);
-            if (newChild != child) {
-                changed = true;
-            }
+            changed |= newChild != child;
             newChildren.add(newChild);
         }
         return changed ? result.replaceChildren(newChildren) : result;
     }
 
-    private LogicalPlan simplifyTopN(TopN topN, LogicalOptimizerContext ctx) {
-        AttributeMap<Expression> foldables = RuleUtils.foldableReferences(topN.child(), ctx, true /* stopAtSchemaBoundaries */);
+    private static LogicalPlan simplifyTopN(TopN topN, LogicalOptimizerContext ctx) {
+        AttributeMap<Expression> foldables = RuleUtils.foldableReferences(
+            topN.child(),
+            ctx,
+            p -> p instanceof Fork || p instanceof Aggregate
+        );
         List<Order> nonConstant = topN.order().stream().filter(o -> foldables.resolve(o.child(), o.child()).foldable() == false).toList();
         if (nonConstant.isEmpty()) {
             return new Limit(topN.source(), topN.limit(), topN.child());

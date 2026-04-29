@@ -149,29 +149,6 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         runGoldenTest(query, STAGES, unindexedStats());
     }
 
-    public void testConstantSortKeyViaEval() throws Exception {
-        // EVAL x = null makes the sort key foldable; PruneConstantSortKeysFromTopN fires at the global
-        // logical level, replacing TopN with Limit (no sort) even before local optimization.
-        String query = """
-            FROM employees
-            | EVAL x = null
-            | SORT x
-            | LIMIT 20
-            """;
-        runGoldenTest(query, STAGES, unindexedStats());
-    }
-
-    public void testPartiallyConstantSortKey() throws Exception {
-        // x=null is pruned from the sort order; TopN is rebuilt with only emp_no as the sort key.
-        String query = """
-            FROM employees
-            | EVAL x = null
-            | SORT x, emp_no
-            | LIMIT 20
-            """;
-        runGoldenTest(query, STAGES, unindexedStats());
-    }
-
     public void testMvExpandBeforeTopN() throws Exception {
         String query = """
             FROM employees

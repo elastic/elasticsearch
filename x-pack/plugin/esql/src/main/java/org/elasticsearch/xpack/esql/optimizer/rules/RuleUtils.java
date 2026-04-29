@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
@@ -81,14 +79,14 @@ public final class RuleUtils {
     /**
      * Collects references to foldables from the given logical plan, returning an {@link AttributeMap} that maps
      * foldable aliases to their corresponding literal values. Equivalent to calling
-     * {@link #foldableReferences(LogicalPlan, LogicalOptimizerContext, boolean)} with {@code stopAtSchemaBoundaries=false}.
+     * {@link #foldableReferences(LogicalPlan, LogicalOptimizerContext, Predicate)} with a predicate that never stops.
      *
      * @param plan The logical plan to analyze.
      * @param ctx The optimizer context providing fold context.
      * @return An {@link AttributeMap} containing foldable references and their literal values.
      */
     public static AttributeMap<Expression> foldableReferences(LogicalPlan plan, LogicalOptimizerContext ctx) {
-        return foldableReferences(plan, ctx, false);
+        return foldableReferences(plan, ctx, __ -> false);
     }
 
     /**
@@ -97,46 +95,41 @@ public final class RuleUtils {
      *
      * @param plan The logical plan to analyze.
      * @param ctx The optimizer context providing fold context.
-     * @param stopAtSchemaBoundaries If {@code true}, stops traversal at nodes that redefine attribute semantics:
-     *                               {@link Fork} (branch-local aliases must not be treated as globally constant) and
-     *                               {@link Aggregate} (STATS BY re-uses input attribute IDs, so source literals must
-     *                               not be mistaken for the per-group output values).
+     * @param stopCondition A predicate that, when it returns {@code true} for a plan node, halts traversal into
+     *                      that node and its subtree.
      * @return An {@link AttributeMap} containing foldable references and their literal values.
      */
     public static AttributeMap<Expression> foldableReferences(
         LogicalPlan plan,
         LogicalOptimizerContext ctx,
-        boolean stopAtSchemaBoundaries
+        Predicate<LogicalPlan> stopCondition
     ) {
-        AttributeMap.Builder<Expression> refs = AttributeMap.builder();
-        collectFoldableRefs(plan, refs, ctx, stopAtSchemaBoundaries);
-        return refs.build();
+        AttributeMap.Builder<Expression> collectRefsBuilder = AttributeMap.builder();
+        collectFoldableRefs(plan, collectRefsBuilder, ctx, stopCondition);
+        return collectRefsBuilder.build();
     }
 
     private static void collectFoldableRefs(
         LogicalPlan plan,
-        AttributeMap.Builder<Expression> refs,
+        AttributeMap.Builder<Expression> collectRefsBuilder,
         LogicalOptimizerContext ctx,
-        boolean stopAtSchemaBoundaries
+        Predicate<LogicalPlan> stopCondition
     ) {
-        // Fork: branch-local aliases (e.g. null-padding Evals) must not be treated as globally constant.
-        // Aggregate: STATS BY re-uses grouping attribute IDs from the input (e.g. a ROW alias color=["b","p","y"]
-        // would make the SORT-by-color key appear foldable). Grouped output values are data-dependent.
-        if (stopAtSchemaBoundaries && (plan instanceof Fork || plan instanceof Aggregate)) {
+        if (stopCondition.test(plan)) {
             return;
         }
         for (LogicalPlan child : plan.children()) {
-            collectFoldableRefs(child, refs, ctx, stopAtSchemaBoundaries);
+            collectFoldableRefs(child, collectRefsBuilder, ctx, stopCondition);
         }
         plan.forEachExpression(Alias.class, a -> {
             var c = a.child();
             boolean shouldCollect = c.foldable();
             if (shouldCollect == false) {
-                c = c.transformUp(ReferenceAttribute.class, r -> refs.build().resolve(r, r));
+                c = c.transformUp(ReferenceAttribute.class, r -> collectRefsBuilder.build().resolve(r, r));
                 shouldCollect = c.foldable();
             }
             if (shouldCollect) {
-                refs.put(a.toAttribute(), Literal.of(ctx.foldCtx(), c));
+                collectRefsBuilder.put(a.toAttribute(), Literal.of(ctx.foldCtx(), c));
             }
         });
     }

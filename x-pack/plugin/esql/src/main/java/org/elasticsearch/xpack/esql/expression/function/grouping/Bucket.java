@@ -73,7 +73,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         .name("bucket", "bin");
     public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
 
-    public record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId) {
+    private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId) {
 
         // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
         // That way you never end up with more than the target number of buckets.
@@ -127,16 +127,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 }
             }
             return SECONDARY_UNITS[SECONDARY_UNITS.length - 1].rounding(zoneId);
-        }
-
-        /**
-         * Like {@link #pickRounding()} but restricted to {@link #PRIMARY_UNITS} (fixed-width,
-         * 1 ms through 1 day). Returns {@code null} when no primary unit fits the requested
-         * bucket count, which the caller can interpret as "use the coarsest primary unit".
-         */
-        public Rounding pickPrimaryRounding() {
-            Unit best = findLastOk(PRIMARY_UNITS);
-            return best != null ? best.rounding(zoneId) : null;
         }
 
         private Unit findLastOk(Unit[] candidates) {

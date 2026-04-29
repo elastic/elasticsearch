@@ -5,7 +5,7 @@ Creates groups of values - buckets - out of a `@timestamp` attribute.
 
 TSTEP expects the first argument to be either bucket duration, or integer number of target buckets in a provided range.
 
-The optional time range `from` and `to` must be provided to derive bucket duration if integer number of target buckets provided.
+The optional `from` and `to` time range is used to derive bucket duration if integer number of target buckets provided.
 Unlike [`TBUCKET`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/grouping-functions/tbucket), that
 aligns time grid at calendar boundaries, `TSTEP` aligns at the query range, so that the first bucket
 is computed on the range from `from` to `from` + `step` and labeled after right boundary.

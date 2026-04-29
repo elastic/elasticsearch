@@ -75,7 +75,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
             TSTEP expects the first argument to be either bucket duration, or integer number of target buckets in a provided range.
 
-            The optional time range `from` and `to` must be provided to derive bucket duration if integer number of target buckets provided.
+            The optional `from` and `to` time range is used to derive bucket duration if integer number of target buckets provided.
             Unlike [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md), that
             aligns time grid at calendar boundaries, `TSTEP` aligns at the query range, so that the first bucket
             is computed on the range from `from` to `from` + `step` and labeled after right boundary.
@@ -107,8 +107,8 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         @Param(name = "step", type = { "time_duration", "integer", "long" }, description = """
             Fixed bucket width on a UTC grid, or a target bucket count. When a bucket count is provided,
             the actual step width is derived from `from` and `to` by dividing the range into equal-width
-            fixed intervals at millisecond precision. Explicit `from` and `to` bounds are required when a
-            bucket count is provided.""") Expression stepOrBuckets,
+            fixed intervals at millisecond precision. When `from` and `to` are omitted, the range is
+            derived from the request `@timestamp` filter.""") Expression stepOrBuckets,
         @Param(
             name = "from",
             type = { "date", "date_nanos", "keyword" },
@@ -160,6 +160,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             && to == null
             && stepOrBuckets.resolved()
             && (stepOrBuckets.dataType() == DataType.TIME_DURATION
+                || stepOrBuckets.dataType().isWholeNumber()
                 || stepOrBuckets.dataType() == DataType.KEYWORD && stepOrBuckets.foldable());
     }
 
@@ -170,12 +171,11 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        if (stepOrBuckets.resolved() && stepOrBuckets.dataType() == DataType.TIME_DURATION && from == null && to == null) {
+        if (stepOrBuckets.resolved() && (from == null || to == null)) {
             failures.add(
                 Failure.fail(
                     this,
-                    "[{}] requires either a `@timestamp` range in the request query filter"
-                        + " or explicit `from` and `to` parameters to anchor the step grid",
+                    "[{}] requires either a `@timestamp` range in the request query filter" + " or explicit `from` and `to` parameters",
                     sourceText()
                 )
             );
@@ -231,8 +231,21 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
         if (stepOrBuckets.dataType() == DataType.INTEGER || stepOrBuckets.dataType() == DataType.LONG) {
             FoldContext foldContext = FoldContext.small();
-            if ((from != null && to != null) == false) {
-                return new TypeResolution("[" + sourceText() + "] requires 'from' and 'to' bounds when using a target bucket count");
+            if (from == null != (to == null)) {
+                return new TypeResolution("[" + sourceText() + "] requires both 'from' and 'to' arguments, or neither");
+            }
+
+            if (from == null) {
+                if (stepOrBuckets.foldable() == false) {
+                    return new TypeResolution("[" + sourceText() + "] target bucket count must be a constant");
+                }
+                long count = ((Number) stepOrBuckets.fold(foldContext)).longValue();
+                if (count <= 0 || count > Integer.MAX_VALUE) {
+                    return new TypeResolution(
+                        "[" + sourceText() + "] requires a bucket count between 1 and " + Integer.MAX_VALUE + ", got [" + count + "]"
+                    );
+                }
+                return resolution;
             }
 
             var typeResolution = isStringOrDateBound(Objects.requireNonNull(from), SECOND).and(
@@ -269,7 +282,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             return typeResolution;
         }
 
-        if ((from == null) ^ (to == null)) {
+        if (from == null != (to == null)) {
             return new TypeResolution("[" + sourceText() + "] requires both 'from' and 'to' arguments, or neither");
         }
 

@@ -33,6 +33,7 @@ public class TStepErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
         addUnboundedSignatures(suppliers, DataType.TIME_DURATION);
+        COUNT_STEP_TYPES.forEach(stepType -> addUnboundedSignatures(suppliers, stepType));
         addBoundedSignatures(suppliers, DataType.TIME_DURATION);
         COUNT_STEP_TYPES.forEach(stepType -> addBoundedSignatures(suppliers, stepType));
 
@@ -57,9 +58,7 @@ public class TStepErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
-        return super.testCandidates(cases, valid).filter(signature -> signature.contains(DataType.NULL) == false)
-            // Two-arg count mode is not a real TSTEP signature because bucket-count mode requires explicit bounds.
-            .filter(signature -> signature.size() != 2 || COUNT_STEP_TYPES.contains(signature.getFirst()) == false);
+        return super.testCandidates(cases, valid).filter(signature -> signature.contains(DataType.NULL) == false);
     }
 
     private static void addUnboundedSignatures(List<TestCaseSupplier> suppliers, DataType stepType) {

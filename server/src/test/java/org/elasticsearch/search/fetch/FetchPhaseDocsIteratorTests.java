@@ -780,7 +780,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             int[] positions = new int[result.lastChunkHitCount];
             for (int i = 0; i < result.lastChunkHitCount; i++) {
                 positions[i] = in.readVInt();
-                SearchHit hit = SearchHit.readFrom(in, false);
+                SearchHit hit = SearchHit.readFrom(in);
                 hit.decRef();
             }
 

@@ -1,0 +1,297 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * A mock repository for stateless testing. It supports manipulating calls to the blob store: logic can be injected, via a
+ * {@link StatelessMockRepositoryStrategy}, into methods to run before calling the blob store. A strategy implementation defines the
+ * additional logic to run.
+ *
+ * <p>
+ * To use this class in -IT (integration) tests, first make a custom {@link StatelessMockRepositoryStrategy} implementation. Then add the
+ * {@link StatelessMockRepositoryPlugin} to the node plugins -- usually via overriding
+ * {@link AbstractStatelessPluginIntegTestCase#nodePlugins()}.
+ * A particular strategy implementation can then be set and fetched via helper methods
+ * {@link AbstractStatelessPluginIntegTestCase#setNodeRepositoryStrategy(String, StatelessMockRepositoryStrategy)} and
+ * {@link AbstractStatelessPluginIntegTestCase#getNodeRepositoryStrategy(String)} (cast to the strategy implementation),and
+ * helpers like {@link AbstractStatelessPluginIntegTestCase#startMasterOnlyNode(StatelessMockRepositoryStrategy)} can be added.
+ *
+ * <p>
+ * The interfaces of this class, or one of its internal classes, and {@link StatelessMockRepositoryStrategy} should be extended with more
+ * method overrides as needed for new testing.
+ */
+public class StatelessMockRepository extends FsRepository {
+    private StatelessMockRepositoryStrategy strategy;
+
+    public StatelessMockRepository(
+        ProjectId projectId,
+        RepositoryMetadata metadata,
+        Environment environment,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings,
+        StatelessMockRepositoryStrategy strategy,
+        SnapshotMetrics snapshotMetrics
+    ) {
+        super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, snapshotMetrics);
+        this.strategy = strategy;
+    }
+
+    public void setStrategy(StatelessMockRepositoryStrategy strategy) {
+        this.strategy = strategy;
+    }
+
+    public StatelessMockRepositoryStrategy getStrategy() {
+        return strategy;
+    }
+
+    @Override
+    protected BlobStore createBlobStore() throws Exception {
+        return new StatelessMockBlobStore(super.createBlobStore());
+    }
+
+    private class StatelessMockBlobStore extends BlobStoreWrapper {
+        StatelessMockBlobStore(BlobStore delegate) {
+            super(delegate);
+        }
+
+        public BlobContainer blobContainer(BlobPath path) {
+            return new StatelessMockBlobContainer(super.blobContainer(path));
+        }
+
+        /**
+         * BlobContainer wrapper that calls a {@link StatelessMockRepositoryStrategy} implementation before falling through to the delegate
+         * BlobContainer.
+         */
+        private class StatelessMockBlobContainer extends FilterBlobContainer {
+            StatelessMockBlobContainer(BlobContainer delegate) {
+                super(delegate);
+            }
+
+            @Override
+            protected BlobContainer wrapChild(BlobContainer child) {
+                return new StatelessMockBlobContainer(child);
+            }
+
+            @Override
+            public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
+                return getStrategy().blobContainerChildren(() -> super.children(purpose), purpose);
+            }
+
+            @Override
+            public DeleteResult delete(OperationPurpose purpose) throws IOException {
+                return getStrategy().blobContainerDelete(() -> super.delete(purpose), purpose);
+            }
+
+            @Override
+            public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+                return getStrategy().blobContainerReadBlob(() -> super.readBlob(purpose, blobName), purpose, blobName);
+            }
+
+            @Override
+            public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                return getStrategy().blobContainerReadBlob(
+                    () -> super.readBlob(purpose, blobName, position, length),
+                    purpose,
+                    blobName,
+                    position,
+                    length
+                );
+            }
+
+            @Override
+            public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+                // We need to consume and copy the blobNames iterator twice to ensure that both originalRunnable
+                // and blobStoreDeleteBlobsIgnoringIfNotExists get all the expected blob names
+                List<String> blobNamesCopy = new ArrayList<>();
+                blobNames.forEachRemaining(blobNamesCopy::add);
+                List<String> blobNamesCopy2 = new ArrayList<>(blobNamesCopy);
+                getStrategy().blobStoreDeleteBlobsIgnoringIfNotExists(
+                    () -> super.deleteBlobsIgnoringIfNotExists(purpose, blobNamesCopy.iterator()),
+                    purpose,
+                    blobNamesCopy2.iterator()
+                );
+            }
+
+            @Override
+            public void writeBlob(
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                getStrategy().blobContainerWriteBlob(
+                    () -> super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists),
+                    purpose,
+                    blobName,
+                    inputStream,
+                    blobSize,
+                    failIfAlreadyExists
+                );
+            }
+
+            @Override
+            public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                throws IOException {
+                getStrategy().blobContainerWriteBlob(
+                    () -> super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists),
+                    purpose,
+                    blobName,
+                    bytes,
+                    failIfAlreadyExists
+                );
+            }
+
+            @Override
+            public boolean supportsConcurrentMultipartUploads() {
+                return getStrategy().supportsConcurrentMultipartUploads(super::supportsConcurrentMultipartUploads);
+            }
+
+            @Override
+            public void writeBlobAtomic(
+                OperationPurpose purpose,
+                String blobName,
+                long blobSize,
+                BlobMultiPartInputStreamProvider provider,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                getStrategy().blobContainerWriteBlobAtomic(
+                    () -> super.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists),
+                    purpose,
+                    blobName,
+                    blobSize,
+                    provider,
+                    failIfAlreadyExists
+                );
+            }
+
+            @Override
+            public void writeBlobAtomic(
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                getStrategy().blobContainerWriteBlobAtomic(
+                    () -> super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists),
+                    purpose,
+                    blobName,
+                    inputStream,
+                    blobSize,
+                    failIfAlreadyExists
+                );
+            }
+
+            @Override
+            public void copyBlob(
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                getStrategy().blobContainerCopyBlob(
+                    () -> super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize),
+                    purpose,
+                    sourceBlobContainer,
+                    sourceBlobName,
+                    blobName,
+                    blobSize
+                );
+            }
+
+            @Override
+            public void writeMetadataBlob(
+                OperationPurpose purpose,
+                String blobName,
+                boolean failIfAlreadyExists,
+                boolean atomic,
+                CheckedConsumer<OutputStream, IOException> writer
+            ) throws IOException {
+                getStrategy().blobContainerWriteMetadataBlob(
+                    () -> super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer),
+                    purpose,
+                    blobName,
+                    failIfAlreadyExists,
+                    atomic,
+                    writer
+                );
+            }
+
+            @Override
+            public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
+                return getStrategy().blobContainerListBlobs(() -> super.listBlobs(purpose), purpose);
+            }
+
+            @Override
+            public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
+                return getStrategy().blobContainerListBlobsByPrefix(
+                    () -> super.listBlobsByPrefix(purpose, blobNamePrefix),
+                    purpose,
+                    blobNamePrefix
+                );
+            }
+
+            @Override
+            public void compareAndSetRegister(
+                OperationPurpose purpose,
+                String key,
+                BytesReference expected,
+                BytesReference updated,
+                ActionListener<Boolean> listener
+            ) {
+                getStrategy().blobContainerCompareAndSetRegister(
+                    () -> super.compareAndSetRegister(purpose, key, expected, updated, listener),
+                    purpose,
+                    key,
+                    expected,
+                    updated,
+                    listener
+                );
+            }
+
+            @Override
+            public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+                getStrategy().blobContainerGetRegister(() -> super.getRegister(purpose, key, listener), purpose, key, listener);
+            }
+        }
+    }
+}

@@ -7,290 +7,324 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettingsTests;
-import org.hamcrest.MatcherAssert;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
+import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.DEFAULT_RATE_LIMIT;
+import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.INITIAL_TEST_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.INITIAL_TEST_RATE_LIMIT;
+import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.TEST_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.TEST_RATE_LIMIT;
 import static org.hamcrest.Matchers.is;
 
-public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<VoyageAIEmbeddingsServiceSettings> {
+public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<VoyageAIEmbeddingsServiceSettings> {
+
+    private static final int TEST_DIMENSIONS = 1536;
+    private static final int INITIAL_TEST_DIMENSIONS = 3072;
+
+    private static final int TEST_MAX_INPUT_TOKENS = 512;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
+
+    private static final VoyageAIEmbeddingType TEST_EMBEDDING_TYPE = VoyageAIEmbeddingType.INT8;
+    private static final VoyageAIEmbeddingType INITIAL_TEST_EMBEDDING_TYPE = VoyageAIEmbeddingType.FLOAT;
+    private static final VoyageAIEmbeddingType DEFAULT_EMBEDDING_TYPE = VoyageAIEmbeddingType.FLOAT;
+
     public static VoyageAIEmbeddingsServiceSettings createRandom() {
-        SimilarityMeasure similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
-        Integer dims = 1024;
-        Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
-        Boolean dimensionSetByUser = randomBoolean();
-
-        var commonSettings = VoyageAIServiceSettingsTests.createRandom();
-
         return new VoyageAIEmbeddingsServiceSettings(
-            commonSettings,
-            VoyageAIEmbeddingType.FLOAT,
-            similarityMeasure,
-            dims,
-            maxInputTokens,
-            dimensionSetByUser
+            VoyageAICommonServiceSettingsTests.createRandom(),
+            randomFrom(VoyageAIEmbeddingType.values()),
+            randomFrom(randomSimilarityMeasure(), null),
+            randomFrom(randomIntBetween(128, 256), null),
+            randomFrom(randomIntBetween(128, 2048), null),
+            randomBoolean()
         );
     }
 
-    public void testFromMap() {
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
+    public void testFromMap_Request_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    ServiceFields.MODEL_ID,
-                    model
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        MatcherAssert.assertThat(
-            serviceSettings,
-            is(
-                new VoyageAIEmbeddingsServiceSettings(
-                    new VoyageAIServiceSettings(model, null),
-                    VoyageAIEmbeddingType.FLOAT,
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
-                    false
-                )
-            )
-        );
-    }
-
-    public void testFromMap_WithModelId() {
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var maxInputTokens = 512;
-        var model = "model";
-        var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(ServiceFields.SIMILARITY, similarity, ServiceFields.MAX_INPUT_TOKENS, maxInputTokens, ServiceFields.MODEL_ID, model)
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_EMBEDDING_TYPE.toString(),
+                TEST_SIMILARITY_MEASURE.toString(),
+                TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                null,
+                TEST_RATE_LIMIT
             ),
             ConfigurationParseContext.REQUEST
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(
                 new VoyageAIEmbeddingsServiceSettings(
-                    new VoyageAIServiceSettings(model, null),
-                    VoyageAIEmbeddingType.FLOAT,
-                    SimilarityMeasure.DOT_PRODUCT,
-                    null,
-                    maxInputTokens,
-                    false
-                )
-            )
-        );
-    }
-
-    public void testFromMap_WithModelId_WithDimensions() {
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
-        var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    ServiceFields.MODEL_ID,
-                    model
-                )
-            ),
-            ConfigurationParseContext.REQUEST
-        );
-
-        MatcherAssert.assertThat(
-            serviceSettings,
-            is(
-                new VoyageAIEmbeddingsServiceSettings(
-                    new VoyageAIServiceSettings(model, null),
-                    VoyageAIEmbeddingType.FLOAT,
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
+                    new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+                    TEST_EMBEDDING_TYPE,
+                    TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
                     true
                 )
             )
         );
     }
 
-    public void testFromMap_DimensionsSetByUserIsFalseInRequestContext() {
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var maxInputTokens = 512;
-        var model = "model";
-        var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    DIMENSIONS_SET_BY_USER,
-                    true,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    ServiceFields.MODEL_ID,
-                    model
-                )
-            ),
-            ConfigurationParseContext.REQUEST
-        );
-
-        MatcherAssert.assertThat(
-            serviceSettings,
-            is(
-                new VoyageAIEmbeddingsServiceSettings(
-                    new VoyageAIServiceSettings(model, null),
-                    VoyageAIEmbeddingType.FLOAT,
-                    SimilarityMeasure.DOT_PRODUCT,
-                    null,
-                    maxInputTokens,
-                    false
-                )
-            )
-        );
-    }
-
-    public void testFromMap_DimensionsSetByUserIsSetInPersistentContext() {
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var maxInputTokens = 512;
-        var model = "model";
+    public void testFromMap_Persistent_AllFields_CreatesSettingsCorrectly() {
         var dimensionsSetByUser = randomBoolean();
         var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    DIMENSIONS_SET_BY_USER,
-                    dimensionsSetByUser,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    ServiceFields.MODEL_ID,
-                    model
-                )
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_EMBEDDING_TYPE.toString(),
+                TEST_SIMILARITY_MEASURE.toString(),
+                TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                dimensionsSetByUser,
+                TEST_RATE_LIMIT
             ),
             ConfigurationParseContext.PERSISTENT
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(
                 new VoyageAIEmbeddingsServiceSettings(
-                    new VoyageAIServiceSettings(model, null),
-                    VoyageAIEmbeddingType.FLOAT,
-                    SimilarityMeasure.DOT_PRODUCT,
-                    null,
-                    maxInputTokens,
+                    new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+                    TEST_EMBEDDING_TYPE,
+                    TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
                     dimensionsSetByUser
                 )
             )
         );
     }
 
-    public void testFromMap_InvalidSimilarity_ThrowsError() {
-        var similarity = "by_size";
+    public void testFromMap_Request_OnlyMandatoryFields_CreatesSettingsCorrectly() {
+        var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null, null, null),
+            ConfigurationParseContext.REQUEST
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new VoyageAIEmbeddingsServiceSettings(
+                    new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT)),
+                    DEFAULT_EMBEDDING_TYPE,
+                    null,
+                    null,
+                    null,
+                    false
+                )
+            )
+        );
+    }
+
+    public void testFromMap_Persistent_OnlyMandatoryFields_CreatesSettingsCorrectly() {
+        var dimensionsSetByUser = randomBoolean();
+        var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null, dimensionsSetByUser, null),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new VoyageAIEmbeddingsServiceSettings(
+                    new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT)),
+                    DEFAULT_EMBEDDING_TYPE,
+                    null,
+                    null,
+                    null,
+                    dimensionsSetByUser
+                )
+            )
+        );
+    }
+
+    public void testFromMap_Persistent_DimensionsSetByUserNotProvided_DefaultsToFalse() {
+        var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null, null, null),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new VoyageAIEmbeddingsServiceSettings(
+                    new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT)),
+                    DEFAULT_EMBEDDING_TYPE,
+                    null,
+                    null,
+                    null,
+                    false
+                )
+            )
+        );
+    }
+
+    public void testFromMap_Request_DimensionsSetByUser_ThrowsValidationError() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> VoyageAIEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model", ServiceFields.SIMILARITY, similarity)),
-                ConfigurationParseContext.PERSISTENT
+                buildServiceSettingsMap(TEST_MODEL_ID, null, null, TEST_DIMENSIONS, null, randomBoolean(), null),
+                ConfigurationParseContext.REQUEST
             )
         );
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
+        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] does not allow the setting [%s]", DIMENSIONS_SET_BY_USER))
+        );
+    }
+
+    public void testFromMap_InvalidSimilarity_ThrowsValidationError() {
+        var invalidSimilarity = "by_size";
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> VoyageAIEmbeddingsServiceSettings.fromMap(
+                buildServiceSettingsMap(TEST_MODEL_ID, null, invalidSimilarity, null, null, null, null),
+                randomFrom(ConfigurationParseContext.values())
+            )
+        );
+
+        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(
+            thrownException.validationErrors().getFirst(),
             is(
-                "Validation Failed: 1: [service_settings] Invalid value [by_size] received. [similarity] "
-                    + "must be one of [cosine, dot_product, l2_norm];"
+                Strings.format(
+                    "[service_settings] Invalid value [%s] received. [similarity] must be one of [cosine, dot_product, l2_norm]",
+                    invalidSimilarity
+                )
             )
         );
     }
 
-    @SuppressWarnings("checkstyle:LineLength")
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var initialDimensionsSetByUser = randomBoolean();
+        var originalServiceSettings = new VoyageAIEmbeddingsServiceSettings(
+            new VoyageAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
+            INITIAL_TEST_EMBEDDING_TYPE,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            initialDimensionsSetByUser
+        );
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_EMBEDDING_TYPE.toString(),
+                TEST_SIMILARITY_MEASURE.toString(),
+                TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                initialDimensionsSetByUser == false,
+                TEST_RATE_LIMIT
+            )
+        );
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new VoyageAIEmbeddingsServiceSettings(
+                    new VoyageAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+                    INITIAL_TEST_EMBEDDING_TYPE,
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    INITIAL_TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    initialDimensionsSetByUser
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new VoyageAIEmbeddingsServiceSettings(
+            new VoyageAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
+            INITIAL_TEST_EMBEDDING_TYPE,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            randomBoolean()
+        );
+
+        assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
+    }
+
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
-            new VoyageAIServiceSettings("model", new RateLimitSettings(3)),
-            VoyageAIEmbeddingType.FLOAT,
-            SimilarityMeasure.COSINE,
-            5,
-            10,
-            false
+            new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+            TEST_EMBEDDING_TYPE,
+            TEST_SIMILARITY_MEASURE,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS,
+            randomBoolean()
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        assertThat(
-            xContentResult,
-            is(
-                """
-                    {"model_id":"model","""
-                    + """
-                        "rate_limit":{"requests_per_minute":3},"similarity":"cosine","dimensions":5,"max_input_tokens":10,"embedding_type":"float"}"""
-            )
-        );
+
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "model_id": "%s",
+                "rate_limit": {
+                    "requests_per_minute": %d
+                },
+                "similarity": "%s",
+                "dimensions": %d,
+                "max_input_tokens": %d,
+                "embedding_type": "%s"
+            }
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT, TEST_SIMILARITY_MEASURE, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_EMBEDDING_TYPE))));
     }
 
-    @SuppressWarnings("checkstyle:LineLength")
-    public void testToXContent_WritesAllValues_DimensionSetByUser() throws IOException {
+    public void testToXContent_OnlyMandatoryFields_WritesOnlyMandatoryFieldsAndDefaults() throws IOException {
         var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
-            new VoyageAIServiceSettings("model", new RateLimitSettings(3)),
-            VoyageAIEmbeddingType.FLOAT,
-            SimilarityMeasure.COSINE,
-            5,
-            10,
-            true
+            new VoyageAICommonServiceSettings(TEST_MODEL_ID, null),
+            null,
+            null,
+            null,
+            null,
+            randomBoolean()
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        assertThat(
-            xContentResult,
-            is(
-                """
-                    {"model_id":"model","""
-                    + """
-                        "rate_limit":{"requests_per_minute":3},"similarity":"cosine","dimensions":5,"max_input_tokens":10,"embedding_type":"float"}"""
-            )
-        );
+
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "model_id": "%s",
+                "rate_limit": {
+                    "requests_per_minute": %d
+                }
+            }
+            """, TEST_MODEL_ID, DEFAULT_RATE_LIMIT))));
     }
 
     @Override
@@ -312,14 +346,11 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
         var maxInputTokens = instance.maxInputTokens();
         var dimensionsSetByUser = instance.dimensionsSetByUser();
         switch (randomInt(5)) {
-            case 0 -> commonSettings = randomValueOtherThan(commonSettings, VoyageAIServiceSettingsTests::createRandom);
-            case 1 -> embeddingType = randomValueOtherThan(
-                embeddingType,
-                () -> randomFrom(randomFrom(VoyageAIEmbeddingType.values()), null)
-            );
+            case 0 -> commonSettings = randomValueOtherThan(commonSettings, VoyageAICommonServiceSettingsTests::createRandom);
+            case 1 -> embeddingType = randomValueOtherThan(embeddingType, () -> randomFrom(VoyageAIEmbeddingType.values()));
             case 2 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
-            case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
-            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 3 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(1, 2048), null));
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 2048), null));
             case 5 -> dimensionsSetByUser = dimensionsSetByUser == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -334,15 +365,49 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
         );
     }
 
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
-        return new NamedWriteableRegistry(entries);
+    public static Map<String, Object> buildServiceSettingsMap(String modelId) {
+        return buildServiceSettingsMap(modelId, null, null, null, null, null, null);
     }
 
-    public static Map<String, Object> getServiceSettingsMap(String model) {
-        return new HashMap<>(VoyageAIServiceSettingsTests.getServiceSettingsMap(model));
+    private static Map<String, Object> buildServiceSettingsMap(
+        @Nullable String modelId,
+        @Nullable String embeddingType,
+        @Nullable String similarity,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens,
+        @Nullable Boolean dimensionsSetByUser,
+        @Nullable Integer rateLimit
+    ) {
+        var map = new HashMap<String, Object>();
+        if (modelId != null) {
+            map.put(ServiceFields.MODEL_ID, modelId);
+        }
+        if (embeddingType != null) {
+            map.put(ServiceFields.EMBEDDING_TYPE, embeddingType);
+        }
+        if (similarity != null) {
+            map.put(ServiceFields.SIMILARITY, similarity);
+        }
+        if (dimensions != null) {
+            map.put(ServiceFields.DIMENSIONS, dimensions);
+        }
+        if (maxInputTokens != null) {
+            map.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
+        }
+        if (dimensionsSetByUser != null) {
+            map.put(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+        }
+        if (rateLimit != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        }
+        return map;
+    }
+
+    @Override
+    protected VoyageAIEmbeddingsServiceSettings mutateInstanceForVersion(
+        VoyageAIEmbeddingsServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 }

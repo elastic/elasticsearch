@@ -1990,7 +1990,22 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     key -> new LFUCacheEntry(new CacheFileRegion<KeyType>(SharedBlobCacheService.this, key, effectiveRegionSize), now)
                 );
             }
-            return initOrMaybePromote(entry, now);
+            // checks using volatile, double locking is fine, as long as we assign io last.
+            if (entry.chunk.volatileIO() == null) {
+                synchronized (entry.chunk) {
+                    if (entry.chunk.volatileIO() == null && entry.chunk.isEvicted() == false) {
+                        return initChunk(entry);
+                    }
+                }
+            }
+            assert assertChunkActiveOrEvicted(entry);
+
+            // existing item, check if we need to promote it
+            if (now > entry.lastAccessedEpoch) {
+                maybePromote(now, entry);
+            }
+
+            return entry;
         }
 
         @Override
@@ -2002,21 +2017,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (entry == null) {
                 return null;
             }
-            return initOrMaybePromote(entry, now);
-        }
-
-        private LFUCacheEntry initOrMaybePromote(LFUCacheEntry entry, long now) {
-            // checks using volatile, double locking is fine, as long as we assign io last.
+            // If the IO slot has not been assigned yet, the entry is still being initialized.
+            // Treat it as absent.
             if (entry.chunk.volatileIO() == null) {
-                synchronized (entry.chunk) {
-                    if (entry.chunk.volatileIO() == null && entry.chunk.isEvicted() == false) {
-                        return initChunk(entry);
-                    }
-                }
+                return null;
             }
             assert assertChunkActiveOrEvicted(entry);
 
-            // existing item, check if we need to promote item
+            // existing item, check if we need to promote it
             if (now > entry.lastAccessedEpoch) {
                 maybePromote(now, entry);
             }

@@ -3039,6 +3039,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             assertFalse(cacheFile.withByteBufferSlice(0, 100, slice -> fail("should not be invoked")));
             assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
+
+            assertFalse(cacheFile.withByteBufferSlices(new long[] { 0L }, 100, 1, slices -> fail("should not be invoked")));
+            assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
         }
     }
 
@@ -3049,6 +3052,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -3091,11 +3095,30 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final ByteBuffer readBuffer = ByteBuffer.allocate(readLength);
             assertTrue(cacheFile.tryRead(readBuffer, readOffset));
             readBuffer.flip();
-            final byte[] readData = new byte[readLength];
-            readBuffer.get(readData);
-            for (int i = 0; i < readLength; i++) {
-                assertThat(readData[i], equalTo(testData[readOffset + i]));
-            }
+            assertBufferContainsExpectedData(readBuffer, testData, readOffset, readLength);
+
+            final boolean sliceAvailable = cacheFile.withByteBufferSlice(readOffset, readLength, slice -> {
+                assertTrue(slice.isReadOnly());
+                assertBufferContainsExpectedData(slice, testData, readOffset, readLength);
+            });
+            assertTrue(sliceAvailable);
+
+            final boolean slicesAvailable = cacheFile.withByteBufferSlices(new long[] { readOffset }, readLength, 1, slices -> {
+                assertEquals(1, slices.length);
+                assertNotNull(slices[0]);
+                assertTrue(slices[0].isReadOnly());
+                assertBufferContainsExpectedData(slices[0], testData, readOffset, readLength);
+            });
+            assertTrue(slicesAvailable);
+        }
+    }
+
+    private static void assertBufferContainsExpectedData(ByteBuffer buf, byte[] testData, int offset, int length) {
+        assertEquals(length, buf.remaining());
+        final byte[] actual = new byte[length];
+        buf.get(actual);
+        for (int i = 0; i < length; i++) {
+            assertThat(actual[i], equalTo(testData[offset + i]));
         }
     }
 

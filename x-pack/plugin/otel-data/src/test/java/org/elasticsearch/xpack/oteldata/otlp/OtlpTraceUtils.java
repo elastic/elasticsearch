@@ -40,6 +40,10 @@ public class OtlpTraceUtils {
     }
 
     public static Span createSpan(String name, List<KeyValue> attributes) {
+        return createSpan(name, attributes, List.of());
+    }
+
+    public static Span createSpan(String name, List<KeyValue> attributes, List<Span.Event> events) {
         return Span.newBuilder()
             .setName(name)
             .setTraceId(EMPTY_TRACE_ID)
@@ -49,7 +53,12 @@ public class OtlpTraceUtils {
             .setKind(Span.SpanKind.SPAN_KIND_INTERNAL)
             .setStatus(Status.newBuilder().setCode(Status.StatusCode.STATUS_CODE_OK).build())
             .addAllAttributes(attributes)
+            .addAllEvents(events)
             .build();
+    }
+
+    public static Span.Event createEvent(String name, long timestamp, List<KeyValue> attributes) {
+        return Span.Event.newBuilder().setName(name).setTimeUnixNano(timestamp).addAllAttributes(attributes).build();
     }
 
     public static ResourceSpans createResourceSpans(List<KeyValue> resourceAttributes, List<ScopeSpans> scopeSpans) {

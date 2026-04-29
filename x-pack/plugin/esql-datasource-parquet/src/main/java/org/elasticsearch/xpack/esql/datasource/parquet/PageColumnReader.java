@@ -31,6 +31,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.BitSet;
 
 /**
@@ -45,14 +46,11 @@ import java.util.BitSet;
  * </ol>
  *
  * <p>Only handles flat columns (maxRepLevel == 0). List columns must use the row-at-a-time path.
- * When a Parquet record filter is active, this reader is bypassed entirely (see
- * {@code ParquetFormatReader.ParquetColumnIterator#advanceRowGroup}) because page-index filtering
- * changes the semantics of pages returned by {@link PageReader}.
  *
- * <p>TODO: selective reading (RowSelection + PredicateEvaluator) is blocked on Stage 7 of the
- * performance backport plan. When added, readBatch should gain a predicate parameter that applies
- * per-page filtering via RowRanges, enabling page skipping for filtered queries without falling
- * back to the ColumnReader path.
+ * <p>When {@link RowRanges} are provided, pages whose row span does not overlap the selected
+ * ranges are skipped entirely in {@link #loadNextPage()}. This is a safety net for the
+ * sequential builder path (when prefetch is unavailable and the builder cannot pre-filter
+ * pages) and a no-op for the filtered builder path.
  */
 final class PageColumnReader {
 
@@ -394,7 +392,7 @@ final class PageColumnReader {
             int produced = readNonNullBooleans(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantBoolean(values, produced, blockFactory);
             if (constant != null) return constant;
-            return blockFactory.newBooleanArrayVector(values, produced).asBlock();
+            return takeBooleanBlock(blockFactory, values, produced, true, null);
         }
         WordMask nulls = buffers.nullsMask(maxRows);
         int produced = 0;
@@ -410,13 +408,13 @@ final class PageColumnReader {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantBoolean(values, produced, blockFactory);
             if (constant != null) return constant;
-            return blockFactory.newBooleanArrayVector(values, produced).asBlock();
+            return takeBooleanBlock(blockFactory, values, produced, true, null);
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        return blockFactory.newBooleanArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
+        return takeBooleanBlock(blockFactory, values, produced, false, nulls.toBitSet());
     }
 
     private int readNonNullBooleans(boolean[] values, int offset, int maxRows) {
@@ -453,7 +451,7 @@ final class PageColumnReader {
             int produced = readNonNullInts(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantInt(values, produced, blockFactory);
             if (constant != null) return constant;
-            return blockFactory.newIntArrayVector(values, produced).asBlock();
+            return takeIntBlock(blockFactory, values, produced, true, null);
         }
         WordMask nulls = buffers.nullsMask(maxRows);
         int produced = 0;
@@ -469,13 +467,13 @@ final class PageColumnReader {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantInt(values, produced, blockFactory);
             if (constant != null) return constant;
-            return blockFactory.newIntArrayVector(values, produced).asBlock();
+            return takeIntBlock(blockFactory, values, produced, true, null);
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        return blockFactory.newIntArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
+        return takeIntBlock(blockFactory, values, produced, false, nulls.toBitSet());
     }
 
     private int readNonNullInts(int[] values, int offset, int maxRows) {
@@ -861,7 +859,7 @@ final class PageColumnReader {
                 int fromPage = Math.min(remaining, availableInPage());
                 BytesRef[] vals = readBinaryValues(fromPage);
                 for (int i = 0; i < fromPage; i++) {
-                    allValues[produced + i] = isUuid ? new BytesRef(ParquetFormatReader.formatUuid(vals[i].bytes)) : vals[i];
+                    allValues[produced + i] = isUuid ? new BytesRef(ParquetColumnDecoding.formatUuid(vals[i].bytes)) : vals[i];
                 }
                 advancePosition(fromPage);
                 produced += fromPage;
@@ -892,7 +890,7 @@ final class PageColumnReader {
                 if (pageNulls.get(i)) {
                     allNulls.set(produced + i);
                 } else if (isUuid) {
-                    allValues[produced + i] = new BytesRef(ParquetFormatReader.formatUuid(vals[valIdx++].bytes));
+                    allValues[produced + i] = new BytesRef(ParquetColumnDecoding.formatUuid(vals[valIdx++].bytes));
                 } else {
                     allValues[produced + i] = vals[valIdx++];
                 }
@@ -1077,9 +1075,35 @@ final class PageColumnReader {
     }
 
     // --- Block construction helpers ---
+    //
+    // These helpers copy the decode buffer into a fresh, tightly sized owned array before
+    // handing it to BlockFactory.
+    //
+    // Why the copy is necessary: BlockFactory#new*ArrayVector(values, positionCount) does NOT
+    // copy. It stores the array reference directly inside the Vector (see e.g.
+    // LongArrayVector#values), and the Vector reads from that array for the entire lifetime of
+    // the Block. Memory accounting on the circuit breaker is computed from the array's full
+    // length too. So whatever array a caller hands in is logically owned by the resulting Block
+    // until the Block is released.
+    //
+    // PageColumnReader's DecodeBuffers, by contrast, are a small per-reader pool that is reused
+    // across successive read*Batch calls: longs and doubles rotate between two slots, while ints
+    // and booleans share a single buffer. When AsyncExternalSourceBuffer keeps several emitted
+    // Pages queued between the producer driver and the consumer driver - the steady-state shape
+    // for parquet reads - more than two Blocks for a given column are alive at once, the
+    // two-slot rotation cannot keep up, and the next decode silently mutates the array still
+    // referenced by an earlier Block. The result is non-deterministic, incorrect numeric
+    // aggregates while COUNT(*) stays correct.
+    //
+    // Defensively copying here transfers a fresh array to the Block on every emit, decoupling
+    // the Block's lifetime from the reader's pool. The copy is sized to positionCount, which
+    // also keeps the breaker accounting tight (vs. the oversized pooled buffer's array.length).
+    //
+    // See {@code ParquetFormatReaderTests#testEmittedPagesAreNotMutatedAcrossProducerConsumerBoundary}
+    // for the regression coverage.
 
     private Block takeLongBlock(BlockFactory blockFactory, int rowCount, boolean noNulls, BitSet nullBitSet) {
-        long[] owned = buffers.takeLongs();
+        long[] owned = Arrays.copyOf(buffers.takeLongs(), rowCount);
         if (noNulls) {
             return blockFactory.newLongArrayVector(owned, rowCount).asBlock();
         }
@@ -1087,11 +1111,27 @@ final class PageColumnReader {
     }
 
     private Block takeDoubleBlock(BlockFactory blockFactory, int rowCount, boolean noNulls, BitSet nullBitSet) {
-        double[] owned = buffers.takeDoubles();
+        double[] owned = Arrays.copyOf(buffers.takeDoubles(), rowCount);
         if (noNulls) {
             return blockFactory.newDoubleArrayVector(owned, rowCount).asBlock();
         }
         return blockFactory.newDoubleArrayBlock(owned, rowCount, null, nullBitSet, Block.MvOrdering.UNORDERED);
+    }
+
+    private Block takeIntBlock(BlockFactory blockFactory, int[] src, int rowCount, boolean noNulls, BitSet nullBitSet) {
+        int[] owned = Arrays.copyOf(src, rowCount);
+        if (noNulls) {
+            return blockFactory.newIntArrayVector(owned, rowCount).asBlock();
+        }
+        return blockFactory.newIntArrayBlock(owned, rowCount, null, nullBitSet, Block.MvOrdering.UNORDERED);
+    }
+
+    private Block takeBooleanBlock(BlockFactory blockFactory, boolean[] src, int rowCount, boolean noNulls, BitSet nullBitSet) {
+        boolean[] owned = Arrays.copyOf(src, rowCount);
+        if (noNulls) {
+            return blockFactory.newBooleanArrayVector(owned, rowCount).asBlock();
+        }
+        return blockFactory.newBooleanArrayBlock(owned, rowCount, null, nullBitSet, Block.MvOrdering.UNORDERED);
     }
 
     // --- Scatter utilities ---

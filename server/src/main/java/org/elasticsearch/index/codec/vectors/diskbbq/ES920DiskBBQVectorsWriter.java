@@ -9,7 +9,9 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.MergeState;
@@ -649,7 +651,11 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         IVFVectorsReader.CentroidData[] segmentCentroidData = new IVFVectorsReader.CentroidData[numSegments];
 
         for (int i = 0; i < numSegments; i++) {
-            if (mergeState.knnVectorsReaders[i] instanceof IVFVectorsReader<?> ivfReader) {
+            KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
+            if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldReader) {
+                reader = perFieldReader.getFieldReader(fieldInfo.name);
+            }
+            if (reader instanceof IVFVectorsReader<?> ivfReader) {
                 FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(fieldInfo.name);
                 if (readerFieldInfo == null) {
                     segmentSizes[i] = 0;

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -100,7 +99,7 @@ public class SpanDocumentBuilderTests extends ESTestCase {
 
         ObjectPath doc = buildDocument(resource, scope, span);
 
-        assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(2_000_000_000L)));
+        assertThat(doc.evaluate("@timestamp"), equalTo(2000));
         assertThat(doc.evaluate("trace_id"), equalTo(MessageDigests.toHexString(traceId.toByteArray())));
         assertThat(doc.evaluate("span_id"), equalTo(MessageDigests.toHexString(spanId.toByteArray())));
         assertThat(doc.evaluate("parent_span_id"), equalTo(MessageDigests.toHexString(parentSpanId.toByteArray())));
@@ -137,10 +136,19 @@ public class SpanDocumentBuilderTests extends ESTestCase {
 
         ObjectPath doc = buildDocument(Resource.getDefaultInstance(), InstrumentationScope.getDefaultInstance(), span);
 
-        assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(5_000_000_000L)));
+        assertThat(doc.evaluate("@timestamp"), equalTo(5000));
+        assertThat(doc.evaluate("kind"), equalTo("Unspecified"));
         assertThat(doc.evaluate("duration"), nullValue());
         assertThat(doc.evaluate("status"), nullValue());
         assertThat(doc.evaluate("links"), nullValue());
+    }
+
+    public void testTimestampPreservesSubMillisecondPrecision() throws IOException {
+        Span span = Span.newBuilder().setStartTimeUnixNano(1_721_314_113_467_654_123L).build();
+
+        ObjectPath doc = buildDocument(Resource.getDefaultInstance(), InstrumentationScope.getDefaultInstance(), span);
+
+        assertThat(doc.evaluate("@timestamp"), equalTo("1721314113467.654123"));
     }
 
     public void testStatusMessageWithoutCodeIsIgnored() throws IOException {
@@ -159,7 +167,7 @@ public class SpanDocumentBuilderTests extends ESTestCase {
 
         ObjectPath doc = buildDocument(Resource.getDefaultInstance(), InstrumentationScope.getDefaultInstance(), span);
 
-        assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(0L));
+        assertThat(doc.evaluate("@timestamp"), equalTo(0));
         assertThat(doc.evaluate("duration"), nullValue());
     }
 

@@ -49,7 +49,7 @@ public class InferenceStatsTests extends ESTestCase {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withSuccess().incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
@@ -57,24 +57,46 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testLongCounter_WithNullThrowable_Returns200() {
+    public void testCounterWithNoStatusSet() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withThrowable(null).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).incrementBy(1);
 
-        verify(longCounter).incrementBy(
-            eq(1L),
-            eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString(), STATUS_CODE_ATTRIBUTE, 200))
-        );
+        verify(longCounter).incrementBy(eq(1L), eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString())));
     }
 
-    public void testLongHistogram_WithNullThrowable_Returns200() {
+    public void testDurationWithNoStatusSet() {
         var expectedDuration = randomLong();
         var longHistogram = mock(LongHistogram.class);
         var stats = new InferenceStats(mock(), longHistogram, mock(), Map.of());
 
-        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withThrowable(null).record(expectedDuration);
+        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).record(expectedDuration);
+
+        verify(longHistogram).record(
+            eq(expectedDuration),
+            eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString()))
+        );
+    }
+
+    public void testLongCounter_WithNullFailure_Returns200() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withFailure(null).incrementBy(1);
+
+        verify(longCounter).incrementBy(
+            eq(1L),
+            eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString(), STATUS_CODE_ATTRIBUTE, 200))
+        );
+    }
+
+    public void testLongHistogram_WithNullFailure_Returns200() {
+        var expectedDuration = randomLong();
+        var longHistogram = mock(LongHistogram.class);
+        var stats = new InferenceStats(mock(), longHistogram, mock(), Map.of());
+
+        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withFailure(null).record(expectedDuration);
 
         verify(longHistogram).record(
             eq(expectedDuration),
@@ -95,7 +117,7 @@ public class InferenceStatsTests extends ESTestCase {
             Map.of(STACK_VERSION_ATTRIBUTE, TEST_STACK_VERSION, PRODUCTION_RELEASE_ATTRIBUTE, TEST_IS_PRODUCTION_RELEASE)
         );
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withSuccess().incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
@@ -123,7 +145,7 @@ public class InferenceStatsTests extends ESTestCase {
         var exception = new ElasticsearchStatusException("hello", statusCode);
         var expectedError = String.valueOf(statusCode.getStatus());
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withThrowable(exception).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withFailure(exception).incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
@@ -148,7 +170,7 @@ public class InferenceStatsTests extends ESTestCase {
         var exception = new IllegalStateException("ahh");
         var expectedError = exception.getClass().getSimpleName();
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withThrowable(exception).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withFailure(exception).incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
@@ -163,7 +185,7 @@ public class InferenceStatsTests extends ESTestCase {
         var exception = new ElasticsearchStatusException("hello", statusCode);
         var expectedError = String.valueOf(statusCode.getStatus());
 
-        stats.requestCount().withThrowable(exception).incrementBy(1);
+        stats.requestCount().withFailure(exception).incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
@@ -177,7 +199,7 @@ public class InferenceStatsTests extends ESTestCase {
         var exception = new IllegalStateException("ahh");
         var expectedError = exception.getClass().getSimpleName();
 
-        stats.requestCount().withThrowable(exception).incrementBy(1);
+        stats.requestCount().withFailure(exception).incrementBy(1);
 
         verify(longCounter).incrementBy(eq(1L), eq(Map.of(ERROR_TYPE_ATTRIBUTE, expectedError)));
     }
@@ -188,6 +210,7 @@ public class InferenceStatsTests extends ESTestCase {
 
         stats.requestCount()
             .withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID))
+            .withSuccess()
             .withAttribute("custom_key", "custom_value")
             .incrementBy(1);
 
@@ -213,7 +236,7 @@ public class InferenceStatsTests extends ESTestCase {
         var histogramCounter = mock(LongHistogram.class);
         var stats = new InferenceStats(mock(), histogramCounter, mock(), Map.of());
 
-        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).record(expectedLong);
+        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withSuccess().record(expectedLong);
 
         verify(histogramCounter).record(
             eq(expectedLong),
@@ -234,7 +257,7 @@ public class InferenceStatsTests extends ESTestCase {
         var exception = new ElasticsearchStatusException("hello", statusCode);
         var expectedError = String.valueOf(statusCode.getStatus());
 
-        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withThrowable(exception).record(expectedLong);
+        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withFailure(exception).record(expectedLong);
 
         verify(histogramCounter).record(
             eq(expectedLong),
@@ -265,7 +288,7 @@ public class InferenceStatsTests extends ESTestCase {
         var exception = new IllegalStateException("ahh");
         var expectedError = exception.getClass().getSimpleName();
 
-        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withThrowable(exception).record(expectedLong);
+        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withFailure(exception).record(expectedLong);
 
         verify(histogramCounter).record(
             eq(expectedLong),
@@ -281,7 +304,7 @@ public class InferenceStatsTests extends ESTestCase {
         var exception = new ElasticsearchStatusException("hello", statusCode);
         var expectedError = String.valueOf(statusCode.getStatus());
 
-        stats.inferenceDuration().withThrowable(exception).record(expectedLong);
+        stats.inferenceDuration().withFailure(exception).record(expectedLong);
 
         verify(histogramCounter).record(
             eq(expectedLong),
@@ -296,7 +319,7 @@ public class InferenceStatsTests extends ESTestCase {
         var exception = new IllegalStateException("ahh");
         var expectedError = exception.getClass().getSimpleName();
 
-        stats.inferenceDuration().withThrowable(exception).record(expectedLong);
+        stats.inferenceDuration().withFailure(exception).record(expectedLong);
 
         verify(histogramCounter).record(eq(expectedLong), eq(Map.of(ERROR_TYPE_ATTRIBUTE, expectedError)));
     }
@@ -311,7 +334,7 @@ public class InferenceStatsTests extends ESTestCase {
             Map.of(STACK_VERSION_ATTRIBUTE, TEST_STACK_VERSION, PRODUCTION_RELEASE_ATTRIBUTE, TEST_IS_PRODUCTION_RELEASE)
         );
 
-        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).record(expectedDuration);
+        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withSuccess().record(expectedDuration);
 
         verify(longHistogram).record(
             eq(expectedDuration),
@@ -337,7 +360,7 @@ public class InferenceStatsTests extends ESTestCase {
         var deploymentHistogram = mock(LongHistogram.class);
         var stats = new InferenceStats(mock(), mock(), deploymentHistogram, Map.of());
 
-        stats.deploymentDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).record(expectedDuration);
+        stats.deploymentDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withSuccess().record(expectedDuration);
 
         verify(deploymentHistogram).record(
             eq(expectedDuration),

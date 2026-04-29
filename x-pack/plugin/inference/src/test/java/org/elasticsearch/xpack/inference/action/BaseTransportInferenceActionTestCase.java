@@ -67,6 +67,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     protected static final String inferenceId = "inferenceEntityId";
     protected InferenceServiceRegistry serviceRegistry;
     protected InferenceStats inferenceStats;
+    protected LongCounter mockRequestCountCounter;
     protected LongHistogram mockInferenceDurationHistogram;
     protected TransportService transportService;
 
@@ -83,8 +84,9 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         licenseState = mock();
         inferenceEndpointRegistry = mock();
         serviceRegistry = mock();
+        mockRequestCountCounter = mock(LongCounter.class);
         mockInferenceDurationHistogram = mock(LongHistogram.class);
-        inferenceStats = new InferenceStats(mock(LongCounter.class), mockInferenceDurationHistogram, mock(LongHistogram.class), Map.of());
+        inferenceStats = new InferenceStats(mockRequestCountCounter, mockInferenceDurationHistogram, mock(LongHistogram.class), Map.of());
         streamingTaskManager = mock();
 
         action = createAction(
@@ -270,6 +272,19 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("task_type"), is(taskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(200));
+            assertThat(attributes.get("error_type"), nullValue());
+        }));
+    }
+
+    public void testRequestCountMetricsHaveNoStatusCode() {
+        mockService(listener -> listener.onResponse(mock()));
+
+        doExecute(taskType);
+
+        verify(mockRequestCountCounter).incrementBy(anyLong(), assertArg(attributes -> {
+            assertThat(attributes.get("service"), is(serviceId));
+            assertThat(attributes.get("task_type"), is(taskType.toString()));
+            assertThat(attributes.get("status_code"), nullValue());
             assertThat(attributes.get("error_type"), nullValue());
         }));
     }

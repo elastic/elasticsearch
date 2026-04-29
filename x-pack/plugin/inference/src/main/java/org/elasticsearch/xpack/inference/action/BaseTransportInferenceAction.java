@@ -108,7 +108,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             try {
                 validateRequest(request, model);
             } catch (Exception e) {
-                inferenceStats.inferenceDuration().withModel(model).withThrowable(unwrapCause(e)).record(timer.elapsedMillis());
+                inferenceStats.inferenceDuration().withModel(model).withFailure(unwrapCause(e)).record(timer.elapsedMillis());
                 listener.onFailure(e);
                 return;
             }
@@ -130,7 +130,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             inferOnServiceWithMetrics(model, request, service, timer, listener);
 
         }, e -> {
-            inferenceStats.inferenceDuration().withThrowable(e).record(timer.elapsedMillis());
+            inferenceStats.inferenceDuration().withFailure(e).record(timer.elapsedMillis());
             listener.onFailure(e);
         });
 
@@ -178,11 +178,11 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
                 listener.onResponse(new InferenceAction.Response(inferenceResults, streamErrorHandler));
             } else {
-                inferenceStats.inferenceDuration().withModel(model).record(timer.elapsedMillis());
+                inferenceStats.inferenceDuration().withModel(model).withSuccess().record(timer.elapsedMillis());
                 listener.onResponse(new InferenceAction.Response(inferenceResults));
             }
         }, e -> {
-            inferenceStats.inferenceDuration().withModel(model).withThrowable(unwrapCause(e)).record(timer.elapsedMillis());
+            inferenceStats.inferenceDuration().withModel(model).withFailure(unwrapCause(e)).record(timer.elapsedMillis());
             listener.onFailure(e);
         }));
     }
@@ -200,7 +200,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
                         @Override
                         public void cancel() {
-                            inferenceStats.inferenceDuration().withModel(model).record(timer.elapsedMillis());
+                            inferenceStats.inferenceDuration().withModel(model).withSuccess().record(timer.elapsedMillis());
                             subscription.cancel();
                         }
                     });
@@ -213,13 +213,13 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
                 @Override
                 public void onError(Throwable throwable) {
-                    inferenceStats.inferenceDuration().withModel(model).withThrowable(unwrapCause(throwable)).record(timer.elapsedMillis());
+                    inferenceStats.inferenceDuration().withModel(model).withFailure(unwrapCause(throwable)).record(timer.elapsedMillis());
                     downstream.onError(throwable);
                 }
 
                 @Override
                 public void onComplete() {
-                    inferenceStats.inferenceDuration().withModel(model).record(timer.elapsedMillis());
+                    inferenceStats.inferenceDuration().withModel(model).withSuccess().record(timer.elapsedMillis());
                     downstream.onComplete();
                 }
             });

@@ -484,7 +484,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private void recordRequestCountMetrics(Model model, int incrementBy, Throwable throwable) {
             inferenceStats.requestCount()
                 .withModel(model)
-                .withThrowable(throwable)
+                .withFailure(throwable)
                 .withAttribute("inference_source", "semantic_text_bulk")
                 .incrementBy(incrementBy);
         }

@@ -76,8 +76,9 @@ public class InferenceStats {
     }
 
     /**
-     * Returns a fluent counter recording. The terminal {@link CounterBuilder#incrementBy} applies default HTTP success attributes
-     * when no error was set.
+     * Returns a fluent counter recording. Call {@link CounterBuilder#withSuccess()} or {@link CounterBuilder#withFailure(Throwable)}
+     * to set the outcome before calling the terminal {@link CounterBuilder#incrementBy}. Omitting both records no {@code status_code},
+     * which is appropriate when counting a request attempt before the outcome is known.
      */
     public CounterBuilder requestCount() {
         return new CounterBuilder(requestCountInstrument, constantAttributes);
@@ -98,12 +99,13 @@ public class InferenceStats {
     }
 
     /**
-     * Builder for {@link LongCounter} metrics. {@link #withThrowable(Throwable)} is optional; omit it to indicate success.
+     * Builder for {@link LongCounter} metrics. Call {@link #withSuccess()} or {@link #withFailure(Throwable)} to set the outcome.
+     * Omitting both leaves the metric without a {@code status_code} attribute, which is correct when recording a request attempt
+     * before the outcome is known.
      */
     public static class CounterBuilder {
         private final LongCounter counter;
         private final Map<String, Object> attributes;
-        private boolean responseSet = false;
 
         CounterBuilder(LongCounter counter, Map<String, Object> constantAttributes) {
             this.counter = counter;
@@ -116,10 +118,21 @@ public class InferenceStats {
             return this;
         }
 
-        public CounterBuilder withThrowable(@Nullable Throwable t) {
-            if (applyThrowable(t, attributes)) {
-                responseSet = true;
+        public CounterBuilder withSuccess() {
+            attributes.put(STATUS_CODE_ATTRIBUTE, 200);
+            return this;
+        }
+
+        /**
+         * Records failure attributes from the given throwable. If {@code null} is passed this behaves identically to
+         * {@link #withSuccess()} and sets {@code status_code=200}. Prefer {@link #withSuccess()} when the outcome is known to be
+         * successful.
+         */
+        public CounterBuilder withFailure(@Nullable Throwable throwable) {
+            if (throwable == null) {
+                return withSuccess();
             }
+            applyThrowable(throwable, attributes);
             return this;
         }
 
@@ -129,10 +142,6 @@ public class InferenceStats {
         }
 
         public void incrementBy(long value) {
-            if (responseSet == false) {
-                attributes.put(STATUS_CODE_ATTRIBUTE, 200);
-            }
-
             try {
                 counter.incrementBy(value, attributes);
             } catch (Exception e) {
@@ -142,12 +151,13 @@ public class InferenceStats {
     }
 
     /**
-     * Builder for {@link LongHistogram} metrics. {@link #withThrowable(Throwable)} is optional; omit it for success.
+     * Builder for {@link LongHistogram} metrics. Call {@link #withSuccess()} or {@link #withFailure(Throwable)} to set the outcome.
+     * Omitting both leaves the metric without a {@code status_code} attribute, which is correct when recording duration before the
+     * outcome is known.
      */
     public static class DurationBuilder {
         private final LongHistogram histogram;
         private final Map<String, Object> attributes;
-        private boolean responseSet = false;
 
         DurationBuilder(LongHistogram histogram, Map<String, Object> constantAttributes) {
             this.histogram = histogram;
@@ -160,18 +170,25 @@ public class InferenceStats {
             return this;
         }
 
-        public DurationBuilder withThrowable(@Nullable Throwable t) {
-            if (applyThrowable(t, attributes)) {
-                responseSet = true;
+        public DurationBuilder withSuccess() {
+            attributes.put(STATUS_CODE_ATTRIBUTE, 200);
+            return this;
+        }
+
+        /**
+         * Records failure attributes from the given throwable. If {@code null} is passed this behaves identically to
+         * {@link #withSuccess()} and sets {@code status_code=200}. Prefer {@link #withSuccess()} when the outcome is known to be
+         * successful.
+         */
+        public DurationBuilder withFailure(@Nullable Throwable throwable) {
+            if (throwable == null) {
+                return withSuccess();
             }
+            applyThrowable(throwable, attributes);
             return this;
         }
 
         public void record(long durationMs) {
-            if (responseSet == false) {
-                attributes.put(STATUS_CODE_ATTRIBUTE, 200);
-            }
-
             try {
                 histogram.record(durationMs, attributes);
             } catch (Exception e) {
@@ -180,18 +197,12 @@ public class InferenceStats {
         }
     }
 
-    private static boolean applyThrowable(@Nullable Throwable throwable, Map<String, Object> attributes) {
-        if (throwable == null) {
-            return false;
-        }
-
+    private static void applyThrowable(Throwable throwable, Map<String, Object> attributes) {
         if (throwable instanceof ElasticsearchStatusException ese) {
             attributes.put(STATUS_CODE_ATTRIBUTE, ese.status().getStatus());
             attributes.put(ERROR_TYPE_ATTRIBUTE, String.valueOf(ese.status().getStatus()));
         } else {
             attributes.put(ERROR_TYPE_ATTRIBUTE, throwable.getClass().getSimpleName());
         }
-
-        return true;
     }
 }

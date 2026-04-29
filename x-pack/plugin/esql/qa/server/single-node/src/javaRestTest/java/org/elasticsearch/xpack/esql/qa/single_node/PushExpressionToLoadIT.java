@@ -377,6 +377,34 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     /**
+     * Scalar MV_MAX pushdown on a keyword field cast to ip — verifies that
+     * the block loader respects the type conversion (single index, no union types).
+     */
+    public void testMvMaxEvalKeywordCastToIp() throws IOException {
+        deleteIndexIfExists("test_kw");
+
+        createSingleShardIndex("test_kw", Map.of("val", "keyword"));
+
+        bulkIndex("test_kw", List.of(Map.of("val", List.of("192.168.0.1", "192.168.3.1"))));
+
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query("""
+                FROM test_kw
+                | EVAL ip_val = MV_MAX(val::ip)
+                | KEEP ip_val
+                """),
+            new AssertWarnings.NoWarnings(),
+            profileLogger,
+            RestEsqlTestCase.Mode.SYNC
+        );
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) result.get("values");
+        assertEquals(1, values.size());
+        assertEquals("192.168.3.1", values.get(0).get(0));
+    }
+
+    /**
      * Scalar MV_MAX pushdown across union types (ip + keyword) — verifies
      * that the existing scalar block loader path handles the type mismatch.
      */

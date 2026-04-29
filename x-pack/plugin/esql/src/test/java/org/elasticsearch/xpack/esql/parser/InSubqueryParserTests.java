@@ -93,8 +93,39 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
     public void testWhereInSubqueryWithHiddenTokensBeforeParenthesis() {
         String[] queries = new String[] {
             "FROM main_index | WHERE x IN               (FROM sub_index)",
+            "FROM main_index | WHERE x IN       (        FROM sub_index)",
             "FROM main_index | WHERE x IN /* some comment */ (FROM sub_index)",
             "FROM main_index | WHERE x IN // line comment\n (FROM sub_index)" };
+
+        for (String query : queries) {
+            LogicalPlan plan = query(query);
+            Filter filter = as(plan, Filter.class);
+            InSubquery inSubquery = as(filter.condition(), InSubquery.class);
+            UnresolvedAttribute value = as(inSubquery.value(), UnresolvedAttribute.class);
+            assertEquals(query, "x", value.name());
+
+            UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
+            assertEquals(query, "sub_index", subqueryRelation.indexPattern().indexPattern());
+
+            UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+            assertEquals(query, "main_index", mainRelation.indexPattern().indexPattern());
+        }
+    }
+
+    /*
+     * Same as the previous test but with the hidden tokens between the opening '(' and
+     * the source command keyword. This is harder than the IN→'(' case because the IN_SUBQUERY_LP
+     * rule has to match the whole `( ... keyword` span as a single token (it can't yield to
+     * the surrounding hidden-channel rules for arbitrary content inside the lookahead), so
+     * WS / LINE_COMMENT / MULTILINE_COMMENT have to be spelled out explicitly inside the rule.
+     */
+    public void testWhereInSubqueryWithHiddenTokensAfterParenthesis() {
+        String[] queries = new String[] {
+            "FROM main_index | WHERE x IN (   FROM sub_index)",
+            "FROM main_index | WHERE x IN ( /* some comment */ FROM sub_index)",
+            "FROM main_index | WHERE x IN ( /* one */ /* two */ FROM sub_index)",
+            "FROM main_index | WHERE x IN ( // line comment\n FROM sub_index)",
+            "FROM main_index | WHERE x IN ( /* mixed */ \n  // line\n FROM sub_index)" };
 
         for (String query : queries) {
             LogicalPlan plan = query(query);

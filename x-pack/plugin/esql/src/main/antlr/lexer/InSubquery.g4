@@ -28,14 +28,19 @@ AFTER_IN_WS
     : WS -> channel(HIDDEN)
     ;
 
-// Match `( keyword WS*` as lookahead, but emit only `(` as LP and rewind so
-// the keyword is re-lexed in DEFAULT_MODE. `mode(DEFAULT_MODE)` replaces
-// (rather than pushes) so the stack depth matches the EXPRESSION_MODE →
-// DEFAULT_MODE pairing the existing FROM_RP / PROJECT_RP / etc. (each
-// `popMode, popMode`) expect when closing the subquery.
+// Match `( <hidden>* keyword <hidden>*` as lookahead, but emit only `(` as LP
+// and rewind so the keyword is re-lexed in DEFAULT_MODE. The `<hidden>` group
+// covers whitespace AND comments — without LINE_COMMENT/MULTILINE_COMMENT here
+// the rule wouldn't fire for `IN ( /* note */ FROM foo )`, even though those
+// tokens go to the hidden channel everywhere else they appear.
+//
+// `mode(DEFAULT_MODE)` replaces (rather than pushes) so the stack depth matches
+// the EXPRESSION_MODE → DEFAULT_MODE pairing the existing FROM_RP / PROJECT_RP /
+// etc. (each `popMode, popMode`) expect when closing the subquery.
 IN_SUBQUERY_LP
     : {this.isDevVersion()}?
-      '(' ('from' | 'row' | 'show' | 'ts' | 'promql') WS*
+      '(' (WS | LINE_COMMENT | MULTILINE_COMMENT)*
+      ('from' | 'row' | 'show' | 'ts' | 'promql')
       { this.rewindToTokenStart(1); }
       -> type(LP), mode(DEFAULT_MODE)
     ;

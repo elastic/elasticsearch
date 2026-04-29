@@ -51,14 +51,9 @@ public final class TSDBDocValuesFormatSelector {
         );
     }
 
-    /**
-     * Returns {@code true} if ES95 should be used for the given index settings.
-     * Requires the feature flag to be enabled, the index mode to be TIME_SERIES,
-     * and the index version to be at or after {@link IndexVersions#ES95_TSDB_CODEC_FEATURE_FLAG}.
-     */
     static boolean useES95(final IndexSettings indexSettings) {
-        return IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()
-            && indexSettings.getMode() == IndexMode.TIME_SERIES
-            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG);
+        return indexSettings.getMode() == IndexMode.TIME_SERIES
+            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG)
+            && indexSettings.isTimeSeriesEs95CodecEnabled();
     }
 }

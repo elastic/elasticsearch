@@ -964,6 +964,17 @@ public final class IndexSettings {
     );
 
     /**
+     * Opt in setting that enables the ES95 TSDB doc values codec for a given time series index.
+     * Registered only when {@link #ES95_CODEC_FEATURE_FLAG} is enabled, defaults to {@code false}.
+     */
+    public static final Setting<Boolean> TIME_SERIES_ES95_CODEC_ENABLED_SETTING = Setting.boolSetting(
+        "index.time_series.es95_codec.enabled",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
      */
@@ -1236,6 +1247,7 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormat;
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
+    private final boolean timeSeriesEs95CodecEnabled;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
 
@@ -1450,6 +1462,8 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
+        timeSeriesEs95CodecEnabled = ES95_CODEC_FEATURE_FLAG.isEnabled()
+            && scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -2247,6 +2261,18 @@ public final class IndexSettings {
      */
     public boolean isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize() {
         return useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
+    }
+
+    /**
+     * Checks if this index has opted into the ES95 TSDB doc values codec.
+     * Always returns {@code false} when {@link #ES95_CODEC_FEATURE_FLAG} is disabled,
+     * regardless of any value set on {@link #TIME_SERIES_ES95_CODEC_ENABLED_SETTING}.
+     *
+     * @return {@code true} if the index has opted into ES95 and the feature flag is enabled;
+     *         {@code false} otherwise.
+     */
+    public boolean isTimeSeriesEs95CodecEnabled() {
+        return timeSeriesEs95CodecEnabled;
     }
 
     /**

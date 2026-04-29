@@ -26,10 +26,20 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
 
     private static final String ES95_CODEC_NAME = "ES95TSDB";
 
-    public void testES95SelectedForCurrentVersionWithFeatureFlag() {
+    public void testES95SelectedForCurrentVersionWithFeatureFlagAndSettingEnabled() {
         assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
-        final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, IndexVersion.current()));
+        final DocValuesFormat format = TSDBDocValuesFormatSelector.select(
+            indexSettings(IndexMode.TIME_SERIES, IndexVersion.current(), true)
+        );
         assertThat(format.getName(), equalTo(ES95_CODEC_NAME));
+    }
+
+    public void testES819SelectedWhenES95SettingDisabled() {
+        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
+        final DocValuesFormat format = TSDBDocValuesFormatSelector.select(
+            indexSettings(IndexMode.TIME_SERIES, IndexVersion.current(), false)
+        );
+        assertThat(format.getName(), startsWith("ES819"));
     }
 
     public void testVersionBoundary() {
@@ -37,27 +47,33 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         final IndexVersion justBefore = IndexVersionUtils.getPreviousVersion(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG);
         final IndexVersion exact = IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG;
 
-        assertThat(TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, justBefore)).getName(), startsWith("ES819"));
-        assertThat(TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, exact)).getName(), equalTo(ES95_CODEC_NAME));
+        assertThat(
+            TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, justBefore, true)).getName(),
+            startsWith("ES819")
+        );
+        assertThat(
+            TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, exact, true)).getName(),
+            equalTo(ES95_CODEC_NAME)
+        );
     }
 
     public void testES819AlwaysSelectedForTSDBWithOldVersion() {
         final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG);
-        final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, oldVersion));
+        final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, oldVersion, true));
         assertThat(format.getName(), startsWith("ES819"));
     }
 
     public void testES819SelectedForStandardMode() {
-        final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.STANDARD, IndexVersion.current()));
+        final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.STANDARD, IndexVersion.current(), true));
         assertThat(format.getName(), startsWith("ES819"));
     }
 
     public void testES819AlwaysSelectedForLogsdb() {
-        final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.LOGSDB, IndexVersion.current()));
+        final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.LOGSDB, IndexVersion.current(), true));
         assertThat(format.getName(), startsWith("ES819"));
     }
 
-    private static IndexSettings indexSettings(final IndexMode mode, final IndexVersion version) {
+    private static IndexSettings indexSettings(final IndexMode mode, final IndexVersion version, final boolean es95Enabled) {
         final Settings.Builder builder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -66,6 +82,9 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
             builder.put("index.mode", "time_series").put("index.routing_path", "dimension");
         } else if (mode == IndexMode.LOGSDB) {
             builder.put("index.mode", "logsdb");
+        }
+        if (es95Enabled && IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
+            builder.put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), true);
         }
         final IndexMetadata metadata = IndexMetadata.builder("test").settings(builder).build();
         return new IndexSettings(metadata, Settings.EMPTY);

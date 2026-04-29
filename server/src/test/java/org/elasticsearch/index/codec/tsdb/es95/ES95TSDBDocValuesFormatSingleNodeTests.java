@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb.es95;
 
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesFormatSingleNodeTests;
 
@@ -20,6 +21,14 @@ public class ES95TSDBDocValuesFormatSingleNodeTests extends AbstractTSDBDocValue
     @Override
     protected void assumeCodecSelected() {
         assumeTrue("ES95 feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
+    }
+
+    @Override
+    protected Settings tsdbSettings() {
+        return Settings.builder()
+            .put(super.tsdbSettings())
+            .put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), true)
+            .build();
     }
 
     @Override

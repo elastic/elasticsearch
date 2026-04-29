@@ -145,7 +145,7 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
         }
     }
 
-    private Settings tsdbSettings() {
+    protected Settings tsdbSettings() {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), "time_series")
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")

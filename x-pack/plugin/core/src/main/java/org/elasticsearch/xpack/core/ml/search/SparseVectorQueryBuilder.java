@@ -178,8 +178,8 @@ public class SparseVectorQueryBuilder extends LeafQueryBuilder<SparseVectorQuery
         if (out.getTransportVersion().supports(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
             out.writeOptionalBoolean(shouldPruneTokens);
         } else {
-            // Older nodes carry shouldPruneTokens as a primitive boolean; coerce null to the default to avoid an NPE on auto-unboxing.
-            out.writeBoolean(shouldPruneTokens != null ? shouldPruneTokens : DEFAULT_PRUNE);
+            // Older nodes carry shouldPruneTokens as a primitive boolean; coerce null to the false to avoid an NPE on auto-unboxing.
+            out.writeBoolean(shouldPruneTokens != null ? shouldPruneTokens : false);
         }
 
         out.writeOptionalCollection(queryVectors);

@@ -26,7 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -358,36 +360,42 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
 
         final CountDownLatch ready = new CountDownLatch(2);
         final CountDownLatch go = new CountDownLatch(1);
-        final AtomicReference<Float> captured = new AtomicReference<>();
-        final AtomicReference<Exception> rethrottleError = new AtomicReference<>();
 
-        final Thread captureThread = new Thread(() -> {
-            ready.countDown();
-            safeAwait(go);
-            captured.set(taskState.captureRequestsPerSecondForRelocation());
-        });
-        final Thread rethrottleThread = new Thread(() -> {
-            ready.countDown();
-            safeAwait(go);
-            try {
-                taskState.setRequestsPerSecondWithRelocationGuard(rethrottledRps);
-            } catch (ElasticsearchStatusException e) {
-                rethrottleError.set(e);
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<Float> captureFuture = executor.submit(() -> {
+                ready.countDown();
+                safeAwait(go);
+                return taskState.captureRequestsPerSecondForRelocation();
+            });
+            final Future<ElasticsearchStatusException> rethrottleFuture = executor.submit(() -> {
+                ready.countDown();
+                safeAwait(go);
+                try {
+                    taskState.setRequestsPerSecondWithRelocationGuard(rethrottledRps);
+                    return null;
+                } catch (ElasticsearchStatusException e) {
+                    return e;
+                }
+            });
+
+            safeAwait(ready);
+            go.countDown();
+
+            final float captured = safeGet(captureFuture);
+            final ElasticsearchStatusException rethrottleError = safeGet(rethrottleFuture);
+
+            // check mutual exclusion of race, we either:
+            // 1. fail to rethrottle, RPS doesn't change, and we get an exception
+            // 2. or we succeed to rethrottle, RPS changes, and we get no exception
+            if (rethrottleError != null) {
+                assertThat(captured, equalTo(initialRps));
+                assertThat(rethrottleError.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            } else {
+                assertThat(captured, equalTo(rethrottledRps));
             }
-        });
-
-        captureThread.start();
-        rethrottleThread.start();
-        safeAwait(ready);
-        go.countDown();
-        captureThread.join(10_000);
-        rethrottleThread.join(10_000);
-
-        if (rethrottleError.get() != null) {
-            assertThat(captured.get(), equalTo(initialRps));
-            assertThat(((ElasticsearchStatusException) rethrottleError.get()).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        } else {
-            assertThat(captured.get(), equalTo(rethrottledRps));
+        } finally {
+            terminate(executor);
         }
     }
 

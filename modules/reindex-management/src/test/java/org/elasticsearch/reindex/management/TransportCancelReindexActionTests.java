@@ -35,11 +35,9 @@ import org.mockito.invocation.InvocationOnMock;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.reindex.management.TransportCancelReindexAction.notFoundException;
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -54,9 +52,6 @@ public class TransportCancelReindexActionTests extends ESTestCase {
     private TaskId taskId;
     private TransportCancelReindexAction action;
     private Client client;
-    private AtomicReference<CancelReindexResponse> responseRef;
-    private AtomicReference<Exception> failureRef;
-    private ActionListener<CancelReindexResponse> listener;
 
     @Before
     public void setup() {
@@ -69,15 +64,12 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         action = new TransportCancelReindexAction(transportService, mock(), client);
-        responseRef = new AtomicReference<>();
-        failureRef = new AtomicReference<>();
-        listener = ActionListener.wrap(responseRef::set, failureRef::set);
     }
 
     public void testCancelTaskRequestIsScopedToReindexParentTasks() {
         mockCancelTasks(new ListTasksResponse(List.of(taskInfo(taskId, ReindexAction.NAME, TaskId.EMPTY_TASK_ID)), List.of(), List.of()));
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, false), listener);
+        safeAwait((ActionListener<CancelReindexResponse> l) -> action.doExecute(mock(), new CancelReindexRequest(taskId, false), l));
 
         ArgumentCaptor<CancelTasksRequest> captor = ArgumentCaptor.captor();
         verify(client).execute(eq(TransportCancelTasksAction.TYPE), captor.capture(), any());
@@ -91,11 +83,9 @@ public class TransportCancelReindexActionTests extends ESTestCase {
     public void testCancelAsynchronouslyReturnsAcknowledged() {
         mockCancelTasks(new ListTasksResponse(List.of(taskInfo(taskId, ReindexAction.NAME, TaskId.EMPTY_TASK_ID)), List.of(), List.of()));
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, false), listener);
+        final CancelReindexResponse response = safeAwait(l -> action.doExecute(mock(), new CancelReindexRequest(taskId, false), l));
 
-        assertNull(failureRef.get());
-        assertNotNull(responseRef.get());
-        assertThat(responseRef.get().getCompletedReindexResponse().isPresent(), is(false));
+        assertThat(response.getCompletedReindexResponse().isPresent(), is(false));
         verify(client, never()).execute(eq(TransportGetReindexAction.TYPE), any(), any());
     }
 
@@ -104,33 +94,33 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         mockCancelTasks(new ListTasksResponse(List.of(info), List.of(), List.of()));
         mockGetReindex(new GetReindexResponse(new TaskResult(true, info)));
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, true), listener);
+        final CancelReindexResponse response = safeAwait(l -> action.doExecute(mock(), new CancelReindexRequest(taskId, true), l));
 
-        assertNull(failureRef.get());
-        assertNotNull(responseRef.get());
-        TaskInfo embedded = responseRef.get().getCompletedReindexResponse().orElseThrow().getTaskResult().getTask();
+        TaskInfo embedded = response.getCompletedReindexResponse().orElseThrow().getTaskResult().getTask();
         assertThat("cancelled is forced to true even if GET reflects pre-cancel state", embedded.cancelled(), is(true));
     }
 
     public void testCancelEmptyTasksTreatedAsNotFound() {
         mockCancelTasks(new ListTasksResponse(List.of(), List.of(), List.of()));
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
-
-        assertNull(responseRef.get());
-        assertThat(failureRef.get(), instanceOf(ResourceNotFoundException.class));
-        assertEquals(notFoundException(taskId).getMessage(), failureRef.get().getMessage());
+        final ResourceNotFoundException failure = safeAwaitFailure(
+            ResourceNotFoundException.class,
+            CancelReindexResponse.class,
+            l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
+        );
+        assertEquals(notFoundException(taskId).getMessage(), failure.getMessage());
     }
 
     public void testNodeFailureWithResourceNotFoundCauseTreatedAsNotFound() {
         FailedNodeException nodeFailure = new FailedNodeException(taskId.getNodeId(), "node failed", new ResourceNotFoundException("gone"));
         mockCancelTasks(new ListTasksResponse(List.of(), List.of(), List.of(nodeFailure)));
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
-
-        assertNull(responseRef.get());
-        assertThat(failureRef.get(), instanceOf(ResourceNotFoundException.class));
-        assertEquals(notFoundException(taskId).getMessage(), failureRef.get().getMessage());
+        final ResourceNotFoundException failure = safeAwaitFailure(
+            ResourceNotFoundException.class,
+            CancelReindexResponse.class,
+            l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
+        );
+        assertEquals(notFoundException(taskId).getMessage(), failure.getMessage());
     }
 
     public void testNodeFailureWithFilterMismatchIaeTreatedAsNotFound() {
@@ -141,11 +131,12 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         );
         mockCancelTasks(new ListTasksResponse(List.of(), List.of(), List.of(nodeFailure)));
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
-
-        assertNull(responseRef.get());
-        assertThat(failureRef.get(), instanceOf(ResourceNotFoundException.class));
-        assertEquals(notFoundException(taskId).getMessage(), failureRef.get().getMessage());
+        final ResourceNotFoundException failure = safeAwaitFailure(
+            ResourceNotFoundException.class,
+            CancelReindexResponse.class,
+            l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
+        );
+        assertEquals(notFoundException(taskId).getMessage(), failure.getMessage());
     }
 
     public void testNodeFailureWithNonCancellableIaeTreatedAsNotFound() {
@@ -157,11 +148,12 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         );
         mockCancelTasks(new ListTasksResponse(List.of(), List.of(), List.of(nodeFailure)));
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
-
-        assertNull(responseRef.get());
-        assertThat(failureRef.get(), instanceOf(ResourceNotFoundException.class));
-        assertEquals(notFoundException(taskId).getMessage(), failureRef.get().getMessage());
+        final ResourceNotFoundException failure = safeAwaitFailure(
+            ResourceNotFoundException.class,
+            CancelReindexResponse.class,
+            l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
+        );
+        assertEquals(notFoundException(taskId).getMessage(), failure.getMessage());
     }
 
     public void testNodeFailureWithUnrelatedIaePropagated() {
@@ -170,10 +162,11 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         FailedNodeException nodeFailure = new FailedNodeException(taskId.getNodeId(), "node failed", iae);
         mockCancelTasks(new ListTasksResponse(List.of(), List.of(), List.of(nodeFailure)));
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
-
-        assertNull(responseRef.get());
-        assertSame("unrelated IAE must surface, not be masked as not-found", nodeFailure, failureRef.get());
+        final Exception failure = safeAwaitFailure(
+            CancelReindexResponse.class,
+            l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
+        );
+        assertSame("unrelated IAE must surface, not be masked as not-found", nodeFailure, failure);
     }
 
     public void testNonValidationNodeFailurePropagated() {
@@ -182,16 +175,12 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         FailedNodeException nodeFailure = new FailedNodeException(taskId.getNodeId(), "node failed", underlying);
         mockCancelTasks(new ListTasksResponse(List.of(), List.of(), List.of(nodeFailure)));
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
-
-        assertNull(responseRef.get());
-        assertNotNull(failureRef.get());
-        assertThat(
-            "real node failures must surface, not be swallowed as not-found",
-            failureRef.get(),
-            instanceOf(FailedNodeException.class)
+        final FailedNodeException failure = safeAwaitFailure(
+            FailedNodeException.class,
+            CancelReindexResponse.class,
+            l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
         );
-        assertSame(underlying, failureRef.get().getCause());
+        assertSame("real node failures must surface, not be swallowed as not-found", underlying, failure.getCause());
     }
 
     public void testTaskFailurePropagatedAsConflict() {
@@ -202,11 +191,12 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         TaskOperationFailure taskFailure = new TaskOperationFailure(taskId.getNodeId(), taskId.getId(), conflict);
         mockCancelTasks(new ListTasksResponse(List.of(), List.of(taskFailure), List.of()));
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
-
-        assertNull(responseRef.get());
-        assertNotNull(failureRef.get());
-        assertSame("cause is rethrown directly", conflict, failureRef.get());
+        final ElasticsearchStatusException failure = safeAwaitFailure(
+            ElasticsearchStatusException.class,
+            CancelReindexResponse.class,
+            l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
+        );
+        assertSame("cause is rethrown directly", conflict, failure);
     }
 
     public void testValidationNodeFailureDroppedWhenMixedWithRealFailure() {
@@ -219,11 +209,13 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         TaskOperationFailure taskFailure = new TaskOperationFailure(taskId.getNodeId(), taskId.getId(), conflict);
         mockCancelTasks(new ListTasksResponse(List.of(), List.of(taskFailure), List.of(validation)));
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
-
-        assertNull(responseRef.get());
-        assertSame("real task failure surfaces, validation noise is dropped", conflict, failureRef.get());
-        assertEquals("validation node failure is not attached as suppressed", 0, failureRef.get().getSuppressed().length);
+        final ElasticsearchStatusException failure = safeAwaitFailure(
+            ElasticsearchStatusException.class,
+            CancelReindexResponse.class,
+            l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
+        );
+        assertSame("real task failure surfaces, validation noise is dropped", conflict, failure);
+        assertEquals("validation node failure is not attached as suppressed", 0, failure.getSuppressed().length);
     }
 
     public void testMultipleFailuresAttachedAsSuppressed() {
@@ -234,13 +226,14 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         TaskOperationFailure taskFailure = new TaskOperationFailure(taskId.getNodeId(), taskId.getId(), conflict);
         mockCancelTasks(new ListTasksResponse(List.of(), List.of(taskFailure), List.of(nodeFailure)));
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), listener);
-
-        assertNull(responseRef.get());
-        assertNotNull(failureRef.get());
         // Node failures come first in the response model, so they're the head.
-        assertSame(nodeFailure, failureRef.get());
-        assertThat(failureRef.get().getSuppressed(), arrayContaining((Throwable) conflict));
+        final FailedNodeException failure = safeAwaitFailure(
+            FailedNodeException.class,
+            CancelReindexResponse.class,
+            l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
+        );
+        assertSame(nodeFailure, failure);
+        assertThat(failure.getSuppressed(), arrayContaining(conflict));
     }
 
     public void testGetReindexFailurePropagated() {
@@ -253,10 +246,11 @@ public class TransportCancelReindexActionTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(TransportGetReindexAction.TYPE), any(), any());
 
-        action.doExecute(mock(), new CancelReindexRequest(taskId, true), listener);
-
-        assertNull(responseRef.get());
-        assertSame(getFailure, failureRef.get());
+        final Exception failure = safeAwaitFailure(
+            CancelReindexResponse.class,
+            l -> action.doExecute(mock(), new CancelReindexRequest(taskId, true), l)
+        );
+        assertSame(getFailure, failure);
     }
 
     // --- helpers ---

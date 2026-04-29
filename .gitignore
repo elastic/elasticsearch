@@ -93,3 +93,7 @@ server/src/main/resources/transport/definitions/manifest.txt
 
 # Vector data files
 qa/vector/.data
+
+# Ignore directory created by the openspec tool
+# Prefix slash ensures these are only ignored at the same level as this file
+/openspec/

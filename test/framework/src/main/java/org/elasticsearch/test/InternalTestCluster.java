@@ -1636,17 +1636,21 @@ public final class InternalTestCluster extends TestCluster {
         return getInstances(clazz, DATA_NODE_PREDICATE);
     }
 
-    /// Invokes `action` for every shard of the named index across all data nodes.
+    /// Invokes `action` for every shard of the given index across all data nodes.
+    ///
+    /// If `action` throws an exception for a given shard, processing stops immediately and remaining shards will not be visited.
+    ///
     /// @return the total number of shards visited.
-    public int forEveryIndexShard(String indexName, CheckedConsumer<IndexShard, Exception> action) throws Exception {
+    public int forEveryIndexShard(Index index, CheckedConsumer<IndexShard, Exception> action) throws Exception {
         int count = 0;
         for (var indicesService : getDataNodeInstances(IndicesService.class)) {
             for (var indexService : indicesService) {
-                if (indexService.index().getName().equals(indexName)) {
+                if (indexService.index().equals(index)) {
                     for (var indexShard : indexService) {
                         action.accept(indexShard);
                         count++;
                     }
+                    break;
                 }
             }
         }
@@ -1654,6 +1658,9 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /// Invokes `action` for every shard of any of the named indices across all data nodes.
+    ///
+    /// If `action` throws an exception for a given shard, processing stops immediately and remaining shards will not be visited.
+    ///
     /// @return the total number of shards visited.
     public int forEveryIndexShard(Collection<String> indexNames, CheckedConsumer<IndexShard, Exception> action) throws Exception {
         int count = 0;

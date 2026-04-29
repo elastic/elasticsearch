@@ -185,21 +185,19 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         ).actionGet();
 
         // wait for peer recovery retention leases to advance past all docs; the custom lease stays
-        assertBusy(() -> {
-            internalCluster().forEveryIndexShard(indexName, indexShard -> {
-                for (RetentionLease lease : indexShard.getRetentionLeases().leases()) {
-                    if (lease.id().equals(retentionLeaseId)) {
-                        assertThat(lease.retainingSequenceNumber(), equalTo(retentionLeaseSeqNo));
-                    } else {
-                        assertThat(
-                            "retention lease [" + lease.id() + "] should have advanced",
-                            lease.retainingSequenceNumber(),
-                            equalTo(maxSeqNo + 1)
-                        );
-                    }
+        assertBusy(() -> internalCluster().forEveryIndexShard(shardId.getIndex(), indexShard -> {
+            for (RetentionLease lease : indexShard.getRetentionLeases().leases()) {
+                if (lease.id().equals(retentionLeaseId)) {
+                    assertThat(lease.retainingSequenceNumber(), equalTo(retentionLeaseSeqNo));
+                } else {
+                    assertThat(
+                        "retention lease [" + lease.id() + "] should have advanced",
+                        lease.retainingSequenceNumber(),
+                        equalTo(maxSeqNo + 1)
+                    );
                 }
-            });
-        });
+            }
+        }));
 
         var forceMerge = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));
@@ -219,7 +217,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         final long expectedRetainedDocs = maxSeqNo + 1 - retentionLeaseSeqNo;
 
         final var checkedShards = new AtomicInteger();
-        internalCluster().forEveryIndexShard(indexName, indexShard -> {
+        internalCluster().forEveryIndexShard(shardId.getIndex(), indexShard -> {
             Long docsWithSeqNoOnShard = indexShard.withEngineOrNull(engine -> {
                 if (engine == null) {
                     return null;

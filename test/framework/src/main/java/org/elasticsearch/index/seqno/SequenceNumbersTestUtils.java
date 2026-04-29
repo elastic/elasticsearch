@@ -67,8 +67,9 @@ public final class SequenceNumbersTestUtils {
         boolean expectDocValuesOnDisk,
         int expectedShards
     ) throws Exception {
+        final var index = cluster.clusterService().state().metadata().getProject().index(indexName).getIndex();
         final var nbCheckedShards = new AtomicInteger();
-        cluster.forEveryIndexShard(indexName, indexShard -> {
+        cluster.forEveryIndexShard(index, indexShard -> {
             final var shardId = indexShard.shardId();
             var checked = indexShard.withEngineOrNull(engine -> {
                 if (engine != null) {

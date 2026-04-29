@@ -47,7 +47,6 @@ import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggrega
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.MetricsAggregationBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
-import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
@@ -174,7 +173,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                         searchResponse.getSuggest(),
                         searchResponse.isTimedOut(),
                         searchResponse.isTerminatedEarly(),
-                        searchResponse.getProfileResults() == null ? null : new SearchProfileResults(searchResponse.getProfileResults()),
+                        searchResponse.getSearchProfileResults(),
                         searchResponse.getNumReducePhases(),
                         searchResponse.getScrollId(),
                         searchResponse.getTotalShards(),

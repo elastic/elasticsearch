@@ -61,7 +61,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         for (int i = 0; i < 16; i++) {
             bytes[i] = (byte) (i * 16 + i);
         }
-        String uuid = OptimizedParquetColumnIterator.formatUuid(bytes);
+        String uuid = ParquetColumnDecoding.formatUuid(bytes);
         assertNotNull(uuid);
         assertEquals(36, uuid.length());
         assertEquals('-', uuid.charAt(8));
@@ -71,32 +71,26 @@ public class OptimizedParquetReaderTests extends ESTestCase {
     }
 
     public void testFormatUuidNullThrows() {
-        QlIllegalArgumentException e = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> OptimizedParquetColumnIterator.formatUuid(null)
-        );
+        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> ParquetColumnDecoding.formatUuid(null));
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("null"));
     }
 
     public void testFormatUuidTooShortThrows() {
         byte[] bytes = new byte[10];
-        QlIllegalArgumentException e = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> OptimizedParquetColumnIterator.formatUuid(bytes)
-        );
+        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> ParquetColumnDecoding.formatUuid(bytes));
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("10"));
     }
 
     public void testWithConfigOptimizedReaderTrue() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", true));
-        assertNotSame(reader, configured);
+        assertSame(reader, configured);
     }
 
     public void testWithConfigOptimizedReaderFalse() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", false));
-        assertSame(reader, configured);
+        assertNotSame(reader, configured);
     }
 
     public void testWithConfigDefaults() {

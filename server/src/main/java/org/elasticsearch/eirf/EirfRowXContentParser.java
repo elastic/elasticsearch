@@ -177,6 +177,22 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
         this.row = row;
     }
 
+    /**
+     * Position the parser directly at a leaf column's value, as if the tree walk had just
+     * emitted the leaf's FIELD_NAME and the caller consumed it. After this call,
+     * {@link #currentToken()} is the leaf's VALUE_* token and the typed accessors
+     * ({@link #longValue()}, {@link #doubleValue()}, {@link #text()}, {@link #numberValue()},
+     * etc.) read from that leaf.
+     */
+    public Token positionAtLeafValue(int leafColumnIndex) {
+        this.stackDepth = 0;
+        this.compoundDepth = 0;
+        this.pendingChild = null;
+        // mark as started so subsequent nextToken() calls don't emit a stray START_OBJECT
+        this.started = true;
+        return emitLeafValue(leafColumnIndex);
+    }
+
     @Override
     public Token nextToken() throws IOException {
         if (closed) {
@@ -277,6 +293,10 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
             case EirfType.UNION_ARRAY, EirfType.FIXED_ARRAY -> {
                 pushCompound(row.getArrayValue(colIdx), COMPOUND_ARRAY);
                 currentToken = Token.START_ARRAY;
+            }
+            case EirfType.KEY_VALUE -> {
+                pushCompound(row.getKeyValue(colIdx), COMPOUND_KV);
+                currentToken = Token.START_OBJECT;
             }
             default -> currentToken = Token.VALUE_NULL;
         }

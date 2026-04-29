@@ -38,10 +38,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -50,6 +52,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -77,7 +80,8 @@ import java.util.regex.Pattern;
  * {@code integer} ({@code int}, {@code i}), {@code long} ({@code l}),
  * {@code double} ({@code d}), {@code keyword} ({@code k}, {@code string}, {@code s}),
  * {@code text} ({@code txt}), {@code boolean} ({@code bool}),
- * {@code datetime} ({@code date}, {@code dt}), {@code ip}, {@code null} ({@code n}).
+ * {@code datetime} ({@code date}, {@code dt}), {@code date_nanos} ({@code dn}),
+ * {@code ip}, {@code version} ({@code v}), {@code null} ({@code n}).
  *
  * <h2>Configurable options</h2>
  * All options are set via the {@code WITH} clause and parsed by {@link #withConfig(java.util.Map)}.
@@ -449,7 +453,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             effectiveSchema = resolvedSchema;
         }
         ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
-        return new CsvBatchIterator(reader, stream, context.projectedColumns(), context.batchSize(), effectiveSchema, effective);
+        return new CsvBatchIterator(
+            reader,
+            stream,
+            context.projectedColumns(),
+            context.batchSize(),
+            effectiveSchema,
+            effective,
+            object.path().toString()
+        );
     }
 
     @Override
@@ -572,20 +584,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "KEYWORD", "K", "STRING", "S", "TEXT", "TXT" -> DataType.KEYWORD;
             case "BOOLEAN", "BOOL" -> DataType.BOOLEAN;
             case "DATETIME", "DATE", "DT" -> DataType.DATETIME;
+            case "DATE_NANOS", "DN" -> DataType.DATE_NANOS;
             case "IP" -> DataType.IP;
+            case "VERSION", "V" -> DataType.VERSION;
             case "NULL", "N" -> DataType.NULL;
             default -> throw EsqlIllegalArgumentException.illegalDataType(typeName);
         };
-    }
-
-    /**
-     * Returns accumulated warnings from a CSV iterator, for testing.
-     */
-    static List<String> getWarnings(CloseableIterator<Page> iterator) {
-        if (iterator instanceof CsvBatchIterator cbi) {
-            return List.copyOf(cbi.warnings);
-        }
-        return List.of();
     }
 
     private class CsvBatchIterator implements CloseableIterator<Page> {
@@ -602,8 +606,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final String nullValueStr;
         private final DateTimeFormatter datetimeFormatter;
         private final boolean bracketMultiValues;
-        private static final int MAX_WARNINGS = 20;
-        private final List<String> warnings = new ArrayList<>();
+        private final String sourceLocation;
+        private final SkipWarnings skipWarnings;
         private List<Attribute> schema;
         private int[] projectedIdx;
         private DataType[] projectedTypes;
@@ -625,7 +629,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<String> projectedColumns,
             int batchSize,
             List<Attribute> preResolvedSchema,
-            ErrorPolicy errorPolicy
+            ErrorPolicy errorPolicy,
+            String sourceLocation
         ) {
             this.reader = reader;
             this.stream = stream;
@@ -640,6 +645,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.nullValueStr = options.nullValue();
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
+            this.sourceLocation = sourceLocation;
+            this.skipWarnings = SkipWarnings.of(
+                errorPolicy,
+                "CSV read from ["
+                    + sourceLocation
+                    + "] encountered parse errors handled per policy (policy: "
+                    + errorPolicy.modeName()
+                    + "); affected rows/fields are listed below"
+            );
         }
 
         @Override
@@ -1021,7 +1035,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
                 case DATETIME -> tryParseDatetime(value);
+                case DATE_NANOS -> tryParseDateNanos(value);
                 case IP -> tryParseIp(value);
+                case VERSION -> tryParseVersion(value);
                 case NULL -> null;
                 default -> {
                     lastFieldError = "Unsupported data type: " + dataType;
@@ -1104,7 +1120,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
                 case DATETIME -> tryParseDatetime(value);
+                case DATE_NANOS -> tryParseDateNanos(value);
                 case IP -> tryParseIp(value);
+                case VERSION -> tryParseVersion(value);
                 case NULL -> null;
                 default -> {
                     lastFieldError = "Unsupported data type: " + dataType;
@@ -1194,12 +1212,44 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
 
+        private Object tryParseDateNanos(String value) {
+            if (looksNumeric(value)) {
+                try {
+                    return Long.parseLong(value);
+                } catch (NumberFormatException e) {}
+            }
+            if (datetimeFormatter != null) {
+                try {
+                    Instant instant = LocalDateTime.parse(value, datetimeFormatter).toInstant(ZoneOffset.UTC);
+                    return org.elasticsearch.common.time.DateUtils.toLong(instant);
+                } catch (DateTimeParseException | ArithmeticException e) {
+                    lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                    return null;
+                }
+            }
+            try {
+                return EsqlDataTypeConverter.dateNanosToLong(value);
+            } catch (IllegalArgumentException e) {
+                lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                return null;
+            }
+        }
+
+        private Object tryParseVersion(String value) {
+            try {
+                return EsqlDataTypeConverter.stringToVersion(value);
+            } catch (IllegalArgumentException e) {
+                lastFieldError = "Failed to parse CSV value [" + value + "] as [VERSION]";
+                return null;
+            }
+        }
+
         private void onRowError(String message, Exception cause, String[] row) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                 throw new EsqlIllegalArgumentException(cause, message);
             }
             errorCount++;
-            addWarning("Row [" + totalRowCount + "] error: " + message);
+            skipWarnings.add("Row [" + totalRowCount + "] error: " + message);
             if (logErrors) {
                 logger.warn(
                     "Skipping malformed CSV row [{}] (error {}/{}): {}",
@@ -1214,7 +1264,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private void onFieldError(String message, String value, Attribute attr) {
             errorCount++;
-            addWarning("Row [" + totalRowCount + "] field [" + attr.name() + "] value [" + value + "]: " + message);
+            skipWarnings.add("Row [" + totalRowCount + "] field [" + attr.name() + "] value [" + value + "]: " + message);
             if (logErrors) {
                 logger.warn(
                     "Null-filling unparseable field [{}] value [{}] in row [{}] (error {}/{}): {}",
@@ -1229,16 +1279,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
             checkBudget(message, null);
         }
 
-        private void addWarning(String warning) {
-            if (warnings.size() < MAX_WARNINGS) {
-                warnings.add(warning);
-            } else if (warnings.size() == MAX_WARNINGS) {
-                warnings.add("... further warnings suppressed (total errors so far: " + errorCount + ")");
-            }
-        }
-
         private void checkBudget(String message, Exception cause) {
             if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
+                // Surface the budget-exceeded condition as a warning too so clients see which row tripped it
+                // even when the request itself fails.
+                skipWarnings.add(
+                    "CSV error budget exceeded at row ["
+                        + totalRowCount
+                        + "]: ["
+                        + errorCount
+                        + "] errors, maximum ["
+                        + errorPolicy.maxErrors()
+                        + "] or ratio ["
+                        + errorPolicy.maxErrorRatio()
+                        + "]"
+                );
                 throw new EsqlIllegalArgumentException(
                     cause,
                     "CSV error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
@@ -1253,9 +1308,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Class<?> javaClassForDataType(DataType dataType) {
             return switch (dataType) {
                 case INTEGER -> Integer.class;
-                case LONG, DATETIME -> Long.class;
+                case LONG, DATETIME, DATE_NANOS -> Long.class;
                 case DOUBLE -> Double.class;
-                case KEYWORD, TEXT, IP -> BytesRef.class;
+                case KEYWORD, TEXT, IP, VERSION -> BytesRef.class;
                 case BOOLEAN -> Boolean.class;
                 case NULL -> Void.class;
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);

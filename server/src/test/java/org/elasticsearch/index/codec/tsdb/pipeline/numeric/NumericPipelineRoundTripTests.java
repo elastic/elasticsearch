@@ -130,7 +130,42 @@ public class NumericPipelineRoundTripTests extends ESTestCase {
         assertEquals(blockSize, decoder.blockSize());
     }
 
+    public void testConstantIntervalMonotonicProducesMinimalOutput() throws IOException {
+        final int blockSize = 128;
+        final long base = 1000;
+        final long interval = 10;
+        final long[] values = new long[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            values[i] = base + (long) i * interval;
+        }
+        final long encodedSize = assertRoundTripAndReturnSize(values, blockSize, blockSize);
+        assertEquals(5, encodedSize);
+    }
+
+    public void testAllSameValueProducesMinimalOutput() throws IOException {
+        final int blockSize = 128;
+        final long[] values = new long[blockSize];
+        Arrays.fill(values, 42L);
+        final long encodedSize = assertRoundTripAndReturnSize(values, blockSize, blockSize);
+        assertEquals(3, encodedSize);
+    }
+
+    public void testGcdMultiplesProducesCompactOutput() throws IOException {
+        final int blockSize = 256;
+        final long gcd = 7;
+        final long[] values = new long[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            values[i] = gcd * i;
+        }
+        final long encodedSize = assertRoundTripAndReturnSize(values, blockSize, blockSize);
+        assertEquals(4, encodedSize);
+    }
+
     private void assertRoundTrip(long[] values, int blockSize, int count) throws IOException {
+        assertRoundTripAndReturnSize(values, blockSize, count);
+    }
+
+    private long assertRoundTripAndReturnSize(long[] values, int blockSize, int count) throws IOException {
         final PipelineConfig config = PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
         final NumericEncoder encoder = NumericCodecFactory.DEFAULT.createEncoder(config);
         final NumericBlockEncoder blockEncoder = encoder.newBlockEncoder();
@@ -149,5 +184,6 @@ public class NumericPipelineRoundTripTests extends ESTestCase {
         for (int i = 0; i < count; i++) {
             assertEquals("index " + i, original[i], decoded[i]);
         }
+        return bufferOut.size();
     }
 }

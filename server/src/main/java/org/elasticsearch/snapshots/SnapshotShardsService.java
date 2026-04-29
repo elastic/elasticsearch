@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -201,6 +202,17 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 }
             }
 
+            if (snapshotShardContextFactory.supportsRelocationDuringSnapshot() && event.metadataChanged()) {
+                final var deletedIndices = event.indicesDeleted();
+                // Abort local shard snapshot tracking for deleted indices. This is needed only when shard snapshot
+                // and primary shard can run on different nodes. The abort itself does not differentiate between
+                // local or remote shards so that local shards are aborted again in beforeIndexShardClosed. It's OK
+                // since abortIfNotCompleted is guaranteed to be only once.
+                if (deletedIndices.isEmpty() == false) {
+                    abortSnapshotsForDeletedIndices(Set.copyOf(deletedIndices));
+                }
+            }
+
             if (isLocalNodeAddingShutdown) {
                 // Any active snapshots would have been signalled to pause in the previous code block.
                 snapshotShutdownProgressTracker.onClusterStatePausingSetForAllShardSnapshots();
@@ -276,6 +288,28 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                         snapshotShards.getKey().getSnapshotId()
                     );
                     indexShardSnapshotStatus.abortIfNotCompleted("shard is closing, aborting", notifyOnAbortTaskRunner::enqueueTask);
+                }
+            }
+        }
+    }
+
+    private void abortSnapshotsForDeletedIndices(Set<Index> deletedIndices) {
+        synchronized (shardSnapshots) {
+            for (var snapshotEntry : shardSnapshots.entrySet()) {
+                for (var shardEntry : snapshotEntry.getValue().entrySet()) {
+                    final ShardId shardId = shardEntry.getKey();
+                    if (deletedIndices.contains(shardId.getIndex())) {
+                        logger.debug(
+                            "[{}] aborting snapshot [{}] because the index was deleted",
+                            shardId,
+                            snapshotEntry.getKey().getSnapshotId()
+                        );
+                        shardEntry.getValue()
+                            .abortIfNotCompleted(
+                                "index [" + shardId.getIndex().getName() + "] deleted",
+                                notifyOnAbortTaskRunner::enqueueTask
+                            );
+                    }
                 }
             }
         }

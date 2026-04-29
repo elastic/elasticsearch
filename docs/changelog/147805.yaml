@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 147448
+pr: 147805
+summary: Make empty list parameters consistent
+type: bug

@@ -11,6 +11,7 @@ import io.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess;
 import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
 import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
+import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.logs.v1.LogRecord;
 import io.opentelemetry.proto.logs.v1.ResourceLogs;
 import io.opentelemetry.proto.logs.v1.ScopeLogs;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.oteldata.otlp.docbuilder.LogDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -51,8 +53,6 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
     public static final String NAME = "indices:data/write/otlp/logs";
     public static final ActionType<OTLPActionResponse> TYPE = new ActionType<>(NAME);
 
-    public static final String TYPE_LOGS = "logs";
-
     @Inject
     public OTLPLogsTransportAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool, Client client) {
         super(NAME, transportService, actionFilters, threadPool, client);
@@ -64,6 +64,9 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
         var logsServiceRequest = ExportLogsServiceRequest.parseFrom(request.getRequest().streamInput());
         LogDocumentBuilder logDocumentBuilder = new LogDocumentBuilder(byteStringAccessor);
         List<ResourceLogs> resourceLogsList = logsServiceRequest.getResourceLogsList();
+        MappingMode requestMappingMode = request.getRequestMappingMode();
+        int totalLogRecords = 0;
+        List<String> ignoredLogRecordMessages = new ArrayList<>();
         for (int i = 0, resourceLogsListSize = resourceLogsList.size(); i < resourceLogsListSize; i++) {
             ResourceLogs resourceLogs = resourceLogsList.get(i);
             Resource resource = resourceLogs.getResource();
@@ -71,27 +74,40 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
             for (int j = 0, scopeLogsListSize = scopeLogsList.size(); j < scopeLogsListSize; j++) {
                 ScopeLogs scopeLogs = scopeLogsList.get(j);
                 InstrumentationScope scope = scopeLogs.getScope();
+                MappingMode mode = resolveScopeMappingMode(scope, requestMappingMode);
                 String scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
                 List<LogRecord> logRecordsList = scopeLogs.getLogRecordsList();
                 for (int k = 0, logRecordsListSize = logRecordsList.size(); k < logRecordsListSize; k++) {
                     LogRecord logRecord = logRecordsList.get(k);
+                    totalLogRecords++;
+                    if (mode == MappingMode.BODYMAP && logRecord.getBody().hasKvlistValue() == false) {
+                        ignoredLogRecordMessages.add(
+                            "Invalid log record body type for 'bodymap' mapping mode: " + logRecord.getBody().getValueCase()
+                        );
+                        continue;
+                    }
                     TargetIndex index = TargetIndex.evaluate(
-                        TYPE_LOGS,
+                        TargetIndex.TYPE_LOGS,
+                        mode,
                         logRecord.getAttributesList(),
                         scopeRoutingDataset,
                         scope.getAttributesList(),
                         resource.getAttributesList()
                     );
                     try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
-                        logDocumentBuilder.buildLogDocument(
-                            xContentBuilder,
-                            resource,
-                            resourceLogs.getSchemaUrlBytes(),
-                            scope,
-                            scopeLogs.getSchemaUrlBytes(),
-                            index,
-                            logRecord
-                        );
+                        if (mode == MappingMode.BODYMAP) {
+                            logDocumentBuilder.buildBodyMapLogDocument(xContentBuilder, logRecord);
+                        } else {
+                            logDocumentBuilder.buildLogDocument(
+                                xContentBuilder,
+                                resource,
+                                resourceLogs.getSchemaUrlBytes(),
+                                scope,
+                                scopeLogs.getSchemaUrlBytes(),
+                                index,
+                                logRecord
+                            );
+                        }
                         bulkRequestBuilder.add(
                             new IndexRequest(index.index()).opType(DocWriteRequest.OpType.CREATE)
                                 .setRequireDataStream(true)
@@ -101,7 +117,49 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
                 }
             }
         }
-        return ProcessingContext.withTotalDataPoints(bulkRequestBuilder.numberOfActions());
+        if (ignoredLogRecordMessages.isEmpty()) {
+            return ProcessingContext.withTotalDataPoints(totalLogRecords);
+        }
+        return new LogsProcessingContext(totalLogRecords, ignoredLogRecordMessages);
+    }
+
+    private static MappingMode resolveScopeMappingMode(InstrumentationScope scope, MappingMode defaultMode) {
+        for (int i = 0, size = scope.getAttributesCount(); i < size; i++) {
+            KeyValue attribute = scope.getAttributes(i);
+            if (MappingMode.SCOPE_ATTRIBUTE.equals(attribute.getKey())) {
+                return MappingMode.parse(attribute.getValue().getStringValue());
+            }
+        }
+        return defaultMode;
+    }
+
+    private record LogsProcessingContext(int totalDataPoints, List<String> ignoredLogRecordMessages) implements ProcessingContext {
+
+        private LogsProcessingContext {
+            ignoredLogRecordMessages = List.copyOf(ignoredLogRecordMessages);
+        }
+
+        @Override
+        public int getIgnoredDataPoints() {
+            return ignoredLogRecordMessages.size();
+        }
+
+        @Override
+        public String getIgnoredDataPointsMessage(int limit) {
+            if (ignoredLogRecordMessages.isEmpty()) {
+                return "";
+            }
+            StringBuilder message = new StringBuilder();
+            message.append("Ignored ").append(ignoredLogRecordMessages.size()).append(" log records.\n");
+            int reportedMessages = Math.min(limit, ignoredLogRecordMessages.size());
+            for (int i = 0; i < reportedMessages; i++) {
+                message.append(ignoredLogRecordMessages.get(i)).append('\n');
+            }
+            if (reportedMessages < ignoredLogRecordMessages.size()) {
+                message.append("... and ").append(ignoredLogRecordMessages.size() - reportedMessages).append(" more\n");
+            }
+            return message.toString();
+        }
     }
 
     @Override

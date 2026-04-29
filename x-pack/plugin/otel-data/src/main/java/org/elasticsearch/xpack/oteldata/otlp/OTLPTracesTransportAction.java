@@ -109,7 +109,7 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                     for (int l = 0, eventsListSize = eventsList.size(); l < eventsListSize; l++) {
                         Span.Event event = eventsList.get(l);
                         TargetIndex eventIndex = TargetIndex.evaluate(
-                            OTLPLogsTransportAction.TYPE_LOGS,
+                            TargetIndex.TYPE_LOGS,
                             event.getAttributesList(),
                             scopeRoutingDataset,
                             scope.getAttributesList(),

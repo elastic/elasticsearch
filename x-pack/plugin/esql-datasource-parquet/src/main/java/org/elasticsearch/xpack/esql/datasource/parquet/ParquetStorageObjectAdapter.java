@@ -17,9 +17,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
-import java.util.Map;
-import java.util.NavigableMap;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -40,7 +37,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     private final long length;
     private final FooterByteCache.Key cacheKey;
     private final int windowSize;
-    private volatile NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetchedChunks;
 
     /** Default window size (4MB) for the sliding range cache. */
     static final int DEFAULT_WINDOW_SIZE = 4 * 1024 * 1024;
@@ -85,19 +81,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         FooterByteCache.getInstance().invalidateAll();
     }
 
-    /**
-     * Installs prefetched column chunk data that existing streams will consult before issuing I/O.
-     * Thread-safe: uses volatile write; streams read this field on every {@code fetchWindowAt} call
-     * so data installed after the stream was opened is still visible.
-     */
-    void installPrefetchedData(NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks) {
-        this.prefetchedChunks = chunks;
-    }
-
-    void clearPrefetchedData() {
-        this.prefetchedChunks = null;
-    }
-
     @Override
     public long getLength() throws IOException {
         return length;
@@ -105,7 +88,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
     @Override
     public SeekableInputStream newStream() throws IOException {
-        return new WindowedSeekableInputStream(storageObject, cacheKey, length, windowSize, this);
+        return new WindowedSeekableInputStream(storageObject, cacheKey, length, windowSize);
     }
 
     /**
@@ -130,26 +113,18 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private final long length;
         private final int windowSize;
         private final byte[] window;
-        private final ParquetStorageObjectAdapter adapter;
 
         private long windowStart;
         private int windowLength;
         private long position;
         private boolean closed;
 
-        WindowedSeekableInputStream(
-            StorageObject storageObject,
-            FooterByteCache.Key cacheKey,
-            long length,
-            int windowSize,
-            ParquetStorageObjectAdapter adapter
-        ) {
+        WindowedSeekableInputStream(StorageObject storageObject, FooterByteCache.Key cacheKey, long length, int windowSize) {
             this.storageObject = storageObject;
             this.cacheKey = cacheKey;
             this.length = length;
             this.windowSize = windowSize;
             this.window = new byte[windowSize];
-            this.adapter = adapter;
             this.windowStart = -1;
             this.windowLength = 0;
             this.position = 0;
@@ -188,10 +163,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             if (toRead <= 0) {
                 windowStart = pos;
                 windowLength = 0;
-                return;
-            }
-
-            if (tryFillFromPrefetched(pos, (int) toRead)) {
                 return;
             }
 
@@ -283,40 +254,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return true;
             }
             return false;
-        }
-
-        /**
-         * Tries to fill the window from prefetched column chunk data. Finds the chunk whose
-         * range contains the requested position and copies as many bytes as available into the
-         * window buffer. Allows partial fills — the prefetched chunk does not need to cover
-         * the full window size, just the start position.
-         *
-         * @return true if at least some data was filled from prefetched data
-         */
-        private boolean tryFillFromPrefetched(long pos, int toRead) {
-            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = adapter.prefetchedChunks;
-            if (chunks == null || chunks.isEmpty()) {
-                return false;
-            }
-            Map.Entry<Long, ColumnChunkPrefetcher.PrefetchedChunk> entry = chunks.floorEntry(pos);
-            if (entry == null) {
-                return false;
-            }
-            ColumnChunkPrefetcher.PrefetchedChunk chunk = entry.getValue();
-            if (pos < chunk.offset() || pos >= chunk.offset() + chunk.length()) {
-                return false;
-            }
-            int offsetInChunk = (int) (pos - chunk.offset());
-            ByteBuffer src = chunk.data().duplicate();
-            src.position(offsetInChunk);
-            int available = src.remaining();
-            int toCopy = Math.min(toRead, available);
-            windowStart = -1;
-            windowLength = 0;
-            src.get(window, 0, toCopy);
-            windowStart = pos;
-            windowLength = toCopy;
-            return true;
         }
 
         private void ensureWindow() throws IOException {

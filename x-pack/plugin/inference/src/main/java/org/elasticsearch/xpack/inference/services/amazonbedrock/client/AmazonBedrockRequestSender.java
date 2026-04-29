@@ -100,14 +100,8 @@ public class AmazonBedrockRequestSender implements Sender {
         this.startCompleted = Objects.requireNonNull(startCompleted);
     }
 
-    @Override
-    public void startAsynchronously(ActionListener<Void> listener) {
-
-        throw new UnsupportedOperationException("not implemented");
-    }
-
-    @Override
-    public void startSynchronously() {
+    // default for testing
+    void startSynchronously() {
         if (started.compareAndSet(false, true)) {
             // The manager must be started before the executor service. That way we guarantee that the http client
             // is ready prior to the service attempting to use the http client to send a request

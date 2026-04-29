@@ -336,12 +336,6 @@ tests:
 - class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
   method: testVisit
   issue: https://github.com/elastic/elasticsearch/issues/147643
-- class: org.elasticsearch.rest.action.document.RestBulkActionTests
-  method: testBulkSliceAndRoutingParamsAreMutuallyExclusive
-  issue: https://github.com/elastic/elasticsearch/issues/147519
-- class: org.elasticsearch.action.bulk.BulkRequestParserTests
-  method: testIndexRequestRejectsRoutingAndSliceMetadataTogether
-  issue: https://github.com/elastic/elasticsearch/issues/147518
 - class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
   method: test {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
   issue: https://github.com/elastic/elasticsearch/issues/147654

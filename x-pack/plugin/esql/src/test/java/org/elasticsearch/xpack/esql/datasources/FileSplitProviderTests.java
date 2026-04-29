@@ -25,12 +25,11 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.datasources.spi.FileLayout;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
-import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
@@ -649,143 +648,6 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
-    public void testPreResolvedRangesAreUsedWithoutCallingReader() {
-        SplitRange[] preResolved = {
-            new SplitRange(50, 250, Map.of("_stats.row_count", 100L)),
-            new SplitRange(300, 500, Map.of("_stats.row_count", 200L)) };
-
-        // Reader that fails the test if its resolveFileLayout is invoked: we should be using the cached ranges.
-        RangeAwareFormatReader strictReader = new RangeAwareFormatReader() {
-            @Override
-            public FileLayout resolveFileLayout(StorageObject object) {
-                throw new AssertionError("resolveFileLayout must not be called when pre-resolved ranges are present");
-            }
-
-            @Override
-            public CloseableIterator<Page> readRange(
-                StorageObject object,
-                List<String> projectedColumns,
-                int batchSize,
-                long rangeStart,
-                long rangeEnd,
-                List<Attribute> resolvedAttributes,
-                ErrorPolicy errorPolicy
-            ) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String formatName() {
-                return "parquet";
-            }
-
-            @Override
-            public List<String> fileExtensions() {
-                return List.of(".parquet");
-            }
-
-            @Override
-            public void close() {}
-        };
-
-        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy("parquet", (s, bf) -> strictReader, Settings.EMPTY, null);
-        formatRegistry.byName("parquet");
-
-        // The fast path should not need any storage provider lookups either.
-        StorageProviderRegistry storageRegistry = mock(StorageProviderRegistry.class);
-
-        FileSplitProvider splitter = new FileSplitProvider(
-            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
-            new DecompressionCodecRegistry(),
-            storageRegistry,
-            formatRegistry,
-            Settings.EMPTY
-        );
-
-        StoragePath path = StoragePath.of("s3://b/data.parquet");
-        StorageEntry entry = new StorageEntry(path, 1000, Instant.EPOCH);
-        FileList base = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
-        FileList fileList = GlobExpander.withFileSplitRanges(base, Map.of(path, List.of(preResolved[0], preResolved[1])));
-
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
-        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
-
-        assertEquals(2, splits.size());
-        for (int i = 0; i < splits.size(); i++) {
-            FileSplit fs = (FileSplit) splits.get(i);
-            assertEquals(preResolved[i].offset(), fs.offset());
-            assertEquals(preResolved[i].length(), fs.length());
-            assertEquals("true", fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
-            assertEquals("1000", fs.config().get(FileSplitProvider.FILE_LENGTH_KEY));
-            assertEquals(preResolved[i].statistics().get("_stats.row_count"), fs.statistics().get("_stats.row_count"));
-        }
-    }
-
-    public void testPreResolvedRangesProduceSameSplitsAsReader() {
-        SplitRange[] ranges = {
-            new SplitRange(100, 500, Map.of("_stats.row_count", 100L)),
-            new SplitRange(700, 600, Map.of("_stats.row_count", 200L)),
-            new SplitRange(1400, 400, Map.of("_stats.row_count", 300L)) };
-
-        StoragePath path = StoragePath.of("s3://b/data.parquet");
-
-        // Path A: ranges discovered via reader.
-        RangeAwareFormatReader readerA = createMockRangeReader(List.of(ranges));
-        FormatReaderRegistry registryA = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        registryA.registerLazy("parquet", (s, bf) -> readerA, Settings.EMPTY, null);
-        registryA.byName("parquet");
-        FileSplitProvider providerA = new FileSplitProvider(
-            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
-            new DecompressionCodecRegistry(),
-            createMockStorageRegistry(),
-            registryA,
-            Settings.EMPTY
-        );
-        StorageEntry entry = new StorageEntry(path, 2000, Instant.EPOCH);
-        FileList fileListA = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
-        List<ExternalSplit> splitsA = providerA.discoverSplits(
-            new SplitDiscoveryContext(null, fileListA, Map.of(), PartitionMetadata.EMPTY, List.of())
-        );
-
-        // Path B: ranges supplied via FileList (fast path).
-        RangeAwareFormatReader readerB = createMockRangeReader(List.of()); // intentionally empty: must be unused
-        FormatReaderRegistry registryB = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        registryB.registerLazy("parquet", (s, bf) -> readerB, Settings.EMPTY, null);
-        registryB.byName("parquet");
-        FileSplitProvider providerB = new FileSplitProvider(
-            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
-            new DecompressionCodecRegistry(),
-            createMockStorageRegistry(),
-            registryB,
-            Settings.EMPTY
-        );
-        FileList fileListB = GlobExpander.withFileSplitRanges(
-            GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet"),
-            Map.of(path, List.of(ranges))
-        );
-        List<ExternalSplit> splitsB = providerB.discoverSplits(
-            new SplitDiscoveryContext(null, fileListB, Map.of(), PartitionMetadata.EMPTY, List.of())
-        );
-
-        assertEquals(splitsA.size(), splitsB.size());
-        for (int i = 0; i < splitsA.size(); i++) {
-            FileSplit a = (FileSplit) splitsA.get(i);
-            FileSplit b = (FileSplit) splitsB.get(i);
-            assertEquals(a.offset(), b.offset());
-            assertEquals(a.length(), b.length());
-            assertEquals(a.path(), b.path());
-            assertEquals(a.statistics(), b.statistics());
-            assertEquals(a.config().get(FileSplitProvider.RANGE_SPLIT_KEY), b.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
-            assertEquals(a.config().get(FileSplitProvider.FILE_LENGTH_KEY), b.config().get(FileSplitProvider.FILE_LENGTH_KEY));
-        }
-    }
-
     public void testRangeAwareFallbackForEmptyRanges() {
         RangeAwareFormatReader mockReader = createMockRangeReader(List.<SplitRange>of());
 
@@ -860,10 +722,8 @@ public class FileSplitProviderTests extends ESTestCase {
             private final List<List<SplitRange>> perFileRanges = List.of(List.of(range1), List.of(range2), List.of(range3));
 
             @Override
-            public FileLayout resolveFileLayout(StorageObject object) {
-                List<SplitRange> ranges = perFileRanges.get(callCount++);
-                // Schema is stubbed empty: split discovery only consumes the splitRanges() of the layout.
-                return new FileLayout(new SimpleSourceMetadata(List.of(), formatName(), object.path().toString(), null, null), ranges);
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                return perFileRanges.get(callCount++);
             }
 
             @Override
@@ -876,6 +736,11 @@ public class FileSplitProviderTests extends ESTestCase {
                 List<Attribute> resolvedAttributes,
                 ErrorPolicy errorPolicy
             ) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
                 throw new UnsupportedOperationException();
             }
 
@@ -938,10 +803,8 @@ public class FileSplitProviderTests extends ESTestCase {
     private static RangeAwareFormatReader createMockRangeReader(List<SplitRange> ranges) {
         return new RangeAwareFormatReader() {
             @Override
-            public FileLayout resolveFileLayout(StorageObject object) {
-                // Schema is stubbed empty: split discovery only consumes the splitRanges() of the layout,
-                // so metadata content is irrelevant here.
-                return new FileLayout(new SimpleSourceMetadata(List.of(), formatName(), object.path().toString(), null, null), ranges);
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                return ranges;
             }
 
             @Override
@@ -955,6 +818,11 @@ public class FileSplitProviderTests extends ESTestCase {
                 ErrorPolicy errorPolicy
             ) {
                 throw new UnsupportedOperationException("not called during split discovery");
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return null;
             }
 
             @Override

@@ -114,9 +114,9 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         Source source,
         @Param(name = "step", type = { "time_duration", "integer", "long" }, description = """
             Fixed bucket width on a UTC grid, or a target bucket count. When a bucket count is provided,
-            the actual step width is derived from `from` and `to` by dividing the range into equal-width
-            fixed intervals at millisecond precision. TSTEP always needs a range to anchor the grid; when
-            `from` and `to` are omitted, the range is derived from the request `@timestamp` filter.""") Expression stepOrBuckets,
+            the actual step width is derived from `from` and `to` by dividing the range into equal intervals.
+            TSTEP always needs a range to anchor the grid; when `from` and `to` are omitted,
+            the range is derived from the request `@timestamp` filter.""") Expression stepOrBuckets,
         @Param(
             name = "from",
             type = { "date", "date_nanos", "keyword" },
@@ -387,12 +387,24 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     private long stepToLong(FoldContext ctx) {
         long f = temporalToLong(ctx, Objects.requireNonNull(from));
         long t = temporalToLong(ctx, Objects.requireNonNull(to));
+        var folded = stepOrBuckets.fold(ctx);
+
         if (stepOrBuckets.dataType() == DataType.TIME_DURATION) {
-            return ((Duration) stepOrBuckets.fold(ctx)).toMillis();
+            return ((Duration) folded).toMillis();
         }
-        long count = ((Number) stepOrBuckets.fold(ctx)).longValue();
-        long rangeMillis = Math.max(0L, t - f);
-        return Math.max(1L, Math.ceilDiv(rangeMillis, count));
+
+        long range = Math.max(0L, t - f);
+        if (range == 0L) {
+            return 1L;
+        }
+
+        long count = ((Number) folded).longValue();
+        long scaled = 1000L * count;
+        if ((count <= Long.MAX_VALUE / 1000L) && (range >= scaled)) {
+            return Math.ceilDiv(range, scaled) * 1000L;
+        }
+
+        return Math.ceilDiv(range, count);
     }
 
 }

@@ -181,8 +181,14 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
 
     @Override
     public IVFKnnFloatSlicedVectorQuery createPostFilterDelegate(float filterSelectivity) {
-        int scaledK = Math.min(NUM_CANDS_LIMIT, (int) Math.ceil(k * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity));
-        float visitOversampling = Math.max(1.1f, 1.2f * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity);
+        // Round-1 K oversample: max of a 20% floor and the binomial-variance approximation.
+        double zMargin = POST_FILTER_OVERSAMPLE_Z_SCORE * Math.sqrt(k * (1.0f - filterSelectivity) / filterSelectivity);
+        int scaledK = (int) Math.min(
+            NUM_CANDS_LIMIT,
+            Math.max(Math.ceil(k * POST_FILTER_OVERSAMPLE_FLOOR), Math.ceil((k + zMargin) / filterSelectivity))
+        );
+        // Visit ratio: separate empirical multiplier.
+        float visitOversampling = POST_FILTER_IVF_VISIT_OVERSAMPLE / filterSelectivity;
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
         return new IVFKnnFloatSlicedVectorQuery(
             field,
@@ -205,8 +211,8 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         // Floor at SAFETY_FACTOR so retry rounds always widen coverage by ≥20% vs round 1.
         float visitRatioScale = requestK > 0 && k > 0
-            ? Math.max(POST_FILTER_OVERSAMPLE_SAFETY_FACTOR, (float) requestK / k)
-            : POST_FILTER_OVERSAMPLE_SAFETY_FACTOR;
+            ? Math.max(POST_FILTER_OVERSAMPLE_FLOOR, (float) requestK / k)
+            : POST_FILTER_OVERSAMPLE_FLOOR;
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitRatioScale) : 0f;
         return new IVFKnnFloatSlicedVectorQuery(
             field,

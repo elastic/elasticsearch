@@ -107,11 +107,15 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
-        int scaledK = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil(kParam * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity));
-        int scaledNumCands = (int) Math.min(
+        // Round-1 oversample: max of a 20% floor and the binomial-variance approximation
+        // m ≈ (k + Z · √(k · (1 - p) / p)) / p, which makes P(X ≥ k) ≈ Φ(Z).
+        double zMargin = POST_FILTER_OVERSAMPLE_Z_SCORE * Math.sqrt(kParam * (1.0f - filterSelectivity) / filterSelectivity);
+        int scaledK = (int) Math.min(
             NUM_CANDS_LIMIT,
-            Math.ceil((double) numCandsParam * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity)
+            Math.max(Math.ceil(kParam * POST_FILTER_OVERSAMPLE_FLOOR), Math.ceil((kParam + zMargin) / filterSelectivity))
         );
+        // Maintain the configured numCands/k ratio so HNSW exploration scales with K.
+        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCandsParam / kParam));
         AtomicReference<DocTrackingCollectorManager> knnCollectorManagerRef = new AtomicReference<>();
         var knnQuery = new ESKnnFloatVectorQuery(field, target, scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null) {
             @Override

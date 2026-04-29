@@ -113,6 +113,19 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         long vectorOps = 0;
         Query delegate = (Query) postFilterQuery;
         for (int round = 0; round < MAX_ROUNDS; round++) {
+            if (round > 0) {
+                // Round 1+ means round 0 didn't yield k results after filter — log so we can profile
+                // how often the retry path fires per workload (selectivity vs round-1 oversample).
+                logger.warn(
+                    "post-filter retry round [{}/{}] firing for field=[{}], k=[{}], selectivity=[{}], scoreDocs so far=[{}]",
+                    round + 1,
+                    MAX_ROUNDS,
+                    field,
+                    k,
+                    selectivity,
+                    scoreDocs.length
+                );
+            }
             // delegateK is the scaled K already baked into the delegate (round 0 via createPostFilterDelegate;
             // round 1+ via createRetryQuery with selectivity-aware requestK).
             int delegateK = ((PostFilterableKnnQuery) delegate).k();

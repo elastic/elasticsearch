@@ -293,8 +293,15 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
-        int scaledK = Math.min(NUM_CANDS_LIMIT, (int) Math.ceil(k * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity));
-        float visitOversampling = Math.max(1.1f, 1.2f * POST_FILTER_OVERSAMPLE_SAFETY_FACTOR / filterSelectivity);
+        // Round-1 K oversample: max of a 20% floor and the binomial-variance approximation
+        // m ≈ (k + Z · √(k · (1 - p) / p)) / p, which makes P(X ≥ k) ≈ Φ(Z).
+        double zMargin = POST_FILTER_OVERSAMPLE_Z_SCORE * Math.sqrt(k * (1.0f - filterSelectivity) / filterSelectivity);
+        int scaledK = (int) Math.min(
+            NUM_CANDS_LIMIT,
+            Math.max(Math.ceil(k * POST_FILTER_OVERSAMPLE_FLOOR), Math.ceil((k + zMargin) / filterSelectivity))
+        );
+        // Visit ratio: separate empirical multiplier (different from candidate-count oversampling).
+        float visitOversampling = POST_FILTER_IVF_VISIT_OVERSAMPLE / filterSelectivity;
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
         return new IVFKnnFloatVectorQuery(
             field,
@@ -323,8 +330,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         // (without the floor, requestK/k is typically <1 when round 1 was almost successful,
         // and the retry just shifts laterally rather than exploring more).
         float visitRatioScale = requestK > 0 && k > 0
-            ? Math.max(POST_FILTER_OVERSAMPLE_SAFETY_FACTOR, (float) requestK / k)
-            : POST_FILTER_OVERSAMPLE_SAFETY_FACTOR;
+            ? Math.max(POST_FILTER_OVERSAMPLE_FLOOR, (float) requestK / k)
+            : POST_FILTER_OVERSAMPLE_FLOOR;
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitRatioScale) : 0f;
         return new IVFKnnFloatVectorQuery(
             field,

@@ -24,12 +24,39 @@ import java.util.List;
 public interface PostFilterableKnnQuery {
 
     /**
-     * Safety multiplier applied on top of the {@code 1/selectivity} oversample when sizing
-     * the first post-filter round. Compensates for statistical fluctuation in how many
-     * HNSW candidates pass the filter, reducing the probability that round 1 falls short
-     * of {@code k} and forces a full retry round.
+     * Minimum round-1 oversample factor. Round 1 always asks for at least this many ×
+     * the target count, regardless of what the binomial variance formula computes. Active
+     * when selectivity is near 1, where the variance term collapses to ≈ 0.
      */
-    float POST_FILTER_OVERSAMPLE_SAFETY_FACTOR = 1.2f;
+    float POST_FILTER_OVERSAMPLE_FLOOR = 1.2f;
+
+    /**
+     * Confidence-level Z-score for the binomial variance term in round-1 sizing.
+     * <p>
+     * Selectivity {@code p} is computed exactly across the shard. With no information about
+     * correlation between the filter and vector content, the maximum-entropy assumption is
+     * independence: pass count from {@code m} candidates is {@code X ~ Binomial(m, p)}. The
+     * approximation
+     * <pre>
+     *   m ≈ ⌈ (k + Z · √(k · (1 - p) / p)) / p ⌉
+     * </pre>
+     * makes {@code P(X ≥ k) ≈ Φ(Z)} (linearised at the boundary {@code m·p ≈ k};
+     * exact at the limit, slightly aggressive for small k). Z=2 → ~97.7%, Z=2.5 → ~99.4%,
+     * Z=3 → ~99.9%.
+     * <p>
+     * If the filter does correlate with vector content (which we can't know up front), the
+     * effective variance can exceed binomial; the retry mechanism is the safety net for queries
+     * where round 1 falls short despite this margin.
+     */
+    float POST_FILTER_OVERSAMPLE_Z_SCORE = 2.0f;
+
+    /**
+     * IVF visit-ratio multiplier for round 1: {@code visitRatio_round1 = FACTOR / selectivity}.
+     * Visit ratio is a different concept from candidate-count oversampling — it controls how
+     * many posting lists the codec scans, not how many candidates are scored — so it doesn't
+     * follow the same binomial sizing. Empirically tuned.
+     */
+    float POST_FILTER_IVF_VISIT_OVERSAMPLE = 1.44f;
 
     /**
      * Creates a new query for the next retry round.

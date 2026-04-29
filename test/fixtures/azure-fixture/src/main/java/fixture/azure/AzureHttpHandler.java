@@ -486,7 +486,7 @@ public class AzureHttpHandler implements HttpHandler {
                     response.append("--").append(responseBoundary).append("--\r\n0\r\n");
                     // Send the response
                     exchange.getResponseHeaders().add("Content-Type", "multipart/mixed; boundary=" + responseBoundary);
-                    sendResponseHeadersWithTrace(exchange, RestStatus.ACCEPTED.getStatus(), response.length());
+                    exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), response.length());
                     logger.debug("--> Sending response:\n{}", response);
                     exchange.getResponseBody().write(response.toString().getBytes(StandardCharsets.UTF_8));
                 }

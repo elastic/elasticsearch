@@ -19,10 +19,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.net.ConnectException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,11 +45,15 @@ public class OldElasticsearch {
     private static final Pattern INSTALL_DIR_MAJOR_VERSION = Pattern.compile("^elasticsearch(?:-oss)?-(\\d+)");
 
     /**
-     * Prefer matching HTTP bind lines only (logger {@code org.elasticsearch.http.*}). Transport publishes a similar
-     * bound-address shape but under {@code org.elasticsearch.transport.*}, so matching generic {@code bound_addresses}
-     * text would capture the transport port and HTTP clients would fail.
+     * Match {@code publish_address {host:port}} from HTTP bind logs. Exclude transport lines (logger {@code [o.e.t.*]})
+     * which log the same {@code BoundTransportAddress} shape but for the transport port.
      */
-    private static final Pattern HTTP_PUBLISH_PORT = Pattern.compile(
+    private static final Pattern HTTP_PUBLISH_PORT_EXCLUDING_TRANSPORT = Pattern.compile(
+        "^(?!.*\\[o\\.e\\.t\\.[^]]+\\]).*publish_address \\{[^}]*:(\\d+)\\}"
+    );
+
+    /** Prefer HTTP logger prefix when present (structured layouts vary by minor version). */
+    private static final Pattern HTTP_LOGGER_PUBLISH_PORT = Pattern.compile(
         ".*\\[o\\.e\\.h\\.[^]]+\\].*publish_address \\{[^}]*:(\\d+)\\}"
     );
 
@@ -117,6 +125,9 @@ public class OldElasticsearch {
             configOptions.add("transport.tcp.port: 0");
         }
         configOptions.add("network.host: 127.0.0.1");
+        if (majorVersionFromInstallDir(esDir) >= 8) {
+            configOptions.add("http.host: 127.0.0.1");
+        }
         if (args.length > 3) {
             for (int i = 3; i < args.length; i++) {
                 configOptions.add(args[i]);
@@ -162,7 +173,13 @@ public class OldElasticsearch {
                     continue;
                 }
                 if (port == 0) {
-                    m = HTTP_PUBLISH_PORT.matcher(line);
+                    m = HTTP_LOGGER_PUBLISH_PORT.matcher(line);
+                    if (m.find()) {
+                        port = Integer.parseInt(m.group(1));
+                        System.out.println("Found port (HTTP publish_address, http logger):  " + port);
+                        continue;
+                    }
+                    m = HTTP_PUBLISH_PORT_EXCLUDING_TRANSPORT.matcher(line);
                     if (m.find()) {
                         port = Integer.parseInt(m.group(1));
                         System.out.println("Found port (HTTP publish_address):  " + port);
@@ -185,6 +202,14 @@ public class OldElasticsearch {
             System.exit(1);
         }
 
+        try {
+            awaitHttpAcceptingConnections(port);
+        } catch (IOException | InterruptedException e) {
+            System.err.println("timed out waiting for HTTP port to accept connections");
+            e.printStackTrace(System.err);
+            System.exit(1);
+        }
+
         Path tmp = Files.createTempFile(baseDir, null, null);
         Files.writeString(tmp, Integer.toString(port));
         Files.move(tmp, baseDir.resolve("ports"), StandardCopyOption.ATOMIC_MOVE);
@@ -192,5 +217,30 @@ public class OldElasticsearch {
         tmp = Files.createTempFile(baseDir, null, null);
         Files.writeString(tmp, Integer.toString(pid));
         Files.move(tmp, baseDir.resolve("pid"), StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    /**
+     * Bind logs can appear slightly before the socket accepts; reindex-from-remote integration tests hit HTTP immediately.
+     */
+    private static void awaitHttpAcceptingConnections(int port) throws IOException, InterruptedException {
+        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(120);
+        InetSocketAddress loopbackIpv4 = new InetSocketAddress("127.0.0.1", port);
+        IOException last = null;
+        while (System.nanoTime() < deadlineNanos) {
+            try (Socket socket = new Socket()) {
+                socket.connect(loopbackIpv4, 250);
+                return;
+            } catch (ConnectException e) {
+                last = e;
+            } catch (IOException e) {
+                last = e;
+            }
+            Thread.sleep(50L);
+        }
+        IOException timeout = new IOException("did not accept TCP connections on 127.0.0.1:" + port + " within timeout");
+        if (last != null) {
+            timeout.addSuppressed(last);
+        }
+        throw timeout;
     }
 }

@@ -9254,6 +9254,33 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(knn.implicitK(), equalTo(100));
     }
 
+    /**
+     * {@code LIMIT N BY g} doesn't work like a LIMIT, but a LIMIT per group, which is unbounded.
+     * The outer {@code LIMIT M} must not be pushed past a {@link org.elasticsearch.xpack.esql.plan.logical.LimitBy} into KNN.
+     * <p>
+     *     A clear example of this is the query {@code FROM five_rows | WHERE KNN(field, ...) | LIMIT 1 BY x | LIMIT 2}:
+     *     if most rows have the same "x" but one, KNN could return only rows with the same x,
+     *     when LIMIT BY would still need more to fill the buckets.
+     * </p>
+     */
+    public void testKnnWithLimitBy() {
+        assertThat(
+            typesError("from types | where knn(dense_vector, [0, 1, 2]) | limit 10 by keyword | limit 5"),
+            containsString("Knn function must be used with a LIMIT clause")
+        );
+    }
+
+    /**
+     * Same reasoning as {@link #testKnnWithLimitBy()} but with the optimizer-created
+     * {@link org.elasticsearch.xpack.esql.plan.logical.TopNBy} (from {@code SORT ... | LIMIT N BY g}).
+     */
+    public void testKnnWithTopNBy() {
+        assertThat(
+            typesError("from types metadata _score | where knn(dense_vector, [0, 1, 2]) | sort _score | limit 10 by keyword | limit 5"),
+            containsString("Knn function must be used with a LIMIT clause")
+        );
+    }
+
     private LogicalPlanOptimizer getCustomRulesLogicalPlanOptimizer(
         List<RuleExecutor.Batch<LogicalPlan>> batches,
         TransportVersion minimumVersion

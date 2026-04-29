@@ -85,7 +85,6 @@ final class NativeLibLoader {
             throw new UnsupportedOperationException("Unsupported architecture: " + arch);
         }
 
-
         InputStream resource = null;
         String resourcePath = "";
         if (Build.current().isSnapshot()) {

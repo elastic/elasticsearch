@@ -53,7 +53,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
     public ICUCollationKeywordFieldMapperIT(boolean binaryDocValues) {
         this.binaryDocValues = binaryDocValues;
-        if (binaryDocValues == true) {
+        if (binaryDocValues) {
             assumeTrue("cardinality option must be available", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         }
     }

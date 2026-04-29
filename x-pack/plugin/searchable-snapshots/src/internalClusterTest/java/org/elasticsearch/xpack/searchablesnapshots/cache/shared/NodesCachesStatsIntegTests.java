@@ -31,8 +31,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest;
 
-import java.util.stream.Collectors;
-
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -168,10 +166,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
             new NodesRequest(nodesWithFrozenShards)
         ).actionGet();
-        assertThat(
-            response.getNodes().stream().map(r -> r.getNode().getId()).collect(Collectors.toList()),
-            containsInAnyOrder(nodesWithFrozenShards)
-        );
+        assertThat(response.getNodes().stream().map(r -> r.getNode().getId()).toList(), containsInAnyOrder(nodesWithFrozenShards));
         assertThat(response.hasFailures(), equalTo(false));
 
         for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {

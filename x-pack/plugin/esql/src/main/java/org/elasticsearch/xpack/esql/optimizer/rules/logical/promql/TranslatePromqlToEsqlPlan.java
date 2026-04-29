@@ -408,7 +408,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
             ctx.promqlCommand().timestamp(),
             window,
-            ctx.stepAttr()
+            ctx.stepAttr(),
+            ctx.optimizerContext().configuration()
         );
 
         Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
@@ -468,7 +469,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
             ctx.promqlCommand().timestamp(),
             null,
-            ctx.stepAttr()
+            ctx.stepAttr(),
+            ctx.optimizerContext().configuration()
         );
         Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
             scalarFunction.functionName(),
@@ -627,7 +629,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
             ctx.promqlCommand().timestamp(),
             AggregateFunction.NO_WINDOW,
-            ctx.stepAttr()
+            ctx.stepAttr(),
+            ctx.optimizerContext().configuration()
         );
         return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(agg.functionName(), agg.source(), inputValue, promqlCtx, agg.parameters());
     }

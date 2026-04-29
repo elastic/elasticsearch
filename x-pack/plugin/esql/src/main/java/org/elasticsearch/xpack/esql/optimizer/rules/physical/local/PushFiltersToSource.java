@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
-import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -257,11 +257,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
         // Split filter condition by AND and reorder by estimated selectivity
         List<Expression> filters = splitAnd(filterExec.condition());
-        Map<String, Object> effectiveMetadata = SourceStatisticsSerializer.resolveEffectiveMetadata(
-            externalExec.splits(),
-            externalExec.sourceMetadata()
-        );
-        filters = FilterEvaluationOrderEstimator.orderByEstimatedCost(filters, effectiveMetadata);
+        SplitStats effectiveStats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
+        filters = FilterEvaluationOrderEstimator.orderByEstimatedCost(filters, effectiveStats);
 
         // Use the SPI to push filters
         FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(filters);

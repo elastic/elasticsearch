@@ -161,7 +161,8 @@ public class TumblingWindow implements Executable {
         // clear the memory at the end of the algorithm
         tumbleWindow(matcher.firstPositiveStage, runAfter(listener, () -> {
             matcher.clear();
-            client.close(listener.delegateFailure((l, r) -> {}));
+            // The outer listener has already been invoked by runAfter; a close-PIT failure must not propagate to it.
+            client.close(ActionListener.wrap(r -> {}, e -> log.warn("Failed to close PIT after sequence query", e)));
         }));
     }
 

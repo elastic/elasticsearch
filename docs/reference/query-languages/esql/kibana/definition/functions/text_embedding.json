@@ -23,6 +23,13 @@
               "task_type" : "text_embedding"
             }
           }
+        },
+        {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='timeout', values=[], description='Timeout for the inference request (e.g. \"30s\", \"1m\").', type=[keyword]}",
+          "optional" : true,
+          "description" : "(Optional) Options for the inference request."
         }
       ],
       "variadic" : false,

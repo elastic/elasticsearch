@@ -24,12 +24,14 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
@@ -389,8 +391,19 @@ public class QueryRewriteContext {
         if (allowedFields != null && false == allowedFields.test(name)) {
             return null;
         }
-        MappedFieldType fieldType = runtimeMappings.get(name);
-        return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
+        final String fieldName = resolveSliceAlias(name);
+        MappedFieldType fieldType = runtimeMappings.get(fieldName);
+        return fieldType == null ? mappingLookup.getFieldType(fieldName) : fieldType;
+    }
+
+    private String resolveSliceAlias(String fieldName) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()
+            && indexSettings != null
+            && indexSettings.isSliceEnabled()
+            && SliceIndexing.PARAM_NAME.equals(fieldName)) {
+            return RoutingFieldMapper.NAME;
+        }
+        return fieldName;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {

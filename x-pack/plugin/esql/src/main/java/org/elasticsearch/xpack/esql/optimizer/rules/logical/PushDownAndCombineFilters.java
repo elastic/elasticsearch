@@ -281,7 +281,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             Object folded = nullifiedFilter.fold(foldCtx);
             return folded == null || Boolean.FALSE.equals(folded);
         }
-        return false;
+        return filter.references().size() > 0;
     }
 
     private static Function<Expression, Expression> NO_OP = expression -> expression;

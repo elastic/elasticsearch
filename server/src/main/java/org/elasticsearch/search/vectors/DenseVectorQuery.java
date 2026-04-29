@@ -157,7 +157,7 @@ public abstract class DenseVectorQuery extends Query {
 
                 @Override
                 public BulkScorer bulkScorer() throws IOException {
-                    return new DenseVectorBulkScorer(vectorScorer, acceptDocs, boost, cost, context.reader().maxDoc());
+                    return new DenseVectorBulkScorer(vectorScorer, acceptDocs.iterator(), boost, cost);
                 }
 
                 @Override
@@ -327,9 +327,9 @@ public abstract class DenseVectorQuery extends Query {
     private static class DenseVectorBulkScorer extends BulkScorer {
         private final DocAndFloatFeatureBuffer buffer;
         private final VectorScorer.Bulk bulkScorer;
+        private final DocIdSetIterator vectorIterator;
         private final float boost;
         private final long cost;
-        private final int maxDoc;
         private float currentScore = 0f;
         private final Scorable scorable = new Scorable() {
             @Override
@@ -338,35 +338,35 @@ public abstract class DenseVectorQuery extends Query {
             }
         };
 
-        DenseVectorBulkScorer(VectorScorer vectorScorer, AcceptDocs acceptDocs, float boost, long cost, int maxDoc) throws IOException {
-            this.bulkScorer = vectorScorer.bulk(acceptDocs.iterator());
+        DenseVectorBulkScorer(VectorScorer vectorScorer, DocIdSetIterator filterIterator, float boost, long cost) throws IOException {
+            this.bulkScorer = vectorScorer.bulk(filterIterator);
+            this.vectorIterator = filterIterator == null
+                ? vectorScorer.iterator()
+                : ConjunctionUtils.intersectIterators(List.of(vectorScorer.iterator(), filterIterator));
             this.buffer = new DocAndFloatFeatureBuffer();
             this.boost = boost;
             this.cost = cost;
-            this.maxDoc = maxDoc;
         }
 
         @Override
         public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
             collector.setScorer(scorable);
-            while (true) {
+
+            if (vectorIterator.docID() < min) {
+                vectorIterator.advance(min);
+            }
+
+            while (vectorIterator.docID() < max) {
                 bulkScorer.nextDocsAndScores(max, acceptDocs, buffer);
-                if (buffer.size == 0) {
-                    break;
-                }
                 for (int i = 0; i < buffer.size; i++) {
                     int doc = buffer.docs[i];
-                    // TODO implement bulkScorer.advance?
-                    if (doc >= min) {
-                        // currentScore is closed over by scorable
-                        currentScore = buffer.features[i] * boost;
-                        collector.collect(doc);
-                    }
+                    // currentScore is closed over by scorable
+                    currentScore = buffer.features[i] * boost;
+                    collector.collect(doc);
                 }
             }
-            // This is less efficient than it could be (we could eventually get the iterator#docID state from within the bulkScorer),
-            // but this satisfies the interface's requirement to return an under-estimation of the next matching doc.
-            return max < maxDoc ? max : DocIdSetIterator.NO_MORE_DOCS;
+
+            return vectorIterator.docID();
         }
 
         @Override

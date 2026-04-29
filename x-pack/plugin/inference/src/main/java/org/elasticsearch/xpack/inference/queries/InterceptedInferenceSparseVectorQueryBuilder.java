@@ -115,7 +115,8 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
             return null;
         }
 
-        return new InferenceStringGroup(originalQuery.getQuery());
+        String query = originalQuery.getQuery();
+        return query != null ? new InferenceStringGroup(query) : null;
     }
 
     @Override

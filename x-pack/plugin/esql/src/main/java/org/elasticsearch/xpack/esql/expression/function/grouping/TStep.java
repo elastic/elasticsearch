@@ -71,14 +71,10 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
         description = """
-            Creates groups of values - buckets - out of a `@timestamp` attribute.
-
-            TSTEP expects the first argument to be either bucket duration, or integer number of target buckets in a provided range.
-
-            The optional `from` and `to` time range is used to derive bucket duration if integer number of target buckets provided.
-            Unlike [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md), that
-            aligns time grid at calendar boundaries, `TSTEP` aligns at the query range, so that the first bucket
-            is computed on the range from `from` to `from` + `step` and labeled after right boundary.
+            Creates groups of values - buckets - out of a `@timestamp` attribute, similar to
+            [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md).
+            Unlike `TBUCKET` which aligns buckets to calendar boundaries, TSTEP aligns them to the query range.
+            This means the first bucket covers the interval from `from` to `from` + `step` and is labeled by its right boundary.
 
             When using ES|QL in Kibana, the range can be derived automatically from the
             [`@timestamp` filter](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter)
@@ -107,8 +103,8 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         @Param(name = "step", type = { "time_duration", "integer", "long" }, description = """
             Fixed bucket width on a UTC grid, or a target bucket count. When a bucket count is provided,
             the actual step width is derived from `from` and `to` by dividing the range into equal-width
-            fixed intervals at millisecond precision. When `from` and `to` are omitted, the range is
-            derived from the request `@timestamp` filter.""") Expression stepOrBuckets,
+            fixed intervals at millisecond precision. TSTEP always needs a range to anchor the grid; when
+            `from` and `to` are omitted, the range is derived from the request `@timestamp` filter.""") Expression stepOrBuckets,
         @Param(
             name = "from",
             type = { "date", "date_nanos", "keyword" },

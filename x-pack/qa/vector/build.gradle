@@ -1,0 +1,67 @@
+import org.elasticsearch.gradle.internal.test.TestUtil
+
+apply plugin: 'elasticsearch.java-base'
+apply plugin: 'java-library'
+apply plugin: 'application'
+
+dependencies {
+    // The elasticsearch modules-self-managed:vector module (KnnIndexTester and friends)
+    api project(':qa:vector')
+    api(project(':x-pack:plugin:stateless')) {
+        capabilities {
+            requireCapability 'org.elasticsearch.plugin:stateless-test-artifacts'
+        }
+    }
+}
+
+application {
+    mainClass = 'org.elasticsearch.test.knn.StatelessKnnIndexTester'
+}
+
+tasks.named('assemble').configure { enabled = false }
+tasks.named('test').configure { enabled = false }
+tasks.named('javadoc').configure { enabled = false }
+
+tasks.register('printClasspath') {
+    group = 'Help'
+    description = 'Prints the classpath needed to run StatelessKnnIndexTester directly with java'
+    def cp = sourceSets.main.runtimeClasspath
+    def outputFile = layout.buildDirectory.file('vector_classpath.txt')
+
+    inputs.files(cp)
+    outputs.file(outputFile)
+
+    doLast {
+        def f = outputFile.get().asFile
+        f.parentFile.mkdirs()
+        f.text = cp.asPath
+        println("Classpath written to: ${f.absolutePath}")
+    }
+}
+
+tasks.register('checkVec', JavaExec) {
+    group = 'Execution'
+    description = 'Runs KnnIndexTester with the stateless SearchDirectory.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass.set('org.elasticsearch.test.knn.StatelessKnnIndexTester')
+    systemProperty 'es.logger.out', 'console'
+    systemProperty 'es.logger.level', 'INFO'
+    systemProperty(
+        'es.nativelibs.path',
+        TestUtil.getTestLibraryPath(file('../../libs/native/libraries/build/platform/').toString())
+    )
+    jvmArgs(
+        '-Xms16g', '-Xmx16g',
+        '-Djava.util.concurrent.ForkJoinPool.common.parallelism=8',
+        '-XX:+UnlockDiagnosticVMOptions',
+        '-XX:+DebugNonSafepoints',
+        '-XX:+HeapDumpOnOutOfMemoryError'
+    )
+    if (buildParams.runtimeJavaVersion.map { it.majorVersion.toInteger() }.get() >= 21) {
+        jvmArgs('--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED')
+    }
+    if (System.getenv('DO_PROFILING') != null) {
+        jvmArgs('-XX:StartFlightRecording=dumponexit=true,maxsize=250M,filename=knn.jfr,settings=profile.jfc')
+    }
+    executable("${buildParams.runtimeJavaHome.get()}/bin/java")
+}

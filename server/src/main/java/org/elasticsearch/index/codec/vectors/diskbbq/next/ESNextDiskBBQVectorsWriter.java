@@ -1085,7 +1085,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster, fieldInfo.getVectorDimension());
         TieredMergeStrategy.Strategy strategy = requestedExperiment.forceStrategy()
             ? requestedExperiment.strategy()
-            : tieredStrategy.selectStrategy(segmentSizes, segmentCentroidCounts, false);
+            : tieredStrategy.selectStrategy(segmentSizes, segmentCentroidCounts);
         MergeSignalStats mergeSignalStats = strategy == TieredMergeStrategy.Strategy.CONCATENATION
             ? computeMergeSignalStats(
                 fieldInfo.getVectorSimilarityFunction(),

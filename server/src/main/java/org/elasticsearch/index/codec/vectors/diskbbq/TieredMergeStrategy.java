@@ -15,7 +15,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
  * <table>
  * <caption>Strategy selection matrix</caption>
  * <tr><th>Scenario</th><th>Strategy</th></tr>
- * <tr><td>Force merge requested</td><td>FULL_REBUILD</td></tr>
  * <tr><td>Total vectors very small</td><td>FULL_REBUILD</td></tr>
  * <tr><td>Dominant segment ≥80% with enough centroids</td><td>INSERTION</td></tr>
  * <tr><td>Segments with enough prior centroids</td><td>CONCATENATION</td></tr>
@@ -59,14 +58,9 @@ public class TieredMergeStrategy {
      *
      * @param segmentSizes     number of vectors per input segment
      * @param segmentCentroids number of centroids per input segment (0 if unavailable)
-     * @param forceMerge       whether this is a force merge operation
      * @return the selected strategy
      */
-    public Strategy selectStrategy(int[] segmentSizes, int[] segmentCentroids, boolean forceMerge) {
-        if (forceMerge) {
-            return Strategy.FULL_REBUILD;
-        }
-
+    public Strategy selectStrategy(int[] segmentSizes, int[] segmentCentroids) {
         int totalVectors = 0;
         int maxSegmentSize = 0;
         int totalCentroids = 0;

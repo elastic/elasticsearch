@@ -80,6 +80,11 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
@@ -1322,7 +1327,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                     source,
                     timeProvider,
-                    emptyReduceContextBuilder()
+                    emptyReduceContextBuilder(),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1338,7 +1344,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                     null,
                     timeProvider,
-                    emptyReduceContextBuilder()
+                    emptyReduceContextBuilder(),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1358,7 +1365,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                     source,
                     timeProvider,
-                    emptyReduceContextBuilder()
+                    emptyReduceContextBuilder(),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 assertEquals(0, source.from());
@@ -1369,6 +1377,118 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(trackTotalHitsUpTo, merger.trackTotalHitsUpTo);
             }
         }
+    }
+
+    public void testGetSearchProfileResultsReturnsNullWhenResponseHasNoProfile() {
+        SearchCoordinatorContext context = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(
+            new SearchRequest("idx").source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).profile(true))
+        );
+        SearchResponse response = newTestSearchResponse(null);
+        try {
+            assertNull(TransportSearchAction.getSearchProfileResults(response, context));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    public void testGetSearchProfileResultsReturnsNullWhenProfileMapIsEmpty() {
+        SearchCoordinatorContext context = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(
+            new SearchRequest("idx").source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).profile(true))
+        );
+        SearchResponse response = newTestSearchResponse(new SearchProfileResults(Map.of()));
+        try {
+            assertNull(TransportSearchAction.getSearchProfileResults(response, context));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    public void testGetSearchProfileResultsAppliesCoordinatorMetadataWhenProfilePresent() {
+        SearchSourceBuilder coordinatorSource = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
+        SearchSourceBuilder expectedSnapshot = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
+        String[] coordinatorIndices = new String[] { "wildcard-*", "alias" };
+        SearchCoordinatorContext context = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(
+            new SearchRequest(coordinatorIndices).source(coordinatorSource)
+        );
+        Map<String, SearchProfileShardResult> shardResults = newProfileShardResults();
+        SearchResponse response = newTestSearchResponse(new SearchProfileResults(shardResults));
+        try {
+            SearchProfileResults result = TransportSearchAction.getSearchProfileResults(response, context);
+            assertNotNull(result);
+            assertEquals(shardResults, result.getShardResults());
+            assertEquals(expectedSnapshot, result.getOriginalSource());
+            assertArrayEquals(coordinatorIndices, result.getRequestIndices());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    public void testGetSearchProfileResultsLeavesMetadataNullForNoneContext() {
+        Map<String, SearchProfileShardResult> shardResults = newProfileShardResults();
+        SearchResponse response = newTestSearchResponse(new SearchProfileResults(shardResults));
+        try {
+            SearchProfileResults result = TransportSearchAction.getSearchProfileResults(response, SearchCoordinatorContext.none());
+            assertNotNull(result);
+            assertEquals(shardResults, result.getShardResults());
+            assertNull(result.getOriginalSource());
+            assertNull(result.getRequestIndices());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
+     * The helper must always return a {@link SearchProfileResults} that is independent of the input response's profile object so the
+     * coordinator metadata is only attached to the merged output (the source is mutated by snapshotting before this point).
+     */
+    public void testGetSearchProfileResultsReturnsFreshInstance() {
+        Map<String, SearchProfileShardResult> shardResults = newProfileShardResults();
+        SearchProfileResults inputProfile = new SearchProfileResults(shardResults);
+        SearchResponse response = newTestSearchResponse(inputProfile);
+        try {
+            SearchCoordinatorContext context = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(
+                new SearchRequest("idx").source(new SearchSourceBuilder().profile(true))
+            );
+            SearchProfileResults result = TransportSearchAction.getSearchProfileResults(response, context);
+            assertNotNull(result);
+            assertNotSame("helper should not mutate the input response's profile object", inputProfile, result);
+            assertNull("input profile metadata must remain unchanged", inputProfile.getOriginalSource());
+            assertNull("input profile indices must remain unchanged", inputProfile.getRequestIndices());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    private static SearchResponse newTestSearchResponse(SearchProfileResults profile) {
+        return new SearchResponse(
+            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+            null,
+            null,
+            false,
+            null,
+            profile,
+            1,
+            null,
+            1,
+            1,
+            0,
+            100L,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+    }
+
+    private static Map<String, SearchProfileShardResult> newProfileShardResults() {
+        SearchShardTarget target = new SearchShardTarget(
+            "node-" + randomAlphaOfLength(6),
+            new ShardId("idx-" + randomAlphaOfLength(4), randomUUID(), 0),
+            null
+        );
+        SearchProfileShardResult shardResult = new SearchProfileShardResult(
+            new SearchProfileQueryPhaseResult(List.of(), new AggregationProfileShardResult(List.of())),
+            randomBoolean() ? null : new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())
+        );
+        return Map.of(target.toString(), shardResult);
     }
 
     public void testShouldMinimizeRoundtrips() throws Exception {

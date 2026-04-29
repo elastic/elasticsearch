@@ -121,13 +121,13 @@ public class SnapshotStressTestsHelper {
         private boolean transferred = false;
         private final List<Releasable> releasables = new ArrayList<>();
 
-        <T extends Releasable> T add(T releasable) {
+        public <T extends Releasable> T add(T releasable) {
             assert transferred == false : "already transferred";
             releasables.add(releasable);
             return releasable;
         }
 
-        Releasable transfer() {
+        public Releasable transfer() {
             assert transferred == false : "already transferred";
             transferred = true;
             Collections.reverse(releasables);
@@ -227,7 +227,7 @@ public class SnapshotStressTestsHelper {
      */
     public static class TrackedCluster {
 
-        static final Logger logger = LogManager.getLogger(TrackedCluster.class);
+        protected static final Logger logger = LogManager.getLogger(TrackedCluster.class);
         static final String CLIENT = "client";
         static final String NODE_RESTARTER = "node_restarter";
 
@@ -237,13 +237,13 @@ public class SnapshotStressTestsHelper {
             new ScalingExecutorBuilder(CLIENT, 1, 1, TimeValue.ZERO, true, CLIENT),
             new ScalingExecutorBuilder(NODE_RESTARTER, 1, 5, TimeValue.ZERO, true, NODE_RESTARTER)
         );
-        private final Executor clientExecutor = threadPool.executor(CLIENT);
+        protected final Executor clientExecutor = threadPool.executor(CLIENT);
 
-        private final AtomicBoolean shouldStop = new AtomicBoolean();
+        protected final AtomicBoolean shouldStop = new AtomicBoolean();
         private final InternalTestCluster cluster;
         private final Map<String, TrackedNode> nodes = ConcurrentCollections.newConcurrentMap();
         private final Map<String, TrackedRepository> repositories = ConcurrentCollections.newConcurrentMap();
-        private final Map<String, TrackedIndex> indices = ConcurrentCollections.newConcurrentMap();
+        protected final Map<String, TrackedIndex> indices = ConcurrentCollections.newConcurrentMap();
         private final Map<String, TrackedSnapshot> snapshots = ConcurrentCollections.newConcurrentMap();
 
         /**
@@ -251,7 +251,7 @@ public class SnapshotStressTestsHelper {
          * the nodes in the same order, held in this field, so that nodes nearer the end of the list are more likely to be restartable.
          * The elected master node is usually last in this list.
          */
-        private volatile List<TrackedNode> shuffledNodes;
+        protected volatile List<TrackedNode> shuffledNodes;
 
         private final AtomicInteger snapshotCounter = new AtomicInteger();
         private final CountDownLatch completedSnapshotLatch = new CountDownLatch(30);
@@ -339,6 +339,8 @@ public class SnapshotStressTestsHelper {
                 startNodeShutdownMarker();
             }
 
+            startAdditionalActivities();
+
             if (completedSnapshotLatch.await(30, TimeUnit.SECONDS)) {
                 logger.info("--> completed target snapshot count, finishing test");
             } else {
@@ -389,6 +391,8 @@ public class SnapshotStressTestsHelper {
             }
         }
 
+        protected void startAdditionalActivities() {}
+
         private void acquirePermitsAtEnd(
             Stream<Tuple<String, Semaphore>> labelledPermits,
             List<String> failedPermitAcquisitions,
@@ -423,7 +427,7 @@ public class SnapshotStressTestsHelper {
             });
         }
 
-        private void enqueueAction(final CheckedRunnable<Exception> action) {
+        protected void enqueueAction(final CheckedRunnable<Exception> action) {
             if (shouldStop.get()) {
                 return;
             }
@@ -1381,7 +1385,7 @@ public class SnapshotStressTestsHelper {
         }
 
         @Nullable // if we couldn't block node restarts
-        private Releasable blockNodeRestarts() {
+        protected Releasable blockNodeRestarts() {
             try (
                 SnapshotStressTestsHelper.TransferableReleasables localReleasables = new SnapshotStressTestsHelper.TransferableReleasables()
             ) {
@@ -1528,7 +1532,7 @@ public class SnapshotStressTestsHelper {
 
         }
 
-        private class TrackedIndex {
+        protected class TrackedIndex {
 
             private final Semaphore permits = new Semaphore(Integer.MAX_VALUE);
             private final String indexName;
@@ -1539,6 +1543,14 @@ public class SnapshotStressTestsHelper {
 
             private TrackedIndex(String indexName) {
                 this.indexName = indexName;
+            }
+
+            public Semaphore permits() {
+                return permits;
+            }
+
+            public String indexName() {
+                return indexName;
             }
 
             @Override
@@ -1862,6 +1874,10 @@ public class SnapshotStressTestsHelper {
 
         Semaphore getPermits() {
             return permits;
+        }
+
+        public String nodeName() {
+            return nodeName;
         }
 
         boolean isMasterNode() {

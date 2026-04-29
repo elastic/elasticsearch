@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -25,7 +26,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -122,14 +122,14 @@ public class VoyageAICommonServiceSettingsTests extends AbstractBWCWireSerializa
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
             {
                 "model_id": "%s",
                 "rate_limit": {
                     "requests_per_minute": %d
                 }
             }
-            """, TEST_MODEL_ID, TEST_RATE_LIMIT)));
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT))));
     }
 
     @Override

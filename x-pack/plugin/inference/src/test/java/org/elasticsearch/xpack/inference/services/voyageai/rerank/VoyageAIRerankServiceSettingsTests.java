@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -26,7 +27,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.DEFAULT_RATE_LIMIT;
 import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.INITIAL_TEST_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.INITIAL_TEST_RATE_LIMIT;
@@ -115,14 +115,14 @@ public class VoyageAIRerankServiceSettingsTests extends AbstractBWCWireSerializa
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
             {
                 "model_id": "%s",
                 "rate_limit": {
                     "requests_per_minute": %d
                 }
             }
-            """, TEST_MODEL_ID, TEST_RATE_LIMIT)));
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT))));
     }
 
     @Override

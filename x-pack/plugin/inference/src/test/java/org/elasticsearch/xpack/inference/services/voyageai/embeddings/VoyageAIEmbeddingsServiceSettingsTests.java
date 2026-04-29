@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,7 +28,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.DEFAULT_RATE_LIMIT;
@@ -225,13 +225,14 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
     }
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var initialDimensionsSetByUser = randomBoolean();
         var originalServiceSettings = new VoyageAIEmbeddingsServiceSettings(
             new VoyageAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
             INITIAL_TEST_EMBEDDING_TYPE,
             INITIAL_TEST_SIMILARITY_MEASURE,
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS,
-            true
+            initialDimensionsSetByUser
         );
 
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
@@ -241,7 +242,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
                 TEST_SIMILARITY_MEASURE.toString(),
                 TEST_DIMENSIONS,
                 TEST_MAX_INPUT_TOKENS,
-                false,
+                initialDimensionsSetByUser == false,
                 TEST_RATE_LIMIT
             )
         );
@@ -255,7 +256,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
                     INITIAL_TEST_SIMILARITY_MEASURE,
                     INITIAL_TEST_DIMENSIONS,
                     TEST_MAX_INPUT_TOKENS,
-                    true
+                    initialDimensionsSetByUser
                 )
             )
         );
@@ -268,7 +269,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
             INITIAL_TEST_SIMILARITY_MEASURE,
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS,
-            true
+            randomBoolean()
         );
 
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
@@ -288,7 +289,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
             {
                 "model_id": "%s",
                 "rate_limit": {
@@ -299,7 +300,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
                 "max_input_tokens": %d,
                 "embedding_type": "%s"
             }
-            """, TEST_MODEL_ID, TEST_RATE_LIMIT, TEST_SIMILARITY_MEASURE, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_EMBEDDING_TYPE)));
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT, TEST_SIMILARITY_MEASURE, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_EMBEDDING_TYPE))));
     }
 
     public void testToXContent_OnlyMandatoryFields_WritesOnlyMandatoryFieldsAndDefaults() throws IOException {
@@ -316,14 +317,14 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
             {
                 "model_id": "%s",
                 "rate_limit": {
                     "requests_per_minute": %d
                 }
             }
-            """, TEST_MODEL_ID, DEFAULT_RATE_LIMIT)));
+            """, TEST_MODEL_ID, DEFAULT_RATE_LIMIT))));
     }
 
     @Override

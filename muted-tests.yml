@@ -264,9 +264,6 @@ tests:
 - class: org.elasticsearch.xpack.prometheus.PrometheusMetadataRestIT
   method: testMultipleEntriesForSameMetricAcrossStreams
   issue: https://github.com/elastic/elasticsearch/issues/147170
-- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
-  method: testNonOperatorUserCanCallAnalyzeRepositoryAPI
-  issue: https://github.com/elastic/elasticsearch/issues/147171
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array}
   issue: https://github.com/elastic/elasticsearch/issues/147205

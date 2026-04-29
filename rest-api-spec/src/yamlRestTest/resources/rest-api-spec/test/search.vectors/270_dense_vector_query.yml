@@ -1,6 +1,7 @@
 setup:
   - requires:
       cluster_features: "search.vectors.dense_vector_query"
+      test_runner_features: "close_to"
       reason: 'dense_vector query introduced in 9.5'
 
   - do:
@@ -88,6 +89,8 @@ setup:
 
 ---
 "dense_vector exact query against a flat index":
+  # FLAT, l2_norm field. Raw path = codec path for non-quantized index.
+  # Lucene EUCLIDEAN.compare = 1 / (1 + sumOfSquaredDifferences). No quantization noise.
   - do:
       search:
         index: dv_flat
@@ -101,9 +104,20 @@ setup:
   - match: {hits.total.value: 3}
   - match: {hits.hits.0._id: "2"}
   - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+  # doc 2: distance² = 109, score = 1/110
+  - close_to: {hits.hits.0._score: {value: 0.00909091, error: 0.000001}}
+  - match: {hits.hits.1._id: "3"}
+  # doc 3: distance² = 463.69, score = 1/464.69
+  - close_to: {hits.hits.1._score: {value: 0.00215197, error: 0.000001}}
+  - match: {hits.hits.2._id: "1"}
+  # doc 1: distance² ≈ 99925.48, score ≈ 1/99926.48
+  - close_to: {hits.hits.2._score: {value: 0.00001001, error: 0.000001}}
 
 ---
 "dense_vector exact query against quantized index uses raw scoring by default":
+  # int8_hnsw, cosine. Field is NORMALIZE_COSINE so stored vectors are unit-normalized at index time
+  # and the codec uses DOT_PRODUCT internally. Query is normalized in the raw path; vectorValue(ord)
+  # returns int8-dequantized floats, hence ~0.01 tolerance.
   - do:
       search:
         index: dv_int8_hnsw
@@ -116,9 +130,19 @@ setup:
 
   - match: {hits.total.value: 3}
   - match: {hits.hits.0._id: "3"}
+  # doc 3 stored = query (both normalize to identical unit vector) ⇒ dot ≈ 1, score = (1+1)/2 = 1.0
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.01}}
+  - match: {hits.hits.1._id: "1"}
+  # doc 1 normalized dot ≈ 0.9428, score ≈ 0.9714
+  - close_to: {hits.hits.1._score: {value: 0.9714, error: 0.01}}
+  - match: {hits.hits.2._id: "2"}
+  # doc 2 normalized dot ≈ 0.8806, score ≈ 0.9403
+  - close_to: {hits.hits.2._score: {value: 0.9403, error: 0.01}}
 
 ---
 "dense_vector exact query opts in to quantized scoring":
+  # Same field/data as above but quantized: true ⇒ codec-bound int8 scorer. Scores are close to the
+  # raw path but use int8 dot product directly, hence the same ~0.01 tolerance.
   - do:
       search:
         index: dv_int8_hnsw
@@ -132,9 +156,17 @@ setup:
 
   - match: {hits.total.value: 3}
   - match: {hits.hits.0._id: "3"}
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.01}}
+  - match: {hits.hits.1._id: "1"}
+  - close_to: {hits.hits.1._score: {value: 0.9714, error: 0.01}}
+  - match: {hits.hits.2._id: "2"}
+  - close_to: {hits.hits.2._score: {value: 0.9403, error: 0.01}}
 
 ---
 "dense_vector exact query with similarity_function override":
+  # FLAT, l2_norm field, but query overrides to max_inner_product. With dot products on the raw
+  # vectors, doc 1 (cow) wins on inner product even though doc 2 wins on L2 distance — confirming
+  # the override actually drives scoring.
   - do:
       search:
         index: dv_flat
@@ -147,6 +179,15 @@ setup:
               similarity_function: max_inner_product
 
   - match: {hits.total.value: 3}
+  - match: {hits.hits.0._id: "1"}
+  # doc 1: dot = 58693.902 → score = 58694.902 (Lucene scaleMaxInnerProductScore)
+  - close_to: {hits.hits.0._score: {value: 58694.902, error: 0.01}}
+  - match: {hits.hits.1._id: "3"}
+  # doc 3: dot = 34701.79 → score = 34702.79
+  - close_to: {hits.hits.1._score: {value: 34702.79, error: 0.01}}
+  - match: {hits.hits.2._id: "2"}
+  # doc 2: dot = 33685.29 → score = 33686.29
+  - close_to: {hits.hits.2._score: {value: 33686.29, error: 0.01}}
 
 ---
 "dense_vector exact query rejects missing query_vector and query_vector_builder":

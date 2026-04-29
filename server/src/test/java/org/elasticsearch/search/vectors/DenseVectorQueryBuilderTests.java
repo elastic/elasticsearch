@@ -70,11 +70,13 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
             VectorSimilarityQuery vectorSimilarityQuery = (VectorSimilarityQuery) query;
             query = vectorSimilarityQuery.getInnerKnnQuery();
         }
+        assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
+        DenseVectorQuery.Floats floats = (DenseVectorQuery.Floats) query;
         boolean useCodecPath = Boolean.TRUE.equals(queryBuilder.getQuantized()) && queryBuilder.getSimilarityFunction() == null;
         if (useCodecPath) {
-            assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
+            assertNull("codec path should not carry an explicit function", floats.getFunction());
         } else {
-            assertThat(query, instanceOf(DenseVectorQuery.RawFloats.class));
+            assertNotNull("raw path must carry an explicit function", floats.getFunction());
         }
     }
 

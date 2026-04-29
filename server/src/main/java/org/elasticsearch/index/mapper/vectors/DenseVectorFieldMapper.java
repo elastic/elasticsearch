@@ -2942,27 +2942,24 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("[" + VectorSimilarity.L2_NORM + "] is the only supported similarity for bit vectors");
             }
             VectorSimilarity effectiveSimilarity = similarityOverride != null ? similarityOverride : similarity;
+            // null function ⇒ use codec-bound scorer; non-null ⇒ raw iteration with this function.
+            VectorSimilarityFunction function = (useQuantized && similarityOverride == null)
+                ? null
+                : (similarityOverride != null
+                    ? toLuceneFunction(effectiveSimilarity)
+                    : effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType()));
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
-            Query knnQuery;
-            boolean codecPath = useQuantized && similarityOverride == null;
-            if (codecPath) {
-                knnQuery = switch (element.elementType()) {
-                    case BYTE -> createExactKnnByteQuery(resolvedQueryVector.asByteVector());
-                    case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(resolvedQueryVector.asFloatVector());
-                    case BIT -> createExactKnnBitQuery(resolvedQueryVector.asByteVector());
-                };
-            } else {
-                boolean isOverridden = similarityOverride != null;
-                knnQuery = switch (element.elementType()) {
-                    case BYTE -> createRawExactKnnByteQuery(resolvedQueryVector.asByteVector(), effectiveSimilarity, isOverridden);
-                    case FLOAT, BFLOAT16 -> createRawExactKnnFloatQuery(
-                        resolvedQueryVector.asFloatVector(),
-                        effectiveSimilarity,
-                        isOverridden
-                    );
-                    case BIT -> createExactKnnBitQuery(resolvedQueryVector.asByteVector());
-                };
-            }
+            Query knnQuery = switch (element.elementType()) {
+                case BYTE -> createExactKnnByteQuery(resolvedQueryVector.asByteVector(), effectiveSimilarity, function);
+                case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(
+                    resolvedQueryVector.asFloatVector(),
+                    effectiveSimilarity,
+                    function,
+                    similarityOverride != null
+                );
+                // BIT has no separate quantized representation — codec scorer is always raw Hamming distance.
+                case BIT -> createExactKnnBitQuery(resolvedQueryVector.asByteVector());
+            };
             if (vectorSimilarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -2982,62 +2979,40 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return new DenseVectorQuery.Bytes(queryVector, name());
         }
 
-        private Query createExactKnnByteQuery(byte[] queryVector) {
-            element.checkDimensions(dims, queryVector.length);
-            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
-                element.checkVectorMagnitude(similarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
-            }
-            return new DenseVectorQuery.Bytes(queryVector, name());
-        }
-
-        private Query createExactKnnFloatQuery(float[] queryVector) {
-            element.checkDimensions(dims, queryVector.length);
-            element.checkVectorBounds(queryVector);
-            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
-                element.checkVectorMagnitude(similarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
-                if (isNormalized() && element.isUnitVector(squaredMagnitude) == false) {
-                    float length = (float) Math.sqrt(squaredMagnitude);
-                    queryVector = Arrays.copyOf(queryVector, queryVector.length);
-                    for (int i = 0; i < queryVector.length; i++) {
-                        queryVector[i] /= length;
-                    }
-                }
-            }
-            return new DenseVectorQuery.Floats(queryVector, name());
-        }
-
-        private Query createRawExactKnnByteQuery(byte[] queryVector, VectorSimilarity effectiveSimilarity, boolean isOverridden) {
+        private Query createExactKnnByteQuery(byte[] queryVector, VectorSimilarity effectiveSimilarity, VectorSimilarityFunction function) {
             element.checkDimensions(dims, queryVector.length);
             if (effectiveSimilarity == VectorSimilarity.DOT_PRODUCT || effectiveSimilarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(effectiveSimilarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
             }
-            VectorSimilarityFunction function = isOverridden
-                ? toLuceneFunction(effectiveSimilarity)
-                : effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType());
-            return new DenseVectorQuery.RawBytes(queryVector, name(), function);
+            return new DenseVectorQuery.Bytes(queryVector, name(), function);
         }
 
-        private Query createRawExactKnnFloatQuery(float[] queryVector, VectorSimilarity effectiveSimilarity, boolean isOverridden) {
+        private Query createExactKnnFloatQuery(
+            float[] queryVector,
+            VectorSimilarity effectiveSimilarity,
+            VectorSimilarityFunction function,
+            boolean isOverridden
+        ) {
             element.checkDimensions(dims, queryVector.length);
             element.checkVectorBounds(queryVector);
             if (effectiveSimilarity == VectorSimilarity.DOT_PRODUCT || effectiveSimilarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(effectiveSimilarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
                 if (isOverridden == false && isNormalized() && element.isUnitVector(squaredMagnitude) == false) {
-                    float length = (float) Math.sqrt(squaredMagnitude);
-                    queryVector = Arrays.copyOf(queryVector, queryVector.length);
-                    for (int i = 0; i < queryVector.length; i++) {
-                        queryVector[i] /= length;
-                    }
+                    queryVector = normalizeQueryVector(queryVector, squaredMagnitude);
                 }
             }
-            VectorSimilarityFunction function = isOverridden
-                ? toLuceneFunction(effectiveSimilarity)
-                : effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType());
-            return new DenseVectorQuery.RawFloats(queryVector, name(), function);
+            return new DenseVectorQuery.Floats(queryVector, name(), function);
+        }
+
+        private static float[] normalizeQueryVector(float[] queryVector, float squaredMagnitude) {
+            float length = (float) Math.sqrt(squaredMagnitude);
+            float[] normalized = Arrays.copyOf(queryVector, queryVector.length);
+            for (int i = 0; i < normalized.length; i++) {
+                normalized[i] /= length;
+            }
+            return normalized;
         }
 
         private static VectorSimilarityFunction toLuceneFunction(VectorSimilarity similarity) {
@@ -3186,9 +3161,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
-                var exactKnnQuery = parentFilter != null
-                    ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnByteQuery(queryVector))
-                    : createExactKnnByteQuery(queryVector);
+                Query bytesQuery = new DenseVectorQuery.Bytes(queryVector, name());
+                var exactKnnQuery = parentFilter != null ? new DiversifyingParentBlockQuery(parentFilter, bytesQuery) : bytesQuery;
                 knnQuery = filter == null
                     ? exactKnnQuery
                     : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
@@ -3261,9 +3235,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
-                var exactKnnQuery = parentFilter != null
-                    ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnFloatQuery(queryVector))
-                    : createExactKnnFloatQuery(queryVector);
+                Query floatsQuery = new DenseVectorQuery.Floats(queryVector, name());
+                var exactKnnQuery = parentFilter != null ? new DiversifyingParentBlockQuery(parentFilter, floatsQuery) : floatsQuery;
                 knnQuery = filter == null
                     ? exactKnnQuery
                     : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)

@@ -189,6 +189,18 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Whether this mapper can be driven through {@link #parse(DocumentParserContext)} by the
+     * bulk batch-indexing fast path (see {@code ShardBatchMapper}). The fast path pre-resolves
+     * one mapper per schema column and bypasses the normal document-level traversal, so mappers
+     * that rely on the surrounding parsing flow — scripts, {@code copy_to}, multi-fields,
+     * dimensions, compound structures, etc. — must return {@code false}. Defaults to
+     * {@code false}; supported mappers override after validating their configuration.
+     */
+    public boolean supportsBatchIndexing() {
+        return false;
+    }
+
+    /**
      * Parse the field value using the provided {@link DocumentParserContext}.
      */
     public void parse(DocumentParserContext context) throws IOException {

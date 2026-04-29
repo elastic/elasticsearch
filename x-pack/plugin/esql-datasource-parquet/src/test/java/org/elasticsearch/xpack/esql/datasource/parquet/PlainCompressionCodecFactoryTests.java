@@ -135,12 +135,49 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> factory.getCompressor(CompressionCodecName.BROTLI));
     }
 
-    public void testReleaseClears() {
-        factory.getDecompressor(CompressionCodecName.SNAPPY);
-        factory.getCompressor(CompressionCodecName.GZIP);
+    public void testReleaseIsNoop() {
+        BytesInputDecompressor before = factory.getDecompressor(CompressionCodecName.SNAPPY);
+        BytesInputCompressor compressorBefore = factory.getCompressor(CompressionCodecName.GZIP);
         factory.release();
-        BytesInputDecompressor d = factory.getDecompressor(CompressionCodecName.SNAPPY);
-        assertNotNull(d);
+        // The factory holds stateless adapters whose backing JNI libraries cannot be unloaded;
+        // release() is a no-op and the cached instances remain valid for reuse.
+        assertSame(before, factory.getDecompressor(CompressionCodecName.SNAPPY));
+        assertSame(compressorBefore, factory.getCompressor(CompressionCodecName.GZIP));
+    }
+
+    /**
+     * Regression test: the factory is shared across all driver threads of an ESQL query, so
+     * concurrent calls to {@link PlainCompressionCodecFactory#getDecompressor} and
+     * {@link PlainCompressionCodecFactory#getCompressor} must be safe and must return the same
+     * cached instance per codec. An earlier version backed the lookup with a plain {@code HashMap}
+     * + {@code computeIfAbsent}, which raced under load.
+     */
+    public void testConcurrentLookupReturnsSameInstance() {
+        int threads = 16;
+        int iterationsPerThread = 200;
+        CompressionCodecName[] codecs = new CompressionCodecName[] {
+            CompressionCodecName.UNCOMPRESSED,
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.LZ4_RAW };
+
+        startInParallel(threads, t -> {
+            for (int i = 0; i < iterationsPerThread; i++) {
+                CompressionCodecName codec = codecs[i % codecs.length];
+                BytesInputDecompressor d = factory.getDecompressor(codec);
+                BytesInputCompressor c = factory.getCompressor(codec);
+                assertNotNull(d);
+                assertNotNull(c);
+                // Identity must hold even mid-race; the holder must hand out the same instance to all callers.
+                assertSame(d, factory.getDecompressor(codec));
+                assertSame(c, factory.getCompressor(codec));
+            }
+        });
+        for (CompressionCodecName codec : codecs) {
+            assertSame(factory.getDecompressor(codec), factory.getDecompressor(codec));
+            assertSame(factory.getCompressor(codec), factory.getCompressor(codec));
+        }
     }
 
     private void assertRoundTrip(CompressionCodecName codec) throws IOException {

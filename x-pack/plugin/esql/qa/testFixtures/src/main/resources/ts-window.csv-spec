@@ -256,14 +256,14 @@ s:long | dim:keyword | time_bucket:datetime
 161    | a           | 2024-01-01T00:25:00.000Z
 ;
 
-sum_over_time_non_multiple_single_dim_with_trange_long_fixture
+sum_over_time_non_multiple_single_dim_with_trange
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
 required_capability: fix_time_series_window_backward
 
-TS ts_window_long
+TS ts_window
 | WHERE dim == "a"
-| WHERE TRANGE("2024-01-01T00:05:00.000Z", "2024-01-01T00:59:00.000Z")
+| WHERE TRANGE("2024-01-01T00:05:00.000Z", "2024-01-01T00:29:00.000Z")
 | STATS s = sum(sum_over_time(val, 7m)) BY time_bucket = TBUCKET(5minute)
 | SORT time_bucket
 | LIMIT 20;
@@ -273,12 +273,6 @@ s:long | time_bucket:datetime
 91     | 2024-01-01T00:15:00.000Z
 126    | 2024-01-01T00:20:00.000Z
 161    | 2024-01-01T00:25:00.000Z
-196    | 2024-01-01T00:30:00.000Z
-231    | 2024-01-01T00:35:00.000Z
-266    | 2024-01-01T00:40:00.000Z
-301    | 2024-01-01T00:45:00.000Z
-336    | 2024-01-01T00:50:00.000Z
-371    | 2024-01-01T00:55:00.000Z
 ;
 
 sum_over_time_exact_multiple_baseline

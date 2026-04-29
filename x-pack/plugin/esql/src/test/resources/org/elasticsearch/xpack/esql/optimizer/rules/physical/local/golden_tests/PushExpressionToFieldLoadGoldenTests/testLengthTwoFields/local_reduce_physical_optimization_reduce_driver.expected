@@ -1,3 +1,0 @@
-ExchangeSinkExec[[$$last_name$sum{r}#0, $$last_name$seen{r}#1, $$first_name$sum{r}#2, $$first_name$seen{r}#3],false]
-\_AggregateExec[[],[SUM($$LENGTH(last_nam>$SUM$0{r$}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS last_name#5, SUM($$LENGTH(first_na>$SUM$1{r$}#6,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS first_name#7],INTERMEDIATE,[$$last_name$sum{r}#8, $$last_name$seen{r}#9, $$first_name$sum{r}#10, $$first_name$seen{r}#11],16]
-  \_ExchangeSourceExec[[$$last_name$sum{r}#0, $$last_name$seen{r}#1, $$first_name$sum{r}#2, $$first_name$seen{r}#3],false]

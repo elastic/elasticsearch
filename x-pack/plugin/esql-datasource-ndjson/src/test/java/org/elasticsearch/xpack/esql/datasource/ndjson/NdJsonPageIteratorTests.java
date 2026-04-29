@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.hamcrest.Matchers;
+import org.junit.After;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -59,6 +60,21 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+    }
+
+    /**
+     * Tests below exercise non-strict {@link ErrorPolicy} paths which now emit response-header
+     * warnings via {@code HeaderWarning.addWarning(...)}. Drop them so the parent
+     * {@code ensureNoWarnings} post-check passes.
+     */
+    @After
+    public void clearWarningHeaders() {
+        if (threadContext != null) {
+            // Swap in a fresh empty context (we deliberately do not restore() - the parent
+            // ESTestCase provides a fresh threadContext for the next test, so the stashed one
+            // can be discarded).
+            threadContext.stashContext();
+        }
     }
 
     public void testIterator() throws IOException {
@@ -195,7 +211,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         try (
             InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(
                 new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)),
-                ErrorPolicy.STRICT
+                ErrorPolicy.STRICT,
+                "test://input"
             )
         ) {
             assertEquals("{\"id\":1}\n{\"id\":2}\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
@@ -206,7 +223,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         try (
             InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(
                 new ByteArrayInputStream("partial-only".getBytes(StandardCharsets.UTF_8)),
-                ErrorPolicy.STRICT
+                ErrorPolicy.STRICT,
+                "test://input"
             )
         ) {
             assertEquals(0, trimmed.readAllBytes().length);
@@ -214,7 +232,13 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testTrimLastPartialLineEmptyStream() throws IOException {
-        try (InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(new ByteArrayInputStream(new byte[0]), ErrorPolicy.STRICT)) {
+        try (
+            InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(
+                new ByteArrayInputStream(new byte[0]),
+                ErrorPolicy.STRICT,
+                "test://input"
+            )
+        ) {
             assertEquals(0, trimmed.readAllBytes().length);
         }
     }
@@ -222,7 +246,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /** Input already ends on a line feed: nothing after the last delimiter to trim. */
     public void testTrimLastPartialLineInputEndsWithNewline() throws IOException {
         byte[] data = "{\"x\":1}\n".getBytes(StandardCharsets.UTF_8);
-        try (InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(new ByteArrayInputStream(data), ErrorPolicy.STRICT)) {
+        try (
+            InputStream trimmed = NdJsonPageIterator.trimLastPartialLine(new ByteArrayInputStream(data), ErrorPolicy.STRICT, "test://input")
+        ) {
             assertArrayEquals(data, trimmed.readAllBytes());
         }
     }
@@ -233,7 +259,14 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      */
     public void testTrimLastPartialLineAcrossSmallChunks() throws IOException {
         byte[] payload = "aa\nbb\nPART".getBytes(StandardCharsets.UTF_8);
-        try (InputStream trimmed = new TrimLastPartialLineInputStream(new ByteArrayInputStream(payload), 4, ErrorPolicy.STRICT)) {
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                4,
+                ErrorPolicy.STRICT,
+                "test://input"
+            )
+        ) {
             assertEquals("aa\nbb\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
         }
     }
@@ -258,7 +291,14 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         terminal[3000] = '\n';
         parts.add(terminal);
 
-        try (InputStream trimmed = new TrimLastPartialLineInputStream(new ChainedByteChunksStream(parts), trimChunk, ErrorPolicy.STRICT)) {
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ChainedByteChunksStream(parts),
+                trimChunk,
+                ErrorPolicy.STRICT,
+                "test://input"
+            )
+        ) {
             assertEquals(2000, trimmed.readNBytes(2000).length);
             byte[] tail = trimmed.readAllBytes();
             assertEquals(5001 - 2000 + (4L * trimChunk) + 3001, tail.length);
@@ -326,7 +366,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         int chunk = 8192;
         long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
         try (
-            InputStream trimmed = new TrimLastPartialLineInputStream(new FiniteBytesWithoutNewline(streamLen), chunk, ErrorPolicy.STRICT)
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new FiniteBytesWithoutNewline(streamLen),
+                chunk,
+                ErrorPolicy.STRICT,
+                "test://input"
+            )
         ) {
             IOException ex = expectThrows(IOException.class, trimmed::readAllBytes);
             assertThat(ex.getMessage(), Matchers.containsString(TrimLastPartialLineInputStream.MAX_CARRY.toString()));
@@ -341,7 +386,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         int chunk = 8192;
         long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
         try (
-            InputStream trimmed = new TrimLastPartialLineInputStream(new FiniteBytesWithoutNewline(streamLen), chunk, ErrorPolicy.LENIENT)
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new FiniteBytesWithoutNewline(streamLen),
+                chunk,
+                ErrorPolicy.LENIENT,
+                "test://input"
+            )
         ) {
             assertEquals(0, trimmed.readAllBytes().length);
         }
@@ -491,6 +541,74 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertEquals(3, id.getInt(1));
             assertFalse(iterator.hasNext());
         }
+    }
+
+    public void testMalformedLineEmitsResponseWarningHeader() throws IOException {
+        String ndjson = """
+            {"id":1}
+            {{{not-an-object
+            {"id":3}
+            """;
+        var object = new BytesStorageObject("memory://warn.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next();
+            }
+        }
+        List<String> warnings = drainWarnings();
+        // 1 summary + 1 detail
+        assertEquals(2, warnings.size());
+        assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
+        assertTrue("Summary should mention the file path, got: " + warnings.get(0), warnings.get(0).contains("memory://warn.ndjson"));
+        assertTrue("Detail should mention the malformed row, got: " + warnings.get(1), warnings.get(1).contains("Malformed NDJSON"));
+    }
+
+    public void testMalformedLinesOverflowEmitsCappedHeaders() throws IOException {
+        // Mix valid and invalid lines so the SKIP_ROW path triggers more than MAX_ADDED_WARNINGS times.
+        StringBuilder ndjson = new StringBuilder();
+        for (int i = 1; i <= 30; i++) {
+            ndjson.append("{{{not-an-object-").append(i).append('\n');
+        }
+        var object = new BytesStorageObject("memory://overflow.ndjson", ndjson.toString().getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(50).errorPolicy(ErrorPolicy.LENIENT).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next();
+            }
+        }
+        List<String> warnings = drainWarnings();
+        // 1 summary + up to 20 details + 1 overflow notice (= 22). NDJSON message variants may differ
+        // slightly per line, so we check the bounds rather than an exact equality.
+        assertTrue("expected at least summary + 20 details + overflow, got: " + warnings.size(), warnings.size() >= 22);
+        assertTrue("First warning should be the summary, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
+        assertTrue(
+            "Last warning should mention overflow, got: " + warnings.get(warnings.size() - 1),
+            warnings.get(warnings.size() - 1).contains("further warnings suppressed")
+        );
+    }
+
+    /**
+     * Reads the response-header warnings emitted on the test thread and clears them so the parent
+     * {@code ensureNoWarnings} post-check passes. Returns the unwrapped warning messages.
+     */
+    private List<String> drainWarnings() {
+        List<String> raw = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+        List<String> messages = raw.stream()
+            .map(s -> org.elasticsearch.common.logging.HeaderWarning.extractWarningValueFromWarningHeader(s, false))
+            .toList();
+        threadContext.stashContext();
+        return messages;
     }
 
     public void testFailFastOnMalformedNdjsonLine() throws IOException {

@@ -27,15 +27,33 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Starts a version of Elasticsearch that has been unzipped into an empty directory,
- * instructing it to ask the OS for an unused port, grepping the logs for the port
- * it actually got, and writing a {@code ports} file with the port. This is only
- * required for versions of Elasticsearch before 5.0 because they do not support
- * writing a "ports" file.
+ * Starts an unpacked Elasticsearch distribution with {@code http.port: 0} (and matching transport settings),
+ * reads startup logs until it learns which HTTP port was chosen, then writes that port to a {@code ports} file for
+ * Gradle {@code AntFixture}-based tests.
+ * <p>
+ * This launcher was introduced because Elasticsearch versions before 5.0 did not write a dedicated ports file. The
+ * same mechanism is still reused for newer distributions (for example reindex-from-remote coverage against 7.x/8.x/9.x),
+ * where tests download an archive and need a single portable process that exposes the dynamic HTTP port to Gradle
+ * without hard-coding platform defaults.
  */
 public class OldElasticsearch {
 
     private static final Pattern INSTALL_DIR_MAJOR_VERSION = Pattern.compile("^elasticsearch(?:-oss)?-(\\d+)");
+
+    /**
+     * Prefer matching HTTP bind lines only (logger {@code org.elasticsearch.http.*}). Transport publishes a similar
+     * bound-address shape but under {@code org.elasticsearch.transport.*}, so matching generic {@code bound_addresses}
+     * text would capture the transport port and HTTP clients would fail.
+     */
+    private static final Pattern HTTP_PUBLISH_PORT = Pattern.compile(
+        ".*\\[o\\.e\\.h\\.[^]]+\\].*publish_address \\{[^}]*:(\\d+)\\}"
+    );
+
+    /** Legacy formats used by older distributions (console layout differs by major version). */
+    private static final Pattern[] LEGACY_HTTP_PORT_PATTERNS = new Pattern[] {
+        Pattern.compile("(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+127\\.0\\.0\\.1:(\\d+)"),
+        Pattern.compile("(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+\\[::1\\]:(\\d+)"),
+    };
 
     /**
      * Reads the install-directory name (for example {@code elasticsearch-8.12.2}) to decide transport settings.
@@ -123,6 +141,7 @@ public class OldElasticsearch {
          */
         Map<String, String> childEnv = subprocess.environment();
         childEnv.remove("CLASSPATH");
+        subprocess.redirectErrorStream(true);
         Process process = subprocess.start();
         System.out.println("Running " + command);
 
@@ -130,10 +149,9 @@ public class OldElasticsearch {
         int port = 0;
 
         Pattern pidPattern = Pattern.compile("pid\\[(\\d+)\\]");
-        Pattern httpPortPattern = Pattern.compile(
-            "(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+127\\.0\\.0\\.1:(\\d+)"
-        );
-        try (BufferedReader stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+        try (
+            BufferedReader stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))
+        ) {
             String line;
             while ((line = stdout.readLine()) != null && (pid == 0 || port == 0)) {
                 System.out.println(line);
@@ -143,11 +161,21 @@ public class OldElasticsearch {
                     System.out.println("Found pid:  " + pid);
                     continue;
                 }
-                m = httpPortPattern.matcher(line);
-                if (m.find()) {
-                    port = Integer.parseInt(m.group(2));
-                    System.out.println("Found port:  " + port);
-                    continue;
+                if (port == 0) {
+                    m = HTTP_PUBLISH_PORT.matcher(line);
+                    if (m.find()) {
+                        port = Integer.parseInt(m.group(1));
+                        System.out.println("Found port (HTTP publish_address):  " + port);
+                        continue;
+                    }
+                    for (Pattern legacy : LEGACY_HTTP_PORT_PATTERNS) {
+                        m = legacy.matcher(line);
+                        if (m.find()) {
+                            port = Integer.parseInt(m.group(2));
+                            System.out.println("Found port (legacy HTTP log):  " + port);
+                            break;
+                        }
+                    }
                 }
             }
         }

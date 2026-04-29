@@ -1915,11 +1915,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
 
-                boolean persistIvfSegmentConfig = XContentMapValues.nodeBooleanValue(
-                    indexOptionsMap.remove("persist_ivf_segment_config"),
-                    false
-                );
-
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQIVFIndexOptions(
                     clusterSize,
@@ -3223,7 +3218,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int adjustedK = k;
             // precedence: query oversample > persisted > mapping rescore_vector
             Float oversample = queryOversample;
-            if (oversample == null && indexOptions instanceof BBQIVFIndexOptions bbqIvf && indexReader != null) {
+            if (oversample == null && indexOptions instanceof BBQIVFIndexOptions && indexReader != null) {
                 float stored = readStoredBbqIvfRescoreOversample(indexReader, name());
                 if (Float.isFinite(stored)) {
                     oversample = stored;

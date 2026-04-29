@@ -102,6 +102,32 @@ public class ReindexMetadataTests extends ESTestCase {
         assertEquals("myRouting3", metadata.get(SliceIndexing.PARAM_NAME));
     }
 
+    public void testRoutingAndSliceAliasMapStateStayConsistent() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        metadata.put("_routing", "routing1");
+        assertTrue(metadata.containsKey("_routing"));
+        assertTrue(metadata.containsKey(SliceIndexing.PARAM_NAME));
+        assertTrue(metadata.containsValue("routing1"));
+        assertFalse(metadata.isRoutingFromSlice());
+
+        metadata.remove("_routing");
+        assertFalse(metadata.containsKey("_routing"));
+        assertFalse(metadata.containsKey(SliceIndexing.PARAM_NAME));
+        assertFalse(metadata.containsValue("routing1"));
+
+        metadata.put(SliceIndexing.PARAM_NAME, "slice1");
+        assertTrue(metadata.containsKey("_routing"));
+        assertTrue(metadata.containsKey(SliceIndexing.PARAM_NAME));
+        assertTrue(metadata.containsValue("slice1"));
+        assertTrue(metadata.isRoutingFromSlice());
+
+        metadata.remove(SliceIndexing.PARAM_NAME);
+        assertFalse(metadata.containsKey("_routing"));
+        assertFalse(metadata.containsKey(SliceIndexing.PARAM_NAME));
+        assertFalse(metadata.containsValue("slice1"));
+    }
+
     public void testSliceAlias() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertFalse(metadata.routingChanged());

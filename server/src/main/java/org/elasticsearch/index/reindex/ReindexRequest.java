@@ -112,7 +112,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
         if (false == routingIsValid()) {
             if (destination.isRoutingFromSlice()) {
-                e = addValidationError("[" + SliceIndexing.PARAM_NAME + "] must be [keep], [discard], [=<some value>] or a valid value", e);
+                e = addValidationError("[" + SliceIndexing.PARAM_NAME + "] must be [keep], [discard], or [=<some value>]", e);
             } else {
                 e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
             }
@@ -150,8 +150,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (routing == null) {
             return true;
         }
-        if (destination.isRoutingFromSlice() && isValidSliceRoutingOrCommand(routing) == false) {
-            return false;
+        if (destination.isRoutingFromSlice()) {
+            return isValidSliceRoutingCommand(routing);
         }
         if (routing.startsWith("=")) {
             return true;
@@ -162,7 +162,13 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         };
     }
 
-    private static boolean isValidSliceRoutingOrCommand(String routing) {
+    private static boolean isValidSliceRoutingCommand(String routing) {
+        if ("keep".equals(routing) || "discard".equals(routing)) {
+            return true;
+        }
+        if (routing.startsWith("=") == false) {
+            return false;
+        }
         final String sliceValue = routing.startsWith("=") ? routing.substring(1) : routing;
         try {
             SliceIndexing.validateUserSliceValue(sliceValue);

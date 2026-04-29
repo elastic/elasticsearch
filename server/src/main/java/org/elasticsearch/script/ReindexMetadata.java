@@ -101,12 +101,8 @@ public class ReindexMetadata extends Metadata {
     public Object put(String key, Object value) {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && (ROUTING.equals(key) || SLICE.equals(key))) {
             final Object previous = super.put(ROUTING, value);
-            if (SLICE.equals(key)) {
-                super.put(SLICE, value);
-                routingFromSlice = true;
-            } else {
-                routingFromSlice = false;
-            }
+            super.put(SLICE, value);
+            routingFromSlice = SLICE.equals(key);
             return previous;
         }
         return super.put(key, value);
@@ -116,9 +112,7 @@ public class ReindexMetadata extends Metadata {
     public Object remove(String key) {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && (ROUTING.equals(key) || SLICE.equals(key))) {
             final Object previous = super.remove(ROUTING);
-            if (SLICE.equals(key)) {
-                super.remove(SLICE);
-            }
+            super.remove(SLICE);
             routingFromSlice = false;
             return previous;
         }

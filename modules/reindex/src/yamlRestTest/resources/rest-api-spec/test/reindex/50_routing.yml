@@ -157,3 +157,4 @@
         id:      "2"
         routing: s1
   - match: { _routing: s1 }
+

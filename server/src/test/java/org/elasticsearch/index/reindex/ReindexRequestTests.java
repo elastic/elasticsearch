@@ -718,6 +718,23 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertTrue(request.getDestination().isRoutingFromSlice());
     }
 
+    public void testDestSliceLiteralFailsValidationWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, "s1");
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertThat(
+            validationException.getMessage(),
+            containsString("[" + SliceIndexing.PARAM_NAME + "] must be [keep], [discard], or [=<some value>]")
+        );
+    }
+
+    public void testDestSliceKeepPassesValidationWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, "keep");
+        assertNull(request.validate());
+    }
+
     public void testDestSliceAndRoutingAreMutuallyExclusive() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         BytesReference request;

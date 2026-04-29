@@ -84,6 +84,18 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         assertFalse(index.isRoutingFromSlice());
     }
 
+    public void testSetRoutingKeepsSliceAliasReadableButNotProvenance() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
+        IndexRequest index = applyScript((Map<String, Object> ctx) -> {
+            ctx.put("_routing", routing);
+            assertEquals(routing, ctx.get(SliceIndexing.PARAM_NAME));
+            assertTrue(ctx.containsKey(SliceIndexing.PARAM_NAME));
+        });
+        assertEquals(routing, index.routing());
+        assertFalse(index.isRoutingFromSlice());
+    }
+
     public void testSetSlice() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String slice = randomRealisticUnicodeOfLengthBetween(5, 20);

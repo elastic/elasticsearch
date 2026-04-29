@@ -113,7 +113,6 @@ public class Irate$Type$Aggregator {
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
         private final int dateFactor;
-        final BytesRef scratch = new BytesRef();
 
         $Type$IrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor) {
             this.bigArrays = bigArrays;

@@ -113,7 +113,6 @@ public class IrateLongAggregator {
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
         private final int dateFactor;
-        final BytesRef scratch = new BytesRef();
 
         LongIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor) {
             this.bigArrays = bigArrays;

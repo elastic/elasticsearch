@@ -60,19 +60,40 @@ final class PlainValueDecoder {
     }
 
     void readBinaries(BytesRef[] values, int offset, int count) {
-        for (int i = 0; i < count; i++) {
-            int length = buffer.getInt();
-            byte[] copy = new byte[length];
-            buffer.get(copy);
-            values[offset + i] = new BytesRef(copy);
+        if (buffer.hasArray()) {
+            byte[] backing = buffer.array();
+            int baseOffset = buffer.arrayOffset();
+            for (int i = 0; i < count; i++) {
+                int length = buffer.getInt();
+                int pos = buffer.position();
+                values[offset + i] = new BytesRef(backing, baseOffset + pos, length);
+                buffer.position(pos + length);
+            }
+        } else {
+            for (int i = 0; i < count; i++) {
+                int length = buffer.getInt();
+                byte[] copy = new byte[length];
+                buffer.get(copy);
+                values[offset + i] = new BytesRef(copy);
+            }
         }
     }
 
     void readFixedBinaries(BytesRef[] values, int offset, int count, int fixedLength) {
-        for (int i = 0; i < count; i++) {
-            byte[] copy = new byte[fixedLength];
-            buffer.get(copy);
-            values[offset + i] = new BytesRef(copy);
+        if (buffer.hasArray()) {
+            byte[] backing = buffer.array();
+            int baseOffset = buffer.arrayOffset();
+            for (int i = 0; i < count; i++) {
+                int pos = buffer.position();
+                values[offset + i] = new BytesRef(backing, baseOffset + pos, fixedLength);
+                buffer.position(pos + fixedLength);
+            }
+        } else {
+            for (int i = 0; i < count; i++) {
+                byte[] copy = new byte[fixedLength];
+                buffer.get(copy);
+                values[offset + i] = new BytesRef(copy);
+            }
         }
     }
 

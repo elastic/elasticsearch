@@ -1887,7 +1887,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
 
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
         assertThat("Test needs multiple row groups to exercise concurrency", ranges.size(), greaterThan(2));
 
         AtomicInteger totalRows = new AtomicInteger();
@@ -2335,6 +2335,89 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(totalRows, rowOffset);
         assertTrue(
             "expected the queue to grow past the DecodeBuffers slot count to actually exercise the bug, got max depth " + maxObservedDepth,
+            maxObservedDepth >= 3
+        );
+    }
+
+    /**
+     * Regression test for the zero-copy {@link BytesRef} optimisation in {@link PlainValueDecoder}
+     * and the dictionary cache in {@link DictionaryValueDecoder}. Models the producer/consumer
+     * boundary the same way as
+     * {@link #testEmittedPagesAreNotMutatedAcrossProducerConsumerBoundary()}: a queue lookahead
+     * ensures the consumer reads pages that were emitted several decode batches ago.
+     *
+     * <p>Two string columns are tested: {@code v_unique} has unique values per row (triggers PLAIN
+     * encoding once parquet-mr's dictionary threshold is exceeded), and {@code v_dict} has low
+     * cardinality (stays dictionary-encoded). Both exercise the code paths that now return
+     * {@link BytesRef} objects sharing backing arrays with the page buffer or the dictionary cache.
+     */
+    public void testStringColumnsNotCorruptedAcrossProducerConsumerBoundary() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("v_unique")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("v_dict")
+            .named("retention_test_string");
+
+        int batchSize = 32;
+        int totalRows = batchSize * 20;
+        int lookahead = 6;
+        String[] dictValues = { "alpha", "bravo", "charlie", "delta", "echo" };
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(totalRows);
+            for (int i = 0; i < totalRows; i++) {
+                Group g = factory.newGroup();
+                g.add("v_unique", "row-" + i);
+                g.add("v_dict", dictValues[i % dictValues.length]);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        Deque<Page> queue = new ArrayDeque<>();
+        int rowOffset = 0;
+        int maxObservedDepth = 0;
+        BytesRef scratch = new BytesRef();
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, batchSize)) {
+            while (true) {
+                while (queue.size() < lookahead && iterator.hasNext()) {
+                    queue.addLast(iterator.next());
+                }
+                if (queue.isEmpty()) break;
+                maxObservedDepth = Math.max(maxObservedDepth, queue.size());
+                Page page = queue.removeFirst();
+                try {
+                    int rows = page.getPositionCount();
+                    BytesRefBlock uniqueBlock = (BytesRefBlock) page.getBlock(0);
+                    BytesRefBlock dictBlock = (BytesRefBlock) page.getBlock(1);
+                    for (int r = 0; r < rows; r++) {
+                        int absRow = rowOffset + r;
+                        assertEquals(
+                            "unique string corrupted after queue lookahead (row=" + absRow + ")",
+                            new BytesRef("row-" + absRow),
+                            uniqueBlock.getBytesRef(r, scratch)
+                        );
+                        assertEquals(
+                            "dict string corrupted after queue lookahead (row=" + absRow + ")",
+                            new BytesRef(dictValues[absRow % dictValues.length]),
+                            dictBlock.getBytesRef(r, scratch)
+                        );
+                    }
+                    rowOffset += rows;
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertEquals(totalRows, rowOffset);
+        assertTrue(
+            "expected the queue to grow past 3 to exercise the zero-copy BytesRef paths, got max depth " + maxObservedDepth,
             maxObservedDepth >= 3
         );
     }

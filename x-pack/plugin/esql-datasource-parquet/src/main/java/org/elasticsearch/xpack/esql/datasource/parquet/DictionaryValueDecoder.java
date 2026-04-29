@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.io.api.Binary;
 import org.elasticsearch.xpack.esql.core.util.Check;
 
 import java.nio.ByteBuffer;
@@ -35,6 +34,7 @@ final class DictionaryValueDecoder {
     private int packedRemaining;
     private final int[] groupValues = new int[8];
     private int groupNext = 8;
+    private BytesRef[] cachedDictBytesRefs;
 
     void init(ByteBuffer valueBytes) {
         ByteBuffer dup = valueBytes.duplicate().order(ByteOrder.LITTLE_ENDIAN);
@@ -80,10 +80,16 @@ final class DictionaryValueDecoder {
     }
 
     void readBinaries(BytesRef[] values, int offset, int count, Dictionary dict) {
+        if (cachedDictBytesRefs == null) {
+            int size = dict.getMaxId() + 1;
+            cachedDictBytesRefs = new BytesRef[size];
+            for (int i = 0; i < size; i++) {
+                byte[] bytes = dict.decodeToBinary(i).getBytes();
+                cachedDictBytesRefs[i] = new BytesRef(bytes, 0, bytes.length);
+            }
+        }
         for (int i = 0; i < count; i++) {
-            Binary bin = dict.decodeToBinary(nextIndex());
-            byte[] bytes = bin.getBytes();
-            values[offset + i] = new BytesRef(bytes, 0, bytes.length);
+            values[offset + i] = cachedDictBytesRefs[nextIndex()];
         }
     }
 

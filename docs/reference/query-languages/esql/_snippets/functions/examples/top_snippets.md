@@ -54,7 +54,7 @@ This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning
 size, we have more control over the number of tokens that are used for semantic reranking.
 
 ```{applies_to}
-stack: preview 9.4.1
+stack: preview 9.5.0
 ```
 
 ```esql
@@ -74,7 +74,7 @@ returned snippets with `<em>` tags by default. To use different tags, set the `p
 to the desired opening and closing tags respectively.
 
 ```{applies_to}
-stack: preview 9.4.1
+stack: preview 9.5.0
 ```
 
 ```esql
@@ -92,7 +92,7 @@ which is useful when the text has already been chunked. Combine this with `highl
 `true` to highlight matched terms within each full value.
 
 ```{applies_to}
-stack: preview 9.4.1
+stack: preview 9.5.0
 ```
 
 ```esql

@@ -553,6 +553,7 @@ public class KnnSearcher {
         finalResults.overSamplingFactor = searchParameters.overSamplingFactor();
         finalResults.filterSelectivity = searchParameters.filterSelectivity();
         finalResults.numCandidates = searchParameters.numCandidates();
+        finalResults.topK = searchParameters.topK();
         finalResults.earlyTermination = searchParameters.earlyTermination();
         if (finalResults.totalIndexVectors > 0) {
             finalResults.actualVisitPercentage = (finalResults.averageVisited / finalResults.totalIndexVectors) * 100.0;

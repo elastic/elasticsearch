@@ -18,7 +18,6 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
-import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
@@ -28,7 +27,6 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
-import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
@@ -49,6 +47,7 @@ import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.HnswKnnVectorsWriter;
 import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -75,7 +74,7 @@ import static org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVecto
  * Writer that builds an Nvidia Carga Graph on GPU and then writes it into the Lucene99 HNSW format,
  * so that it can be searched on CPU with Lucene99HNSWVectorReader.
  */
-final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
+final class ES92GpuHnswVectorsWriter extends HnswKnnVectorsWriter {
     private static final Logger logger = LogManager.getLogger(ES92GpuHnswVectorsWriter.class);
     private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES92GpuHnswVectorsWriter.class);
     private static final int LUCENE99_HNSW_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
@@ -86,17 +85,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
     private final CuVSResourceManager cuVSResourceManager;
     private final long totalDeviceMemory;
-    private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorIndex;
     private final int M;
     private final int beamWidth;
-    private final FlatVectorsWriter flatVectorWriter;
-    private final FlatVectorsFormat flatVectorsFormat;
-    private FlatVectorsReader flatVectorsReader;
-    private boolean flatWriterClosed = false;
 
     private final List<FieldWriter> fields = new ArrayList<>();
-    private boolean finished;
     private final CuVSMatrix.DataType dataType;
 
     ES92GpuHnswVectorsWriter(
@@ -108,20 +101,18 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         FlatVectorsFormat flatVectorsFormat,
         FlatVectorsWriter flatVectorWriter
     ) throws IOException {
+        super(state, flatVectorsFormat, flatVectorWriter);
         this.totalDeviceMemory = totalDeviceMemory;
         assert cuVSResourceManager != null : "CuVSResources must not be null";
         this.cuVSResourceManager = cuVSResourceManager;
         this.M = M;
         this.beamWidth = beamWidth;
-        this.flatVectorWriter = flatVectorWriter;
-        this.flatVectorsFormat = flatVectorsFormat;
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
             assert flatVectorWriter instanceof Lucene99FlatVectorsWriter;
             dataType = CuVSMatrix.DataType.FLOAT;
         }
-        this.segmentWriteState = state;
         String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, LUCENE99_HNSW_META_EXTENSION);
         String indexDataFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
@@ -254,14 +245,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public void finish() throws IOException {
-        if (finished) {
-            throw new IllegalStateException("already finished");
-        }
-        finished = true;
-        if (flatWriterClosed == false) {
-            flatVectorWriter.finish();
-        }
-
+        super.finish();
         if (meta != null) {
             // write end of fields marker
             meta.writeInt(-1);
@@ -626,22 +610,6 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         };
     }
 
-    private void ensureFlatReaderOpen() throws IOException {
-        if (flatVectorsReader == null) {
-            flatVectorWriter.finish();
-            flatVectorWriter.close();
-            flatWriterClosed = true;
-            SegmentReadState readState = new SegmentReadState(
-                segmentWriteState.directory,
-                segmentWriteState.segmentInfo,
-                segmentWriteState.fieldInfos,
-                segmentWriteState.context,
-                segmentWriteState.segmentSuffix
-            );
-            flatVectorsReader = flatVectorsFormat.fieldsReader(readState);
-        }
-    }
-
     private void mergeByteVectorField(
         FieldInfo fieldInfo,
         MergeState mergeState,
@@ -906,7 +874,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public void close() throws IOException {
-        if (flatWriterClosed) {
+        if (isFlatWriterClosed()) {
             IOUtils.close(meta, vectorIndex, flatVectorsReader);
         } else {
             IOUtils.close(meta, vectorIndex, flatVectorWriter, flatVectorsReader);

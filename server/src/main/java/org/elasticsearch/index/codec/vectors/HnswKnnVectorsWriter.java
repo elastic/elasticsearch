@@ -40,8 +40,13 @@ public abstract class HnswKnnVectorsWriter extends KnnVectorsWriter {
     protected void ensureFlatReaderOpen() throws IOException {
         if (flatVectorsReader == null) {
             flatVectorWriter.finish();
-            flatVectorWriter.close();
-            flatWriterClosed = true;
+            try {
+                flatVectorWriter.close();
+            } finally {
+                // Mark the writer as closed even if close() threw, so a subsequent
+                // close() call from the cleanup path does not attempt it again.
+                flatWriterClosed = true;
+            }
             SegmentReadState readState = new SegmentReadState(
                 segmentWriteState.directory,
                 segmentWriteState.segmentInfo,
@@ -51,6 +56,10 @@ public abstract class HnswKnnVectorsWriter extends KnnVectorsWriter {
             );
             flatVectorsReader = flatVectorsFormat.fieldsReader(readState);
         }
+    }
+
+    protected boolean isFlatWriterClosed() {
+        return flatWriterClosed;
     }
 
     @Override

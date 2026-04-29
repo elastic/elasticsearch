@@ -2435,16 +2435,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         : "Query parameter [?f1] with value [" + pattern + "] declared as a constant, cannot be used as an identifier"
                 );
             }
-            // nulls
-            if (invalidParamPosition.contains("rename")) {
-                // rename null as null is allowed, there is no ParsingException or VerificationException thrown
-                // named parameter doesn't change this behavior, it will need to be revisited
-                continue;
-            }
+            // nulls: a defined-but-null param is rejected with a clear error in every position,
+            // including identifier-pattern positions (drop/keep/rename/enrich).
+            // For rename, the new name (?f2) is visited first, so the message references ?f2.
             expectError(
                 "from test | " + invalidParamPosition,
                 List.of(paramAsConstant("f1", null), paramAsConstant("f2", null)),
-                "Query parameter [?f1] is null or undefined"
+                invalidParamPosition.contains("rename")
+                    ? "Query parameter [?f2] is null or undefined, cannot be used as an identifier or pattern"
+                    : "Query parameter [?f1] is null or undefined"
+            );
+        }
+        // identifier-pattern positions: drop/keep/enrich
+        for (String identifierPatternPosition : List.of("drop ?f1", "keep ?f1", "enrich idx2 ON ?f1")) {
+            expectError(
+                "from test | " + identifierPatternPosition,
+                List.of(paramAsConstant("f1", null)),
+                "Query parameter [?f1] is null or undefined, cannot be used as an identifier or pattern"
             );
         }
         // enrich with wildcard as pattern or constant is not supported

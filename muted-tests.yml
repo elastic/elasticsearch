@@ -365,9 +365,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
   method: testEvaluateBlockWithNulls
   issue: https://github.com/elastic/elasticsearch/issues/147773
-- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
-  method: testSemanticTextOperations {p0=false}
-  issue: https://github.com/elastic/elasticsearch/issues/147776
 - class: org.elasticsearch.cluster.routing.IndexRoutingTests
   method: testRequiredRoutingUsesSliceMessageWhenSliceEnabled
   issue: https://github.com/elastic/elasticsearch/issues/147777
@@ -514,3 +511,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=search.vectors/41_knn_search_bbq_hnsw_bfloat16/Test index configured rescore vector score consistency}
   issue: https://github.com/elastic/elasticsearch/issues/147909
+- class: org.elasticsearch.xpack.ml.integration.MlDistributedFailureIT
+  method: testClusterWithTwoMlNodes_RunsDatafeed_GivenOriginalNodeGoesDown
+  issue: https://github.com/elastic/elasticsearch/issues/147914

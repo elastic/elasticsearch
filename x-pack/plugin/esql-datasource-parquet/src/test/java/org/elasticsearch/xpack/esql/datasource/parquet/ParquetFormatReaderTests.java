@@ -60,9 +60,11 @@ import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -2149,6 +2151,120 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 return StoragePath.of(locationUri);
             }
         };
+    }
+
+    /**
+     * Regression test for the {@code PageColumnReader} buffer-aliasing bug. Models the producer/
+     * consumer boundary deterministically in a single thread by maintaining a queue lookahead
+     * larger than the {@link DecodeBuffers} slot count, so every {@link Page} the consumer reads
+     * has been alive across several subsequent decodes by the producer - the same shape
+     * {@code AsyncExternalSourceBuffer} produces in production. See the {@code Block construction
+     * helpers} block in {@link PageColumnReader} for the bug mechanism.
+     *
+     * <p>All four affected primitive types are covered: longs and doubles (two-slot rotation in
+     * {@code DecodeBuffers}), ints and booleans (single slot - aliasing hits at queue depth 2).
+     * Without the fix each batch's decode mutates earlier emitted Blocks (typical failure:
+     * {@code expected:<0> but was:<160>}); with the fix every value equals its write-time row
+     * index.
+     */
+    public void testEmittedPagesAreNotMutatedAcrossProducerConsumerBoundary() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("v_long")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("v_int")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("v_double")
+            .required(PrimitiveType.PrimitiveTypeName.BOOLEAN)
+            .named("v_bool")
+            .named("retention_test_pc");
+
+        // batchSize must be a multiple of 8 so PlainValueDecoder.readBooleans does not skip
+        // bits across batch boundaries - that is an unrelated decoder issue we do not want to
+        // entangle with this regression.
+        int batchSize = 32;
+        int totalRows = batchSize * 20;
+        // Lookahead must exceed the DecodeBuffers slot count (2 for long/double, 1 for
+        // int/boolean) so the producer is guaranteed to reuse a buffer the consumer still
+        // references. 6 mirrors the typical AsyncExternalSourceBuffer queue depth.
+        int lookahead = 6;
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(totalRows);
+            for (int i = 0; i < totalRows; i++) {
+                Group g = factory.newGroup();
+                g.add("v_long", (long) i);
+                g.add("v_int", i);
+                g.add("v_double", (double) i);
+                // (i % 7) < 3 has period 7, which does not divide batchSize=32, so the
+                // boolean pattern differs between consecutive batches and aliasing actually
+                // shows up as a visible mutation.
+                g.add("v_bool", (i % 7) < 3);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        Deque<Page> queue = new ArrayDeque<>();
+        int rowOffset = 0;
+        int maxObservedDepth = 0;
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, batchSize)) {
+            while (true) {
+                // Producer: keep the queue full up to `lookahead`, mirroring the async buffer
+                // refilling ahead of the consumer.
+                while (queue.size() < lookahead && iterator.hasNext()) {
+                    queue.addLast(iterator.next());
+                }
+                if (queue.isEmpty()) break;
+                maxObservedDepth = Math.max(maxObservedDepth, queue.size());
+                // Consumer: pull the oldest queued page and verify its values. By construction
+                // the producer has already decoded `lookahead - 1` more pages into the same
+                // PageColumnReader since this page was emitted.
+                Page page = queue.removeFirst();
+                try {
+                    int rows = page.getPositionCount();
+                    LongBlock lb = (LongBlock) page.getBlock(0);
+                    IntBlock ib = (IntBlock) page.getBlock(1);
+                    DoubleBlock db = (DoubleBlock) page.getBlock(2);
+                    BooleanBlock bb = (BooleanBlock) page.getBlock(3);
+                    for (int r = 0; r < rows; r++) {
+                        long expected = rowOffset + r;
+                        assertEquals(
+                            "long value mutated after queue lookahead (page-rel row=" + r + ", abs=" + expected + ")",
+                            expected,
+                            lb.getLong(r)
+                        );
+                        assertEquals(
+                            "int value mutated after queue lookahead (page-rel row=" + r + ", abs=" + expected + ")",
+                            (int) expected,
+                            ib.getInt(r)
+                        );
+                        assertEquals(
+                            "double value mutated after queue lookahead (page-rel row=" + r + ", abs=" + expected + ")",
+                            (double) expected,
+                            db.getDouble(r),
+                            0.0
+                        );
+                        assertEquals(
+                            "boolean value mutated after queue lookahead (page-rel row=" + r + ", abs=" + expected + ")",
+                            (expected % 7) < 3,
+                            bb.getBoolean(r)
+                        );
+                    }
+                    rowOffset += rows;
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertEquals(totalRows, rowOffset);
+        assertTrue(
+            "expected the queue to grow past the DecodeBuffers slot count to actually exercise the bug, got max depth " + maxObservedDepth,
+            maxObservedDepth >= 3
+        );
     }
 
     public void testWithConfigOptimizedReaderTrue() {

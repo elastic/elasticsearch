@@ -115,8 +115,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
             var model = ContextualAiRerankModelTests.createModel(getUrl(webServer), TEST_API_KEY, TEST_MODEL_ID, null, null);
@@ -148,8 +146,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
             var model = ContextualAiRerankModelTests.createModel(
@@ -183,8 +179,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
             var model = ContextualAiRerankModelTests.createModel(
@@ -219,8 +213,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
             var model = ContextualAiRerankModelTests.createModel(getUrl(webServer), TEST_API_KEY, TEST_MODEL_ID, INITIAL_TEST_TOP_N, null);
@@ -247,8 +239,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "not_results": [

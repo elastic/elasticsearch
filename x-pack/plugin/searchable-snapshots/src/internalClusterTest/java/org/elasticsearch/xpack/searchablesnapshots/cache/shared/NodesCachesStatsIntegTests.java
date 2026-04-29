@@ -31,9 +31,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
@@ -63,7 +60,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         );
 
         final int nbDocs = randomIntBetween(500, 1000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs, between(2, 5), false, null)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs, between(2, 5), false, null, false)) {
             if (shardCount > 1) {
                 // Round-robin documents across shards so every shard holds documents.
                 indexer.setDocumentIdGenerator(counter -> {
@@ -134,7 +131,6 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
             assertThat(nodeCachesStats.getReads(), equalTo(0L));
             assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
-            assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
         }
 
         for (int i = 0; i < 20; i++) {
@@ -211,162 +207,6 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
                 assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
                 assertThat(nodeCachesStats.getReads(), equalTo(0L));
                 assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
-                assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
-            }
-        }
-    }
-
-    /// Demonstrates how the `writes > 0` assertion in testNodesCachesStats can fail.
-    /// For a query with no matches, only readWithBlobCache will be called (the BKD traversal short-circuits?).
-    /// But when the query matches something, the search uses readWithoutBlobCache (to read leaf data), which uses
-    /// the SharedBlobCacheService and increments the write count.
-    ///
-    /// To make this deterministic we control routing and queries explicitly.
-    /// Documents with id-field values `1..splitPoint` are routed to shard 0 and the rest to shard 1.
-    /// We only do searches that match doc ranges on shard 1.
-    /// TODO: remove this test before merging PR # 147708
-    public void testNodesCachesStatsZeroWritesRepro() throws Exception {
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        ensureStableCluster(internalCluster().getNodeNames().length);
-
-        final int numShards = 2;
-        final String index = randomIdentifier();
-        createIndex(
-            index,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                // In EsIntegTestCase: between(minimumNumberOfShards(), maximumNumberOfShards())
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                .build()
-        );
-
-        // Route docs with id-field values [1, splitPoint] to shard 0, the rest to shard 1.
-        // Shard formula is: Math.floorMod(Murmur3HashFunction.hash(_id), numShards).
-        // We iterate candidate _id strings until we find one that hashes to the target shard.
-        final int nbDocs = 500;
-        final int splitPoint = nbDocs / 2;
-        final Function<Long, String> docIdGenerator = counter -> {
-            final int targetShard = counter <= splitPoint ? 0 : 1;
-            for (long suffix = 0;; suffix++) {
-                final String candidate = counter + (suffix == 0L ? "" : "-" + suffix);
-                if (Math.floorMod(Murmur3HashFunction.hash(candidate), numShards) == targetShard) {
-                    return candidate;
-                }
-            }
-        };
-
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs, 1, false, null)) {
-            indexer.setDocumentIdGenerator(docIdGenerator);
-            indexer.start(nbDocs);
-            waitForDocs(nbDocs, indexer);
-        }
-        refresh(index);
-
-        final String repository = "repository-pruned";
-        createRepository(repository, FsRepository.TYPE);
-
-        final String snapshot = "snapshot-pruned";
-        createFullSnapshot(repository, snapshot);
-
-        assertAcked(indicesAdmin().prepareDelete(index));
-
-        final String mountedIndex = "mounted-index-pruned";
-        mountSnapshot(repository, snapshot, index, mountedIndex, Settings.EMPTY, Storage.SHARED_CACHE);
-        ensureYellowAndNoInitializingShards(mountedIndex);
-
-        assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
-
-        // Identify which node holds shard 0 and which holds shard 1.
-        final Map<Integer, String> shardToNodeId = new HashMap<>();
-        for (final ShardRouting sr : clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-            .get()
-            .getState()
-            .routingTable()
-            .index(mountedIndex)
-            .shardsWithState(ShardRoutingState.STARTED)) {
-            if (sr.assignedToNode()) {
-                shardToNodeId.put(sr.shardId().id(), sr.currentNodeId());
-            }
-        }
-        final String shard0NodeId = shardToNodeId.get(0);
-        final String shard1NodeId = shardToNodeId.get(1);
-        assumeTrue("both shards must be on different nodes", shard0NodeId.equals(shard1NodeId) == false);
-
-        // Every search queries id >= splitPoint + 1.
-        for (int i = 0; i < 20; i++) {
-            logger.info(" ---> search query # {}", i);
-            prepareSearch(mountedIndex).setQuery(
-                // randomIntBetween(0, 1000) in original test
-                QueryBuilders.rangeQuery("id").gte(randomIntBetween(splitPoint + 1, 1000))
-            ).setSize(randomIntBetween(0, 1000)).get().decRef();
-        }
-
-        assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
-
-        // Logic from original test
-        final BroadcastResponse clearCacheResponse = client().execute(
-            ClearSearchableSnapshotsCacheAction.INSTANCE,
-            new ClearSearchableSnapshotsCacheRequest(mountedIndex)
-        ).actionGet();
-        assertThat(clearCacheResponse.getSuccessfulShards(), greaterThan(0));
-        assertThat(clearCacheResponse.getFailedShards(), equalTo(0));
-
-        final String[] nodesFrozenShards = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-            .get()
-            .getState()
-            .routingTable()
-            .index(mountedIndex)
-            .shardsWithState(ShardRoutingState.STARTED)
-            .stream()
-            .filter(ShardRouting::assignedToNode)
-            .map(ShardRouting::currentNodeId)
-            .collect(toSet())
-            .toArray(String[]::new);
-
-        final NodesCachesStatsResponse response = client().execute(
-            TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
-            new NodesRequest(nodesFrozenShards)
-        ).actionGet();
-        assertThat(
-            response.getNodes().stream().map(r -> r.getNode().getId()).collect(Collectors.toList()),
-            containsInAnyOrder(nodesFrozenShards)
-        );
-
-        assertThat(response.hasFailures(), equalTo(false));
-        for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {
-            final var nodeName = nodeCachesStats.getNode().getName();
-            final var numRegions = nodeCachesStats.getNumRegions();
-            final var writes = nodeCachesStats.getWrites();
-            final var bytesWritten = nodeCachesStats.getBytesWritten();
-            final var reads = nodeCachesStats.getReads();
-            final var bytesRead = nodeCachesStats.getBytesRead();
-            final var evictions = nodeCachesStats.getEvictions();
-            logger.info(
-                "nodeCachesStats for node [{}]: numRegions [{}], writes [{}], "
-                    + "bytes written [{}], reads [{}], bytes read [{}], evictions [{}]",
-                nodeName,
-                numRegions,
-                writes,
-                bytesWritten,
-                reads,
-                bytesRead,
-                evictions
-            );
-        }
-
-        for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {
-            if (nodeCachesStats.getNumRegions() > 0) {
-                assertThat(nodeCachesStats.getWrites(), greaterThan(0L));
-                assertThat(nodeCachesStats.getBytesWritten(), greaterThan(0L));
-                assertThat(nodeCachesStats.getReads(), greaterThan(0L));
-                assertThat(nodeCachesStats.getBytesRead(), greaterThan(0L));
-                assertThat(nodeCachesStats.getEvictions(), greaterThan(0L));
-            } else {
-                assertThat(nodeCachesStats.getWrites(), equalTo(0L));
-                assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
-                assertThat(nodeCachesStats.getReads(), equalTo(0L));
-                assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
-                assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
             }
         }
     }

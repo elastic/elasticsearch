@@ -324,8 +324,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     private interface Cache<K, T> extends Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
-        boolean containsKey(K cacheKey, int region);
-
         int forceEvict(Predicate<K> cacheKeyPredicate);
 
         void forceEvictAsync(Predicate<K> cacheKey);
@@ -1359,9 +1357,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     // nothing to read, skip
                     continue;
                 }
-                if (cache.containsKey(cacheKey, region) == false) {
-                    continue;
-                }
                 var fileRegion = lastAccessedRegion;
                 try {
                     fileRegion = cache.get(cacheKey, this.length, region);
@@ -1997,13 +1992,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
 
             return entry;
-        }
-
-        @Override
-        public boolean containsKey(KeyType cacheKey, int region) {
-            final RegionKey<KeyType> regionKey = new RegionKey<>(cacheKey, region);
-            final var entry = keyMapping.get(cacheKey.shardId(), regionKey);
-            return entry != null && entry.chunk.isEvicted() == false;
         }
 
         @Override

@@ -194,6 +194,46 @@ public class AggregateScanOperatorTests extends ESTestCase {
         }
     }
 
+    public void testOperatorPassesBoundedByteRangeToReader() throws IOException {
+        // Sanity check the bounded-range arithmetic: byteRangeEnd must be offset + length.
+        FileSplit split = newSplit("file:///bounded.parquet", 100, 900);
+        ExternalSliceQueue queue = new ExternalSliceQueue(List.of(split));
+        StubAggregateScanReader reader = new StubAggregateScanReader(1, false);
+
+        try (AggregateScanOperator op = newOperator(queue, reader)) {
+            List<Page> output = drain(op);
+            try {
+                assertEquals(1, output.size());
+            } finally {
+                output.forEach(Page::releaseBlocks);
+            }
+            assertEquals(1, reader.byteRanges.size());
+            assertEquals(100L, reader.byteRanges.get(0)[0]);
+            assertEquals(1000L, reader.byteRanges.get(0)[1]);
+        }
+    }
+
+    public void testOperatorClampsUnboundedLengthToMaxValue() throws IOException {
+        // FileSplit.length() is Long.MAX_VALUE for unbounded splits (single, undivided file).
+        // Naively computing offset + length would overflow to a negative number; the operator
+        // must clamp byteRangeEnd to Long.MAX_VALUE so the reader scans to EOF.
+        FileSplit split = newSplit("file:///unbounded.parquet", 1024, Long.MAX_VALUE);
+        ExternalSliceQueue queue = new ExternalSliceQueue(List.of(split));
+        StubAggregateScanReader reader = new StubAggregateScanReader(1, false);
+
+        try (AggregateScanOperator op = newOperator(queue, reader)) {
+            List<Page> output = drain(op);
+            try {
+                assertEquals(1, output.size());
+            } finally {
+                output.forEach(Page::releaseBlocks);
+            }
+            assertEquals(1, reader.byteRanges.size());
+            assertEquals(1024L, reader.byteRanges.get(0)[0]);
+            assertEquals("unbounded length must clamp to Long.MAX_VALUE, not overflow", Long.MAX_VALUE, reader.byteRanges.get(0)[1]);
+        }
+    }
+
     private AggregateScanOperator newOperator(ExternalSliceQueue queue, AggregateScanReader reader) {
         Alias countStar = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         AggregateScanSpec spec = AggregateScanOperator.Factory.lower(List.of(countStar), intermediatesFor(List.of(countStar)));
@@ -217,7 +257,11 @@ public class AggregateScanOperatorTests extends ESTestCase {
     }
 
     private static FileSplit newSplit(String uri) {
-        return new FileSplit("parquet", StoragePath.of(uri), 0, 1024, "parquet", Map.of(), Map.of());
+        return newSplit(uri, 0, 1024);
+    }
+
+    private static FileSplit newSplit(String uri, long offset, long length) {
+        return new FileSplit("parquet", StoragePath.of(uri), offset, length, "parquet", Map.of(), Map.of());
     }
 
     /**
@@ -258,6 +302,7 @@ public class AggregateScanOperatorTests extends ESTestCase {
         private final boolean failFirstOpen;
         private final boolean throwAfterIteratorExhausted;
         private int opened;
+        private final List<long[]> byteRanges = new ArrayList<>();
 
         StubAggregateScanReader(int pagesPerFile, boolean failFirstOpen) {
             this(pagesPerFile, failFirstOpen, false);
@@ -278,6 +323,7 @@ public class AggregateScanOperatorTests extends ESTestCase {
             long byteRangeEnd
         ) throws IOException {
             opened++;
+            byteRanges.add(new long[] { byteRangeStart, byteRangeEnd });
             if (failFirstOpen && opened == 1) {
                 throw new IOException("simulated open failure");
             }

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.ColumnReader;
+import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -55,14 +57,26 @@ import java.util.Set;
  * </ul>
  * Both paths produce a {@link Page} matching {@code spec.intermediateAttributes()}.
  * <p>
- * Multi-valued column semantics on the slow path:
+ * Aggregate semantics:
  * <ul>
- *   <li>{@code COUNT(field)} counts positions whose value is non-null.</li>
- *   <li>{@code MIN/MAX(field)} folds over all values within each position.</li>
+ *   <li><b>MIN/MAX(field)</b>: both paths fold over every leaf value (multi-valued positions
+ *       contribute every value). Matches the standard ESQL scan path.</li>
+ *   <li><b>COUNT(field)</b>: the slow path sums leaf values (matches
+ *       {@link org.elasticsearch.compute.aggregation.CountAggregatorFunction} — a row with
+ *       {@code [1, 2, 3]} contributes 3, not 1). The <i>fast path</i> uses
+ *       {@code rowCount - nullCount} from column statistics, which gives "rows with at least
+ *       one non-null value" — <b>wrong on multi-valued columns</b>. The same divergence
+ *       exists in {@code PushAggregatesToExternalSource#resolveFromStats} (planning-time
+ *       pushdown). Tracked separately; the future fix is to use
+ *       {@code ColumnChunkMetaData.getValueCount() - getNumNulls()} on both paths.</li>
  * </ul>
- * Multi-valued (Parquet maxRepLevel &gt; 0) columns are not supported on the slow path
- * in this implementation; rows for those columns are reported as {@code seen=false}.
- * Column statistics on multi-valued columns are still fast-path-eligible.
+ * Multi-valued (Parquet maxRepLevel &gt; 0) columns are supported on both paths. The fast
+ * path uses column statistics (scoped per column chunk regardless of repetition level).
+ * The slow path uses parquet-mr's {@link ColumnReader} via {@link ColumnReadStoreImpl}
+ * for mv columns, decoded into mv ESQL blocks by
+ * {@link ParquetColumnDecoding#readListColumn} — the same code the standard scan path
+ * uses — and folded into the same accumulators (which already iterate every leaf value
+ * within each position).
  * <p>
  * The iterator owns the supplied {@link ParquetFileReader} and closes it on
  * {@link #close()}.
@@ -75,6 +89,7 @@ final class ParquetAggregateScanIterator implements CloseableIterator<Page> {
     private final AggregateScanSpec spec;
     private final BlockFactory blockFactory;
     private final List<BlockMetaData> rowGroups;
+    private final MessageType schema;
     private final Map<String, ColumnInfo> columnInfoByDottedName;
     private final String createdBy;
     private final Set<String> projectedColumns;
@@ -87,6 +102,7 @@ final class ParquetAggregateScanIterator implements CloseableIterator<Page> {
         this.spec = spec;
         this.blockFactory = blockFactory;
         this.rowGroups = reader.getRowGroups();
+        this.schema = schema;
         this.createdBy = reader.getFileMetaData().getCreatedBy();
         this.projectedColumns = projectedColumnsOf(spec);
         this.columnInfoByDottedName = buildColumnInfoIndex(schema, projectedColumns);
@@ -102,17 +118,20 @@ final class ParquetAggregateScanIterator implements CloseableIterator<Page> {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
-        BlockMetaData rg = rowGroups.get(idx);
         int rgIndex = idx;
-        idx++;
+        BlockMetaData rg = rowGroups.get(rgIndex);
+        Page page;
         try {
-            if (statsCoverAllProjectedColumns(rg)) {
-                return buildPageFromStats(rg);
-            }
-            return buildPageFromRowData(rg, rgIndex);
+            page = statsCoverAllProjectedColumns(rg) ? buildPageFromStats(rg) : buildPageFromRowData(rg, rgIndex);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        // Advance only on success so a failure leaves the iterator positioned to retry the
+        // same row group (or report it again on next hasNext()). The current operator policy
+        // is to fail the query on any failure, so retry never happens, but this keeps the
+        // iterator's contract honest.
+        idx++;
+        return page;
     }
 
     @Override
@@ -246,21 +265,27 @@ final class ParquetAggregateScanIterator implements CloseableIterator<Page> {
 
     private Page buildPageFromRowData(BlockMetaData rg, int rgIndex) throws IOException {
         long rowCount = rg.getRowCount();
-        // Per-op accumulators; null means we couldn't compute (e.g. multi-valued column).
         Accumulator[] accs = createAccumulators();
         if (projectedColumns.isEmpty() == false) {
             PageReadStore pages = reader.readRowGroup(rgIndex);
+            ColumnReadStoreImpl mvStore = null;
             for (String column : projectedColumns) {
                 ColumnInfo ci = columnInfoByDottedName.get(column);
-                if (ci == null || ci.maxRepLevel() > 0) {
-                    // Unknown column or multi-valued: mark all ops referencing this column as unsupported.
+                if (ci == null) {
                     markColumnUnsupported(accs, column);
                     continue;
                 }
-                accumulateColumn(pages, ci, column, accs, rowCount);
+                if (ci.maxRepLevel() > 0) {
+                    if (mvStore == null) {
+                        mvStore = new ColumnReadStoreImpl(pages, new ParquetColumnDecoding.NoOpGroupConverter(schema), schema, createdBy);
+                    }
+                    accumulateMvColumn(mvStore, ci, column, accs, rowCount);
+                } else {
+                    accumulateFlatColumn(pages, ci, column, accs, rowCount);
+                }
             }
         }
-        // Apply CountStar (no column dependency).
+        // CountStar has no column dependency; fill it from the row group's row count.
         for (int i = 0; i < spec.ops().size(); i++) {
             if (spec.ops().get(i) instanceof AggOp.CountStar && accs[i] instanceof CountAccumulator c) {
                 c.setRowCount(rowCount);
@@ -269,7 +294,7 @@ final class ParquetAggregateScanIterator implements CloseableIterator<Page> {
         return assemblePageFromAccumulators(accs);
     }
 
-    private void accumulateColumn(PageReadStore pages, ColumnInfo ci, String column, Accumulator[] accs, long totalRows) {
+    private void accumulateFlatColumn(PageReadStore pages, ColumnInfo ci, String column, Accumulator[] accs, long totalRows) {
         ColumnDescriptor desc = ci.descriptor();
         // PageColumnReader is package-private; we share the same package, so direct use is fine.
         PageColumnReader pcr = new PageColumnReader(pages.getPageReader(desc), desc, ci, RowRanges.all(totalRows));
@@ -278,23 +303,65 @@ final class ParquetAggregateScanIterator implements CloseableIterator<Page> {
             int batch = (int) Math.min(remaining, SLOW_PATH_BATCH_SIZE);
             Block block = pcr.readBatch(batch, blockFactory);
             try {
-                int positionCount = block.getPositionCount();
-                for (int i = 0; i < spec.ops().size(); i++) {
-                    AggOp op = spec.ops().get(i);
-                    if (referencesColumn(op, column) == false) {
-                        continue;
-                    }
-                    Accumulator a = accs[i];
-                    if (a == null) {
-                        continue;
-                    }
-                    a.accumulate(block, positionCount);
-                }
+                feedAccumulators(block, column, accs);
             } finally {
                 Releasables.closeExpectNoException(block);
             }
             remaining -= batch;
         }
+    }
+
+    /**
+     * Slow path for multi-valued columns. {@link PageColumnReader} is flat-only, so we use
+     * parquet-mr's row-at-a-time {@link ColumnReader} (the same path the standard scan uses
+     * for list columns, see {@code ParquetFormatReader.ParquetColumnIterator}). Decodes one
+     * batch of rows into an mv ESQL {@link Block} via
+     * {@link ParquetColumnDecoding#readListColumn}, feeds it to the matching accumulators,
+     * and releases the block before the next batch.
+     * <p>
+     * Defensive guard: if the column's ESQL element type isn't one our accumulators can
+     * cast, fall back to {@link #markColumnUnsupported}. {@code esqlTypeFor} doesn't
+     * currently produce any such type, so this guards against future schema-mapping
+     * additions rather than any code path that fires today.
+     */
+    private void accumulateMvColumn(ColumnReadStoreImpl store, ColumnInfo ci, String column, Accumulator[] accs, long totalRows) {
+        if (isAccumulatorEligible(ci.esqlType()) == false) {
+            markColumnUnsupported(accs, column);
+            return;
+        }
+        ColumnReader cr = store.getColumnReader(ci.descriptor());
+        long remaining = totalRows;
+        while (remaining > 0) {
+            int batch = (int) Math.min(remaining, SLOW_PATH_BATCH_SIZE);
+            Block block = ParquetColumnDecoding.readListColumn(cr, ci, batch, blockFactory);
+            try {
+                feedAccumulators(block, column, accs);
+            } finally {
+                Releasables.closeExpectNoException(block);
+            }
+            remaining -= batch;
+        }
+    }
+
+    private void feedAccumulators(Block block, String column, Accumulator[] accs) {
+        int positionCount = block.getPositionCount();
+        for (int i = 0; i < spec.ops().size(); i++) {
+            if (referencesColumn(spec.ops().get(i), column) == false) {
+                continue;
+            }
+            Accumulator a = accs[i];
+            if (a == null) {
+                continue;
+            }
+            a.accumulate(block, positionCount);
+        }
+    }
+
+    private static boolean isAccumulatorEligible(DataType t) {
+        return switch (t) {
+            case INTEGER, LONG, COUNTER_LONG, DATETIME, DOUBLE, COUNTER_DOUBLE, BOOLEAN, KEYWORD, TEXT -> true;
+            default -> false;
+        };
     }
 
     private void markColumnUnsupported(Accumulator[] accs, String column) {
@@ -448,11 +515,12 @@ final class ParquetAggregateScanIterator implements CloseableIterator<Page> {
 
         @Override
         public void accumulate(Block block, int positionCount) {
-            // CountField: count positions whose value is non-null. Multi-valued positions count once.
+            // CountField: sum every leaf value across positions, matching
+            // CountAggregatorFunction#getBlockTotalValueCount on the standard scan path:
+            // a multi-valued position with [1, 2, 3] contributes 3, not 1; a null/empty
+            // position contributes 0.
             for (int p = 0; p < positionCount; p++) {
-                if (block.isNull(p) == false) {
-                    count++;
-                }
+                count += block.getValueCount(p);
             }
         }
 

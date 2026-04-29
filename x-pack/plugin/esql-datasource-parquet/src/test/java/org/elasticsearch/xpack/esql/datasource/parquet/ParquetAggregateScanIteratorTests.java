@@ -343,6 +343,116 @@ public class ParquetAggregateScanIteratorTests extends ESTestCase {
         }
     }
 
+    // === Slow-path tests for multi-valued (list) columns ===
+    //
+    // These tests use writeListColumnNoStats, which writes a LIST<INT32> column with
+    // statistics disabled — forcing the iterator to walk the column data via
+    // ColumnReadStoreImpl + readListColumn. The dotted column name for a LIST<INT32>
+    // named "vs" is "vs.list.element" (parquet-mr standard list mapping).
+    //
+    // Fixture rows (same shape as testParquetReadPathLeafValueCountMatchesValueCountMinusNullCount):
+    // row 0: [1, 2, 3]
+    // row 1: [10, 20]
+    // row 2: [] (empty list)
+    // Expected leaf-value count: 5; min: 1; max: 20.
+
+    public void testSlowPathCountFieldOnMvColumn() throws IOException {
+        // Validates the bug-fix scenario: previously the slow path bailed on any mv column
+        // (markColumnUnsupported) and emitted seen=false, silently under-counting at the
+        // FINAL reducer. With the mv branch wired in, COUNT(field) sums leaf values per
+        // position, matching CountAggregatorFunction's semantics (5 = 3 + 2 + 0).
+        byte[] data = writeListColumnNoStats();
+
+        AggregateScanSpec spec = spec(List.of(new AggOp.CountField("vs.list.element")), List.of(DataType.LONG));
+        List<Page> pages = drainAndOpen(data, spec);
+        try {
+            assertEquals(1, pages.size());
+            assertTrue("count seen", seen(pages.get(0), 0));
+            assertEquals("count of leaf values across mv positions", 5L, longValue(pages.get(0), 0));
+        } finally {
+            release(pages);
+        }
+    }
+
+    public void testSlowPathMinMaxOnMvColumn() throws IOException {
+        // MIN/MAX accumulators iterate every leaf value within each position; with the mv
+        // branch they receive a real mv block (not a constant-null), so the result reflects
+        // the actual extrema across all elements of all lists.
+        byte[] data = writeListColumnNoStats();
+
+        AggregateScanSpec spec = spec(
+            List.of(new AggOp.MinField("vs.list.element"), new AggOp.MaxField("vs.list.element")),
+            List.of(DataType.INTEGER, DataType.INTEGER)
+        );
+        List<Page> pages = drainAndOpen(data, spec);
+        try {
+            assertEquals(1, pages.size());
+            assertTrue("min seen", seen(pages.get(0), 0));
+            assertTrue("max seen", seen(pages.get(0), 1));
+            assertEquals(1, intValue(pages.get(0), 0));
+            assertEquals(20, intValue(pages.get(0), 1));
+        } finally {
+            release(pages);
+        }
+    }
+
+    public void testSlowPathCountStarPlusMvAggregate() throws IOException {
+        // When the only projected column is mv, CountStar still needs a row-count fallback
+        // (mirrors testSlowPathCountStarMixedWithCountField, but with an mv column triggering
+        // the slow path instead of a flat one).
+        byte[] data = writeListColumnNoStats();
+
+        AggregateScanSpec spec = spec(
+            List.of(new AggOp.CountStar(), new AggOp.CountField("vs.list.element")),
+            List.of(DataType.LONG, DataType.LONG)
+        );
+        List<Page> pages = drainAndOpen(data, spec);
+        try {
+            assertEquals(1, pages.size());
+            assertEquals("CountStar = row count regardless of column path", 3L, longValue(pages.get(0), 0));
+            assertEquals("CountField = leaf-value count", 5L, longValue(pages.get(0), 1));
+        } finally {
+            release(pages);
+        }
+    }
+
+    /**
+     * Writes the canonical {@code LIST<INT32>} fixture (3 rows: [1,2,3], [10,20], []) with
+     * statistics disabled on the leaf column so {@code statsCoverAllProjectedColumns} returns
+     * false and the iterator drops to the slow path. Returns the in-memory parquet bytes.
+     */
+    private static byte[] writeListColumnNoStats() throws IOException {
+        org.apache.parquet.schema.Type listType = Types.optionalList().optionalElement(INT32).named("vs");
+        MessageType schema = new MessageType("mv_slow_path_test", listType);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ExampleParquetWriter.Builder builder = ExampleParquetWriter.builder(outputFile(out))
+            .withConf(new PlainParquetConfiguration())
+            .withCodecFactory(new PlainCompressionCodecFactory())
+            .withType(schema)
+            .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+            // Disable stats on the LIST leaf path. parquet-mr's withStatisticsEnabled takes the
+            // dotted leaf path; for our schema that's "vs.list.element".
+            .withStatisticsEnabled("vs.list.element", false);
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (ParquetWriter<Group> writer = builder.build()) {
+            Group g0 = factory.newGroup();
+            Group list0 = g0.addGroup("vs");
+            list0.addGroup("list").append("element", 1);
+            list0.addGroup("list").append("element", 2);
+            list0.addGroup("list").append("element", 3);
+            writer.write(g0);
+            Group g1 = factory.newGroup();
+            Group list1 = g1.addGroup("vs");
+            list1.addGroup("list").append("element", 10);
+            list1.addGroup("list").append("element", 20);
+            writer.write(g1);
+            Group g2 = factory.newGroup();
+            g2.addGroup("vs");
+            writer.write(g2);
+        }
+        return out.toByteArray();
+    }
+
     // === Multi-row-group / lifecycle tests ===
 
     public void testMultipleRowGroupsEmitOnePagePerGroup() throws IOException {
@@ -397,6 +507,185 @@ public class ParquetAggregateScanIteratorTests extends ESTestCase {
         try (ParquetAggregateScanIterator iter = openIterator(data, spec)) {
             assertFalse("empty file -> no row groups -> no pages", iter.hasNext());
             expectThrows(NoSuchElementException.class, iter::next);
+        }
+    }
+
+    /**
+     * Empirical investigation of {@link org.apache.parquet.hadoop.metadata.ColumnChunkMetaData#getValueCount()}
+     * on a repeated (multi-valued) column. Demonstrates two distinct fixtures so we know exactly
+     * what the field counts and how to derive ESQL's {@code COUNT(field)} semantics
+     * ("number of non-null values, including all values within multi-valued positions") from it.
+     * <p>
+     * Schema: a single Parquet {@code LIST<INT32>} column.
+     * <p>
+     * Fixture A — three rows: {@code [1, 2, 3]}, {@code [10, 20]}, empty list.
+     * <ul>
+     *   <li>{@code rowCount = 3}</li>
+     *   <li>{@code valueCount = 6} — five real ints plus one def-level entry for the empty list (the
+     *       "row exists but the inner element is null" record). parquet-mr counts def-level records,
+     *       not just non-null leaves.</li>
+     *   <li>{@code getNumNulls() = 1} — the empty-list record is counted as a null leaf value.</li>
+     *   <li>So {@code valueCount - nullCount = 5}, which is the number of non-null leaf values
+     *       and matches the standard ESQL {@code COUNT(field)} semantics.</li>
+     * </ul>
+     * Fixture B — three rows, all non-empty: {@code [1, 2, 3]}, {@code [10, 20]}, {@code [99]}.
+     * <ul>
+     *   <li>{@code rowCount = 3}, {@code valueCount = 6}, {@code nullCount = 0}, so
+     *       {@code valueCount - nullCount = 6} — again the count of non-null leaf values.</li>
+     * </ul>
+     * Conclusion: the formula {@code valueCount - nullCount} correctly yields ESQL
+     * {@code COUNT(field)} on repeated columns. For flat columns {@code valueCount == rowCount}
+     * (one leaf per row), so the same formula degenerates to today's {@code rowCount - nullCount}.
+     */
+    public void testParquetValueCountSemanticsForMultiValuedColumn() throws IOException {
+        // Fixture A: one row has an empty list — force a def-level null entry.
+        long[] aMetrics = writeListColumnAndReadMetrics((writer, factory) -> {
+            // Row 0: [1, 2, 3]
+            Group g0 = factory.newGroup();
+            Group list0 = g0.addGroup("vs");
+            list0.addGroup("list").append("element", 1);
+            list0.addGroup("list").append("element", 2);
+            list0.addGroup("list").append("element", 3);
+            writer.write(g0);
+            // Row 1: [10, 20]
+            Group g1 = factory.newGroup();
+            Group list1 = g1.addGroup("vs");
+            list1.addGroup("list").append("element", 10);
+            list1.addGroup("list").append("element", 20);
+            writer.write(g1);
+            // Row 2: [] (empty list).
+            Group g2 = factory.newGroup();
+            g2.addGroup("vs");
+            writer.write(g2);
+        });
+        assertEquals("Fixture A rowCount", 3L, aMetrics[0]);
+        assertEquals("Fixture A valueCount", 6L, aMetrics[1]);
+        assertEquals("Fixture A nullCount", 1L, aMetrics[2]);
+        assertEquals("Fixture A: valueCount - nullCount must equal the number of non-null leaf values (5)", 5L, aMetrics[1] - aMetrics[2]);
+
+        // Fixture B: every row has at least one element — no def-level nulls.
+        long[] bMetrics = writeListColumnAndReadMetrics((writer, factory) -> {
+            Group g0 = factory.newGroup();
+            Group list0 = g0.addGroup("vs");
+            list0.addGroup("list").append("element", 1);
+            list0.addGroup("list").append("element", 2);
+            list0.addGroup("list").append("element", 3);
+            writer.write(g0);
+            Group g1 = factory.newGroup();
+            Group list1 = g1.addGroup("vs");
+            list1.addGroup("list").append("element", 10);
+            list1.addGroup("list").append("element", 20);
+            writer.write(g1);
+            Group g2 = factory.newGroup();
+            Group list2 = g2.addGroup("vs");
+            list2.addGroup("list").append("element", 99);
+            writer.write(g2);
+        });
+        assertEquals("Fixture B rowCount", 3L, bMetrics[0]);
+        assertEquals("Fixture B valueCount", 6L, bMetrics[1]);
+        assertEquals("Fixture B nullCount", 0L, bMetrics[2]);
+        assertEquals("Fixture B: valueCount - nullCount must equal the number of non-null leaf values (6)", 6L, bMetrics[1] - bMetrics[2]);
+    }
+
+    /**
+     * Cross-check: read Fixture A (with one empty-list row) through {@link ParquetFormatReader}
+     * and confirm the resulting block's leaf-value count matches {@code valueCount - nullCount}
+     * from the footer. This proves the proposed {@code COUNT(field)} formula matches what the
+     * standard ESQL scan path (via {@link org.elasticsearch.compute.aggregation.CountAggregatorFunction})
+     * sees: it folds non-null positions and sums {@code block.getValueCount(p)}.
+     */
+    public void testParquetReadPathLeafValueCountMatchesValueCountMinusNullCount() throws IOException {
+        org.apache.parquet.schema.Type listType = Types.optionalList().optionalElement(INT32).named("vs");
+        MessageType schema = new MessageType("mv_count_crosscheck", listType);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ExampleParquetWriter.Builder builder = ExampleParquetWriter.builder(outputFile(out))
+            .withConf(new PlainParquetConfiguration())
+            .withCodecFactory(new PlainCompressionCodecFactory())
+            .withType(schema)
+            .withCompressionCodec(CompressionCodecName.UNCOMPRESSED);
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (ParquetWriter<Group> writer = builder.build()) {
+            // Same shape as Fixture A above.
+            Group g0 = factory.newGroup();
+            Group list0 = g0.addGroup("vs");
+            list0.addGroup("list").append("element", 1);
+            list0.addGroup("list").append("element", 2);
+            list0.addGroup("list").append("element", 3);
+            writer.write(g0);
+            Group g1 = factory.newGroup();
+            Group list1 = g1.addGroup("vs");
+            list1.addGroup("list").append("element", 10);
+            list1.addGroup("list").append("element", 20);
+            writer.write(g1);
+            Group g2 = factory.newGroup();
+            g2.addGroup("vs");
+            writer.write(g2);
+        }
+        StorageObject so = storageObject(out.toByteArray());
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        long totalLeafValues = 0;
+        try (CloseableIterator<Page> iter = reader.read(so, null, 1024)) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                try {
+                    org.elasticsearch.compute.data.Block block = page.getBlock(0);
+                    int positionCount = block.getPositionCount();
+                    for (int p = 0; p < positionCount; p++) {
+                        // Mirrors CountAggregatorFunction.addRawBlock: count every leaf value across
+                        // multi-valued positions; null/empty positions contribute nothing.
+                        int vc = block.getValueCount(p);
+                        if (vc > 0) {
+                            totalLeafValues += vc;
+                        }
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertEquals(
+            "ESQL standard scan path's leaf-value count must equal valueCount - nullCount from the footer "
+                + "(5 = three ints in row 0 + two ints in row 1; the empty-list row in row 2 is skipped)",
+            5L,
+            totalLeafValues
+        );
+    }
+
+    /**
+     * Helper for {@link #testParquetValueCountSemanticsForMultiValuedColumn()}: writes an in-memory
+     * Parquet file with a single {@code LIST<INT32>} column populated by the given callback, then
+     * returns {@code [rowCount, valueCount, nullCount]} from the (single) column chunk's metadata.
+     */
+    @FunctionalInterface
+    private interface ListPopulator {
+        void accept(ParquetWriter<Group> writer, SimpleGroupFactory factory) throws IOException;
+    }
+
+    private long[] writeListColumnAndReadMetrics(ListPopulator populator) throws IOException {
+        org.apache.parquet.schema.Type listType = Types.optionalList().optionalElement(INT32).named("vs");
+        MessageType schema = new MessageType("mv_value_count_probe", listType);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ExampleParquetWriter.Builder builder = ExampleParquetWriter.builder(outputFile(out))
+            .withConf(new PlainParquetConfiguration())
+            .withCodecFactory(new PlainCompressionCodecFactory())
+            .withType(schema)
+            .withCompressionCodec(CompressionCodecName.UNCOMPRESSED);
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (ParquetWriter<Group> writer = builder.build()) {
+            populator.accept(writer, factory);
+        }
+
+        StorageObject so = storageObject(out.toByteArray());
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(so);
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (ParquetFileReader reader = ParquetFileReader.open(adapter, options)) {
+            assertEquals("expected exactly one row group", 1, reader.getRowGroups().size());
+            org.apache.parquet.hadoop.metadata.BlockMetaData rg = reader.getRowGroups().get(0);
+            assertEquals("LIST flattens to a single leaf column chunk", 1, rg.getColumns().size());
+            org.apache.parquet.hadoop.metadata.ColumnChunkMetaData chunk = rg.getColumns().get(0);
+            return new long[] { rg.getRowCount(), chunk.getValueCount(), chunk.getStatistics().getNumNulls() };
         }
     }
 

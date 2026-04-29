@@ -227,6 +227,20 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         return true;
     }
 
+    /**
+     * Resolves a single aggregate function from per-split statistics. Returns the constant
+     * value the aggregate would produce, or {@code null} when stats are insufficient (the
+     * caller then falls back to a normal scan).
+     * <p>
+     * <b>COUNT(field) on multi-valued columns:</b> this returns {@code rowCount - nullCount}
+     * which gives "rows with at least one non-null value", not "total non-null values" as the
+     * standard ESQL scan path computes (see {@link org.elasticsearch.compute.aggregation.CountAggregatorFunction}).
+     * The runtime aggregate-pushdown path mirrors the same formula. Tracked separately so a
+     * future fix can correct both call sites consistently using
+     * {@code ColumnChunkMetaData.getValueCount() - getNumNulls()} for Parquet (and the
+     * equivalent metadata field for other formats); this requires plumbing a {@code valueCount}
+     * field through {@link SplitStats} and {@link org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics}.
+     */
     private Object resolveFromStats(Expression aggFunction, SplitStats stats) {
         if (aggFunction instanceof Count count) {
             if (count.hasFilter()) {

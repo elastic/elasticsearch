@@ -59,8 +59,19 @@ public record AggregateScanSpec(List<AggOp> ops, List<Attribute> intermediateAtt
         record CountStar() implements AggOp {}
 
         /**
-         * {@code COUNT(field)} — counts positions whose value is non-null. Multi-valued
-         * positions count once (matches existing ESQL {@code COUNT(field)} semantics).
+         * {@code COUNT(field)} — counts every non-null leaf value (multi-valued positions
+         * contribute every value), matching
+         * {@link org.elasticsearch.compute.aggregation.CountAggregatorFunction}. A row with
+         * {@code [1, 2, 3]} contributes 3.
+         * <p>
+         * Whether the implementation actually achieves this depends on the path: the slow
+         * (row-data) path sums {@code Block#getValueCount} per position and is correct, but
+         * the fast (stats-only) path in {@code ParquetAggregateScanIterator} approximates
+         * with {@code rowCount - nullCount}, which yields "rows with at least one value" on
+         * multi-valued columns. The planning-time pushdown
+         * ({@code PushAggregatesToExternalSource#resolveFromStats}) shares the same fast-path
+         * divergence; tracked separately so a future fix can correct both stat-using sites
+         * with {@code ColumnChunkMetaData.getValueCount() - getNumNulls()}.
          *
          * @param column dotted column name, supporting nested types (e.g. "height.float")
          */

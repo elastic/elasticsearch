@@ -27,22 +27,6 @@ import java.util.concurrent.Executor;
  * row limit, parsing parallelism). Filter pushdown does not compose with aggregate pushdown
  * today (the planner rule is gated by {@code aggregatePushdownSupport().canPushAggregates}
  * which already returns NO when a filter has been pushed onto the reader).
- *
- * @param sourceType             the format identifier (e.g. "parquet")
- * @param path                   the original (possibly globbed) source path; per-file paths
- *                               come from the splits in {@code sliceQueue}
- * @param config                 reader/storage configuration
- * @param sliceQueue             the queue of splits to process; never {@code null}
- * @param aggregates             the list of {@code Alias(Count|Min|Max(...))} expressions to
- *                               compute, mirroring the parent {@code AggregateExec.aggregates()}.
- *                               The operator factory lowers these to
- *                               {@link AggregateScanSpec.AggOp} instances at construction time.
- * @param intermediateAttributes output shape — must match the parent
- *                               {@code AggregateExec.intermediateAttributes()}
- * @param executor               compute executor (typically {@code esql_worker})
- * @param fileReadExecutor       executor for blocking file reads (typically {@code generic});
- *                               currently unused — operators run reads on the driver thread.
- *                               Plumbed for a future async migration.
  */
 public record AggregateScanOperatorContext(
     String sourceType,
@@ -51,8 +35,7 @@ public record AggregateScanOperatorContext(
     ExternalSliceQueue sliceQueue,
     List<NamedExpression> aggregates,
     List<Attribute> intermediateAttributes,
-    Executor executor,
-    Executor fileReadExecutor
+    Executor executor
 ) {
     public AggregateScanOperatorContext {
         Check.notNull(sourceType, "sourceType cannot be null");

@@ -1438,8 +1438,7 @@ public class LocalExecutionPlanner {
             sliceQueue,
             externalAgg.aggregates(),
             externalAgg.intermediateAttributes(),
-            operatorFactoryRegistry.executor(),
-            operatorFactoryRegistry.fileReadExecutor()
+            operatorFactoryRegistry.executor()
         );
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.aggregateScanFactory(opCtx);

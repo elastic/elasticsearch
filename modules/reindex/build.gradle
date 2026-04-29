@@ -170,6 +170,9 @@ if (OS.current() == OS.WINDOWS) {
 
   def oldesFixtureConfiguration = project.configurations.oldesFixture
 
+  /** Passed to {@code javaRestTest#finalizedBy} so fixture teardown runs after tests, not before (see AntFixture). */
+  def oldElasticsearchFixtureStops = []
+
   def versions = ['2', '1', '090', '500', '62', '63']
   if (OS.current() == OS.MAC) {
     // 0.90 fails sometimes on mac, given that it is so old, let us disable it
@@ -202,6 +205,9 @@ if (OS.current() == OS.WINDOWS) {
         return fixture.portsFile.exists()
       }
     }
+
+    oldElasticsearchFixtureStops.add(tasks.named("oldEs${version}Fixture#stop"))
+    tasks.named("oldEs${version}Fixture").configure { setFinalizedBy([]) }
 
     tasks.named("javaRestTest").configure {
       dependsOn fixture
@@ -253,6 +259,8 @@ if (OS.current() == OS.WINDOWS) {
         return fixture.portsFile.exists()
       }
     }
+    oldElasticsearchFixtureStops.add(tasks.named("${taskName}#stop"))
+    tasks.named(taskName).configure { setFinalizedBy([]) }
   }
 
   def registerDownloadedRemote = { String version, String distributionName, String taskName, String portPrefix, String enableProperty ->
@@ -286,6 +294,7 @@ if (OS.current() == OS.WINDOWS) {
   registerDownloadedRemote('9.3.0', 'remote_reindex_es93', 'remoteEs93Fixture', 'es93', 'tests.fromRemoteEs93')
 
   tasks.named("javaRestTest").configure {
+    finalizedBy oldElasticsearchFixtureStops
     systemProperty "tests.fromRemote7x", "true"
   }
 }

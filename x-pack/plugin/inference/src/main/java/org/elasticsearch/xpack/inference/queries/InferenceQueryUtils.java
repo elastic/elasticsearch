@@ -304,9 +304,9 @@ public final class InferenceQueryUtils {
         InferenceStringGroup input = inferenceInfoRequest.input();
         // Remote clusters accept only a plain text string. Extract it when input is a single text entry; use null otherwise
         // (non-text or multi-entry inputs are not forwarded, and a null query simply skips remote inference generation).
-        String remoteQuery = (input != null
-            && input.containsNonTextEntry() == false
-            && input.containsMultipleInferenceStrings() == false) ? input.textValue() : null;
+        String remoteQuery = (input != null && input.containsNonTextEntry() == false && input.containsMultipleInferenceStrings() == false)
+            ? input.textValue()
+            : null;
 
         for (var entry : remoteIndices.entrySet()) {
             String clusterAlias = entry.getKey();

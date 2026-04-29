@@ -2460,6 +2460,40 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         }
 
                         @Override
+                        public int docIDRunEnd() throws IOException {
+                            int nbId = iterDoc >>> numericBlockShift;
+                            if (cachedNBlockId == nbId) {
+                                int firstClearBit = nextClearBit(iterDoc & numericBlockMask);
+                                return Math.min((nbId << numericBlockShift) + firstClearBit, skipper.maxDocID(0) + 1);
+                            }
+                            if (lowerValue <= skipper.minValue(0) && skipper.maxValue(0) <= upperValue) {
+                                return skipper.maxDocID(0) + 1;
+                            }
+                            return iterDoc + 1;
+                        }
+
+                        private int nextClearBit(int from) {
+                            // Find the first bit position >= from that is NOT set in rangeMatches.
+                            // The bits beyond rangeMatches.length() are outside the block.
+                            long[] bits = rangeMatches.getBits();
+                            int wordIdx = from >>> 6;
+                            if (wordIdx >= bits.length) {
+                                return rangeMatches.length();
+                            }
+                            long word = ~bits[wordIdx] >>> (from & 63);
+                            if (word != 0) {
+                                return from + Long.numberOfTrailingZeros(word);
+                            }
+                            for (int i = wordIdx + 1; i < bits.length; i++) {
+                                word = ~bits[i];
+                                if (word != 0) {
+                                    return (i << 6) + Long.numberOfTrailingZeros(word);
+                                }
+                            }
+                            return rangeMatches.length();
+                        }
+
+                        @Override
                         public long cost() {
                             return maxDoc;
                         }

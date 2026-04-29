@@ -20,19 +20,15 @@ import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
  * A wrapper around {@link ExponentialHistogramMerger} that automatically reduces the bucket limit
  * when memory pressure exceeds a configured threshold. The bucket limit is halved repeatedly
  * until pressure drops below the threshold or the minimum bucket limit is reached.
- * <p>
- * Instances are tracked via an intrusive doubly-linked list anchored in the {@link Factory},
- * so that when the bucket limit is reduced, all live mergers can be replaced with ones using
- * the new, smaller limit.
  */
 public final class AdaptiveExponentialHistogramMerger implements Accountable, Releasable {
 
     private ExponentialHistogramMerger delegate;
     private final Factory factory;
 
-    // intrusive doubly-linked list pointers, guarded by the factory
-    AdaptiveExponentialHistogramMerger prev;
-    AdaptiveExponentialHistogramMerger next;
+    // double-linked list for the containing factory to keep track of all active mergers
+    private AdaptiveExponentialHistogramMerger prev;
+    private AdaptiveExponentialHistogramMerger next;
 
     private AdaptiveExponentialHistogramMerger(ExponentialHistogramMerger delegate, Factory factory) {
         this.delegate = delegate;
@@ -48,10 +44,16 @@ public final class AdaptiveExponentialHistogramMerger implements Accountable, Re
         delegate.add(histogram);
     }
 
+    /**
+     * @see ExponentialHistogramMerger#get()
+     */
     public ExponentialHistogram get() {
         return delegate.get();
     }
 
+    /**
+     * @see ExponentialHistogramMerger#getAndClear()
+     */
     public ReleasableExponentialHistogram getAndClear() {
         return delegate.getAndClear();
     }
@@ -75,14 +77,13 @@ public final class AdaptiveExponentialHistogramMerger implements Accountable, Re
      * is detected, down to {@code minimumBucketLimit}. When a reduction first occurs, the
      * provided {@code onFirstReduction} callback is invoked (e.g. to emit a warning).
      * <p>
-     * All live mergers created by this factory are tracked in a linked list so their underlying
-     * delegates can be replaced when the bucket limit changes.
+     * Just like {@link ExponentialHistogramMerger.Factory}, this class is not thread safe:
+     * Neither the factory, nor the mergers created from it may be used concurrently.
      */
     public static final class Factory implements Accountable, Releasable {
 
         private ExponentialHistogramMerger.Factory delegateFactory;
         private final CircuitBreaker circuitBreaker;
-        private final ExponentialHistogramCircuitBreaker histogramCircuitBreaker;
         private final int minimumBucketLimit;
         private final double memoryPressureThreshold;
         private final Runnable onFirstReduction;
@@ -91,14 +92,13 @@ public final class AdaptiveExponentialHistogramMerger implements Accountable, Re
         /**
          * Sentinel node for the doubly-linked list of live mergers. {@code sentinel.next} is the
          * first real node; {@code sentinel.prev} is the last.
+         * We track the non-closed mergers created by this factory so that we can reduce their precision when needed.
          */
         private final AdaptiveExponentialHistogramMerger sentinel;
 
         /**
-         * @param circuitBreaker the circuit breaker used to check memory pressure via
-         *                       {@link CircuitBreaker#getUsed()} / {@link CircuitBreaker#getLimit()}
-         * @param histogramCircuitBreaker the circuit breaker adapter passed to the underlying
-         *                                {@link ExponentialHistogramMerger.Factory}
+         * @param circuitBreaker the circuit breaker used both for memory pressure checks
+         *                       and for the underlying histogram allocations
          * @param startingBucketLimit the initial maximum number of buckets per histogram
          * @param minimumBucketLimit the lowest bucket limit to reduce to
          * @param memoryPressureThreshold the fraction of the circuit breaker limit (0.0–1.0) above which
@@ -107,18 +107,16 @@ public final class AdaptiveExponentialHistogramMerger implements Accountable, Re
          */
         public Factory(
             CircuitBreaker circuitBreaker,
-            ExponentialHistogramCircuitBreaker histogramCircuitBreaker,
             int startingBucketLimit,
             int minimumBucketLimit,
             double memoryPressureThreshold,
             Runnable onFirstReduction
         ) {
             this.circuitBreaker = circuitBreaker;
-            this.histogramCircuitBreaker = histogramCircuitBreaker;
             this.minimumBucketLimit = minimumBucketLimit;
             this.memoryPressureThreshold = memoryPressureThreshold;
             this.onFirstReduction = onFirstReduction;
-            this.delegateFactory = ExponentialHistogramMerger.createFactory(startingBucketLimit, histogramCircuitBreaker);
+            this.delegateFactory = ExponentialHistogramMerger.createFactory(startingBucketLimit, wrapBreaker(circuitBreaker));
             this.sentinel = new AdaptiveExponentialHistogramMerger(null, this);
             this.sentinel.prev = this.sentinel;
             this.sentinel.next = this.sentinel;
@@ -166,34 +164,31 @@ public final class AdaptiveExponentialHistogramMerger implements Accountable, Re
                 return;
             }
 
-            ExponentialHistogramMerger.Factory newFactory = ExponentialHistogramMerger.createFactory(
-                newBucketLimit,
-                histogramCircuitBreaker
-            );
-            ExponentialHistogramMerger.Factory oldFactory = this.delegateFactory;
-            this.delegateFactory = newFactory;
-            try {
-                AdaptiveExponentialHistogramMerger current = sentinel.next;
-                while (current != sentinel) {
-                    ExponentialHistogramMerger newMerger = newFactory.createMerger();
-                    try {
-                        newMerger.add(current.delegate.get());
-                        ExponentialHistogramMerger old = current.replaceDelegate(newMerger);
-                        newMerger = old;
-                    } finally {
-                        Releasables.close(newMerger);
-                    }
-                    current = current.next;
-                }
-                newFactory = oldFactory;
-            } finally {
-                Releasables.close(newFactory);
-            }
-
             if (reduced == false) {
                 reduced = true;
                 onFirstReduction.run();
             }
+
+            ExponentialHistogramMerger.Factory newFactory = ExponentialHistogramMerger.createFactory(
+                newBucketLimit,
+                wrapBreaker(circuitBreaker)
+            );
+            this.delegateFactory.close();
+            this.delegateFactory = newFactory;
+
+            AdaptiveExponentialHistogramMerger current = sentinel.next;
+            while (current != sentinel) {
+                ExponentialHistogramMerger newMerger = newFactory.createMerger();
+                try {
+                    newMerger.add(current.delegate.get());
+                    ExponentialHistogramMerger old = current.replaceDelegate(newMerger);
+                    newMerger = old;
+                } finally {
+                    Releasables.close(newMerger);
+                }
+                current = current.next;
+            }
+
         }
 
         private void link(AdaptiveExponentialHistogramMerger merger) {
@@ -203,7 +198,7 @@ public final class AdaptiveExponentialHistogramMerger implements Accountable, Re
             sentinel.prev = merger;
         }
 
-        void unlink(AdaptiveExponentialHistogramMerger merger) {
+        private void unlink(AdaptiveExponentialHistogramMerger merger) {
             merger.prev.next = merger.next;
             merger.next.prev = merger.prev;
             merger.prev = null;
@@ -219,6 +214,16 @@ public final class AdaptiveExponentialHistogramMerger implements Accountable, Re
         public void close() {
             Releasables.close(delegateFactory);
         }
+
+        private static ExponentialHistogramCircuitBreaker wrapBreaker(CircuitBreaker breaker) {
+            return bytesAllocated -> {
+                if (bytesAllocated < 0) {
+                    breaker.addWithoutBreaking(bytesAllocated);
+                } else {
+                    breaker.addEstimateBytesAndMaybeBreak(bytesAllocated, "AdaptiveExponentialHistogramMerger");
+                }
+            };
+        }
     }
 
     /**
@@ -227,7 +232,7 @@ public final class AdaptiveExponentialHistogramMerger implements Accountable, Re
      *
      * @return the old delegate (caller must close it)
      */
-    ExponentialHistogramMerger replaceDelegate(ExponentialHistogramMerger newDelegate) {
+    private ExponentialHistogramMerger replaceDelegate(ExponentialHistogramMerger newDelegate) {
         ExponentialHistogramMerger old = this.delegate;
         this.delegate = newDelegate;
         return old;

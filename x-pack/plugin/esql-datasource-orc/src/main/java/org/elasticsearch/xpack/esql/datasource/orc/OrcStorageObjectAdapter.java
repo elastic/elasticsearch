@@ -16,12 +16,16 @@ import org.apache.hadoop.fs.PositionedReadable;
 import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Adapter that provides a Hadoop {@link FileSystem} backed by a {@link StorageObject}.
@@ -31,6 +35,7 @@ import java.net.URI;
  * any storage provider (HTTP, S3, local) without a real Hadoop installation.
  */
 public class OrcStorageObjectAdapter extends FileSystem {
+    private static final Logger logger = LogManager.getLogger(OrcStorageObjectAdapter.class);
 
     private final StorageObject storageObject;
     private final Path path;
@@ -63,6 +68,10 @@ public class OrcStorageObjectAdapter extends FileSystem {
     @Override
     public FSDataInputStream open(Path f) throws IOException {
         return open(f, 4096);
+    }
+
+    static void clearCacheForTests() {
+        FooterByteCache.getInstance().invalidateAll();
     }
 
     @Override
@@ -128,6 +137,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
      */
     static class StorageObjectInputStream extends InputStream implements Seekable, PositionedReadable {
         private final StorageObject storageObject;
+        private final FooterByteCache.Key cacheKey;
         private InputStream currentStream;
         private long position;
         private long streamStartPosition;
@@ -136,6 +146,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
         StorageObjectInputStream(StorageObject storageObject) throws IOException {
             this.storageObject = storageObject;
             this.length = storageObject.length();
+            this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
             this.position = 0;
             this.streamStartPosition = 0;
             this.currentStream = storageObject.newStream();
@@ -182,13 +193,87 @@ public class OrcStorageObjectAdapter extends FileSystem {
 
         @Override
         public int read(long pos, byte[] buffer, int offset, int len) throws IOException {
-            try (InputStream stream = storageObject.newStream(pos, len)) {
-                return stream.read(buffer, offset, len);
+            int fromCache = readFromTailCache(pos, buffer, offset, len);
+            if (fromCache >= 0) {
+                return fromCache;
             }
+
+            int bytesRead;
+            try (InputStream stream = storageObject.newStream(pos, len)) {
+                bytesRead = stream.read(buffer, offset, len);
+            }
+
+            // Opportunistic cache fill: uses pos + bytesRead (actual bytes returned) rather than
+            // pos + len (requested bytes) because PositionedReadable.read may return a short read.
+            // This caches a smaller suffix [length - bytesRead, length) which readFromTailCache
+            // handles correctly — its bounds check rejects requests that span outside the cached region.
+            if (bytesRead > 0 && pos + bytesRead == length) {
+                byte[] tailBytes = new byte[bytesRead];
+                System.arraycopy(buffer, offset, tailBytes, 0, bytesRead);
+                FooterByteCache.getInstance().put(cacheKey, tailBytes);
+            }
+            return bytesRead;
         }
 
         @Override
         public void readFully(long pos, byte[] buffer, int offset, int len) throws IOException {
+            FooterByteCache tailCache = FooterByteCache.getInstance();
+            boolean isTailRead = pos + len == length;
+
+            if (isTailRead && len > 0 && len <= tailCache.maxEntryBytes()) {
+                try {
+                    byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> {
+                        byte[] loaded = new byte[len];
+                        readFullyFromStorage(pos, loaded, 0, len);
+                        return loaded;
+                    });
+                    if (tailBytes.length > 0) {
+                        long cachedStart = length - tailBytes.length;
+                        if (pos >= cachedStart && pos + len <= length) {
+                            int from = (int) (pos - cachedStart);
+                            System.arraycopy(tailBytes, from, buffer, offset, len);
+                            return;
+                        }
+                    }
+                } catch (ExecutionException e) {
+                    logger.debug("footer cache load failed; retrying direct I/O", e.getCause());
+                }
+            }
+
+            int fromCache = readFromTailCache(pos, buffer, offset, len);
+            if (fromCache == len) {
+                return;
+            }
+
+            readFullyFromStorage(pos, buffer, offset, len);
+
+            if (pos + len == length) {
+                byte[] tailBytes = new byte[len];
+                System.arraycopy(buffer, offset, tailBytes, 0, len);
+                tailCache.put(cacheKey, tailBytes);
+            }
+        }
+
+        @Override
+        public void readFully(long pos, byte[] buffer) throws IOException {
+            readFully(pos, buffer, 0, buffer.length);
+        }
+
+        private int readFromTailCache(long pos, byte[] buffer, int offset, int len) {
+            byte[] cached = FooterByteCache.getInstance().get(cacheKey);
+            if (cached == null || cached.length == 0) {
+                return -1;
+            }
+            long cachedStart = length - cached.length;
+            if (pos >= cachedStart && pos + len <= length) {
+                int from = (int) (pos - cachedStart);
+                System.arraycopy(cached, from, buffer, offset, len);
+                return len;
+            }
+            return -1;
+        }
+
+        private void readFullyFromStorage(long pos, byte[] buffer, int offset, int len) throws IOException {
             try (InputStream stream = storageObject.newStream(pos, len)) {
                 int remaining = len;
                 int off = offset;
@@ -201,11 +286,6 @@ public class OrcStorageObjectAdapter extends FileSystem {
                     remaining -= bytesRead;
                 }
             }
-        }
-
-        @Override
-        public void readFully(long pos, byte[] buffer) throws IOException {
-            readFully(pos, buffer, 0, buffer.length);
         }
 
         // --- InputStream ---

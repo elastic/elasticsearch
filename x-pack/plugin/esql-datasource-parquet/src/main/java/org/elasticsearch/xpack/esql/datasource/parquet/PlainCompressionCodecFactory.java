@@ -15,12 +15,14 @@ import com.github.luben.zstd.Zstd;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.xerial.snappy.Snappy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -41,50 +43,75 @@ import java.util.zip.GZIPOutputStream;
  * is direct and {@code useOffHeapDecryptBuffer} is enabled; the current read path uses
  * {@code HeapByteBufferAllocator} so the {@code BytesInput} path is the hot path today, but the
  * direct path is ready for when we switch to a direct allocator.
+ *
+ * <p>This factory is shared across all driver threads of a query, so {@link #getDecompressor} and
+ * {@link #getCompressor} must be safe under concurrent access. Thread-safety is achieved without
+ * losing laziness by:
+ * <ul>
+ *   <li>Building the per-codec lookup tables once in the constructor as immutable {@link EnumMap}s,
+ *       so the hot path is a plain map read with no synchronization.</li>
+ *   <li>Wrapping each entry in a {@link LazyInitializable} which uses double-checked locking to
+ *       create the underlying (de)compressor on first use, so the JNI library backing each codec
+ *       is loaded exactly once per codec regardless of how many threads race for it.</li>
+ * </ul>
+ *
+ * <p>{@link #release()} is intentionally a no-op: the codec adapters here hold no resources that
+ * can be released (the underlying JNI native libraries cannot be unloaded), so there is nothing
+ * to clear. The method exists only because the {@link CompressionCodecFactory} SPI requires it.
  */
 final class PlainCompressionCodecFactory implements CompressionCodecFactory {
 
-    private final Map<CompressionCodecName, BytesInputDecompressor> decompressors = new HashMap<>();
-    private final Map<CompressionCodecName, BytesInputCompressor> compressors = new HashMap<>();
+    private final Map<CompressionCodecName, LazyInitializable<BytesInputDecompressor, RuntimeException>> decompressors;
+    private final Map<CompressionCodecName, LazyInitializable<BytesInputCompressor, RuntimeException>> compressors;
+
+    PlainCompressionCodecFactory() {
+        Map<CompressionCodecName, LazyInitializable<BytesInputDecompressor, RuntimeException>> dec = new EnumMap<>(
+            CompressionCodecName.class
+        );
+        dec.put(CompressionCodecName.UNCOMPRESSED, lazy(NoopDecompressor::new));
+        dec.put(CompressionCodecName.SNAPPY, lazy(SnappyBytesDecompressor::new));
+        dec.put(CompressionCodecName.GZIP, lazy(GzipBytesDecompressor::new));
+        dec.put(CompressionCodecName.ZSTD, lazy(ZstdBytesDecompressor::new));
+        dec.put(CompressionCodecName.LZ4_RAW, lazy(Lz4RawBytesDecompressor::new));
+        this.decompressors = dec;
+
+        Map<CompressionCodecName, LazyInitializable<BytesInputCompressor, RuntimeException>> com = new EnumMap<>(
+            CompressionCodecName.class
+        );
+        com.put(CompressionCodecName.UNCOMPRESSED, lazy(NoopCompressor::new));
+        com.put(CompressionCodecName.SNAPPY, lazy(SnappyBytesCompressor::new));
+        com.put(CompressionCodecName.GZIP, lazy(GzipBytesCompressor::new));
+        com.put(CompressionCodecName.ZSTD, lazy(ZstdBytesCompressor::new));
+        com.put(CompressionCodecName.LZ4_RAW, lazy(Lz4RawBytesCompressor::new));
+        this.compressors = com;
+    }
+
+    private static <T> LazyInitializable<T, RuntimeException> lazy(CheckedSupplier<T, RuntimeException> supplier) {
+        return new LazyInitializable<>(supplier);
+    }
 
     @Override
     public BytesInputDecompressor getDecompressor(CompressionCodecName codecName) {
-        return decompressors.computeIfAbsent(codecName, PlainCompressionCodecFactory::createDecompressor);
+        LazyInitializable<BytesInputDecompressor, RuntimeException> holder = decompressors.get(codecName);
+        if (holder == null) {
+            throw new UnsupportedOperationException("Unsupported Parquet decompression codec: " + codecName);
+        }
+        return holder.getOrCompute();
     }
 
     @Override
     public BytesInputCompressor getCompressor(CompressionCodecName codecName) {
-        return compressors.computeIfAbsent(codecName, PlainCompressionCodecFactory::createCompressor);
+        LazyInitializable<BytesInputCompressor, RuntimeException> holder = compressors.get(codecName);
+        if (holder == null) {
+            throw new UnsupportedOperationException("Unsupported Parquet compression codec: " + codecName);
+        }
+        return holder.getOrCompute();
     }
 
     @Override
     public void release() {
-        decompressors.values().forEach(BytesInputDecompressor::release);
-        decompressors.clear();
-        compressors.values().forEach(BytesInputCompressor::release);
-        compressors.clear();
-    }
-
-    private static BytesInputDecompressor createDecompressor(CompressionCodecName codec) {
-        return switch (codec) {
-            case UNCOMPRESSED -> new NoopDecompressor();
-            case SNAPPY -> new SnappyBytesDecompressor();
-            case GZIP -> new GzipBytesDecompressor();
-            case ZSTD -> new ZstdBytesDecompressor();
-            case LZ4_RAW -> new Lz4RawBytesDecompressor();
-            default -> throw new UnsupportedOperationException("Unsupported Parquet decompression codec: " + codec);
-        };
-    }
-
-    private static BytesInputCompressor createCompressor(CompressionCodecName codec) {
-        return switch (codec) {
-            case UNCOMPRESSED -> new NoopCompressor();
-            case SNAPPY -> new SnappyBytesCompressor();
-            case GZIP -> new GzipBytesCompressor();
-            case ZSTD -> new ZstdBytesCompressor();
-            case LZ4_RAW -> new Lz4RawBytesCompressor();
-            default -> throw new UnsupportedOperationException("Unsupported Parquet compression codec: " + codec);
-        };
+        // No-op: the codec adapters hold no resources, and the JNI native libraries backing them
+        // cannot be unloaded. Implementing this purely to satisfy the parquet-mr SPI.
     }
 
     /**

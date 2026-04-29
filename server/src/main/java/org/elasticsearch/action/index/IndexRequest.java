@@ -356,6 +356,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Marks whether the effective routing value was provided via the {@code _slice} API parameter.
      */
+    @Override
     public IndexRequest setRoutingFromSlice(boolean routingFromSlice) {
         this.routingFromSlice = routingFromSlice;
         return this;
@@ -364,6 +365,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Returns {@code true} when this request routing came from the {@code _slice} API parameter.
      */
+    @Override
     public boolean isRoutingFromSlice() {
         return routingFromSlice;
     }

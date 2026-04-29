@@ -564,6 +564,11 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue().isSingleValued();
+    }
+
+    @Override
     public BooleanFieldType fieldType() {
         return (BooleanFieldType) super.fieldType();
     }

@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
@@ -114,7 +113,7 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                 }
                 Page page = new Page(intermediateBlocks);
                 GroupingAggregatorFunction finalAggFunction = finalAgg.aggregatorFunction();
-                addInitialIntermediateInput(finalAggFunction, allGroups, page);
+                finalAggFunction.addIntermediateInput(0, allGroups, page);
                 for (int i = 0; i < selectedGroups.getPositionCount(); i++) {
                     groupId = selectedGroups.getInt(i);
                     mergeBucketsFromWindow(groupId, backwards, page, finalAggFunction, ctx);
@@ -183,86 +182,15 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         GroupingAggregatorFunction fn,
         TimeSeriesGroupingAggregatorEvaluationContext context
     ) {
-        int[] singlePosition = new int[1];
         try (var oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
             context.forEachGroupInWindow(startingGroupId, window, groupId -> {
                 if (groupId == startingGroupId) {
                     return;
                 }
                 int position = groupIdToPositions[groupId];
-                if (hasIntermediateState(page, position)) {
-                    singlePosition[0] = position;
-                    addIntermediateInputWithFilter(fn, page, singlePosition, oneGroup);
-                }
+                fn.addIntermediateInput(position, oneGroup, page);
             });
         }
-    }
-
-    /**
-     * Adds the non-NULL positions of {@code page} as intermediate input to {@code fn}.
-     */
-    private static void addInitialIntermediateInput(GroupingAggregatorFunction fn, IntVector groups, Page page) {
-        final int positionCount = page.getPositionCount();
-
-        int[] positions = new int[positionCount];
-        int count = 0;
-        for (int p = 0; p < positionCount; p++) {
-            if (hasIntermediateState(page, p)) {
-                positions[count++] = p;
-            }
-        }
-
-        if (count == 0) {
-            return;
-        }
-
-        if (count == positionCount) {
-            fn.addIntermediateInput(0, groups, page);
-            return;
-        }
-
-        final int[] validPositions = Arrays.copyOf(positions, count);
-        try (IntVector filteredGroups = groups.filter(false, validPositions)) {
-            addIntermediateInputWithFilter(fn, page, validPositions, filteredGroups);
-        }
-    }
-
-    private static void addIntermediateInputWithFilter(
-        GroupingAggregatorFunction fn,
-        Page page,
-        int[] keepPositions,
-        IntVector filteredGroups
-    ) {
-        final int blockCount = page.getBlockCount();
-        final Block[] filteredBlocks = new Block[blockCount];
-        boolean success = false;
-
-        // TODO: Pass offset and length directly instead of copy:
-        // https://github.com/elastic/elasticsearch/pull/145195
-        try {
-            for (int b = 0; b < blockCount; b++) {
-                filteredBlocks[b] = page.getBlock(b).filter(false, keepPositions);
-            }
-            success = true;
-            try (Page filteredPage = new Page(keepPositions.length, filteredBlocks)) {
-                fn.addIntermediateInput(0, filteredGroups, filteredPage);
-            }
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(filteredBlocks);
-            }
-        }
-    }
-
-    private static boolean hasIntermediateState(Page page, int position) {
-        final int blockCount = page.getBlockCount();
-        for (int b = 0; b < blockCount; b++) {
-            Block block = page.getBlock(b);
-            if (block.mayHaveNulls() && block.isNull(position)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     @Override

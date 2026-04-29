@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -1581,12 +1582,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iterator = reader.readRange(
                 storageObject,
-                List.of("x"),
-                100,
-                0,
-                parquetData.length,
-                plannerTypes,
-                ErrorPolicy.STRICT
+                new RangeReadContext(List.of("x"), 100, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
             assertTrue(iterator.hasNext());
@@ -1616,12 +1612,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
-                List.of("x"),
-                10,
-                0,
-                parquetData.length,
-                plannerTypes,
-                ErrorPolicy.STRICT
+                new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
             Page page = it.next();
@@ -1644,12 +1635,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iterator = reader.readRange(
                 storageObject,
-                List.of("x"),
-                100,
-                0,
-                parquetData.length,
-                plannerTypes,
-                ErrorPolicy.STRICT
+                new RangeReadContext(List.of("x"), 100, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
             assertTrue(iterator.hasNext());
@@ -1676,12 +1662,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
-                List.of("x"),
-                10,
-                0,
-                parquetData.length,
-                plannerTypes,
-                ErrorPolicy.STRICT
+                new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
             Page page = it.next();
@@ -1702,12 +1683,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
-                List.of("x"),
-                10,
-                0,
-                parquetData.length,
-                plannerTypes,
-                ErrorPolicy.STRICT
+                new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
             Page page = it.next();
@@ -1733,12 +1709,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iterator = reader.readRange(
                 storageObject,
-                List.of("x"),
-                100,
-                0,
-                parquetData.length,
-                plannerTypes,
-                ErrorPolicy.STRICT
+                new RangeReadContext(List.of("x"), 100, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
             assertTrue(iterator.hasNext());
@@ -1781,12 +1752,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             try (
                 CloseableIterator<Page> iterator = reader.readRange(
                     storageObject,
-                    null,
-                    1000,
-                    rangeStart,
-                    rangeEnd,
-                    List.of(),
-                    ErrorPolicy.STRICT
+                    new RangeReadContext(null, 1000, rangeStart, rangeEnd, List.of(), ErrorPolicy.STRICT)
                 )
             ) {
                 while (iterator.hasNext()) {
@@ -1846,12 +1812,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             try (
                 CloseableIterator<Page> iterator = reader.readRange(
                     storageObject,
-                    null,
-                    1000,
-                    rangeStart,
-                    rangeEnd,
-                    List.of(),
-                    ErrorPolicy.STRICT
+                    new RangeReadContext(null, 1000, rangeStart, rangeEnd, List.of(), ErrorPolicy.STRICT)
                 )
             ) {
                 while (iterator.hasNext()) {
@@ -1861,6 +1822,55 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         assertEquals("Sum of rows across splits must equal the row count written", numRows, totalRowsFromRanges);
+    }
+
+    /**
+     * Verifies that cross-split footer caching via {@link RangeReadContext#fileContext()} produces
+     * correct results. Simulates the {@code AsyncExternalSourceOperatorFactory} pattern: the first
+     * split parses the footer and caches it; subsequent splits reuse the cached footer. Row counts
+     * and values must match a non-cached full read.
+     */
+    public void testCrossSlitFooterCachingProducesCorrectResults() throws Exception {
+        int numRows = 5_000;
+        byte[] parquetData = createCompressibleMultiRowGroupFile(numRows, CompressionCodecName.SNAPPY);
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Need multiple ranges to exercise caching", ranges.size() >= 2);
+
+        Object cachedFileContext = null;
+        int cachedTotalRows = 0;
+        Set<Long> cachedIds = new HashSet<>();
+
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            RangeReadContext ctx = new RangeReadContext(
+                null,
+                1000,
+                range.offset(),
+                range.offset() + range.length(),
+                List.of(),
+                ErrorPolicy.STRICT
+            );
+            if (cachedFileContext != null) {
+                ctx.setFileContext(cachedFileContext);
+            }
+            try (CloseableIterator<Page> iterator = reader.readRange(storageObject, ctx)) {
+                while (iterator.hasNext()) {
+                    Page page = iterator.next();
+                    LongBlock ids = (LongBlock) page.getBlock(0);
+                    for (int row = 0; row < page.getPositionCount(); row++) {
+                        cachedIds.add(ids.getLong(row));
+                    }
+                    cachedTotalRows += page.getPositionCount();
+                }
+            }
+            assertNotNull("fileContext should be set after readRange", ctx.fileContext());
+            cachedFileContext = ctx.fileContext();
+        }
+
+        assertEquals("Footer-cached row count must match written rows", numRows, cachedTotalRows);
+        assertEquals("Footer-cached ids must cover all rows (no duplicates, no drops)", numRows, cachedIds.size());
     }
 
     /**
@@ -1887,7 +1897,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
 
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        List<RangeAwareFormatReader.SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         assertThat("Test needs multiple row groups to exercise concurrency", ranges.size(), greaterThan(2));
 
         AtomicInteger totalRows = new AtomicInteger();
@@ -1901,12 +1911,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             try (
                 CloseableIterator<Page> iterator = reader.readRange(
                     storageObject,
-                    null,
-                    500,
-                    rangeStart,
-                    rangeEnd,
-                    List.of(),
-                    ErrorPolicy.STRICT
+                    new RangeReadContext(null, 500, rangeStart, rangeEnd, List.of(), ErrorPolicy.STRICT)
                 )
             ) {
                 while (iterator.hasNext()) {
@@ -1967,12 +1972,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             try (
                 CloseableIterator<Page> iterator = reader.readRange(
                     storageObject,
-                    null,
-                    500,
-                    rangeStart,
-                    rangeEnd,
-                    List.of(),
-                    ErrorPolicy.STRICT
+                    new RangeReadContext(null, 500, rangeStart, rangeEnd, List.of(), ErrorPolicy.STRICT)
                 )
             ) {
                 while (iterator.hasNext()) {

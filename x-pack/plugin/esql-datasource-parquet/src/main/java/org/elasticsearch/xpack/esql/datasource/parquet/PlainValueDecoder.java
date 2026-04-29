@@ -59,6 +59,7 @@ final class PlainValueDecoder {
         buffer.position(basePos + (count + 7) / 8);
     }
 
+    /** Returned BytesRef instances share storage with the value buffer and must be copied before the buffer is reused. */
     void readBinaries(BytesRef[] values, int offset, int count) {
         if (buffer.hasArray()) {
             byte[] backing = buffer.array();
@@ -79,6 +80,7 @@ final class PlainValueDecoder {
         }
     }
 
+    /** Returned BytesRef instances share storage with the value buffer and must be copied before the buffer is reused. */
     void readFixedBinaries(BytesRef[] values, int offset, int count, int fixedLength) {
         if (buffer.hasArray()) {
             byte[] backing = buffer.array();

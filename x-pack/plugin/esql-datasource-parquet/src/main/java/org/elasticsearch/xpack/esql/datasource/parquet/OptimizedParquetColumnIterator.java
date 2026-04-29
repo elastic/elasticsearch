@@ -92,6 +92,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private final int[] nextSurvivor;
     private final CompressionCodecFactory codecFactory;
     private int rowBudget;
+    /** Async prefetches allowed ahead of the consumed row group (1-3 based on projected column size). */
     private final int prefetchDepth;
     private final ArrayDeque<PendingPrefetch> pendingPrefetches = new ArrayDeque<>();
     /** Bytes reserved on the breaker for the chunks currently in use by {@link #rowGroup}. */
@@ -211,6 +212,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         }
     }
 
+    private static final long DEEPER_PREFETCH_BYTES = 32_000_000L;
+    private static final long SHALLOW_PREFETCH_BYTES = 8_000_000L;
+
     private static int computePrefetchDepth(List<BlockMetaData> rowGroups, Set<String> projectedColumnPaths) {
         if (rowGroups.isEmpty()) {
             return 1;
@@ -225,10 +229,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         // Larger projected sizes need deeper prefetch: an S3 GET for a 20MB string column takes
         // ~200ms while decode takes ~10ms, so single-ahead can't hide the latency. The circuit
         // breaker caps actual memory regardless of depth.
-        if (projectedBytes > 32_000_000) {
+        if (projectedBytes > DEEPER_PREFETCH_BYTES) {
             return 3;
         }
-        if (projectedBytes > 8_000_000) {
+        if (projectedBytes > SHALLOW_PREFETCH_BYTES) {
             return 2;
         }
         return 1;
@@ -417,14 +421,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             if (head.ordinal() == expectedOrdinal) {
                 break;
             }
-            if (head.ordinal() > expectedOrdinal) {
-                return null;
-            }
+            assert head.ordinal() <= expectedOrdinal : "prefetch queue has ordinal " + head.ordinal() + " > expected " + expectedOrdinal;
             pendingPrefetches.pollFirst();
             FutureUtils.cancel(head.future());
-            if (head.reservedBytes() > 0) {
-                breaker.addWithoutBreaking(-head.reservedBytes());
-            }
+            head.release(breaker);
         }
 
         if (pendingPrefetches.isEmpty()) {
@@ -439,9 +439,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 currentReservedBytes = head.reservedBytes();
                 return data;
             }
-            if (head.reservedBytes() > 0) {
-                breaker.addWithoutBreaking(-head.reservedBytes());
-            }
+            head.release(breaker);
             return null;
         } catch (Exception e) {
             logger.debug(
@@ -450,9 +448,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 fileLocation,
                 e.getMessage()
             );
-            if (head.reservedBytes() > 0) {
-                breaker.addWithoutBreaking(-head.reservedBytes());
-            }
+            head.release(breaker);
             return null;
         }
     }
@@ -483,9 +479,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         while (pendingPrefetches.isEmpty() == false) {
             PendingPrefetch entry = pendingPrefetches.pollFirst();
             FutureUtils.cancel(entry.future());
-            if (entry.reservedBytes() > 0) {
-                breaker.addWithoutBreaking(-entry.reservedBytes());
-            }
+            entry.release(breaker);
         }
     }
 
@@ -617,6 +611,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         }
     }
 
+    /** Bundles an in-flight prefetch future with its breaker reservation for paired release. */
     private record PendingPrefetch(
         int ordinal,
         CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future,
@@ -624,6 +619,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     ) {
         PendingPrefetch {
             assert reservedBytes >= 0 : "reservedBytes must be non-negative: " + reservedBytes;
+        }
+
+        void release(CircuitBreaker breaker) {
+            if (reservedBytes > 0) {
+                breaker.addWithoutBreaking(-reservedBytes);
+            }
         }
     }
 

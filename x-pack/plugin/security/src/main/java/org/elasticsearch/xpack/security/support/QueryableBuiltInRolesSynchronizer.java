@@ -509,6 +509,10 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             listener.onFailure(new IndexNotFoundException(SECURITY_MAIN_ALIAS));
             return;
         }
+        if (securityIndexMetadata.getState() == IndexMetadata.State.CLOSE) {
+            listener.onFailure(new IndexClosedException(securityIndexMetadata.getIndex()));
+            return;
+        }
         final Index concreteSecurityIndex = securityIndexMetadata.getIndex();
         markRolesAsSyncedTaskQueue.submitTask(
             "mark built-in roles as synced task",
@@ -575,6 +579,13 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             IndexMetadata indexMetadata = project.index(concreteSecurityIndexName);
             if (indexMetadata == null) {
                 throw new IndexNotFoundException(concreteSecurityIndexName);
+            }
+            if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+                // Index was closed between when the sync started and when this task runs. Do not update the
+                // synced-roles digest in metadata, since the actual role documents could not have been
+                // updated/deleted in a closed index. IndexClosedException is treated as an expected failure
+                // and does not count toward failedSyncAttempts.
+                throw new IndexClosedException(indexMetadata.getIndex());
             }
             Map<String, String> existingRoleDigests = indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY);
             if (Objects.equals(expectedRoleDigests, existingRoleDigests)) {

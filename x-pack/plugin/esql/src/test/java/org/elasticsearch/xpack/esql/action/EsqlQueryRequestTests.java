@@ -265,6 +265,80 @@ public class EsqlQueryRequestTests extends ESTestCase {
         }
     }
 
+    /**
+     * An empty list passed as a named VALUE parameter is equivalent to null. See <a
+     * href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>
+     */
+    public void testEmptyListNamedParamIsNull() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+
+        String paramsString = """
+            ,"params":[
+             {"n1" : []},
+             {"n2" : null},
+             {"n3" : {"value" : []}},
+             {"n4" : "non-empty"},
+             {"n5" : []},
+             {"n6" : [1, 2, 3]}
+             ] }""";
+
+        List<QueryParam> expected = List.of(
+            new QueryParam("n1", null, NULL, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("n2", null, NULL, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("n3", null, NULL, ParserUtils.ParamClassification.VALUE),
+            paramAsConstant("n4", "non-empty"),
+            new QueryParam("n5", null, NULL, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("n6", List.of(1, 2, 3), INTEGER, ParserUtils.ParamClassification.VALUE)
+        );
+        String json = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "columnar": %s,
+                "time_zone": "%s",
+                "locale": "%s",
+                "filter": %s
+                %s""", query, columnar, timeZone.getId(), locale.toLanguageTag(), filter, paramsString);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+
+        assertEquals(expected.size(), request.params().size());
+        for (int i = 0; i < expected.size(); i++) {
+            QueryParam expectedParam = expected.get(i);
+            QueryParam actualParam = request.params().get(i + 1);
+            assertEquals("param at index " + i, expectedParam, actualParam);
+        }
+
+        QueryParam bareEmpty = request.params().get("n1");
+        QueryParam explicitNull = request.params().get("n2");
+        QueryParam keyedEmpty = request.params().get("n3");
+        assertNull(bareEmpty.value());
+        assertNull(explicitNull.value());
+        assertNull(keyedEmpty.value());
+        assertEquals(NULL, bareEmpty.type());
+        assertEquals(NULL, explicitNull.type());
+        assertEquals(NULL, keyedEmpty.type());
+    }
+
+    public void testEmptyListNamedParamForIdentifierOrPatternIsRejected() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        String paramsString = """
+            "params":[ {"n1" : {"identifier" : []}}, {"n2" : {"pattern" : []}} ]""";
+        String json = String.format(Locale.ROOT, """
+            {
+                %s,
+                "query": "%s"
+            }""", paramsString, query);
+
+        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
+        String message = e.getCause().getMessage();
+        assertThat(message, containsString("n1={identifier=[]} parameter is multivalued, only VALUE parameters can be multivalued"));
+        assertThat(message, containsString("n2={pattern=[]} parameter is multivalued, only VALUE parameters can be multivalued"));
+    }
+
     public void testInvalidParams() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();

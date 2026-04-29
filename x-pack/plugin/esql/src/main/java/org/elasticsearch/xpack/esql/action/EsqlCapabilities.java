@@ -2646,6 +2646,12 @@ public class EsqlCapabilities {
          */
         FIX_SET_WRONG_LINE_COLUMN,
 
+        /**
+         * An empty list passed as a named query parameter is treated as null instead of producing an NPE.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
+         */
+        EMPTY_LIST_NAMED_PARAM_AS_NULL,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

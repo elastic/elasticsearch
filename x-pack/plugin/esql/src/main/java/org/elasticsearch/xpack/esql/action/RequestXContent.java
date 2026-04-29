@@ -201,6 +201,9 @@ final class RequestXContent {
                             classification = VALUE;
                             checkParamValueValidity(entry, classification, paramValue, loc, errors);
                         }
+                        if (classification == VALUE && paramValue instanceof List<?> list && list.isEmpty()) {
+                            paramValue = null;
+                        }
                         type = DataType.fromJava(paramValue);
                         currentParam = new QueryParam(
                             paramName,

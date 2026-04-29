@@ -344,18 +344,24 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
     // ==================== Reference Counting Tests ====================
 
-    public void testHitsIncRefOnWrite() throws IOException {
+    public void testHitOwnershipTransferredToQueueOnWrite() throws IOException {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
 
         try {
             FetchPhaseResponseChunk chunk = createChunk(0, 5, 0);
-            writeChunk(stream, chunk);
+            try {
+                stream.writeChunk(chunk, () -> {});
+
+                for (SearchHit hit : chunk.getHits()) {
+                    assertNull("Chunk should have released its reference to the hit after consumeHits", hit);
+                }
+            } finally {
+                chunk.close();
+            }
 
             FetchSearchResult result = buildFinalResult(stream);
-
             try {
-                // Hits should still have references after writeChunk
                 for (SearchHit hit : result.hits().getHits()) {
                     assertTrue("Hit should have references", hit.hasReferences());
                 }
@@ -365,6 +371,24 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         } finally {
             stream.decRef();
         }
+    }
+
+    public void testHitsReleasedWhenStreamClosedWithoutBuildFinalResult() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
+
+        FetchPhaseResponseChunk chunk = createChunk(0, 5, 0);
+        try {
+            stream.writeChunk(chunk, () -> {});
+        } finally {
+            chunk.close();
+        }
+
+        assertThat("Breaker should account for the accumulated chunk bytes", breaker.getUsed(), greaterThan(0L));
+
+        stream.decRef();
+
+        assertThat("All breaker bytes should be released", breaker.getUsed(), equalTo(0L));
     }
 
     // ==================== Score Handling Tests ====================

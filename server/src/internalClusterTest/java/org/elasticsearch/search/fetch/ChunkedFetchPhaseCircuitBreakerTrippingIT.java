@@ -170,7 +170,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
                 var client = internalCluster().client(coordinatorNode);
                 var resp = client.prepareSearch(INDEX_NAME)
                     .setQuery(matchAllQuery())
-                    .setSize(4)
+                    .setSize(5)
                     .setAllowPartialSearchResults(false)
                     .addSort(SORT_FIELD, SortOrder.ASC)
                     .get();

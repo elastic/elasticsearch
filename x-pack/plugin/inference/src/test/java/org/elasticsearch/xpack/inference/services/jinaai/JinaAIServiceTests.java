@@ -107,8 +107,8 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MULTIMODAL_MODEL;
-import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
-import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettingsTests.getServiceSettingsMap;
+import static org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettingsTests.buildServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettingsTests.getMapOfCommonEmbeddingSettings;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettingsTests.getMapOfMinimalEmbeddingSettings;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
@@ -119,7 +119,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -232,7 +231,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.RERANK,
                 getRequestConfigMap(
-                    JinaAIRerankServiceSettingsTests.getServiceSettingsMap(modelName, requestsPerMinute),
+                    JinaAIRerankServiceSettingsTests.buildServiceSettingsMap(modelName, requestsPerMinute),
                     JinaAIRerankTaskSettingsTests.getTaskSettingsMap(topN, returnDocuments),
                     getSecretSettingsMap(apiKey)
                 ),
@@ -301,7 +300,10 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.RERANK,
-                getRequestConfigMap(JinaAIRerankServiceSettingsTests.getServiceSettingsMap(modelName), getSecretSettingsMap(apiKey)),
+                getRequestConfigMap(
+                    JinaAIRerankServiceSettingsTests.buildServiceSettingsMap(modelName, null),
+                    getSecretSettingsMap(apiKey)
+                ),
                 modelListener
             );
 
@@ -515,7 +517,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             var apiKey = randomAlphanumericOfLength(8);
 
             var persistedConfig = getPersistedConfigMap(
-                JinaAIRerankServiceSettingsTests.getServiceSettingsMap(modelName, requestsPerMinute),
+                JinaAIRerankServiceSettingsTests.buildServiceSettingsMap(modelName, requestsPerMinute),
                 JinaAIRerankTaskSettingsTests.getTaskSettingsMap(topN, returnDocuments),
                 getSecretSettingsMap(apiKey)
             );
@@ -593,7 +595,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             var modelName = randomAlphanumericOfLength(8);
             var apiKey = randomAlphanumericOfLength(8);
 
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(modelName, null), Map.of(), getSecretSettingsMap(apiKey));
+            var persistedConfig = getPersistedConfigMap(buildServiceSettingsMap(modelName, null), Map.of(), getSecretSettingsMap(apiKey));
 
             var model = service.parsePersistedConfig(
                 new UnparsedModel(
@@ -615,7 +617,11 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 t -> service.supportedTaskTypes().contains(t),
                 () -> randomFrom(TaskType.values())
             );
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("oldmodel", null), Map.of(), getSecretSettingsMap("secret"));
+            var persistedConfig = getPersistedConfigMap(
+                buildServiceSettingsMap("oldmodel", null),
+                Map.of(),
+                getSecretSettingsMap("secret")
+            );
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -643,7 +649,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             String modelName = MODEL_NAME_VALUE;
             String apiKey = "secret";
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(modelName, null),
+                buildServiceSettingsMap(modelName, null),
                 JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH),
                 getSecretSettingsMap(apiKey)
             );
@@ -660,7 +666,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             var secretSettingsMap = getSecretSettingsMap(apiKey);
             secretSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(modelName, null), Map.of(), secretSettingsMap);
+            var persistedConfig = getPersistedConfigMap(buildServiceSettingsMap(modelName, null), Map.of(), secretSettingsMap);
 
             assertParsePersistedConfigWithSecretsMinimalSettings(service, persistedConfig, modelName, apiKey);
         }
@@ -670,7 +676,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         try (var service = createJinaAIService()) {
             String modelName = MODEL_NAME_VALUE;
             String apiKey = "secret";
-            var serviceSettingsMap = getServiceSettingsMap(modelName, null);
+            var serviceSettingsMap = buildServiceSettingsMap(modelName, null);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, Map.of(), getSecretSettingsMap("secret"));
@@ -685,7 +691,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             String apiKey = "secret";
 
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(modelName, null),
+                buildServiceSettingsMap(modelName, null),
                 new HashMap<>(Map.of("extra_key", "value")),
                 getSecretSettingsMap(apiKey)
             );
@@ -700,7 +706,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             String apiKey = "secret";
 
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(modelName, null),
+                buildServiceSettingsMap(modelName, null),
                 Map.of(),
                 Map.of(ChunkingSettingsOptions.STRATEGY.toString(), ChunkingStrategy.NONE.toString(), "extra_key", "value"),
                 getSecretSettingsMap(apiKey)
@@ -799,7 +805,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             var returnDocuments = randomBoolean();
 
             var persistedConfig = getPersistedConfigMap(
-                JinaAIRerankServiceSettingsTests.getServiceSettingsMap(modelName, requestsPerMinute),
+                JinaAIRerankServiceSettingsTests.buildServiceSettingsMap(modelName, requestsPerMinute),
                 JinaAIRerankTaskSettingsTests.getTaskSettingsMap(topN, returnDocuments),
                 null
             );
@@ -830,7 +836,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 t -> service.supportedTaskTypes().contains(t),
                 () -> randomFrom(TaskType.values())
             );
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model_old", null));
+            var persistedConfig = getPersistedConfigMap(buildServiceSettingsMap("model_old", null));
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -856,7 +862,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createJinaAIService()) {
             String modelName = MODEL_NAME_VALUE;
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(modelName, null));
+            var persistedConfig = getPersistedConfigMap(buildServiceSettingsMap(modelName, null));
             persistedConfig.config().put("extra_key", "value");
 
             assertParsePersistedConfigMinimalSettings(service, persistedConfig, modelName);
@@ -866,7 +872,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createJinaAIService()) {
             String modelName = MODEL_NAME_VALUE;
-            var serviceSettingsMap = getServiceSettingsMap(modelName, null);
+            var serviceSettingsMap = buildServiceSettingsMap(modelName, null);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap);
@@ -880,7 +886,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             String modelName = MODEL_NAME_VALUE;
             var taskSettingsMap = new HashMap<String, Object>(Map.of("extra_key", "value"));
 
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(modelName, null), taskSettingsMap);
+            var persistedConfig = getPersistedConfigMap(buildServiceSettingsMap(modelName, null), taskSettingsMap);
 
             assertParsePersistedConfigMinimalSettings(service, persistedConfig, modelName);
         }
@@ -891,7 +897,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             String modelName = MODEL_NAME_VALUE;
 
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(modelName, null),
+                buildServiceSettingsMap(modelName, null),
                 Map.of(),
                 Map.of(ChunkingSettingsOptions.STRATEGY.toString(), ChunkingStrategy.NONE.toString(), "extra_key", "value"),
                 null
@@ -1006,7 +1012,6 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();

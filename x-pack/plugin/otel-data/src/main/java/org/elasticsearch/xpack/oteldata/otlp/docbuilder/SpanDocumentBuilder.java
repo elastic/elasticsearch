@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This class constructs an Elasticsearch document representation of an OTel span.
@@ -48,15 +47,13 @@ public class SpanDocumentBuilder extends OTelDocumentBuilder {
         }
         // OTLP semantically requires span timestamps, but proto3 can still carry zeroes.
         // If both are zero, keep the malformed span indexable and let @timestamp remain epoch.
-        builder.field("@timestamp", TimeUnit.NANOSECONDS.toMillis(timestamp));
+        addEpochMillisNanosField(builder, "@timestamp", timestamp);
         addHexFieldIfNotEmpty(builder, "trace_id", span.getTraceId());
         addHexFieldIfNotEmpty(builder, "span_id", span.getSpanId());
         addHexFieldIfNotEmpty(builder, "parent_span_id", span.getParentSpanId());
         addFieldIfNotEmpty(builder, "trace_state", span.getTraceStateBytes());
         addFieldIfNotEmpty(builder, "name", span.getNameBytes());
-        if (span.getKind() != Span.SpanKind.SPAN_KIND_UNSPECIFIED) {
-            builder.field("kind", normalizeSpanKind(span.getKind()));
-        }
+        builder.field("kind", normalizeSpanKind(span.getKind()));
         if (span.getStartTimeUnixNano() != 0 && span.getEndTimeUnixNano() != 0) {
             builder.field("duration", span.getEndTimeUnixNano() - span.getStartTimeUnixNano());
         }

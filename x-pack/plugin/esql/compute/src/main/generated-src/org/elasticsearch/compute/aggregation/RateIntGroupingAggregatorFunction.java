@@ -373,7 +373,11 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         } else {
             ReducedState state = getOrInitializeReducedState(group);
             for (int pos = from; pos < to; pos++) {
-                state.appendDeltaValue(timestampVector.getLong(pos), valueBlock.getInt(pos));
+                if (valueBlock.isNull(pos)) {
+                    continue;
+                }
+                assert valueBlock.getValueCount(pos) == 1 : "expected single-valued block " + valueBlock;
+                state.appendDeltaValue(timestampVector.getLong(pos), valueBlock.getInt(valueBlock.getFirstValueIndex(pos)));
             }
         }
     }

@@ -11,6 +11,7 @@ package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ReshardingActionHelper;
@@ -108,6 +109,12 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                 shardId = OperationRouting.shardId(project, concreteSingleIndex, termVectorsRequest.id(), termVectorsRequest.routing());
                 termVectorsRequest.setSplitShardCountSummary(project, concreteSingleIndex);
             } catch (RoutingMissingException e) {
+                responses.set(
+                    i,
+                    new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(e.getIndex().getName(), e.getId(), e))
+                );
+                continue;
+            } catch (SliceMissingException e) {
                 responses.set(
                     i,
                     new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(e.getIndex().getName(), e.getId(), e))

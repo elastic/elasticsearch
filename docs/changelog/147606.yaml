@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147606
+summary: Fix up FTF error after MV_EXPAND
+type: bug

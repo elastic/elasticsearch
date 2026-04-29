@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -24,11 +26,24 @@ import java.io.IOException;
 import java.util.concurrent.Executor;
 
 /**
- * Single-split source operator factory that executes a connector query on a background thread
- * and feeds pages into an {@link AsyncExternalSourceBuffer} for the driver to consume.
+ * Source-operator factory that executes a connector query on a background thread and feeds pages
+ * into an {@link AsyncExternalSourceBuffer} for the driver to consume.
  * <p>
- * Uses non-blocking async drain: the producer thread is released when the buffer is full and
- * resumes via the executor when space is freed, with no timeout.
+ * Two execution modes, selected based on whether a {@link ExternalSliceQueue} is supplied:
+ * <ul>
+ *   <li><b>Slice-queue mode</b> — iterates each {@link ExternalSplit} pulled from the queue and
+ *   executes it via {@link Connector#execute(QueryRequest, ExternalSplit)}, sharing a single row
+ *   budget across splits.</li>
+ *   <li><b>Single-shot mode</b> — executes the request exactly once using {@link Split#SINGLE} via
+ *   {@link Connector#execute(QueryRequest, Split)}.</li>
+ * </ul>
+ * The producer runs as a flat state machine (see {@link #runProducerLoop}) driven by a single
+ * {@code ProducerState} instance — no CPS recursion, no per-split trampoline. The drain is fully
+ * non-blocking: it runs synchronously while the buffer has space and yields the producer thread
+ * when full, resuming via the executor when space is freed.
+ *
+ * @see AsyncExternalSourceBuffer
+ * @see AsyncExternalSourceOperator
  */
 public class AsyncConnectorSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
 
@@ -77,85 +92,182 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
         driverContext.addAsyncAction();
 
-        ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
-            buffer.onFailure(e);
-            closeConnectorQuietly();
-            driverContext.removeAsyncAction();
-        });
-        if (sliceQueue != null) {
-            executor.execute(
-                ActionRunnable.run(failureListener, () -> processNextSplit(request, sliceQueue, buffer, driverContext, rowLimit))
-            );
-        } else {
-            executor.execute(ActionRunnable.run(failureListener, () -> {
-                ResultCursor cursor = connector.execute(request, Split.SINGLE);
-                ExternalSourceDrainUtils.drainPagesWithBudgetAsync(
-                    cursor,
-                    buffer,
-                    rowLimit,
-                    executor,
-                    ActionListener.runAfter(
-                        ActionListener.<Integer>wrap(consumed -> buffer.finish(false), e -> buffer.onFailure(e)),
-                        () -> {
-                            closeQuietly(cursor);
-                            closeConnectorQuietly();
-                            driverContext.removeAsyncAction();
-                        }
-                    )
-                );
-            }));
+        // Single completion listener: exactly one of {finish(false), onFailure(e)} fires, and
+        // driverContext.removeAsyncAction() plus connector.close() run exactly once via runAfter.
+        ActionListener<Void> completionListener = ActionListener.assertOnce(
+            ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), buffer::onFailure), () -> {
+                closeConnectorQuietly();
+                driverContext.removeAsyncAction();
+            })
+        );
+
+        ProducerState state = new ProducerState(request, sliceQueue, buffer, rowLimit);
+        try {
+            executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
+        } catch (Exception e) {
+            completionListener.onFailure(e);
         }
         return new AsyncExternalSourceOperator(buffer);
     }
 
-    private void processNextSplit(
-        QueryRequest request,
-        ExternalSliceQueue queue,
-        AsyncExternalSourceBuffer buffer,
-        DriverContext driverContext,
-        int rowsRemaining
-    ) {
-        if (buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
-            buffer.finish(false);
-            closeConnectorQuietly();
-            driverContext.removeAsyncAction();
-            return;
-        }
-        ExternalSplit split = queue.nextSplit();
-        if (split == null) {
-            buffer.finish(false);
-            closeConnectorQuietly();
-            driverContext.removeAsyncAction();
-            return;
-        }
+    /**
+     * Producer-loop state. One instance per {@code get(DriverContext)} call.
+     * <p>
+     * Tracks mode (queue vs single-shot), position within the queue, row budget, and the currently
+     * open {@link ResultCursor}. Mutated only from the producer executor thread.
+     */
+    private static final class ProducerState {
+        final QueryRequest request;
+        @Nullable
+        final ExternalSliceQueue queue;
+        final AsyncExternalSourceBuffer buffer;
 
+        /** True iff single-shot mode has already opened its one cursor (subsequent advances return EOF). */
+        boolean singleShotStarted;
+        /** Remaining row budget shared across all cursors for this producer. */
+        int rowsRemaining;
+        /** Currently active cursor, or {@code null} if between units or before the first open. */
+        @Nullable
         ResultCursor cursor;
-        try {
-            cursor = connector.execute(request, split);
-        } catch (Exception e) {
-            buffer.onFailure(e);
-            closeConnectorQuietly();
-            driverContext.removeAsyncAction();
-            return;
-        }
 
-        ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
-            buffer.onFailure(e);
-            closeConnectorQuietly();
-            driverContext.removeAsyncAction();
-        });
-        ExternalSourceDrainUtils.drainPagesWithBudgetAsync(
-            cursor,
-            buffer,
-            rowsRemaining,
-            executor,
-            ActionListener.runAfter(ActionListener.<Integer>wrap(consumed -> {
-                int remaining = rowLimit != FormatReader.NO_LIMIT ? rowsRemaining - consumed : rowsRemaining;
-                executor.execute(
-                    ActionRunnable.run(failureListener, () -> processNextSplit(request, queue, buffer, driverContext, remaining))
-                );
-            }, failureListener::onFailure), () -> closeQuietly(cursor))
-        );
+        ProducerState(QueryRequest request, @Nullable ExternalSliceQueue queue, AsyncExternalSourceBuffer buffer, int rowsRemaining) {
+            if (request == null) {
+                throw new IllegalArgumentException("ProducerState requires a non-null request");
+            }
+            if (buffer == null) {
+                throw new IllegalArgumentException("ProducerState requires a non-null buffer");
+            }
+            this.request = request;
+            this.queue = queue;
+            this.buffer = buffer;
+            this.rowsRemaining = rowsRemaining;
+        }
+    }
+
+    private enum DrainResult {
+        /** Hit EOF on the current cursor; caller should advance to the next unit. */
+        EOF,
+        /** Buffer is full; a callback is registered to resume the loop. */
+        BLOCKED,
+        /** Row limit exhausted or buffer finished; the whole producer is done. */
+        DONE
+    }
+
+    /**
+     * Single-step producer loop. Each invocation either drains some pages from the current cursor,
+     * opens a new cursor for the next unit, or registers a space callback and returns. The loop
+     * self-resubmits on the executor between units to avoid running producer I/O on the Driver
+     * thread and to prevent unbounded recursion across many splits.
+     */
+    private void runProducerLoop(ProducerState state, ActionListener<Void> completionListener) {
+        try {
+            if (state.cursor == null) {
+                if (advanceToNextUnit(state) == false) {
+                    completionListener.onResponse(null);
+                    return;
+                }
+            }
+            DrainResult result = drainHotPath(state, completionListener);
+            switch (result) {
+                case DONE -> {
+                    // Close the active cursor before reporting completion so no resources leak on
+                    // cancellation / row-budget exhaustion paths.
+                    closeCursorQuietly(state.cursor);
+                    state.cursor = null;
+                    completionListener.onResponse(null);
+                }
+                case EOF -> {
+                    closeCursorQuietly(state.cursor);
+                    state.cursor = null;
+                    executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
+                }
+                case BLOCKED -> {
+                    // A waitForSpace listener has been registered that will re-submit runProducerLoop.
+                }
+            }
+        } catch (Exception e) {
+            closeCursorQuietly(state.cursor);
+            state.cursor = null;
+            completionListener.onFailure(e);
+        }
+    }
+
+    /**
+     * Drain pages from the currently-open cursor into the buffer.
+     * Runs synchronously while the buffer has space; when full, registers a callback that
+     * re-submits {@link #runProducerLoop} via the executor and returns {@link DrainResult#BLOCKED}.
+     */
+    private DrainResult drainHotPath(ProducerState state, ActionListener<Void> completionListener) {
+        ResultCursor cursor = state.cursor;
+        AsyncExternalSourceBuffer buffer = state.buffer;
+        while (true) {
+            if (buffer.noMoreInputs()) {
+                return DrainResult.DONE;
+            }
+            if (rowLimit != FormatReader.NO_LIMIT && state.rowsRemaining <= 0) {
+                return DrainResult.DONE;
+            }
+            if (cursor.hasNext() == false) {
+                return DrainResult.EOF;
+            }
+            SubscribableListener<Void> space = buffer.waitForSpace();
+            if (space.isDone() == false) {
+                space.addListener(ActionListener.wrap(v -> {
+                    try {
+                        executor.execute(() -> runProducerLoop(state, completionListener));
+                    } catch (Exception e) {
+                        closeCursorQuietly(state.cursor);
+                        state.cursor = null;
+                        completionListener.onFailure(e);
+                    }
+                }, e -> {
+                    closeCursorQuietly(state.cursor);
+                    state.cursor = null;
+                    completionListener.onFailure(e);
+                }));
+                return DrainResult.BLOCKED;
+            }
+            if (buffer.noMoreInputs()) {
+                return DrainResult.DONE;
+            }
+            Page page = cursor.next();
+            int rows = page.getPositionCount();
+            page.allowPassingToDifferentDriver();
+            buffer.addPage(page);
+            if (rowLimit != FormatReader.NO_LIMIT) {
+                state.rowsRemaining -= rows;
+            }
+        }
+    }
+
+    /**
+     * Open a cursor for the next unit of work: either the next split pulled from the queue, or
+     * the single-shot {@link Split#SINGLE} execution. Returns {@code false} if iteration is
+     * exhausted (queue drained, or single-shot already done) or the buffer has been finished
+     * externally / the row budget is exhausted.
+     */
+    private boolean advanceToNextUnit(ProducerState state) {
+        if (state.buffer.noMoreInputs()) {
+            return false;
+        }
+        if (rowLimit != FormatReader.NO_LIMIT && state.rowsRemaining <= 0) {
+            return false;
+        }
+        if (state.queue != null) {
+            ExternalSplit split = state.queue.nextSplit();
+            if (split == null) {
+                return false;
+            }
+            state.cursor = connector.execute(state.request, split);
+            return true;
+        } else {
+            if (state.singleShotStarted) {
+                return false;
+            }
+            state.singleShotStarted = true;
+            state.cursor = connector.execute(state.request, Split.SINGLE);
+            return true;
+        }
     }
 
     private void closeConnectorQuietly() {
@@ -164,7 +276,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         } catch (IOException ignored) {}
     }
 
-    private static void closeQuietly(ResultCursor cursor) {
+    private static void closeCursorQuietly(@Nullable ResultCursor cursor) {
         if (cursor != null) {
             try {
                 cursor.close();

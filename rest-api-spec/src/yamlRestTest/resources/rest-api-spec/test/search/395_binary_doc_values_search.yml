@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      cluster_features: ["mapper.keyword.store_high_cardinality_in_binary_doc_values"]
+      cluster_features: ["mapper.keyword.store_high_cardinality_in_binary_doc_values", "mapper.ip.doc_values_cardinality_option"]
       reason: "testing binary doc values search"
 
   - do:

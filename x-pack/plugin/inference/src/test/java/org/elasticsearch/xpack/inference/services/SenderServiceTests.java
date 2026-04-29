@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
@@ -56,8 +57,6 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -79,18 +78,13 @@ public class SenderServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testStart_InitializesTheSender() throws IOException {
+    public void testSenderServiceConstructor_CreatesASender() throws IOException {
         var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-            service.start(mock(Model.class), listener);
-
-            listener.actionGet(TIMEOUT);
-            verify(sender, times(1)).startAsynchronously(any());
+        try (var ignored = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             verify(factory, times(1)).createSender();
         }
 
@@ -99,23 +93,22 @@ public class SenderServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    public void testStart_CallingStartTwiceKeepsSameSenderReference() throws IOException {
+    public void testStart_ReturnsTrue() throws IOException {
         var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-            service.start(mock(Model.class), listener);
-            listener.actionGet(TIMEOUT);
-
-            PlainActionFuture<Boolean> listener2 = new PlainActionFuture<>();
-            service.start(mock(Model.class), listener2);
-            listener2.actionGet(TIMEOUT);
-
             verify(factory, times(1)).createSender();
-            verify(sender, times(2)).startAsynchronously(any());
+
+            var listener = new TestPlainActionFuture<Boolean>();
+            service.start(mock(Model.class), null, listener);
+            assertTrue(listener.actionGet(TIMEOUT));
+
+            var listener2 = new TestPlainActionFuture<Boolean>();
+            service.start(mock(Model.class), null, listener2);
+            assertTrue(listener2.actionGet(TIMEOUT));
         }
 
         verify(sender, times(1)).close();
@@ -353,14 +346,7 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     public static Sender createMockSender() {
-        var sender = mock(Sender.class);
-        doAnswer(invocationOnMock -> {
-            ActionListener<Void> listener = invocationOnMock.getArgument(0);
-            listener.onResponse(null);
-            return Void.TYPE;
-        }).when(sender).startAsynchronously(any());
-
-        return sender;
+        return mock(Sender.class);
     }
 
     private static class TestSenderService extends SenderService<Model> {

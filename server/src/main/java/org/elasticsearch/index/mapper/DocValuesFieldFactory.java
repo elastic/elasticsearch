@@ -40,6 +40,14 @@ public class DocValuesFieldFactory {
     }
 
     /**
+     * The location of this is not-ideal, but it keeps things simple for now.
+     * TODO: find a better place for this method.
+     */
+    public boolean isSingleValued() {
+        return multiValue.isSingleValued();
+    }
+
+    /**
      * Adds a numeric doc values field. For {@code multi_value=no}, creates a {@link NumericDocValuesField} (single-valued).
      * Otherwise, creates a {@link SortedNumericDocValuesField} (multi-valued).
      */

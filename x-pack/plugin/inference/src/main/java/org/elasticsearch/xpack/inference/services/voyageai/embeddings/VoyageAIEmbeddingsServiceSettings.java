@@ -19,8 +19,9 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettings;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -28,11 +29,13 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "voyageai_embeddings_service_settings";
@@ -48,49 +51,45 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
     public static VoyageAIEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        return switch (context) {
-            case REQUEST -> fromRequestMap(map, context);
-            case PERSISTENT -> fromPersistentMap(map, context);
-        };
-    }
+        var validationException = new ValidationException();
+        var commonServiceSettings = VoyageAICommonServiceSettings.fromMap(map, context, validationException);
 
-    private static VoyageAIEmbeddingsServiceSettings fromRequestMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-        var commonServiceSettings = VoyageAIServiceSettings.fromMap(map, context);
+        var embeddingType = parseEmbeddingType(map, context, validationException);
 
-        VoyageAIEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
+        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
 
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        var dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
 
-        validationException.throwIfValidationErrorsExist();
-
-        return new VoyageAIEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes, similarity, dims, maxInputTokens, dims != null);
-    }
-
-    private static VoyageAIEmbeddingsServiceSettings fromPersistentMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-        var commonServiceSettings = VoyageAIServiceSettings.fromMap(map, context);
-
-        VoyageAIEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
-
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-
-        Boolean dimensionsSetByUser = removeAsType(map, ServiceFields.DIMENSIONS_SET_BY_USER, Boolean.class);
-        if (dimensionsSetByUser == null) {
-            dimensionsSetByUser = Boolean.FALSE;
+        switch (context) {
+            case REQUEST -> {
+                if (dimensionsSetByUser != null) {
+                    validationException.addValidationError(
+                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                }
+                dimensionsSetByUser = dimensions != null;
+            }
+            case PERSISTENT -> {
+                if (dimensionsSetByUser == null) {
+                    dimensionsSetByUser = false;
+                }
+            }
         }
 
         validationException.throwIfValidationErrorsExist();
 
         return new VoyageAIEmbeddingsServiceSettings(
             commonServiceSettings,
-            embeddingTypes,
+            embeddingType,
             similarity,
-            dims,
+            dimensions,
             maxInputTokens,
             dimensionsSetByUser
         );
@@ -117,7 +116,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         };
     }
 
-    private final VoyageAIServiceSettings commonSettings;
+    private final VoyageAICommonServiceSettings commonSettings;
     private final VoyageAIEmbeddingType embeddingType;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
@@ -125,7 +124,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     private final boolean dimensionsSetByUser;
 
     public VoyageAIEmbeddingsServiceSettings(
-        VoyageAIServiceSettings commonSettings,
+        VoyageAICommonServiceSettings commonSettings,
         @Nullable VoyageAIEmbeddingType embeddingType,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
@@ -141,7 +140,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     }
 
     public VoyageAIEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        this.commonSettings = new VoyageAIServiceSettings(in);
+        this.commonSettings = new VoyageAICommonServiceSettings(in);
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.dimensions = in.readOptionalVInt();
         this.maxInputTokens = in.readOptionalVInt();
@@ -149,7 +148,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         this.dimensionsSetByUser = in.readBoolean();
     }
 
-    public VoyageAIServiceSettings getCommonSettings() {
+    public VoyageAICommonServiceSettings getCommonSettings() {
         return commonSettings;
     }
 
@@ -170,6 +169,31 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     @Override
     public String modelId() {
         return commonSettings.modelId();
+    }
+
+    @Override
+    public VoyageAIEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var updatedCommonSettings = this.commonSettings.updateCommonServiceSettings(serviceSettings, validationException);
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new VoyageAIEmbeddingsServiceSettings(
+            updatedCommonSettings,
+            this.embeddingType,
+            this.similarity,
+            this.dimensions,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            this.dimensionsSetByUser
+        );
     }
 
     public VoyageAIEmbeddingType getEmbeddingType() {

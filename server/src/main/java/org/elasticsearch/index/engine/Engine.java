@@ -929,7 +929,8 @@ public abstract class Engine implements Closeable {
             super(Operation.TYPE.NO_OP, 0, term, seqNo, null);
         }
 
-        NoOpResult(long term, long seqNo, Exception failure) {
+        // visible for testing
+        protected NoOpResult(long term, long seqNo, Exception failure) {
             super(Operation.TYPE.NO_OP, failure, 0, term, seqNo, null);
         }
 

@@ -1,0 +1,375 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.commits;
+
+import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.shard.GlobalCheckpointListeners;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.PluginComponentBinding;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
+import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+
+public class StatelessCommitNotificationsIT extends AbstractStatelessPluginIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
+        return plugins;
+    }
+
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+        public final AtomicReference<CyclicBarrier> afterFlushBarrierRef = new AtomicReference<>();
+
+        public TestStatelessPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public Collection<Object> createComponents(PluginServices services) {
+            final Collection<Object> components = super.createComponents(services);
+            components.add(
+                new PluginComponentBinding<>(
+                    StatelessCommitService.class,
+                    components.stream().filter(c -> c instanceof TestStatelessCommitService).findFirst().orElseThrow()
+                )
+            );
+            return components;
+        }
+
+        @Override
+        protected StatelessCommitService createStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            IndicesService indicesService,
+            Client client,
+            StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
+        ) {
+            return new TestStatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                indicesService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                telemetryProvider
+            );
+        }
+
+        @Override
+        protected IndexEngine newIndexEngine(
+            EngineConfig engineConfig,
+            TranslogReplicator translogReplicator,
+            Function<String, BlobContainer> translogBlobContainer,
+            StatelessCommitService statelessCommitService,
+            HollowShardsService hollowShardsService,
+            SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
+            RefreshManagerService refreshManagerService,
+            ReshardIndexService reshardIndexService,
+            DocumentParsingProvider documentParsingProvider,
+            IndexEngine.EngineMetrics engineMetrics
+        ) {
+            return new IndexEngine(
+                engineConfig,
+                translogReplicator,
+                translogBlobContainer,
+                statelessCommitService,
+                hollowShardsService,
+                sharedBlobCacheWarmingService,
+                refreshManagerService,
+                reshardIndexService,
+                statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
+                documentParsingProvider,
+                engineMetrics,
+                statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
+            ) {
+                @Override
+                protected void afterFlush(long generation) {
+                    final CyclicBarrier barrier = afterFlushBarrierRef.get();
+                    if (barrier != null) {
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                    }
+                    super.afterFlush(generation);
+                }
+            };
+        }
+    }
+
+    public static class TestStatelessCommitService extends StatelessCommitService {
+
+        public AtomicReference<CyclicBarrier> getMaxUploadedBccTermAndGenBarrierRef = new AtomicReference<>();
+
+        public TestStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            IndicesService indicesService,
+            Client client,
+            StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
+        ) {
+            super(
+                settings,
+                objectStoreService,
+                clusterService,
+                indicesService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                telemetryProvider
+            );
+        }
+
+        @Override
+        protected ShardCommitState createShardCommitState(
+            ShardId shardId,
+            long primaryTerm,
+            BooleanSupplier inititalizingNoSearchSupplier,
+            Supplier<MappingLookup> mappingLookupSupplier,
+            TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
+            Runnable triggerTranslogReplicator
+        ) {
+            return new ShardCommitState(
+                shardId,
+                primaryTerm,
+                inititalizingNoSearchSupplier,
+                mappingLookupSupplier,
+                addGlobalCheckpointListenerFunction,
+                triggerTranslogReplicator
+            ) {
+                @Override
+                public PrimaryTermAndGeneration getMaxUploadedBccTermAndGen() {
+                    final CyclicBarrier barrier = getMaxUploadedBccTermAndGenBarrierRef.get();
+                    if (barrier != null) {
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                    }
+                    return super.getMaxUploadedBccTermAndGen();
+                }
+            };
+        }
+    }
+
+    public void testAlwaysSendCommitNotificationOnCreation() throws Exception {
+        final String indexNode = startMasterAndIndexNode(
+            Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10)
+                .build()
+        );
+        startSearchNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        indexDocs(indexName, between(10, 20));
+        refresh(indexName);
+
+        final TestStatelessPlugin testStateless = findPlugin(indexNode, TestStatelessPlugin.class);
+        final CyclicBarrier afterFlushBarrier = new CyclicBarrier(2);
+        testStateless.afterFlushBarrierRef.set(afterFlushBarrier);
+
+        final IndexShard indexShard = findIndexShard(indexName);
+        final IndexEngine indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        final TestStatelessCommitService commitService = (TestStatelessCommitService) indexEngine.getStatelessCommitService();
+        final CyclicBarrier getMaxUploadedBccTermAndGenBarrier = new CyclicBarrier(2);
+        commitService.getMaxUploadedBccTermAndGenBarrierRef.set(getMaxUploadedBccTermAndGenBarrier);
+
+        final List<NewCommitNotificationRequest> requests = Collections.synchronizedList(new ArrayList<>());
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportNewCommitNotificationAction.NAME + "[u]")) {
+                requests.add((NewCommitNotificationRequest) request);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final Thread flushThread = new Thread(() -> flush(indexName));
+        flushThread.start();
+        // Wait for the flush thread to enter afterFlush so that it is about to call ensureMaxGenerationToUploadForFlush
+        // which uploads the current VBCC
+        safeAwait(afterFlushBarrier);
+        testStateless.afterFlushBarrierRef.set(null);
+
+        indexDocs(indexName, between(10, 20));
+        final Thread refreshThread = new Thread(() -> refresh(indexName));
+        refreshThread.start();
+        // Wait for the refresh thread to append the new commit and checking the maxUploadedBccTermAndGen for sending
+        // out new commit notification on creation
+        safeAwait(getMaxUploadedBccTermAndGenBarrier);
+        commitService.getMaxUploadedBccTermAndGenBarrierRef.set(null);
+
+        // Let the flush thread proceed to upload the VBCC
+        safeAwait(afterFlushBarrier);
+        // Wait till the commit notification to be sent due to the flush which is strictly after uploading the commit
+        assertBusy(() -> assertFalse(requests.isEmpty()));
+        // Let the refresh thread continue
+        safeAwait(getMaxUploadedBccTermAndGenBarrier);
+
+        flushThread.join();
+        refreshThread.join();
+
+        // Both notifications (on creation and on upload) are sent out
+        assertBusy(() -> assertThat(requests, hasSize(2)));
+        // The two notifications are identical because they are for the same VBCC.
+        // The notification on creation is also an uploaded notification since the maxUploadedBccTermAndGen gets bumped
+        // by the concurrent flush.
+        assertTrue("request " + requests.get(0), requests.get(0).isUploaded());
+        assertThat(
+            "request " + requests.get(0),
+            requests.get(0).getCompoundCommit().generation(),
+            equalTo(indexEngine.getCurrentGeneration())
+        );
+        assertThat(
+            "request " + requests.get(0),
+            requests.get(0).getBatchedCompoundCommitGeneration(),
+            equalTo(indexEngine.getCurrentGeneration() - 1L)
+        );
+        assertThat(requests.get(0), equalTo(requests.get(1)));
+
+        ensureGreen(indexName);
+    }
+
+    public void testSkipCommitNotificationAndFetchCommitsInUseForDeletedIndex() throws Exception {
+        final String indexNode = startMasterAndIndexNode(
+            Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+                .build()
+        );
+        final String searchNode = startSearchNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build()
+        );
+        ensureGreen(indexName);
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+
+        // Index and flush a commit so that it gets used by the search node
+        indexDocs(indexName, between(10, 20));
+        flush(indexName);
+        final var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        assertThat(commitService.getAllSearchNodesRetainingCommitsForShard(shardId), not(empty()));
+
+        indexDocs(indexName, between(10, 20));
+        refresh(indexName);
+        final var virtualBcc = commitService.getCurrentVirtualBcc(shardId);
+        assertNotNull(virtualBcc);
+
+        // Trigger a flush and wait for the upload to be blocked at calling the upload consumer then delete the index
+        final var barrier = new CyclicBarrier(2);
+        commitService.addConsumerForNewUploadedBcc(shardId, uploadedBccInfo -> {
+            safeAwait(barrier);
+            safeAwait(barrier);
+        });
+        final Thread thread = new Thread(() -> flush(indexName));
+        thread.start();
+        safeAwait(barrier);
+        safeGet(indicesAdmin().prepareDelete(indexName).execute());
+
+        final MockTransportService searchNodeTransportService = MockTransportService.getInstance(searchNode);
+        searchNodeTransportService.addRequestHandlingBehavior(
+            TransportFetchShardCommitsInUseAction.NAME + "[n]",
+            (handler, request, channel, task) -> {
+                throw new AssertionError("fetch commits-in-use should be skipped for deleted index");
+            }
+        );
+        searchNodeTransportService.addRequestHandlingBehavior(
+            TransportNewCommitNotificationAction.NAME + "[u]",
+            (handler, request, channel, task) -> {
+                throw new AssertionError("commit notification should be skipped for deleted index");
+            }
+        );
+
+        // Unblock the consumer so that StatelessCommitService attempts to send the new commit notification. It should not trigger NPE.
+        try (var mockLog = MockLog.capture(StatelessCommitService.class)) {
+            mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                private final AtomicBoolean seen = new AtomicBoolean(false);
+
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getThrown() instanceof NullPointerException) {
+                        seen.set(true);
+                    }
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertFalse("Unexpected NullPointerException", seen.get());
+                }
+            });
+
+            safeAwait(barrier); // unblock the upload consumer
+            // Wait for the VBCC to be closed which indicates the commit notification is processed
+            assertBusy(() -> assertFalse(virtualBcc.hasReferences()));
+            mockLog.assertAllExpectationsMatched(); // should not see NPE
+        }
+        thread.join(30_000);
+        assertFalse(thread.isAlive());
+    }
+}

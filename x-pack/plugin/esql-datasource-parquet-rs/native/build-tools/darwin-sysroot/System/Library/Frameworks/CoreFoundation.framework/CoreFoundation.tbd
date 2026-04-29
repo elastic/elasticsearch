@@ -1,0 +1,6 @@
+--- !tapi-tbd
+tbd-version: 4
+targets: [ arm64-macos ]
+install-name: /System/Library/Frameworks/CoreFoundation.framework/CoreFoundation
+exports: []
+...

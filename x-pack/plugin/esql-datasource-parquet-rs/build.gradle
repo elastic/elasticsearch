@@ -59,27 +59,25 @@ String libFileName
 String platformDir
 if (os.contains("mac") || os.contains("darwin")) {
   libFileName = "libesql_parquet_rs.dylib"
-  platformDir = arch.contains("aarch64") || arch.contains("arm64") ? "darwin-aarch64" : "darwin-x86_64"
+  //platformDir = arch.contains("aarch64") || arch.contains("arm64") ? "darwin-aarch64" : "darwin-x86_64"
 } else if (os.contains("linux")) {
   libFileName = "libesql_parquet_rs.so"
-  platformDir = arch.contains("aarch64") || arch.contains("arm64") ? "linux-aarch64" : "linux-x86_64"
+  //platformDir = arch.contains("aarch64") || arch.contains("arm64") ? "linux-aarch64" : "linux-x86_64"
 } else {
   libFileName = "libesql_parquet_rs.so"
-  platformDir = "unsupported"
+  //platformDir = "unsupported"
 }
 
 def cargoOutputDir = "${nativeDir}/target/release"
-def resourceTarget = "${project.projectDir}/src/main/resources/platform/${platformDir}"
+def resourceTarget = "${project.projectDir}/build/generated-resources/main/platform"
 
 tasks.register("cargoBuild", Exec) {
-  description = "Build the native parquet-rs library with cargo (release mode)"
+  description = "Build the native parquet-rs library locally (release mode)"
   workingDir nativeDir
 
   def cargoPath = org.gradle.internal.os.OperatingSystem.current().findInPath("cargo")
   if (cargoPath != null) {
     commandLine cargoPath.absolutePath, "build", "--release"
-  } else {
-    commandLine "cargo", "build", "--release"
   }
 
   inputs.dir("${nativeDir}/src")
@@ -92,15 +90,30 @@ tasks.register("cargoBuild", Exec) {
   }
 }
 
+tasks.register("buildNativeLibraries", Exec) {
+  description = "Build the native libraries"
+  workingDir nativeDir
+  commandLine "./build-libraries.sh"
+}
+
+sourceSets {
+  main {
+    resources {
+      srcDir(layout.buildDirectory.dir("generated-resources/main"))
+    }
+  }
+}
+
 tasks.register("copyNativeLib", Copy) {
   description = "Copy the built native library to the platform resources directory"
   dependsOn "cargoBuild"
   from "${cargoOutputDir}/${libFileName}"
+  from "${nativeDir}/libraries"
   into resourceTarget
   filePermissions {
     unix("rw-r--r--")
   }
-  onlyIf { new File("${cargoOutputDir}/${libFileName}").exists() }
+  //onlyIf { new File("${cargoOutputDir}/${libFileName}").exists() }
 }
 
 tasks.configureEach { task ->

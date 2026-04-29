@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet.parquetrs;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -77,18 +78,35 @@ final class NativeLibLoader {
 
         String platform;
         if (arch.contains("aarch64") || arch.contains("arm64")) {
-            platform = os.contains("mac") ? "darwin-aarch64" : "linux-aarch64";
+            platform = os.contains("mac") ? "aarch64-apple-darwin" : "aarch64-unknown-linux-gnu";
         } else if (arch.contains("amd64") || arch.contains("x86_64")) {
-            platform = os.contains("mac") ? "darwin-x86_64" : "linux-x86_64";
+            platform = os.contains("mac") ? "x86_64-apple-darwin" : "x86_64-unknown-linux-gnu";
         } else {
             throw new UnsupportedOperationException("Unsupported architecture: " + arch);
         }
 
-        String resourcePath = "/platform/" + platform + "/" + libName;
-        try (InputStream is = NativeLibLoader.class.getResourceAsStream(resourcePath)) {
-            if (is == null) {
-                throw new UnsatisfiedLinkError("Native library not found on classpath: " + resourcePath);
+
+        InputStream resource = null;
+        String resourcePath = "";
+        if (Build.current().isSnapshot()) {
+            resourcePath = "/platform/" + libName;
+            // Try a local build first
+            resource = NativeLibLoader.class.getResourceAsStream(resourcePath);
+            if (resource != null) {
+                logger.warn("Loading a locally-built native parquet-rs library");
             }
+        }
+
+        if (resource == null) {
+            resourcePath = "/platform/" + platform + "/" + libName;
+            resource = NativeLibLoader.class.getResourceAsStream(resourcePath);
+        }
+
+        if (resource == null) {
+            throw new UnsatisfiedLinkError("Native library not found on classpath: " + resourcePath);
+        }
+
+        try (var is = resource) {
             Path tmpDir = createTempDirectory();
             Path tmpLib = tmpDir.resolve(libName);
             Files.copy(is, tmpLib, StandardCopyOption.REPLACE_EXISTING);

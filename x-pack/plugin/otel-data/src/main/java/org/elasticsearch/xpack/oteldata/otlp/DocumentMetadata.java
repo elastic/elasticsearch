@@ -18,8 +18,9 @@ import java.util.List;
  */
 public final class DocumentMetadata {
 
-    public static final String DOCUMENT_ID_ATTRIBUTE = "elasticsearch.document_id";
-    public static final String INGEST_PIPELINE_ATTRIBUTE = "elasticsearch.ingest_pipeline";
+    public static final String ATTRIBUTE_PREFIX = "elasticsearch";
+    public static final String DOCUMENT_ID_ATTRIBUTE =  ATTRIBUTE_PREFIX + ".document_id";
+    public static final String INGEST_PIPELINE_ATTRIBUTE = ATTRIBUTE_PREFIX + ".ingest_pipeline";
 
     private DocumentMetadata() {}
 

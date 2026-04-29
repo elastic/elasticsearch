@@ -301,9 +301,11 @@ if (OS.current() == OS.WINDOWS) {
     oldElasticsearchFixtureStopPaths.addAll(['remoteEs79Fixture#stop', 'remoteEs710Fixture#stop'])
   }
 
-  tasks.named("javaRestTest").configure {
-    finalizedBy(*oldElasticsearchFixtureStopPaths)
-    systemProperty "tests.fromRemote7x", "true"
+  tasks.named("javaRestTest").configure { task ->
+    oldElasticsearchFixtureStopPaths.each { path ->
+      task.finalizedBy(path)
+    }
+    task.systemProperty "tests.fromRemote7x", "true"
   }
 }
 

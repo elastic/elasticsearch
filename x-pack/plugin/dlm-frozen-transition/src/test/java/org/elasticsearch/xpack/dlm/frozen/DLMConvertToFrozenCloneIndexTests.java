@@ -237,7 +237,14 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         timedOut.setTimedOut(true);
         mockHealthResponse.set(timedOut);
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::maybeCloneIndex);
         assertThat(exception.getMessage(), containsString("timed out"));

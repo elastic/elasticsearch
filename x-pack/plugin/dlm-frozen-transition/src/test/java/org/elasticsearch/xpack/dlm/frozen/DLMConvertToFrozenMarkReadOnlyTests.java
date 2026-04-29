@@ -474,7 +474,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 

@@ -37,12 +37,10 @@ import java.util.Map;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction.RELOCATABLE_ACTIONS;
 
-/**
- * Transport action that cancels currently running cancellable tasks.
- * <p>
- * When the request can match a relocatable action (e.g. reindex) we fan out twice and merge the results, so a task being relocated
- * mid-broadcast can't fall through the cracks. See {@link #doExecute} for the dispatch and {@link #mergeResponses} for the merge.
- */
+/// Transport action that cancels currently running cancellable tasks.
+///
+/// When the request can match a relocatable action (e.g. reindex) we fan out twice and merge the results, so a task being relocated
+/// mid-broadcast can't fall through the cracks.
 public class TransportCancelTasksAction extends TransportTasksAction<CancellableTask, CancelTasksRequest, ListTasksResponse, TaskInfo> {
 
     public static final String NAME = "cluster:admin/tasks/cancel";
@@ -87,18 +85,16 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
     }
 
-    /** Fan out to every node so we can find tasks potentially relocated to other nodes. */
+    /// Fan out to every node so we can find tasks potentially relocated to other nodes.
     @Override
     protected String[] resolveNodes(CancelTasksRequest request, DiscoveryNodes discoveryNodes) {
         return discoveryNodes.resolveNodes(request.getNodes());
     }
 
-    /**
-     * Single broadcast for non-relocatable actions; double broadcast otherwise. The double broadcast closes a relocation race where a
-     * single fan-out can hit the destination before the relocated task is created and the source after it has finished — yielding a
-     * 404. The first pass runs with {@code waitForCompletion=false} so it doesn't block the second pass; the second pass uses
-     * the user's setting. {@link #mergeResponses} reconciles the two responses so the caller can't tell whether a relocation happened.
-     */
+    /// Single broadcast for non-relocatable actions; double broadcast otherwise. The double broadcast closes a relocation race where a
+    /// single fan-out can hit the destination before the relocated task is created and the source after it has finished — yielding a
+    /// 404. The first pass runs with `waitForCompletion=false` so it doesn't block the second pass; the second pass uses the user's
+    /// setting. [#mergeResponses] reconciles the two responses so the caller can't tell whether a relocation happened.
     @Override
     protected void doExecute(Task task, CancelTasksRequest request, ActionListener<ListTasksResponse> listener) {
         if (RELOCATABLE_ACTIONS.stream().noneMatch(request::canMatchAction)) {
@@ -128,16 +124,13 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return copy;
     }
 
-    /**
-     * Merges two cancel-tasks responses into one that's relocation-agnostic to the caller:
-     * <ul>
-     *     <li>Captured tasks are deduplicated by {@code originalTaskId}; second pass wins, {@link #preferNewer} resolves intra-pass ties.
-     *     <li>Per-task failures are kept unless they refer to a logical task we already captured (e.g. the source side's
-     *         {@code 503 Service Unavailable} is irrelevant once the relocated successor was cancelled).
-     *     <li>Node failures are deduplicated; any failure with a {@link ResourceNotFoundException} in its cause chain is dropped when
-     *         the merge captured any task for a targeted cancel
-     * </ul>
-     */
+    /// Merges two cancel-tasks responses into one that's relocation-agnostic to the caller:
+    ///
+    /// - Captured tasks are deduplicated by `originalTaskId`; second pass wins, [#preferNewer] resolves intra-pass ties.
+    /// - Per-task failures are kept unless they refer to a logical task we already captured (e.g. the source side's `503 Service
+    ///   Unavailable` is irrelevant once the relocated successor was cancelled).
+    /// - Node failures are deduplicated; any failure with a [ResourceNotFoundException] in its cause chain is dropped when the merge
+    ///   captured any task for a targeted cancel.
     static ListTasksResponse mergeResponses(
         final ListTasksResponse firstPass,
         final ListTasksResponse secondPass,
@@ -157,10 +150,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return new ListTasksResponse(List.copyOf(tasksByOriginalId.values()), taskFailures, nodeFailures);
     }
 
-    /**
-     * Deduplicate captured tasks across two passes, keyed by {@code originalTaskId}. Within a pass, {@link #preferNewer} picks the
-     * post-relocation task when both physical tasks are visible. Across passes, the second pass wins on collision.
-     */
+    /// Deduplicate captured tasks across two passes, keyed by `originalTaskId`. Within a pass, [#preferNewer] picks the post-relocation
+    /// task when both physical tasks are visible. Across passes, the second pass wins on collision.
     static Map<TaskId, TaskInfo> mergeTasksByOriginalTaskId(final List<TaskInfo> firstPass, final List<TaskInfo> secondPass) {
         final Map<TaskId, TaskInfo> result = dedupWithinPass(secondPass);
         // Add only first-pass entries the second pass missed; within-pass dedup separately so intra-first-pass collisions still win by
@@ -177,10 +168,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return deduped;
     }
 
-    /**
-     * Deduplicate task failures across two passes; second pass wins. Drop failures whose physical {@code taskId} matches an
-     * {@code originalTaskId} of a captured task — the cancel committed elsewhere for that logical task.
-     */
+    /// Deduplicate task failures across two passes; second pass wins. Drop failures whose physical `taskId` matches an `originalTaskId`
+    /// of a captured task — the cancel committed elsewhere for that logical task.
     static List<TaskOperationFailure> mergeTaskFailures(
         final Map<TaskId, TaskInfo> tasksByOriginalId,
         final List<TaskOperationFailure> firstPass,
@@ -198,10 +187,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return List.copyOf(deduped.values());
     }
 
-    /**
-     * Deduplicate node failures across two passes. Keyed by {@code nodeId} for {@link FailedNodeException}, otherwise by message; second
-     * pass wins on collision.
-     */
+    /// Deduplicate node failures across two passes. Keyed by `nodeId` for [FailedNodeException], otherwise by message; second pass wins
+    /// on collision.
     static List<ElasticsearchException> mergeNodeFailures(
         final List<ElasticsearchException> firstPass,
         final List<ElasticsearchException> secondPass
@@ -216,10 +203,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return List.copyOf(deduped.values());
     }
 
-    /**
-     * Drop "task not found" node failures (any failure whose cause chain contains a {@link ResourceNotFoundException}) when the merge
-     * captured at least one task for a targeted cancel.
-     */
+    /// Drop "task not found" node failures (any failure whose cause chain contains a [ResourceNotFoundException]) when the merge
+    /// captured at least one task for a targeted cancel.
     static List<ElasticsearchException> dropStaleResourceNotFound(
         final List<ElasticsearchException> failures,
         final TaskId targetTaskId,
@@ -231,10 +216,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return failures.stream().filter(f -> ExceptionsHelper.unwrap(f, ResourceNotFoundException.class) == null).toList();
     }
 
-    /**
-     * Of two captures with the same {@code originalTaskId}, picks the one with the lower {@code runningTimeNanos} — i.e. the
-     * post-relocation successor, which started more recently than the source. "Newer" refers to start time, not last-update time.
-     */
+    /// Of two captures with the same `originalTaskId`, picks the one with the lower `runningTimeNanos` — i.e. the post-relocation
+    /// successor, which started more recently than the source. "Newer" refers to start time, not last-update time.
     static TaskInfo preferNewer(final TaskInfo existing, final TaskInfo candidate) {
         return candidate.runningTimeNanos() < existing.runningTimeNanos() ? candidate : existing;
     }
@@ -254,9 +237,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         }
     }
 
-    /**
-     * Locates the target task for a specific target task by task id, or by original task id for relocated tasks.
-     */
+    /// Locates the target task by task id, or by original task id for relocated tasks.
     private List<CancellableTask> findTargetTask(CancelTasksRequest request) {
         final TaskId target = request.getTargetTaskId();
         // match by task id

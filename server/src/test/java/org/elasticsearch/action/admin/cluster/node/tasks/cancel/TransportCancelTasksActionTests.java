@@ -146,7 +146,7 @@ public class TransportCancelTasksActionTests extends ESTestCase {
         assertFalse("waitForCompletion must be dropped", copy.waitForCompletion());
     }
 
-    /** Pass 1 cancelled the task; pass 2 came back empty (task is gone). Caller must see the task, not a 404. */
+    /// Pass 1 cancelled the task; pass 2 came back empty (task is gone). Caller must see the task, not a 404.
     public void testMergeRespFirstPassCancelledSecondPassEmpty() {
         final TaskId target = randomTaskId();
         final TaskInfo cancelled = taskInfo(target, target, randomNonNegativeLong());
@@ -159,7 +159,7 @@ public class TransportCancelTasksActionTests extends ESTestCase {
         assertThat(merged.getNodeFailures(), is(empty()));
     }
 
-    /** Pass 1 missed the task (e.g. destination not yet ready); pass 2 found it. */
+    /// Pass 1 missed the task (e.g. destination not yet ready); pass 2 found it.
     public void testMergeRespFirstPassEmptySecondPassFound() {
         final TaskId target = randomTaskId();
         final TaskInfo cancelled = taskInfo(randomTaskId(), target, randomNonNegativeLong());
@@ -171,7 +171,7 @@ public class TransportCancelTasksActionTests extends ESTestCase {
         assertThat(merged.getNodeFailures(), is(empty()));
     }
 
-    /** Both passes empty: real 404 must surface. */
+    /// Both passes empty: real 404 must surface.
     public void testMergeRespBothEmptyKeeps404() {
         final TaskId target = randomTaskId();
         final FailedNodeException synth1 = syntheticNotFound(target);
@@ -184,7 +184,7 @@ public class TransportCancelTasksActionTests extends ESTestCase {
         assertThat("second pass wins on identical synthetic 404s", merged.getNodeFailures(), contains(synth2));
     }
 
-    /** Same logical task observed pre- and post-relocation across passes; merge collapses to the relocated successor (pass 2). */
+    /// Same logical task observed pre- and post-relocation across passes; merge collapses to the relocated successor (pass 2).
     public void testMergeRespCollapsesRelocationCrossPass() {
         final TaskId originalId = randomTaskId();
         final TaskInfo source = taskInfo(originalId, originalId, 1000L);
@@ -196,7 +196,7 @@ public class TransportCancelTasksActionTests extends ESTestCase {
         assertThat(merged.getTasks(), contains(relocated));
     }
 
-    /** Genuine transport failures on unrelated nodes survive; the synthetic 404 on the target node does not. */
+    /// Genuine transport failures on unrelated nodes survive; the synthetic 404 on the target node does not.
     public void testMergeRespPreservesUnrelatedFailuresButDropsSynth404() {
         final TaskId target = randomTaskId();
         final TaskInfo cancelled = taskInfo(target, target, randomNonNegativeLong());

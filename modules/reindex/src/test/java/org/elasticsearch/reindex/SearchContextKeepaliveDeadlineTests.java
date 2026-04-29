@@ -47,10 +47,10 @@ public class SearchContextKeepaliveDeadlineTests extends ESTestCase {
     public void testSuccessfulExtensionAdvancesDeadline() {
         AtomicLong clock = new AtomicLong(10_000L);
         SearchContextKeepaliveDeadline d = new SearchContextKeepaliveDeadline(clock::get);
-        d.recordSuccessfulExtension(timeValueMillis(50));
-        clock.set(59_999); // still inside [10000, 10060]
+        d.recordSuccessfulExtension(timeValueMillis(50)); // deadline 10050
+        clock.set(10_049); // still at or before inferred expiry
         assertThat(d.isPastKeepaliveDeadline(), is(false));
-        clock.set(60_001);
+        clock.set(10_051);
         assertThat(d.isPastKeepaliveDeadline(), is(true));
     }
 

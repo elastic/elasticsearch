@@ -43,12 +43,22 @@ public final class SearchContextKeepaliveDeadline {
     public void recordSuccessfulExtension(TimeValue effectiveKeepAlive) {
         long extensionMillis = Math.max(0L, effectiveKeepAlive.millis());
         long now = clockMillis.getAsLong();
-        deadlineEpochMillis.accumulateAndGet(now + extensionMillis, Math::max);
+        long candidate = now + extensionMillis;
+        deadlineEpochMillis.updateAndGet(prev -> {
+            if (prev == INITIAL_DEADLINE) {
+                return candidate;
+            }
+            return Math.max(prev, candidate);
+        });
     }
 
     /** Returns true when wall-clock time is past {@link #recordSuccessfulExtension(TimeValue)} */
     boolean isPastKeepaliveDeadline() {
-        return clockMillis.getAsLong() > deadlineEpochMillis.get();
+        long deadline = deadlineEpochMillis.get();
+        if (deadline == INITIAL_DEADLINE) {
+            return false;
+        }
+        return clockMillis.getAsLong() > deadline;
     }
 
     /**

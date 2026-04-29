@@ -54,7 +54,7 @@ public record InferenceStats(
     public static InferenceStats create(MeterRegistry meterRegistry, String stackVersion, boolean isProductionRelease) {
         return new InferenceStats(
             meterRegistry.registerLongCounter(
-                "es.inference.requests.count.total",
+                INFERENCE_REQUEST_COUNT_TOTAL,
                 "Inference API request counts for a particular service and task type",
                 "operations"
             ),

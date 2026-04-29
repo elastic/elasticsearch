@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.glob;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.ArrayList;
@@ -43,14 +44,15 @@ final class FileListCompactor {
             return raw;
         }
         String normalizedBase = normalizeBase(basePath);
+        Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> rangesByPath = raw.fileSplitRanges();
         PartitionMetadata pm = raw.partitionMetadata();
         if (pm != null && pm.isEmpty() == false) {
-            FileList hive = tryHive(normalizedBase, raw, pm);
+            FileList hive = tryHive(normalizedBase, raw, pm, rangesByPath);
             if (hive != null) {
                 return hive;
             }
         }
-        FileList dict = tryDictionary(normalizedBase, raw);
+        FileList dict = tryDictionary(normalizedBase, raw, rangesByPath);
         if (dict != null) {
             return dict;
         }
@@ -70,7 +72,12 @@ final class FileListCompactor {
     // ------------------------------------------------------------------
 
     @SuppressWarnings("unchecked")
-    private static FileList tryHive(String normalizedBase, GenericFileList raw, PartitionMetadata pm) {
+    private static FileList tryHive(
+        String normalizedBase,
+        GenericFileList raw,
+        PartitionMetadata pm,
+        Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> rangesByPath
+    ) {
         List<StorageEntry> files = raw.files();
         int count = files.size();
         String[] colNames = pm.partitionColumns().keySet().toArray(new String[0]);
@@ -116,6 +123,7 @@ final class FileListCompactor {
         long[] orderedSizes = new long[count];
         String[] orderedLeafNames = new String[count];
         long[] orderedMtimes = new long[count];
+        StoragePath[] orderedPaths = new StoragePath[count];
 
         String sharedExt = null;
         boolean extChecked = false;
@@ -136,6 +144,7 @@ final class FileListCompactor {
 
             for (int fi : fileIndices) {
                 StorageEntry entry = files.get(fi);
+                orderedPaths[filePos] = entry.path();
                 orderedSizes[filePos] = entry.length();
                 orderedMtimes[filePos] = entry.lastModified().toEpochMilli();
 
@@ -193,6 +202,8 @@ final class FileListCompactor {
             colValDicts[c] = colValLists[c].toArray(new String[0]);
         }
 
+        CompactRangeStore rangeStore = CompactRangeStore.build(count, i -> orderedPaths[i], rangesByPath);
+
         return new HiveFileList(
             normalizedBase,
             colNames,
@@ -206,7 +217,8 @@ final class FileListCompactor {
             sharedExt,
             raw.originalPattern(),
             raw.partitionMetadata(),
-            count
+            count,
+            rangeStore
         );
     }
 
@@ -214,7 +226,11 @@ final class FileListCompactor {
     // Dictionary-encoded encoding
     // ------------------------------------------------------------------
 
-    private static FileList tryDictionary(String normalizedBase, GenericFileList raw) {
+    private static FileList tryDictionary(
+        String normalizedBase,
+        GenericFileList raw,
+        Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> rangesByPath
+    ) {
         List<StorageEntry> files = raw.files();
         int count = files.size();
         long[] sizes = new long[count];
@@ -321,6 +337,8 @@ final class FileListCompactor {
 
         String[] tokenArray = tokenList.toArray(new String[0]);
 
+        CompactRangeStore rangeStore = CompactRangeStore.build(count, i -> files.get(i).path(), rangesByPath);
+
         return new DictionaryFileList(
             normalizedBase,
             tokenArray,
@@ -331,7 +349,8 @@ final class FileListCompactor {
             sharedExt,
             raw.originalPattern(),
             raw.partitionMetadata(),
-            count
+            count,
+            rangeStore
         );
     }
 

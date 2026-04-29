@@ -2079,15 +2079,15 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             assertThat(future3.isDone(), is(false));
             taskQueue.runAllRunnableTasks();
+            assertThat(future1.isDone(), is(true));
             assertThat(future3.isDone(), is(true));
 
-            var written = future3.get(10L, TimeUnit.SECONDS);
-            assertThat(written, is(false));
+            var written1 = future1.get(10L, TimeUnit.SECONDS);
+            var written3 = future3.get(10L, TimeUnit.SECONDS);
+            // one and only one wrote it
+            assertThat(written1 ^ written3, is(true));
 
-            written = future1.get(10L, TimeUnit.SECONDS);
-            assertThat(future1.isDone(), is(true));
-            assertThat(written, is(true));
-            written = future2.get(10L, TimeUnit.SECONDS);
+            var written = future2.get(10L, TimeUnit.SECONDS);
             assertThat(future2.isDone(), is(true));
             assertThat(written, is(true));
         }

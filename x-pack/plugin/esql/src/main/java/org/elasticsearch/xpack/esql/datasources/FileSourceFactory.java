@@ -12,8 +12,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FileLayout;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -21,8 +23,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -95,6 +99,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
+        return resolveFileLayout(location, config).metadata();
+    }
+
+    @Override
+    public FileLayout resolveFileLayout(String location, Map<String, Object> config) {
         try {
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
@@ -111,7 +120,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 throw new IOException("File does not exist: " + location);
             }
             FormatReader reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
-            return reader.metadata(storageObject);
+            // For range-aware (columnar) formats, read schema and split ranges in a single pass.
+            // Other formats only have schema; split discovery is a no-op for them.
+            if (reader instanceof RangeAwareFormatReader rangeReader) {
+                return rangeReader.resolveFileLayout(storageObject);
+            }
+            return FileLayout.ofMetadata(reader.metadata(storageObject));
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
         }
@@ -150,6 +164,14 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 ? format.filterPushdownSupport()
                 : null;
 
+            Closeable onClose = null;
+            ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
+            if (allocator != null) {
+                QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
+                storage = budgeted;
+                onClose = budgeted;
+            }
+
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
             return AsyncExternalSourceOperatorFactory.builder(
                 storage,
@@ -169,6 +191,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .parsingParallelism(context.parsingParallelism())
                 .pushedExpressions(pushedExpressions)
                 .pushdownSupport(pushdownSupport)
+                .onClose(onClose)
                 .build();
         };
     }

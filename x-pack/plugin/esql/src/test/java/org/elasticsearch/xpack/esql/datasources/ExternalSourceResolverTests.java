@@ -26,12 +26,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FileLayout;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -267,6 +272,156 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(1, fileList.fileCount());
         assertEquals("s3://bucket/data/single.parquet", fileList.path(0).toString());
         assertEquals(0L, fileList.size(0));
+    }
+
+    // ===== Pre-resolved split ranges threading =====
+
+    public void testSingleFileResolutionThreadsSplitRangesWhenRangeAware() throws Exception {
+        String location = "s3://bucket/data/single.parquet";
+        StoragePath storagePath = StoragePath.of(location);
+        List<Attribute> schema = List.of(attr("id", DataType.LONG));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put(location, schema);
+
+        Map<StoragePath, List<SplitRange>> rangesByPath = new HashMap<>();
+        SplitRange r1 = new SplitRange(4, 100, Map.of("_stats.row_count", 50L));
+        SplitRange r2 = new SplitRange(104, 100, Map.of("_stats.row_count", 50L));
+        rangesByPath.put(storagePath, List.of(r1, r2));
+
+        ExternalSourceResolution resolution = resolveSingleFileWithRangeReader(location, schemasByPath, rangesByPath);
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(location);
+        assertNotNull(resolved);
+        FileList fileList = resolved.fileList();
+        // Verify pre-resolved ranges via the indexed range API
+        assertEquals(1, fileList.fileCount());
+        assertEquals(2, fileList.rangeCount(0));
+        assertEquals(r1.offset(), fileList.rangeOffset(0, 0));
+        assertEquals(r1.length(), fileList.rangeLength(0, 0));
+        assertEquals(r2.offset(), fileList.rangeOffset(0, 1));
+        assertEquals(r2.length(), fileList.rangeLength(0, 1));
+        // Verify rangeStats returns non-null SplitStats with correct row counts
+        SplitStats stats0 = fileList.rangeStats(0, 0);
+        assertNotNull("rangeStats should be non-null for range with statistics", stats0);
+        assertEquals(50L, stats0.rowCount());
+        SplitStats stats1 = fileList.rangeStats(0, 1);
+        assertNotNull("rangeStats should be non-null for range with statistics", stats1);
+        assertEquals(50L, stats1.rowCount());
+    }
+
+    public void testMultiFileResolutionThreadsSplitRangesForUnionByName() throws Exception {
+        String f1 = "s3://bucket/data/file1.parquet";
+        String f2 = "s3://bucket/data/file2.parquet";
+        StoragePath p1 = StoragePath.of(f1);
+        StoragePath p2 = StoragePath.of(f2);
+
+        List<Attribute> schema1 = List.of(attr("id", DataType.LONG), attr("a", DataType.KEYWORD));
+        List<Attribute> schema2 = List.of(attr("id", DataType.LONG), attr("b", DataType.KEYWORD));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put(f1, schema1);
+        schemasByPath.put(f2, schema2);
+
+        Map<StoragePath, List<SplitRange>> rangesByPath = new HashMap<>();
+        SplitRange r1 = new SplitRange(4, 100, Map.of("_stats.row_count", 50L));
+        SplitRange r2 = new SplitRange(8, 200, Map.of("_stats.row_count", 100L));
+        rangesByPath.put(p1, List.of(r1));
+        rangesByPath.put(p2, List.of(r2));
+
+        ExternalSourceResolution resolution = resolveMultiFileWithRangeReader(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            rangesByPath,
+            List.of(entry(f1, 200), entry(f2, 400)),
+            // Use UNION_BY_NAME so all files are opened during resolution.
+            FormatReader.SchemaResolution.UNION_BY_NAME
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        FileList fileList = resolved.fileList();
+        // Verify pre-resolved ranges via the indexed range API
+        assertEquals(2, fileList.fileCount());
+        // File order in the file list depends on the listing order; find each file's index
+        int idx1 = -1, idx2 = -1;
+        for (int i = 0; i < fileList.fileCount(); i++) {
+            if (fileList.path(i).equals(p1)) idx1 = i;
+            if (fileList.path(i).equals(p2)) idx2 = i;
+        }
+        assertTrue("p1 should be in the file list", idx1 >= 0);
+        assertTrue("p2 should be in the file list", idx2 >= 0);
+        assertEquals(1, fileList.rangeCount(idx1));
+        assertEquals(r1.offset(), fileList.rangeOffset(idx1, 0));
+        assertEquals(r1.length(), fileList.rangeLength(idx1, 0));
+        assertEquals(1, fileList.rangeCount(idx2));
+        assertEquals(r2.offset(), fileList.rangeOffset(idx2, 0));
+        assertEquals(r2.length(), fileList.rangeLength(idx2, 0));
+        // Verify rangeStats returns non-null SplitStats with correct row counts
+        SplitStats statsF1 = fileList.rangeStats(idx1, 0);
+        assertNotNull("rangeStats should be non-null for range with statistics", statsF1);
+        assertEquals(50L, statsF1.rowCount());
+        SplitStats statsF2 = fileList.rangeStats(idx2, 0);
+        assertNotNull("rangeStats should be non-null for range with statistics", statsF2);
+        assertEquals(100L, statsF2.rowCount());
+    }
+
+    // ===== Compact round-trip preserves ranges =====
+
+    public void testCompactRoundTripPreservesRanges() {
+        StoragePath p1 = StoragePath.of("s3://bucket/data/file1.parquet");
+        StoragePath p2 = StoragePath.of("s3://bucket/data/file2.parquet");
+
+        SplitRange r1 = new SplitRange(4, 100, Map.of("_stats.row_count", 50L));
+        SplitRange r2 = new SplitRange(104, 200, Map.of("_stats.row_count", 75L));
+        SplitRange r3 = new SplitRange(8, 150, Map.of("_stats.row_count", 60L));
+
+        Map<StoragePath, List<SplitRange>> rangesByPath = new HashMap<>();
+        rangesByPath.put(p1, List.of(r1, r2));
+        rangesByPath.put(p2, List.of(r3));
+
+        List<StorageEntry> entries = List.of(entry("s3://bucket/data/file1.parquet", 300), entry("s3://bucket/data/file2.parquet", 150));
+
+        // Create a GenericFileList with ranges attached
+        FileList raw = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
+        FileList withRanges = GlobExpander.withFileSplitRanges(raw, rangesByPath);
+
+        // Compact the list (should produce a DictionaryFileList with CompactRangeStore)
+        FileList compact = GlobExpander.compact(withRanges, "s3://bucket/data/");
+
+        // Verify the compact list preserves file count and paths
+        assertEquals(2, compact.fileCount());
+
+        // Find indices in the compact list (order may differ from raw)
+        int idx1 = -1, idx2 = -1;
+        for (int i = 0; i < compact.fileCount(); i++) {
+            if (compact.path(i).equals(p1)) idx1 = i;
+            if (compact.path(i).equals(p2)) idx2 = i;
+        }
+        assertTrue("p1 should be in the compact file list", idx1 >= 0);
+        assertTrue("p2 should be in the compact file list", idx2 >= 0);
+
+        // Verify ranges survived compaction
+        assertEquals(2, compact.rangeCount(idx1));
+        assertEquals(r1.offset(), compact.rangeOffset(idx1, 0));
+        assertEquals(r1.length(), compact.rangeLength(idx1, 0));
+        assertEquals(r2.offset(), compact.rangeOffset(idx1, 1));
+        assertEquals(r2.length(), compact.rangeLength(idx1, 1));
+
+        assertEquals(1, compact.rangeCount(idx2));
+        assertEquals(r3.offset(), compact.rangeOffset(idx2, 0));
+        assertEquals(r3.length(), compact.rangeLength(idx2, 0));
+
+        // Verify stats survived compaction
+        SplitStats s1r0 = compact.rangeStats(idx1, 0);
+        assertNotNull("rangeStats should survive compaction", s1r0);
+        assertEquals(50L, s1r0.rowCount());
+        SplitStats s1r1 = compact.rangeStats(idx1, 1);
+        assertNotNull("rangeStats should survive compaction", s1r1);
+        assertEquals(75L, s1r1.rowCount());
+        SplitStats s2r0 = compact.rangeStats(idx2, 0);
+        assertNotNull("rangeStats should survive compaction", s2r0);
+        assertEquals(60L, s2r0.rowCount());
     }
 
     // ===== Schema type preservation =====
@@ -834,6 +989,88 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
     }
 
+    private ExternalSourceResolution resolveSingleFileWithRangeReader(
+        String path,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<StoragePath, List<SplitRange>> rangesByPath
+    ) throws Exception {
+        ExternalSourceResolver resolver = createResolverWithRangeReader(schemasByPath, Map.of(), rangesByPath);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(), future);
+        return future.actionGet();
+    }
+
+    private ExternalSourceResolution resolveMultiFileWithRangeReader(
+        String globPattern,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<StoragePath, List<SplitRange>> rangesByPath,
+        List<StorageEntry> listing,
+        FormatReader.SchemaResolution schemaResolution
+    ) throws Exception {
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        StoragePath sp = StoragePath.of(globPattern);
+        listingsByPrefix.put(sp.patternPrefix().toString(), listing);
+
+        ExternalSourceResolver resolver = createResolverWithRangeReader(schemasByPath, listingsByPrefix, rangesByPath);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+
+        Map<String, Map<String, Expression>> pathParams = new HashMap<>();
+        if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+            Map<String, Expression> exprParams = new HashMap<>();
+            exprParams.put(
+                ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION,
+                new Literal(Source.EMPTY, new BytesRef(schemaResolution.name().toLowerCase(java.util.Locale.ROOT)), DataType.KEYWORD)
+            );
+            pathParams.put(globPattern, exprParams);
+        }
+
+        resolver.resolve(List.of(globPattern), pathParams, future);
+        return future.actionGet();
+    }
+
+    private ExternalSourceResolver createResolverWithRangeReader(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        Map<StoragePath, List<SplitRange>> rangesByPath
+    ) {
+        StubRangeAwareFormatReader formatReader = new StubRangeAwareFormatReader(schemasByPath, rangesByPath);
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", s -> storageProvider);
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+    }
+
     private ExternalSourceResolver createResolverWithCache(
         StorageProvider storageProvider,
         Map<String, List<Attribute>> schemasByPath,
@@ -893,6 +1130,58 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 throw new IllegalArgumentException("No schema configured for path: " + path);
             }
             return new StubSourceMetadata(path, schema);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String formatName() {
+            return "parquet";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class StubRangeAwareFormatReader implements RangeAwareFormatReader {
+        private final Map<String, List<Attribute>> schemasByPath;
+        private final Map<StoragePath, List<SplitRange>> rangesByPath;
+
+        StubRangeAwareFormatReader(Map<String, List<Attribute>> schemasByPath, Map<StoragePath, List<SplitRange>> rangesByPath) {
+            this.schemasByPath = schemasByPath;
+            this.rangesByPath = rangesByPath;
+        }
+
+        @Override
+        public FileLayout resolveFileLayout(StorageObject object) {
+            String path = object.path().toString();
+            List<Attribute> schema = schemasByPath.get(path);
+            if (schema == null) {
+                throw new IllegalArgumentException("No schema configured for path: " + path);
+            }
+            List<SplitRange> ranges = rangesByPath.getOrDefault(object.path(), List.of());
+            return new FileLayout(new StubSourceMetadata(path, schema), ranges);
+        }
+
+        @Override
+        public CloseableIterator<Page> readRange(
+            StorageObject object,
+            List<String> projectedColumns,
+            int batchSize,
+            long rangeStart,
+            long rangeEnd,
+            List<Attribute> resolvedAttributes,
+            ErrorPolicy errorPolicy
+        ) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

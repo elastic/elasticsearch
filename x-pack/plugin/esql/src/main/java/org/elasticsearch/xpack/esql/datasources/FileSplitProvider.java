@@ -195,7 +195,7 @@ public class FileSplitProvider implements SplitProvider {
                 continue;
             }
 
-            if (tryRangeAwareSplits(filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
+            if (tryRangeAwareSplits(fileList, i, filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
                 continue;
             }
 
@@ -351,10 +351,18 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Attempts to create range-aware splits for columnar formats (e.g. Parquet row groups).
-     * The format reader reads file metadata (e.g. Parquet footer) to discover independently
-     * readable byte ranges. Returns true if range-aware splits were created.
+     * <p>
+     * Fast path: when the {@link FileList} carries pre-resolved ranges from single-pass file
+     * layout resolution (see {@link RangeAwareFormatReader#resolveFileLayout}), the file is not
+     * re-opened here -- splits are built directly from the cached ranges.
+     * <p>
+     * Slow path: when no pre-resolved ranges are available, the format reader reads file metadata
+     * (e.g. Parquet footer) to discover independently readable byte ranges. Returns true if
+     * range-aware splits were created.
      */
     private boolean tryRangeAwareSplits(
+        FileList fileList,
+        int fileIndex,
         StoragePath filePath,
         long fileLength,
         String format,
@@ -363,6 +371,32 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable SchemaReconciliation.ColumnMapping columnMapping,
         List<ExternalSplit> splits
     ) {
+        // Fast path: pre-resolved ranges captured during metadata resolution. This avoids a
+        // second open of the file (e.g. Parquet footer read) on remote storage.
+        if (fileList != null) {
+            int rc = fileList.rangeCount(fileIndex);
+            if (rc > 0) {
+                LOGGER.trace("Using {} pre-resolved split ranges for [{}]", rc, filePath);
+                buildSplitsFromIndexedRanges(
+                    fileList,
+                    fileIndex,
+                    rc,
+                    filePath,
+                    fileLength,
+                    format,
+                    config,
+                    partitionValues,
+                    columnMapping,
+                    splits
+                );
+                return true;
+            }
+            // rc == 0: resolution ran but produced no ranges — skip range-aware, fall through to single-split
+            if (rc == 0) {
+                return false;
+            }
+        }
+
         if (formatRegistry == null || storageRegistry == null || format == null) {
             return false;
         }
@@ -388,35 +422,82 @@ public class FileSplitProvider implements SplitProvider {
             }
             StorageObject object = provider.newObject(filePath, fileLength);
 
-            List<SplitRange> ranges = rangeReader.discoverSplitRanges(object);
+            List<SplitRange> ranges = rangeReader.resolveFileLayout(object).splitRanges();
             if (ranges.isEmpty()) {
                 return false;
             }
 
-            Map<String, Object> splitConfig = new HashMap<>(config);
-            splitConfig.put(RANGE_SPLIT_KEY, "true");
-            splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
-
-            for (SplitRange range : ranges) {
-                Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
-                splits.add(
-                    new FileSplit(
-                        "file",
-                        filePath,
-                        range.offset(),
-                        range.length(),
-                        format,
-                        splitConfig,
-                        partitionValues,
-                        columnMapping,
-                        rangeStats
-                    )
-                );
-            }
+            buildSplitsFromRanges(ranges, filePath, fileLength, format, config, partitionValues, columnMapping, splits);
             return true;
         } catch (IOException e) {
             LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
             return false;
+        }
+    }
+
+    private static void buildSplitsFromIndexedRanges(
+        FileList fileList,
+        int fileIndex,
+        int rangeCount,
+        StoragePath filePath,
+        long fileLength,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        List<ExternalSplit> splits
+    ) {
+        Map<String, Object> splitConfig = new HashMap<>(config);
+        splitConfig.put(RANGE_SPLIT_KEY, "true");
+        splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
+
+        for (int r = 0; r < rangeCount; r++) {
+            SplitStats stats = fileList.rangeStats(fileIndex, r);
+            splits.add(
+                FileSplit.withSplitStats(
+                    "file",
+                    filePath,
+                    fileList.rangeOffset(fileIndex, r),
+                    fileList.rangeLength(fileIndex, r),
+                    format,
+                    splitConfig,
+                    partitionValues,
+                    columnMapping,
+                    stats
+                )
+            );
+        }
+    }
+
+    private static void buildSplitsFromRanges(
+        List<SplitRange> ranges,
+        StoragePath filePath,
+        long fileLength,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        List<ExternalSplit> splits
+    ) {
+        Map<String, Object> splitConfig = new HashMap<>(config);
+        splitConfig.put(RANGE_SPLIT_KEY, "true");
+        splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
+
+        for (SplitRange range : ranges) {
+            Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
+            splits.add(
+                new FileSplit(
+                    "file",
+                    filePath,
+                    range.offset(),
+                    range.length(),
+                    format,
+                    splitConfig,
+                    partitionValues,
+                    columnMapping,
+                    rangeStats
+                )
+            );
         }
     }
 

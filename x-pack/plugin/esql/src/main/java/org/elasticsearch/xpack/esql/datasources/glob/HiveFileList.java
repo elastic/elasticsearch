@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -37,6 +38,8 @@ final class HiveFileList implements FileList {
     @Nullable
     private final PartitionMetadata partitionMetadata;
     private final int fileCount;
+    @Nullable
+    private final CompactRangeStore ranges;
 
     HiveFileList(
         String basePath,
@@ -51,7 +54,8 @@ final class HiveFileList implements FileList {
         @Nullable String sharedExtension,
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
-        int fileCount
+        int fileCount,
+        @Nullable CompactRangeStore ranges
     ) {
         this.basePath = basePath;
         this.partitionColumnNames = partitionColumnNames;
@@ -66,6 +70,26 @@ final class HiveFileList implements FileList {
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
         this.fileCount = fileCount;
+        this.ranges = ranges;
+    }
+
+    HiveFileList withRanges(CompactRangeStore ranges) {
+        return new HiveFileList(
+            basePath,
+            partitionColumnNames,
+            columnValueDicts,
+            groupValueIndices,
+            groupFileStarts,
+            sizes,
+            mtimesMillis,
+            groupMtimes,
+            leafNames,
+            sharedExtension,
+            originalPattern,
+            partitionMetadata,
+            fileCount,
+            ranges
+        );
     }
 
     private int findGroup(int fileIndex) {
@@ -139,6 +163,27 @@ final class HiveFileList implements FileList {
     }
 
     @Override
+    public int rangeCount(int i) {
+        return ranges != null ? ranges.rangeCount(i) : -1;
+    }
+
+    @Override
+    public long rangeOffset(int i, int r) {
+        return ranges != null ? ranges.rangeOffset(i, r) : 0L;
+    }
+
+    @Override
+    public long rangeLength(int i, int r) {
+        return ranges != null ? ranges.rangeLength(i, r) : size(i);
+    }
+
+    @Override
+    @Nullable
+    public SplitStats rangeStats(int i, int r) {
+        return ranges != null ? ranges.rangeStats(i, r) : null;
+    }
+
+    @Override
     public long estimatedBytes() {
         // object header + reference fields
         long bytes = 64;
@@ -166,6 +211,6 @@ final class HiveFileList implements FileList {
         if (sharedExtension != null) {
             bytes += 40 + sharedExtension.length() * (long) Character.BYTES;
         }
-        return bytes;
+        return bytes + (ranges != null ? ranges.estimatedBytes() : 0);
     }
 }

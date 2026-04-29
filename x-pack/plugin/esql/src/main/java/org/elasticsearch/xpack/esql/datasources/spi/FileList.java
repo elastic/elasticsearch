@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 
 import java.util.Map;
 
@@ -158,6 +159,40 @@ public interface FileList {
      */
     @Nullable
     default Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo() {
+        return null;
+    }
+
+    /**
+     * Number of pre-resolved split ranges for file {@code i}.
+     * Returns {@code -1} if ranges were not resolved (caller should use slow path),
+     * {@code 0} if resolved but the file has no independently-readable ranges,
+     * or a positive count of available ranges.
+     */
+    default int rangeCount(int i) {
+        return -1;
+    }
+
+    /**
+     * Byte offset of range {@code r} within file {@code i}.
+     * Only valid when {@code rangeCount(i) > 0} and {@code 0 <= r < rangeCount(i)}.
+     */
+    default long rangeOffset(int i, int r) {
+        return 0L;
+    }
+
+    /**
+     * Byte length of range {@code r} within file {@code i}.
+     * Only valid when {@code rangeCount(i) > 0} and {@code 0 <= r < rangeCount(i)}.
+     */
+    default long rangeLength(int i, int r) {
+        return size(i);
+    }
+
+    /**
+     * Compact statistics for range {@code r} within file {@code i}, or {@code null} if unavailable.
+     */
+    @Nullable
+    default SplitStats rangeStats(int i, int r) {
         return null;
     }
 }

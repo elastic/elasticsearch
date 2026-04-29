@@ -2429,24 +2429,24 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 }
                                 long minVal = skipper.minValue(0);
                                 long maxVal = skipper.maxValue(0);
-                                int firstDocInBlock = Math.max(iterDoc, skipper.minDocID(0));
-                                int lastDocInBlock = skipper.maxDocID(0);
+                                int firstDocInSkipper = Math.max(iterDoc, skipper.minDocID(0));
+                                int lastDocInSkipper = skipper.maxDocID(0);
                                 if (lowerValue <= minVal && maxVal <= upperValue) {
-                                    return iterDoc = firstDocInBlock;
+                                    return iterDoc = firstDocInSkipper;
                                 } else if (minVal <= upperValue && lowerValue <= maxVal) {
-                                    int firstBlock = firstDocInBlock >>> numericBlockShift;
-                                    int lastBlock = lastDocInBlock >>> numericBlockShift;
+                                    int firstBlock = firstDocInSkipper >>> numericBlockShift;
+                                    int lastBlock = lastDocInSkipper >>> numericBlockShift;
                                     for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
                                         ensureFilterBlockCached(blockId);
-                                        int firstInBlock = blockId == firstBlock ? firstDocInBlock & numericBlockMask : 0;
-                                        int lastInBlock = blockId == lastBlock ? lastDocInBlock & numericBlockMask : numericBlockMask;
+                                        int firstInBlock = blockId == firstBlock ? firstDocInSkipper & numericBlockMask : 0;
+                                        int lastInBlock = blockId == lastBlock ? lastDocInSkipper & numericBlockMask : numericBlockMask;
                                         int bit = rangeMatches.nextSetBit(firstInBlock, lastInBlock + 1);
                                         if (bit != NO_MORE_DOCS) {
                                             return iterDoc = (blockId << numericBlockShift) + bit;
                                         }
                                     }
                                 }
-                                iterDoc = lastDocInBlock + 1;
+                                iterDoc = lastDocInSkipper + 1;
                             }
                             return iterDoc = NO_MORE_DOCS;
                         }
@@ -2509,19 +2509,19 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                         return;
                                     }
                                 }
-                                int firstDocInRange = Math.max(iterDoc, skipper.minDocID(0));
-                                int lastDocInRange = Math.min(skipper.maxDocID(0), upTo - 1);
+                                int firstDocInSkipper = Math.max(iterDoc, skipper.minDocID(0));
+                                int lastDocInSkipper = Math.min(skipper.maxDocID(0), upTo - 1);
                                 long minVal = skipper.minValue(0);
                                 long maxVal = skipper.maxValue(0);
                                 if (lowerValue <= minVal && maxVal <= upperValue) {
-                                    bitSet.set(firstDocInRange - offset, lastDocInRange + 1 - offset);
+                                    bitSet.set(firstDocInSkipper - offset, lastDocInSkipper + 1 - offset);
                                 } else if (minVal <= upperValue && lowerValue <= maxVal) {
-                                    int firstBlock = firstDocInRange >>> numericBlockShift;
-                                    int lastBlock = lastDocInRange >>> numericBlockShift;
+                                    int firstBlock = firstDocInSkipper >>> numericBlockShift;
+                                    int lastBlock = lastDocInSkipper >>> numericBlockShift;
                                     for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
                                         ensureFilterBlockCached(blockId);
-                                        int firstInBlock = blockId == firstBlock ? firstDocInRange & numericBlockMask : 0;
-                                        int lastInBlock = blockId == lastBlock ? lastDocInRange & numericBlockMask : numericBlockMask;
+                                        int firstInBlock = blockId == firstBlock ? firstDocInSkipper & numericBlockMask : 0;
+                                        int lastInBlock = blockId == lastBlock ? lastDocInSkipper & numericBlockMask : numericBlockMask;
                                         rangeMatches.forEach(
                                             firstInBlock,
                                             lastInBlock + 1,
@@ -2530,7 +2530,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                         );
                                     }
                                 }
-                                iterDoc = lastDocInRange + 1;
+                                iterDoc = lastDocInSkipper + 1;
                             }
                         }
                     };

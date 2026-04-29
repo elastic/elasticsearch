@@ -387,16 +387,11 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
         bulkIndex("test_kw", List.of(Map.of("val", List.of("192.168.0.1", "192.168.3.1"))));
 
-        Map<String, Object> result = runEsql(
-            requestObjectBuilder().query("""
-                FROM test_kw
-                | EVAL ip_val = MV_MAX(val::ip)
-                | KEEP ip_val
-                """),
-            new AssertWarnings.NoWarnings(),
-            profileLogger,
-            RestEsqlTestCase.Mode.SYNC
-        );
+        Map<String, Object> result = runEsql(requestObjectBuilder().query("""
+            FROM test_kw
+            | EVAL ip_val = MV_MAX(val::ip)
+            | KEEP ip_val
+            """), new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) result.get("values");

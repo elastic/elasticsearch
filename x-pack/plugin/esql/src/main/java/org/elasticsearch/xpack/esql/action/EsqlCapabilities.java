@@ -2640,6 +2640,13 @@ public class EsqlCapabilities {
          */
         FIX_SET_WRONG_LINE_COLUMN,
 
+        /**
+         * Prune constant/foldable sort keys from TopN. If all keys are constant the TopN is replaced
+         * by a Limit; if only some are constant the TopN is rebuilt with the remaining non-constant keys.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/143518">ES|QL: replace TopN with Limit #143518</a>
+         */
+        PRUNE_CONSTANT_SORT_KEYS_FROM_TOPN,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

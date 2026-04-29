@@ -1481,18 +1481,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | sort nullsum
             | limit 1
             """));
-        var topN = as(optimized, TopNExec.class);
-        var exchange = asRemoteExchange(topN.child());
+        // nullsum = emp_no + null folds to null at plan time, so the sort key is constant.
+        // PruneConstantSortKeysFromTopN fires: no TopNExec at coordinator or data node.
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        var topNLocal = as(extract.child(), TopNExec.class);
-        // all fields plus nullsum and shards, segments, docs and two extra ints for forwards and backwards map
-        assertThat(topNLocal.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES + Integer.BYTES * 2 + Integer.BYTES * 3));
-
-        var eval = as(topNLocal.child(), EvalExec.class);
+        // PushLimitToSource pushes limit=1 into EsQueryExec, so Lucene stops after one document.
+        // FieldExtractExec still loads all fields for that one row (estimatedRowSize reflects this),
+        // but only one row is ever processed — better than the old late-materialization path where
+        // Lucene would scan rows to feed a TopN heap before loading fields.
+        var eval = as(extract.child(), EvalExec.class);
         var source = source(eval.child());
-        // nullsum and doc id are ints. we don't actually load emp_no here because we know we don't need it.
-        assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 2));
+        assertThat(source.limit().fold(FoldContext.small()), is(1));
+        assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
     }
 
     public void testProjectAfterTopN() throws Exception {

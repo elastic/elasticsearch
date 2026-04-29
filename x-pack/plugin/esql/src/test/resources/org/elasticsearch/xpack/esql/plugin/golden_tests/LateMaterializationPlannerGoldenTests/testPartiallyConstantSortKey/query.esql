@@ -1,0 +1,4 @@
+FROM employees
+| EVAL x = null
+| SORT x, emp_no
+| LIMIT 20

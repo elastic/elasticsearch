@@ -1371,12 +1371,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("s"));
 
-        // TopN[[Order[s{r}#5,DESC,FIRST]],1[INTEGER],false]
-        var topN = as(project.child(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1));
+        // sort key s is null (field is missing), so TopN is replaced by Limit
+        var limit = as(project.child(), Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1));
 
         // Evaluates expression as null, as the field is missing
-        var eval = as(topN.child(), Eval.class);
+        var eval = as(limit.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("s"));
         var alias = as(eval.fields().getFirst(), Alias.class);
         var literal = as(alias.child(), Literal.class);

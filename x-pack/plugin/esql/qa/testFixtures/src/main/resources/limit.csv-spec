@@ -1236,3 +1236,33 @@ FROM sample_data
 2023-10-23T13:33:34.937Z | Disconnected
 2023-10-23T13:51:54.732Z | Connection error
 ;
+
+replaceTopNWithLimitOnConstantSort
+required_capability: prune_constant_sort_keys_from_topn
+
+FROM employees
+| EVAL x = null
+| SORT x
+| LIMIT 100
+| STATS count = COUNT(*)
+;
+
+count:long
+100
+;
+
+pruneConstantSortKeysFromTopN
+required_capability: prune_constant_sort_keys_from_topn
+
+FROM employees
+| EVAL x = null
+| SORT x, emp_no ASC
+| LIMIT 3
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvals
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropgateUnmappedFields;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneConstantSortKeysFromTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyAggregates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyForkBranches;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
@@ -267,6 +268,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Clean Up",
             new ReplaceLimitAndSortAsTopN(),
+            new PruneConstantSortKeysFromTopN(),
             new HoistRemoteEnrichTopN(),
             new ReplaceRowAsLocalRelation(),
             new PropgateUnmappedFields(),

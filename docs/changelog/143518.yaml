@@ -1,0 +1,6 @@
+pr: 147769
+summary: Prune constant sort keys from TopN, replacing TopN with Limit when all keys are constant
+area: ES|QL
+type: enhancement
+issues:
+ - 143518

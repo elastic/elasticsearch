@@ -1435,6 +1435,108 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(filter.child(), Limit.class);
     }
 
+    public void testPruneAllConstantSortKeysReplacesTopNWithLimit() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval x = null
+            | sort x
+            | limit 10
+            """);
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    public void testDoNotReplaceTopNWhenSortKeyIsNotConstant() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | limit 10
+            """);
+        as(plan, TopN.class);
+    }
+
+    public void testPruneLeadingConstantSortKeyFromTopN() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval x = null
+            | sort x, emp_no
+            | limit 10
+            """);
+        var topN = as(plan, TopN.class);
+        assertThat(orderNames(topN), contains("emp_no"));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
+    }
+
+    public void testPruneMiddleConstantSortKeyFromTopN() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval x = null
+            | sort emp_no, x, salary
+            | limit 10
+            """);
+        var topN = as(plan, TopN.class);
+        assertThat(orderNames(topN), contains("emp_no", "salary"));
+    }
+
+    public void testDoNotPruneConstantSortKeysInsideForkBranch() {
+        // Within a Fork branch, _fork = "fork1" is constant for all rows in that branch,
+        // but the rule must not prune it from pushed-down inner TopNs: those sort keys are
+        // required so that the outer coordinator TopN can correctly merge across branches.
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | fork (where emp_no > 100)
+                   (where emp_no < 10)
+            | sort _fork, emp_no
+            | limit 10
+            """);
+        var topN = as(plan, TopN.class);
+        assertThat(orderNames(topN), contains("_fork", "emp_no"));
+
+        var fork = as(topN.child(), Fork.class);
+        for (LogicalPlan branch : fork.children()) {
+            var project = as(branch, Project.class);
+            var innerTopN = as(project.child(), TopN.class);
+            assertThat(orderNames(innerTopN), contains("_fork", "emp_no"));
+        }
+    }
+
+    public void testDoNotPruneGroupByKeyAfterAggregate() {
+        // color is a foldable literal in the ROW below, but STATS BY re-uses the same attribute
+        // ID for its grouping output. Without the Aggregate boundary stop, the rule would see
+        // color as foldable and prune it from SORT color — producing wrong order. With the stop
+        // the foldables map contains nothing from below the Aggregate, so color is kept.
+        LogicalPlan plan = optimizedPlan("""
+            row price = 10, color = "blue"
+            | stats s = sum(price) by color
+            | sort color asc
+            | limit 5
+            """);
+        var topN = as(plan, TopN.class);
+        assertThat(orderNames(topN), contains("color"));
+    }
+
+    public void testPruneConstantSortKeysFromBothNestedTopNs() {
+        // Two SORT+LIMIT pairs produce two TopN nodes. applyRecursive must simplify each one
+        // independently: the outer TopN prunes x (null), the inner TopN prunes y (null).
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval x = null
+            | sort x, emp_no
+            | limit 100
+            | eval y = null
+            | sort y, salary
+            | limit 10
+            """);
+        var outerTopN = as(plan, TopN.class);
+        assertThat(orderNames(outerTopN), contains("salary"));
+        assertThat(outerTopN.limit().fold(FoldContext.small()), equalTo(10));
+
+        var innerTopN = as(as(outerTopN.child(), Eval.class).child(), TopN.class);
+        assertThat(orderNames(innerTopN), contains("emp_no"));
+        assertThat(innerTopN.limit().fold(FoldContext.small()), equalTo(100));
+    }
+
     public void testPruneSortBeforeStats() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -2157,10 +2259,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit10kBefore = asLimit(plan, 10000, true);
         var mvExpand = as(limit10kBefore.child(), MvExpand.class);
         var project = as(mvExpand.child(), Project.class);
-        var topN = as(project.child(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(7300));
-        assertThat(orderNames(topN), contains("a"));
-        var limit7300Before = asLimit(topN.child(), 7300, true);
+        // sort on a=null is a no-op; TopN(a, 7300) replaced by Limit(7300)
+        var limit7300 = asLimit(project.child(), 7300, false);
+        var limit7300Before = asLimit(limit7300.child(), 7300, true);
         mvExpand = as(limit7300Before.child(), MvExpand.class);
         var limit = asLimit(mvExpand.child(), 7300, false);
         as(limit.child(), LocalRelation.class);
@@ -2173,7 +2274,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Project[[c{r}#7 AS language_code#14, a{r}#3, language_name{f}#19]]
      * \_Limit[10000[INTEGER],true]
      *   \_Join[LEFT,[c{r}#7],[c{r}#7],[language_code{f}#18]]
-     *     |_TopN[[Order[a{r}#3,ASC,FIRST]],7300[INTEGER]]
+     *     |_Limit[7300[INTEGER],false]
      *     | \_Limit[7300[INTEGER],true]
      *     |   \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#16]]
      *     |     |_Limit[7300[INTEGER],false]
@@ -2198,17 +2299,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var project = as(plan, Project.class);
         var limit10kBefore = asLimit(project.child(), 10000, true);
         var join = as(limit10kBefore.child(), Join.class);
-        var topN = as(join.left(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(7300));
-        assertThat(orderNames(topN), contains("a"));
-        var limit7300Before = asLimit(topN.child(), 7300, true);
+        // sort on a=null is a no-op; TopN(a, 7300) replaced by Limit(7300)
+        var limit7300 = asLimit(join.left(), 7300, false);
+        var limit7300Before = asLimit(limit7300.child(), 7300, true);
         join = as(limit7300Before.child(), Join.class);
         var limit = asLimit(join.left(), 7300, false);
         as(limit.child(), LocalRelation.class);
-        assertWarnings(
-            "Line 5:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
-                + "add another SORT after the LOOKUP JOIN if order is required"
-        );
+        // the sort was on a=null (constant), so it is removed entirely; no "SORT before LOOKUP JOIN" warning
     }
 
     /**
@@ -2346,8 +2443,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var limit = asLimit(plan, 1000, true);
         var expand = as(limit.child(), MvExpand.class);
-        var topN = as(expand.child(), TopN.class);
-        var row = as(topN.child(), LocalRelation.class);
+        // sort on a constant (a=1) is a no-op; TopN replaced by Limit
+        var limit2 = asLimit(expand.child(), 1000, false);
+        var row = as(limit2.child(), LocalRelation.class);
     }
 
     /**
@@ -2355,7 +2453,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * {@snippet lang="text":
      * Limit[1000[INTEGER],true]
      * \_Join[LEFT,[language_code{r}#3],[language_code{r}#3],[language_code{f}#6]]
-     *   |_TopN[[Order[language_code{r}#3,ASC,LAST]],1000[INTEGER]]
+     *   |_Limit[1000[INTEGER],false]
      *   | \_LocalRelation[[language_code{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#6, language_name{f}#7]
      * }
@@ -2369,13 +2467,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var limit = asLimit(plan, 1000, true);
         var join = as(limit.child(), Join.class);
-        var topN = as(join.left(), TopN.class);
-        var row = as(topN.child(), LocalRelation.class);
-        assertWarnings(
-            "No limit defined, adding default limit of [1000]",
-            "Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
-                + "add another SORT after the LOOKUP JOIN if order is required"
-        );
+        // sort on a constant (language_code=1) is a no-op; TopN replaced by Limit
+        var limit2 = asLimit(join.left(), 1000, false);
+        var row = as(limit2.child(), LocalRelation.class);
+        // the sort was on language_code=1 (constant), so it is removed; no "SORT before LOOKUP JOIN" warning
+        assertWarnings("No limit defined, adding default limit of [1000]");
     }
 
     /**
@@ -2533,11 +2629,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LIMIT 3
             """);
 
-        var topn = as(plan, TopN.class);
-        var limitAfter = asLimit(topn.child(), 1, true);
-        var join = as(limitAfter.child(), Join.class);
-        var limitBefore = asLimit(join.left(), 1, false);
-        var localRelation = as(limitBefore.child(), LocalRelation.class);
+        // sort on a constant (language_code=1) is a no-op; TopN(3) replaced by Limit(3),
+        // which PushDownAndCombineLimits then combines with the inner Limit(1) → Limit(1)
+        var limitOuter = asLimit(plan, 1, false);
+        var limitBefore = asLimit(limitOuter.child(), 1, true);
+        var join = as(limitBefore.child(), Join.class);
+        var limitInner = asLimit(join.left(), 1, false);
+        var localRelation = as(limitInner.child(), LocalRelation.class);
     }
 
     /**

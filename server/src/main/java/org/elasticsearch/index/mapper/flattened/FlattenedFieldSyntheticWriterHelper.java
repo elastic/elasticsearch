@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -265,6 +266,25 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
+    private interface FlattenedPathXContentWriter {
+        void writeValue(XContentBuilder b, KeyValueWithOffset value, KeyValueWithOffset next) throws IOException;
+    }
+
+    public enum OutputStructure {
+        FLATTENED(FlatFlattenedPathXContentWriter::new),
+        NESTED(NestedFlattenedPathXContentWriter::new);
+
+        private final Supplier<FlattenedPathXContentWriter> writerSupplier;
+
+        OutputStructure(Supplier<FlattenedPathXContentWriter> writerSupplier) {
+            this.writerSupplier = writerSupplier;
+        }
+
+        private FlattenedPathXContentWriter getWriter() {
+            return writerSupplier.get();
+        }
+    }
+
     /**
      * Stateful writer that turns a sorted stream of flattened key paths into nested {@link XContentBuilder} output.
      * <p>
@@ -272,11 +292,12 @@ public class FlattenedFieldSyntheticWriterHelper {
      * path prefix (e.g. {@code foo} then {@code foo.bar}), emits a single dotted field name instead of nesting so the
      * reconstructed document matches flattened-field semantics.
      */
-    private static class FlattenedPathXContentWriter {
+    private static class NestedFlattenedPathXContentWriter implements FlattenedPathXContentWriter {
         Prefix openObjects = new Prefix();
         String lastScalarSingleLeaf = null;
 
-        public void write(XContentBuilder b, KeyValueWithOffset value, KeyValueWithOffset next) throws IOException {
+        @Override
+        public void writeValue(XContentBuilder b, KeyValueWithOffset value, KeyValueWithOffset next) throws IOException {
             // startPrefix is the suffix of the path that is within the currently open object, not including the leaf.
             // For example, if the path is foo.bar.baz.qux, and openObjects is [foo], then startPrefix is bar.baz, and leaf is qux.
             var startPrefix = value.key.prefix.diff(openObjects);
@@ -301,6 +322,13 @@ public class FlattenedFieldSyntheticWriterHelper {
 
             int numObjectsToEnd = Prefix.numObjectsToEnd(openObjects.parts, next == null ? List.of() : next.key.prefix.parts);
             endObject(b, numObjectsToEnd, openObjects.parts);
+        }
+    }
+
+    private static class FlatFlattenedPathXContentWriter implements FlattenedPathXContentWriter {
+        @Override
+        public void writeValue(XContentBuilder b, KeyValueWithOffset value, KeyValueWithOffset next) throws IOException {
+            writeField(b, value.values, value.key.fullPath(), value.offsets);
         }
     }
 
@@ -333,14 +361,14 @@ public class FlattenedFieldSyntheticWriterHelper {
         return builder.toString();
     }
 
-    public void write(final XContentBuilder b) throws IOException {
+    public void write(final XContentBuilder b, OutputStructure output) throws IOException {
         var producer = new KeyValueProducer(sortedKeyedValues, sortedOffsetValues);
-        var writer = new FlattenedPathXContentWriter();
+        var writer = output.getWriter();
 
         var curr = producer.next();
         var next = producer.next();
         while (curr != null) {
-            writer.write(b, curr, next);
+            writer.writeValue(b, curr, next);
             curr = next;
             next = producer.next();
         }

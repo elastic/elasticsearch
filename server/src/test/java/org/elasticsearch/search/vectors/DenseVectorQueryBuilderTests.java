@@ -56,20 +56,14 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
         for (int i = 0; i < VECTOR_DIMENSION; i++) {
             queryVector[i] = randomFloat();
         }
-        Float threshold = randomBoolean() ? randomFloat() : null;
         VectorSimilarity similarityFn = randomBoolean() ? null : randomFrom(VectorSimilarity.L2_NORM, VectorSimilarity.MAX_INNER_PRODUCT);
         Boolean quantized = randomBoolean() ? null : randomBoolean();
-        return new DenseVectorQueryBuilder(VECTOR_FIELD, queryVector, threshold, similarityFn, quantized);
+        return new DenseVectorQueryBuilder(VECTOR_FIELD, queryVector, similarityFn, quantized);
     }
 
     @Override
     protected void doAssertLuceneQuery(DenseVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
         throws IOException {
-        if (queryBuilder.getVectorSimilarity() != null) {
-            assertThat(query, instanceOf(VectorSimilarityQuery.class));
-            VectorSimilarityQuery vectorSimilarityQuery = (VectorSimilarityQuery) query;
-            query = vectorSimilarityQuery.getInnerKnnQuery();
-        }
         assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
         DenseVectorQuery.Floats floats = (DenseVectorQuery.Floats) query;
         boolean useCodecPath = Boolean.TRUE.equals(queryBuilder.getQuantized()) && queryBuilder.getSimilarityFunction() == null;
@@ -81,7 +75,7 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
     }
 
     public void testValidOutput() {
-        DenseVectorQueryBuilder query = new DenseVectorQueryBuilder("field", new float[] { 1.0f, 2.0f, 3.0f }, null, null, null);
+        DenseVectorQueryBuilder query = new DenseVectorQueryBuilder("field", new float[] { 1.0f, 2.0f, 3.0f }, null, null);
         String expected = """
             {
               "dense_vector" : {
@@ -95,7 +89,7 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
             }""";
         assertEquals(expected, query.toString());
 
-        query = new DenseVectorQueryBuilder("field", new float[] { 1.0f, 2.0f, 3.0f }, 0.5f, VectorSimilarity.DOT_PRODUCT, true);
+        query = new DenseVectorQueryBuilder("field", new float[] { 1.0f, 2.0f, 3.0f }, VectorSimilarity.DOT_PRODUCT, true);
         expected = """
             {
               "dense_vector" : {
@@ -105,7 +99,6 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
                   2.0,
                   3.0
                 ],
-                "similarity" : 0.5,
                 "similarity_function" : "dot_product",
                 "quantized" : true
               }
@@ -116,7 +109,7 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
     public void testRequiresQueryVectorOrBuilder() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new DenseVectorQueryBuilder("field", (float[]) null, null, null, null)
+            () -> new DenseVectorQueryBuilder("field", (float[]) null, null, null)
         );
         assertThat(e.getMessage(), containsString("requires either"));
     }
@@ -129,7 +122,6 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
                 VectorData.fromFloats(new float[] { 1f }),
                 new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[] { 1f }),
                 null,
-                null,
                 null
             )
         );
@@ -137,14 +129,14 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
     }
 
     public void testQuantizedTrueRewritesToExactKnn() throws IOException {
-        DenseVectorQueryBuilder builder = new DenseVectorQueryBuilder(VECTOR_FIELD, new float[] { 0.1f, 0.2f, 0.3f }, null, null, true);
+        DenseVectorQueryBuilder builder = new DenseVectorQueryBuilder(VECTOR_FIELD, new float[] { 0.1f, 0.2f, 0.3f }, null, true);
         QueryRewriteContext rewriteContext = createSearchExecutionContext();
         var rewritten = builder.rewrite(rewriteContext);
         assertThat(rewritten, instanceOf(ExactKnnQueryBuilder.class));
     }
 
     public void testRawPathDoesNotRewriteToExactKnn() throws IOException {
-        DenseVectorQueryBuilder builder = new DenseVectorQueryBuilder(VECTOR_FIELD, new float[] { 0.1f, 0.2f, 0.3f }, null, null, false);
+        DenseVectorQueryBuilder builder = new DenseVectorQueryBuilder(VECTOR_FIELD, new float[] { 0.1f, 0.2f, 0.3f }, null, false);
         QueryRewriteContext rewriteContext = createSearchExecutionContext();
         var rewritten = builder.rewrite(rewriteContext);
         assertThat(rewritten, instanceOf(DenseVectorQueryBuilder.class));
@@ -154,7 +146,6 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
         DenseVectorQueryBuilder builder = new DenseVectorQueryBuilder(
             VECTOR_FIELD,
             new float[] { 0.1f, 0.2f, 0.3f },
-            null,
             VectorSimilarity.L2_NORM,
             true
         );

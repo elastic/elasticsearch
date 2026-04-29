@@ -58,7 +58,6 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
-    public static final ParseField VECTOR_SIMILARITY_FIELD = new ParseField("similarity");
     public static final ParseField SIMILARITY_FUNCTION_FIELD = new ParseField("similarity_function");
     public static final ParseField QUANTIZED_FIELD = new ParseField("quantized");
 
@@ -69,9 +68,8 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
             (VectorData) args[1],
             (QueryVectorBuilder) args[2],
             null,
-            (Float) args[3],
-            args[4] == null ? null : parseSimilarityFunction((String) args[4]),
-            (Boolean) args[5]
+            args[3] == null ? null : parseSimilarityFunction((String) args[3]),
+            (Boolean) args[4]
         )
     );
 
@@ -88,7 +86,6 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
             (p, c, n) -> p.namedObject(QueryVectorBuilder.class, n, c),
             QUERY_VECTOR_BUILDER_FIELD
         );
-        PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY_FIELD);
         PARSER.declareString(optionalConstructorArg(), SIMILARITY_FUNCTION_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), QUANTIZED_FIELD);
         declareStandardFields(PARSER);
@@ -110,7 +107,6 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
     private final VectorData queryVector;
     private final QueryVectorBuilder queryVectorBuilder;
     private final Supplier<float[]> queryVectorSupplier;
-    private final Float vectorSimilarity;
     private final VectorSimilarity similarityFunction;
     private final Boolean quantized;
 
@@ -118,21 +114,14 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
         String fieldName,
         VectorData queryVector,
         QueryVectorBuilder queryVectorBuilder,
-        Float vectorSimilarity,
         VectorSimilarity similarityFunction,
         Boolean quantized
     ) {
-        this(fieldName, queryVector, queryVectorBuilder, null, vectorSimilarity, similarityFunction, quantized);
+        this(fieldName, queryVector, queryVectorBuilder, null, similarityFunction, quantized);
     }
 
-    public DenseVectorQueryBuilder(
-        String fieldName,
-        float[] queryVector,
-        Float vectorSimilarity,
-        VectorSimilarity similarityFunction,
-        Boolean quantized
-    ) {
-        this(fieldName, VectorData.fromFloats(queryVector), null, null, vectorSimilarity, similarityFunction, quantized);
+    public DenseVectorQueryBuilder(String fieldName, float[] queryVector, VectorSimilarity similarityFunction, Boolean quantized) {
+        this(fieldName, VectorData.fromFloats(queryVector), null, null, similarityFunction, quantized);
     }
 
     private DenseVectorQueryBuilder(
@@ -140,7 +129,6 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
         VectorData queryVector,
         QueryVectorBuilder queryVectorBuilder,
         Supplier<float[]> queryVectorSupplier,
-        Float vectorSimilarity,
         VectorSimilarity similarityFunction,
         Boolean quantized
     ) {
@@ -171,7 +159,6 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
         this.queryVector = queryVector;
         this.queryVectorBuilder = queryVectorBuilder;
         this.queryVectorSupplier = queryVectorSupplier;
-        this.vectorSimilarity = vectorSimilarity;
         this.similarityFunction = similarityFunction;
         this.quantized = quantized;
     }
@@ -181,7 +168,6 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
         this.fieldName = in.readString();
         this.queryVector = in.readOptionalWriteable(VectorData::new);
         this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
-        this.vectorSimilarity = in.readOptionalFloat();
         String similarityFn = in.readOptionalString();
         this.similarityFunction = similarityFn == null ? null : VectorSimilarity.valueOf(similarityFn);
         this.quantized = in.readOptionalBoolean();
@@ -200,11 +186,6 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
     @Nullable
     public QueryVectorBuilder queryVectorBuilder() {
         return queryVectorBuilder;
-    }
-
-    @Nullable
-    public Float getVectorSimilarity() {
-        return vectorSimilarity;
     }
 
     @Nullable
@@ -230,7 +211,6 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
         out.writeString(fieldName);
         out.writeOptionalWriteable(queryVector);
         out.writeOptionalNamedWriteable(queryVectorBuilder);
-        out.writeOptionalFloat(vectorSimilarity);
         out.writeOptionalString(similarityFunction == null ? null : similarityFunction.name());
         out.writeOptionalBoolean(quantized);
     }
@@ -249,9 +229,6 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
             builder.startObject(QUERY_VECTOR_BUILDER_FIELD.getPreferredName());
             builder.field(queryVectorBuilder.getWriteableName(), queryVectorBuilder);
             builder.endObject();
-        }
-        if (vectorSimilarity != null) {
-            builder.field(VECTOR_SIMILARITY_FIELD.getPreferredName(), vectorSimilarity);
         }
         if (similarityFunction != null) {
             builder.field(SIMILARITY_FUNCTION_FIELD.getPreferredName(), similarityFunction.toString());
@@ -274,7 +251,6 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
                 VectorData.fromFloats(queryVectorSupplier.get()),
                 null,
                 null,
-                vectorSimilarity,
                 similarityFunction,
                 quantized
             ).boost(boost).queryName(queryName);
@@ -282,20 +258,14 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
             ctx.registerUniqueAsyncAction(new QueryVectorBuilderAsyncAction(queryVectorBuilder), toSet::set);
-            return new DenseVectorQueryBuilder(
-                fieldName,
-                queryVector,
-                queryVectorBuilder,
-                toSet::get,
-                vectorSimilarity,
-                similarityFunction,
-                quantized
-            ).boost(boost).queryName(queryName);
+            return new DenseVectorQueryBuilder(fieldName, queryVector, queryVectorBuilder, toSet::get, similarityFunction, quantized).boost(
+                boost
+            ).queryName(queryName);
         }
         // Simple-case rewrite: when the user opts in to quantized scoring without a similarity override,
         // the existing internal ExactKnnQueryBuilder produces the exact same Lucene query.
         if (Boolean.TRUE.equals(quantized) && similarityFunction == null) {
-            return new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity).boost(boost).queryName(queryName);
+            return new ExactKnnQueryBuilder(queryVector, fieldName, null).boost(boost).queryName(queryName);
         }
         return this;
     }
@@ -312,12 +282,12 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
             );
         }
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
-        return vectorFieldType.createExactKnnQuery(queryVector, vectorSimilarity, similarityFunction, Boolean.TRUE.equals(quantized));
+        return vectorFieldType.createExactKnnQuery(queryVector, null, similarityFunction, Boolean.TRUE.equals(quantized));
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, queryVector, queryVectorBuilder, vectorSimilarity, similarityFunction, quantized);
+        return Objects.hash(fieldName, queryVector, queryVectorBuilder, similarityFunction, quantized);
     }
 
     @Override
@@ -325,7 +295,6 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(queryVector, other.queryVector)
             && Objects.equals(queryVectorBuilder, other.queryVectorBuilder)
-            && Objects.equals(vectorSimilarity, other.vectorSimilarity)
             && Objects.equals(similarityFunction, other.similarityFunction)
             && Objects.equals(quantized, other.quantized);
     }

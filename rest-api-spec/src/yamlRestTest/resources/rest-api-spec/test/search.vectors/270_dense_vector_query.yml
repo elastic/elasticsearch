@@ -103,21 +103,6 @@ setup:
   - match: {hits.hits.0.fields.name.0: "moose.jpg"}
 
 ---
-"dense_vector exact query with similarity threshold":
-  - do:
-      search:
-        index: dv_int8_hnsw
-        body:
-          fields: [ "name" ]
-          query:
-            dense_vector:
-              field: vector
-              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5]
-              similarity: 0.0
-
-  - match: {hits.total.value: 3}
-
----
 "dense_vector exact query against quantized index uses raw scoring by default":
   - do:
       search:

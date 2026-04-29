@@ -170,9 +170,6 @@ if (OS.current() == OS.WINDOWS) {
 
   def oldesFixtureConfiguration = project.configurations.oldesFixture
 
-  /** Passed to {@code javaRestTest#finalizedBy} so fixture teardown runs after tests, not before (see AntFixture). */
-  def oldElasticsearchFixtureStops = []
-
   def versions = ['2', '1', '090', '500', '62', '63']
   if (OS.current() == OS.MAC) {
     // 0.90 fails sometimes on mac, given that it is so old, let us disable it
@@ -206,7 +203,6 @@ if (OS.current() == OS.WINDOWS) {
       }
     }
 
-    oldElasticsearchFixtureStops.add(tasks.named("oldEs${version}Fixture#stop"))
     tasks.named("oldEs${version}Fixture").configure { setFinalizedBy([]) }
 
     tasks.named("javaRestTest").configure {
@@ -259,7 +255,6 @@ if (OS.current() == OS.WINDOWS) {
         return fixture.portsFile.exists()
       }
     }
-    oldElasticsearchFixtureStops.add(tasks.named("${taskName}#stop"))
     tasks.named(taskName).configure { setFinalizedBy([]) }
   }
 
@@ -293,8 +288,21 @@ if (OS.current() == OS.WINDOWS) {
   registerDownloadedRemote('8.16.4', 'remote_reindex_es816', 'remoteEs816Fixture', 'es816', 'tests.fromRemoteEs816')
   registerDownloadedRemote('9.3.0', 'remote_reindex_es93', 'remoteEs93Fixture', 'es93', 'tests.fromRemoteEs93')
 
+  /* AntFixture defaults to finalizedBy(stop): that runs stop immediately after each fixture task completes,
+   * before javaRestTest -- killing every remote/old ES node before tests run. Reference stop tasks by path
+   * string so Gradle wires finalizedBy after those tasks exist; run stops after javaRestTest finishes. */
+  def oldElasticsearchFixtureStopPaths = new ArrayList<>(versions.collect { "oldEs${it}Fixture#stop" })
+  oldElasticsearchFixtureStopPaths.addAll([
+    'remoteEs812Fixture#stop',
+    'remoteEs816Fixture#stop',
+    'remoteEs93Fixture#stop'
+  ])
+  if (macOsAarch64 == false) {
+    oldElasticsearchFixtureStopPaths.addAll(['remoteEs79Fixture#stop', 'remoteEs710Fixture#stop'])
+  }
+
   tasks.named("javaRestTest").configure {
-    finalizedBy oldElasticsearchFixtureStops
+    finalizedBy(*oldElasticsearchFixtureStopPaths)
     systemProperty "tests.fromRemote7x", "true"
   }
 }

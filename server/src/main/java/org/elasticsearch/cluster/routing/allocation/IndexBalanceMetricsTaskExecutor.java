@@ -140,17 +140,20 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
     public IndexBalanceMetricsTaskExecutor(ClusterService clusterService, MeterRegistry meterRegistry) {
         super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
-        for (int i = 0; i < IndexBalanceMetricsComputer.BUCKET_COUNT; i++) {
+        final var primaryMetricNames = IndexBalanceMetricsComputer.metricNames("primary");
+        final var replicaMetricNames = IndexBalanceMetricsComputer.metricNames("replica");
+        for (int i = 0; i < IndexBalanceMetricsComputer.BUCKET_DEFINITIONS.length; i++) {
             final int bucket = i;
+            final var label = IndexBalanceMetricsComputer.BUCKET_DEFINITIONS[i].label();
             meterRegistry.registerLongsGauge(
-                IndexBalanceMetricsComputer.PRIMARY_METRIC_NAMES[i],
-                "Number of indices with " + IndexBalanceMetricsComputer.BUCKET_DEFINITIONS[i].label() + " primary shard imbalance",
+                primaryMetricNames[i],
+                "Number of indices with " + label + " primary shard imbalance",
                 "{index}",
                 () -> publishIfNotEmpty(executorNodeTask, true, bucket)
             );
             meterRegistry.registerLongsGauge(
-                IndexBalanceMetricsComputer.REPLICA_METRIC_NAMES[i],
-                "Number of indices with " + IndexBalanceMetricsComputer.BUCKET_DEFINITIONS[i].label() + " replica shard imbalance",
+                replicaMetricNames[i],
+                "Number of indices with " + label + " replica shard imbalance",
                 "{index}",
                 () -> publishIfNotEmpty(executorNodeTask, false, bucket)
             );

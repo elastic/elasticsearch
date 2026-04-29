@@ -50,8 +50,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndexBalanceMetricsComputerTests extends ESTestCase {
 
     /**
-     * Two assigned shards perfectly balanced across two index/search nodes, plus one unassigned shard.
-     * If the unassigned shard were counted, the imbalance ratio would be non-zero; instead both
+     * Two assigned shards perfectly balanced across two index/search nodes (one STARTED, one RELOCATING),
+     * plus one unassigned shard. If unassigned shards were counted, or if RELOCATING shards counted on
+     * the destination instead of the source, the imbalance ratio would be non-zero; instead both
      * histograms must report perfect balance (bucket 0).
      */
     public void testUnassignedShardsSkipped() {
@@ -65,8 +66,9 @@ public class IndexBalanceMetricsComputerTests extends ESTestCase {
         final var routing = IndexRoutingTable.builder(index)
             .addShard(newShardRouting(new ShardId(index, 0), "index_0", true, ShardRoutingState.STARTED))
             .addShard(newShardRouting(new ShardId(index, 0), "search_0", false, ShardRoutingState.STARTED))
-            .addShard(newShardRouting(new ShardId(index, 1), "index_1", true, ShardRoutingState.STARTED))
-            .addShard(newShardRouting(new ShardId(index, 1), "search_1", false, ShardRoutingState.STARTED))
+            // Shard 1 is mid-relocation: counted on the source node (index_1 / search_1), not the target.
+            .addShard(newShardRouting(new ShardId(index, 1), "index_1", "index_0", true, ShardRoutingState.RELOCATING))
+            .addShard(newShardRouting(new ShardId(index, 1), "search_1", "search_0", false, ShardRoutingState.RELOCATING))
             .addShard(newShardRouting(new ShardId(index, 2), null, true, ShardRoutingState.UNASSIGNED))
             .addShard(newShardRouting(new ShardId(index, 2), null, false, ShardRoutingState.UNASSIGNED));
 

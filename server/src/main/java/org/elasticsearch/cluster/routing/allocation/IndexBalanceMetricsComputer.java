@@ -33,23 +33,11 @@ import java.util.stream.Stream;
 public enum IndexBalanceMetricsComputer {
     ;
 
-    static final BucketDefinition[] BUCKET_DEFINITIONS = {
+    public static final BucketDefinition[] BUCKET_DEFINITIONS = {
         new BucketDefinition("none", 0.0),
         new BucketDefinition("mild", 0.2),
         new BucketDefinition("moderate", 0.5),
         new BucketDefinition("severe", 1.0) };
-    static final int BUCKET_COUNT = BUCKET_DEFINITIONS.length;
-
-    public static final String[] PRIMARY_METRIC_NAMES = buildMetricNames("primary");
-    public static final String[] REPLICA_METRIC_NAMES = buildMetricNames("replica");
-
-    private static String[] buildMetricNames(String tier) {
-        var names = new String[BUCKET_COUNT];
-        for (int i = 0; i < names.length; i++) {
-            names[i] = "es.index_imbalance." + tier + "." + BUCKET_DEFINITIONS[i].label() + ".indices.current";
-        }
-        return names;
-    }
 
     /**
      * Defines the label and upper bound for a balance-severity bucket.
@@ -57,8 +45,20 @@ public enum IndexBalanceMetricsComputer {
     public record BucketDefinition(String label, double upperBound) {}
 
     /**
+     * Build the array of metric names for a given tier ({@code "primary"} or {@code "replica"}),
+     * one per {@link #BUCKET_DEFINITIONS} entry.
+     */
+    public static String[] metricNames(String groupName) {
+        var names = new String[BUCKET_DEFINITIONS.length];
+        for (int i = 0; i < names.length; i++) {
+            names[i] = "es.index_imbalance." + groupName + "." + BUCKET_DEFINITIONS[i].label() + ".indices.current";
+        }
+        return names;
+    }
+
+    /**
      * Histogram of index balance values for primary and replica sub-groups.
-     * Each histogram has {@link #BUCKET_COUNT} buckets; see {@link #compute(ClusterState)} for the bucket scheme.
+     * Each histogram has one slot per {@link #BUCKET_DEFINITIONS} entry; see {@link #compute(ClusterState)} for the bucket scheme.
      */
     public record IndexBalanceHistograms(int[] primaryBalanceHistogram, int[] replicaBalanceHistogram) {}
 
@@ -82,8 +82,8 @@ public enum IndexBalanceMetricsComputer {
         final var shutdowns = state.metadata().nodeShutdowns();
         final var indexNodeMap = buildEligibleNodeMap(nodes, shutdowns, DiscoveryNodeRole.INDEX_ROLE);
         final var searchNodeMap = buildEligibleNodeMap(nodes, shutdowns, DiscoveryNodeRole.SEARCH_ROLE);
-        final var primaryHist = new int[BUCKET_COUNT];
-        final var replicaHist = new int[BUCKET_COUNT];
+        final var primaryHist = new int[BUCKET_DEFINITIONS.length];
+        final var replicaHist = new int[BUCKET_DEFINITIONS.length];
 
         for (var indexRoutingTable : state.routingTable()) {
             Arrays.fill(indexNodeMap.values, 0);
@@ -171,6 +171,6 @@ public enum IndexBalanceMetricsComputer {
                 return i;
             }
         }
-        return BUCKET_COUNT - 1;
+        return BUCKET_DEFINITIONS.length - 1;
     }
 }

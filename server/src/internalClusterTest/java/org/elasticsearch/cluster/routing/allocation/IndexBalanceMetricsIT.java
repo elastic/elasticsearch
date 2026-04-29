@@ -112,8 +112,8 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             telemetryPlugin.resetMeter();
             telemetryPlugin.collect();
-            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsComputer.PRIMARY_METRIC_NAMES, numIndices);
-            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsComputer.REPLICA_METRIC_NAMES, numIndices);
+            assertImbalanceMetrics(telemetryPlugin, "primary", numIndices);
+            assertImbalanceMetrics(telemetryPlugin, "replica", numIndices);
         });
 
         // Disable the feature dynamically and verify the persistent task is removed.
@@ -126,11 +126,14 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             telemetryPlugin.resetMeter();
             telemetryPlugin.collect();
-            for (String name : IndexBalanceMetricsComputer.PRIMARY_METRIC_NAMES) {
-                assertThat(name + " should publish no measurements when disabled", telemetryPlugin.getLongGaugeMeasurement(name), empty());
-            }
-            for (String name : IndexBalanceMetricsComputer.REPLICA_METRIC_NAMES) {
-                assertThat(name + " should publish no measurements when disabled", telemetryPlugin.getLongGaugeMeasurement(name), empty());
+            for (var tier : new String[] { "primary", "replica" }) {
+                for (var name : IndexBalanceMetricsComputer.metricNames(tier)) {
+                    assertThat(
+                        name + " should publish no measurements when disabled",
+                        telemetryPlugin.getLongGaugeMeasurement(name),
+                        empty()
+                    );
+                }
             }
         });
 
@@ -147,8 +150,8 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             reEnabledTelemetryPlugin.resetMeter();
             reEnabledTelemetryPlugin.collect();
-            assertImbalanceMetrics(reEnabledTelemetryPlugin, IndexBalanceMetricsComputer.PRIMARY_METRIC_NAMES, numIndices);
-            assertImbalanceMetrics(reEnabledTelemetryPlugin, IndexBalanceMetricsComputer.REPLICA_METRIC_NAMES, numIndices);
+            assertImbalanceMetrics(reEnabledTelemetryPlugin, "primary", numIndices);
+            assertImbalanceMetrics(reEnabledTelemetryPlugin, "replica", numIndices);
         });
     }
 
@@ -178,8 +181,8 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             telemetryPlugin.resetMeter();
             telemetryPlugin.collect();
-            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsComputer.PRIMARY_METRIC_NAMES, numIndices);
-            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsComputer.REPLICA_METRIC_NAMES, numIndices);
+            assertImbalanceMetrics(telemetryPlugin, "primary", numIndices);
+            assertImbalanceMetrics(telemetryPlugin, "replica", numIndices);
         });
 
         // Only the executor node should be publishing metrics
@@ -189,18 +192,17 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
             }
             final var otherNodeTelemetryPlugin = getTelemetryPlugin(otherNodeName);
             otherNodeTelemetryPlugin.collect();
-            for (String metricName : IndexBalanceMetricsComputer.PRIMARY_METRIC_NAMES) {
-                assertThat(otherNodeTelemetryPlugin.getLongGaugeMeasurement(metricName), empty());
-            }
-            for (String metricName : IndexBalanceMetricsComputer.REPLICA_METRIC_NAMES) {
-                assertThat(otherNodeTelemetryPlugin.getLongGaugeMeasurement(metricName), empty());
+            for (var tier : new String[] { "primary", "replica" }) {
+                for (var name : IndexBalanceMetricsComputer.metricNames(tier)) {
+                    assertThat(otherNodeTelemetryPlugin.getLongGaugeMeasurement(name), empty());
+                }
             }
         }
     }
 
-    private static void assertImbalanceMetrics(TestTelemetryPlugin plugin, String[] metricNames, int expectedTotal) {
+    private static void assertImbalanceMetrics(TestTelemetryPlugin plugin, String tier, int expectedTotal) {
         long sum = 0;
-        for (String name : metricNames) {
+        for (var name : IndexBalanceMetricsComputer.metricNames(tier)) {
             var measurements = plugin.getLongGaugeMeasurement(name);
             assertThat(name + " should have exactly one measurement", measurements, hasSize(1));
             sum += measurements.get(0).getLong();

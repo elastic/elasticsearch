@@ -356,8 +356,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         return List.copyOf(nodeFailures.values());
     }
 
-    // visible for testing
-    static TaskInfo preferNewer(final TaskInfo existing, final TaskInfo candidate) {
+    public static TaskInfo preferNewer(final TaskInfo existing, final TaskInfo candidate) {
         return candidate.runningTimeNanos() < existing.runningTimeNanos() ? candidate : existing;
     }
 

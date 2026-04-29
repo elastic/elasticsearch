@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -126,7 +127,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     /// Merges two cancel-tasks responses into one that's relocation-agnostic to the caller:
     ///
-    /// - Captured tasks are deduplicated by `originalTaskId`; second pass wins, [#preferNewer] resolves intra-pass ties.
+    /// - Captured tasks are deduplicated by `originalTaskId`; second pass wins, [TransportListTasksAction#preferNewer] resolves intra-pass
+    ///   ties.
     /// - Per-task failures are kept unless they refer to a logical task we already captured (e.g. the source side's `409 Conflict` is
     ///   irrelevant once the relocated successor was cancelled).
     /// - Node failures are deduplicated; any failure with a [ResourceNotFoundException] in its cause chain is dropped when the merge
@@ -150,8 +152,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return new ListTasksResponse(List.copyOf(tasksByOriginalId.values()), taskFailures, nodeFailures);
     }
 
-    /// Deduplicate captured tasks across two passes, keyed by `originalTaskId`. Within a pass, [#preferNewer] picks the post-relocation
-    /// task when both physical tasks are visible. Across passes, the second pass wins on collision.
+    /// Deduplicate captured tasks across two passes, keyed by `originalTaskId`. Within a pass, [TransportListTasksAction#preferNewer]
+    /// picks the post-relocation task when both physical tasks are visible. Across passes, the second pass wins on collision.
     static Map<TaskId, TaskInfo> mergeTasksByOriginalTaskId(final List<TaskInfo> firstPass, final List<TaskInfo> secondPass) {
         final Map<TaskId, TaskInfo> result = dedupWithinPass(secondPass);
         // Add only first-pass entries the second pass missed; within-pass dedup separately so intra-first-pass collisions still win by
@@ -163,7 +165,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     private static Map<TaskId, TaskInfo> dedupWithinPass(final List<TaskInfo> tasks) {
         final Map<TaskId, TaskInfo> deduped = new LinkedHashMap<>(tasks.size());
         for (final TaskInfo t : tasks) {
-            deduped.merge(t.originalTaskId(), t, TransportCancelTasksAction::preferNewer);
+            deduped.merge(t.originalTaskId(), t, TransportListTasksAction::preferNewer);
         }
         return deduped;
     }
@@ -214,12 +216,6 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             return failures;
         }
         return failures.stream().filter(f -> ExceptionsHelper.unwrap(f, ResourceNotFoundException.class) == null).toList();
-    }
-
-    /// Of two captures with the same `originalTaskId`, picks the one with the lower `runningTimeNanos` — i.e. the post-relocation
-    /// successor, which started more recently than the source. "Newer" refers to start time, not last-update time.
-    static TaskInfo preferNewer(final TaskInfo existing, final TaskInfo candidate) {
-        return candidate.runningTimeNanos() < existing.runningTimeNanos() ? candidate : existing;
     }
 
     @Override

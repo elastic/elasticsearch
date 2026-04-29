@@ -28,21 +28,6 @@ import static org.hamcrest.Matchers.is;
 
 public class TransportCancelTasksActionTests extends ESTestCase {
 
-    public void testPreferNewerPicksLowerRunningTime() {
-        final TaskId originalId = randomTaskId();
-        final TaskInfo older = taskInfo(randomTaskId(), originalId, 1000L);
-        final TaskInfo newer = taskInfo(randomTaskId(), originalId, 100L);
-        assertSame(newer, TransportCancelTasksAction.preferNewer(older, newer));
-        assertSame(newer, TransportCancelTasksAction.preferNewer(newer, older));
-    }
-
-    public void testPreferNewerKeepsExistingOnTie() {
-        final TaskId originalId = randomTaskId();
-        final TaskInfo existing = taskInfo(randomTaskId(), originalId, 500L);
-        final TaskInfo candidate = taskInfo(randomTaskId(), originalId, 500L);
-        assertSame(existing, TransportCancelTasksAction.preferNewer(existing, candidate));
-    }
-
     public void testMergeTasksCombinesDistinctOriginalIds() {
         final TaskInfo first = taskInfo(randomTaskId(), randomTaskId(), randomNonNegativeLong());
         final TaskInfo second = taskInfo(randomTaskId(), randomTaskId(), randomNonNegativeLong());

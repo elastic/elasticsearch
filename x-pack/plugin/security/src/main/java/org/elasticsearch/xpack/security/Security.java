@@ -220,6 +220,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexRe
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
+import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -1042,6 +1043,9 @@ public class Security extends Plugin
             customRoleProviders,
             getLicenseState()
         );
+        final List<ImplicitPrivilegesProvider> implicitPrivilegesProviders = securityExtensions.stream()
+            .flatMap(extension -> extension.getImplicitPrivilegesProviders(extensionComponents).stream())
+            .toList();
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(
             settings,
             clusterService,
@@ -1056,7 +1060,8 @@ public class Security extends Plugin
             dlsBitsetCache.get(),
             restrictedIndices,
             buildRoleBuildingExecutor(threadPool, settings),
-            new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool)
+            new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool),
+            implicitPrivilegesProviders
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
@@ -2415,7 +2420,7 @@ public class Security extends Plugin
                 if (fieldPermissions.hasFieldLevelSecurity() == false) {
                     return FieldPredicate.ACCEPT_ALL;
                 }
-                if (FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
+                if (!indexPermissions.isDlsFlsImplicit() && !FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
                     // check license last, once we know FLS is actually used
                     return FieldPredicate.ACCEPT_ALL;
                 }

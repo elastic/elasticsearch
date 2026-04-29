@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.inference.InferenceException;
-import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
@@ -307,33 +306,17 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
         MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
         if (fieldType == null) {
             return new MatchNoneQueryBuilder();
-        } else if (fieldType instanceof SemanticFieldMapper.SemanticFieldType semanticFieldType) {
+        } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
             if (inferenceResultsMap == null) {
                 // This should never happen, but throw on it in case it ever does
                 throw new IllegalStateException(
-                    "No inference results set for [" + semanticFieldType.typeName() + "] field [" + fieldName + "]"
+                    "No inference results set for [" + semanticTextFieldType.typeName() + "] field [" + fieldName + "]"
                 );
             }
 
+            String inferenceId = semanticTextFieldType.getSearchInferenceId();
             InferenceResults inferenceResults = getSingleInferenceResult(inferenceResultsMap);
             if (inferenceResults == null) {
-                if (semanticFieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType == false) {
-                    // `semantic` field type does not support explicit semantic queries; use `match` instead
-                    if (lenient != null && lenient) {
-                        return new MatchNoneQueryBuilder();
-                    }
-                    throw new IllegalArgumentException(
-                        "Field ["
-                            + fieldName
-                            + "] of type ["
-                            + fieldType.typeName()
-                            + "] does not support ["
-                            + NAME
-                            + "] queries; use match query instead"
-                    );
-                }
-                // `semantic_text`: fall back to actual inference ID lookup
-                String inferenceId = semanticFieldType.getSearchInferenceId();
                 inferenceResults = inferenceResultsMap.get(
                     new FullyQualifiedInferenceId(searchExecutionContext.getLocalClusterAlias(), inferenceId)
                 );
@@ -342,16 +325,16 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
             if (inferenceResults == null) {
                 throw new IllegalStateException(
                     "No inference results set for ["
-                        + semanticFieldType.typeName()
+                        + semanticTextFieldType.typeName()
                         + "] field ["
                         + fieldName
                         + "] with inference ID ["
-                        + semanticFieldType.getSearchInferenceId()
+                        + inferenceId
                         + "]"
                 );
             }
 
-            return semanticFieldType.semanticQuery(inferenceResults, searchExecutionContext.requestSize(), boost(), queryName());
+            return semanticTextFieldType.semanticQuery(inferenceResults, searchExecutionContext.requestSize(), boost(), queryName());
         } else if (lenient != null && lenient) {
             return new MatchNoneQueryBuilder();
         } else {

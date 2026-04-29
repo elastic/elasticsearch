@@ -40,6 +40,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
@@ -77,7 +78,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             add("pretty");
             add("refresh");
             add("require_data_stream");
-            add("_slice");
+            add(SliceIndexing.PARAM_NAME);
             add("timeout");
             add("include_source_on_error");
             // Add internal marker params

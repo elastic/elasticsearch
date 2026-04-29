@@ -23,19 +23,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 
@@ -164,56 +160,25 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
             return;
         }
 
-        // Step 1: resolve the TaskType for each inference ID so we can dispatch to the right action.
-        GroupedActionListener<Tuple<String, TaskType>> getModelGrouped = new GroupedActionListener<>(
+        GroupedActionListener<Tuple<String, InferenceResults>> gal = new GroupedActionListener<>(
             inferenceIds.size(),
-            listener.delegateFailureAndWrap((l, modelResponses) -> {
-                // Step 2: run inference per task type.
-                GroupedActionListener<Tuple<String, InferenceResults>> inferenceGrouped = new GroupedActionListener<>(
-                    modelResponses.size(),
-                    l.delegateFailureAndWrap((l2, results) -> {
-                        Map<String, InferenceResults> inferenceResultsMap = new HashMap<>(results.size());
-                        results.forEach(t -> inferenceResultsMap.put(t.v1(), t.v2()));
-                        l2.onResponse(new GetInferenceFieldsInternalAction.Response(inferenceFieldsMap, inferenceResultsMap));
-                    })
+            listener.delegateFailureAndWrap((l, c) -> {
+                Map<String, InferenceResults> inferenceResultsMap = new HashMap<>(inferenceIds.size());
+                c.forEach(t -> inferenceResultsMap.put(t.v1(), t.v2()));
+
+                GetInferenceFieldsInternalAction.Response response = new GetInferenceFieldsInternalAction.Response(
+                    inferenceFieldsMap,
+                    inferenceResultsMap
                 );
-                for (Tuple<String, TaskType> idAndTaskType : modelResponses) {
-                    dispatchInference(idAndTaskType.v1(), idAndTaskType.v2(), query, inferenceGrouped);
-                }
+                l.onResponse(response);
             })
         );
 
-        for (String inferenceId : inferenceIds) {
-            executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                GetInferenceModelAction.INSTANCE,
-                new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
-                getModelGrouped.delegateFailureAndWrap(
-                    (l, response) -> l.onResponse(Tuple.tuple(inferenceId, response.getEndpoints().getFirst().getTaskType()))
-                )
-            );
-        }
-    }
-
-    private void dispatchInference(
-        String inferenceId,
-        TaskType taskType,
-        String query,
-        GroupedActionListener<Tuple<String, InferenceResults>> gal
-    ) {
-        ActionListener<InferenceAction.Response> responseListener = gal.delegateFailureAndWrap((l, r) -> {
-            l.onResponse(Tuple.tuple(inferenceId, validateAndConvertInferenceResults(r.getResults(), inferenceId)));
-        });
-
-        switch (taskType) {
-            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                InferenceAction.INSTANCE,
-                new InferenceAction.Request(
-                    taskType,
-                    inferenceId,
+        List<InferenceAction.Request> inferenceRequests = inferenceIds.stream()
+            .map(
+                i -> new InferenceAction.Request(
+                    TaskType.ANY,
+                    i,
                     null,
                     null,
                     null,
@@ -222,23 +187,17 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
                     InputType.INTERNAL_SEARCH,
                     null,
                     false
-                ),
-                responseListener
-            );
-            case EMBEDDING -> executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                EmbeddingAction.INSTANCE,
-                new EmbeddingAction.Request(
-                    inferenceId,
-                    taskType,
-                    new EmbeddingRequest(List.of(new InferenceStringGroup(query)), InputType.INTERNAL_SEARCH, Map.of()),
-                    null
-                ),
-                responseListener
-            );
-            default -> gal.onFailure(new IllegalArgumentException("Task type [" + taskType + "] is not supported for inference fields"));
-        }
+                )
+            )
+            .toList();
+
+        inferenceRequests.forEach(
+            request -> executeAsyncWithOrigin(client, ML_ORIGIN, InferenceAction.INSTANCE, request, gal.delegateFailureAndWrap((l, r) -> {
+                String inferenceId = request.getInferenceEntityId();
+                InferenceResults inferenceResults = validateAndConvertInferenceResults(r.getResults(), inferenceId);
+                l.onResponse(Tuple.tuple(inferenceId, inferenceResults));
+            }))
+        );
     }
 
     private static InferenceResults validateAndConvertInferenceResults(

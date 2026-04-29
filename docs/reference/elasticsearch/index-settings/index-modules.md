@@ -76,7 +76,7 @@ $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
        -  `standard`:   Standard indexing with default settings.
        -  `lookup`: Index that can be used for [LOOKUP JOIN](/reference/query-languages/esql/esql-lookup-join.md) in ES|QL. Limited to 1 shard.
        - `time_series`:   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md).
-       - `logsdb`: *(data streams only)* Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
+       - `logsdb`: Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
 
 $$$routing-partition-size$$$ `index.routing_partition_size`
 :   The number of shards a custom routing value can go to. Defaults to 1 and can only be set at index creation time. This value must be less than the `index.number_of_routing_shards` unless the `index.number_of_routing_shards` value is also 1. for more details about how this setting is used, refer to [](/reference/elasticsearch/mapping-reference/mapping-routing-field.md#routing-index-partition).
@@ -120,7 +120,7 @@ $$$index-shard-check-on-startup$$$ `index.shard.check_on_startup`
 
 $$$index-disable-sequence-numbers$$$ `index.disable_sequence_numbers`
 :   ::::{warning}
-    This setting is experimental and might be changed or removed in a future release. Available in {{serverless-full}} and {{stack}} 9.4+. 
+    This setting is experimental and might be changed or removed in a future release. Available in {{serverless-full}} and {{stack}} 9.4+.
     ::::
 
     Controls whether the index maintains sequence numbers for document operations. When set to `true`, sequence numbers are not available, trading some consistency guarantees for reduced storage overhead. Defaults to `false`. This setting can only be set at index creation time and cannot be changed afterwards. Requires `index.seq_no.index_options` to be set to `doc_values_only`.

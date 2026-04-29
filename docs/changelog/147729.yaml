@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 147729
+summary: "ES-14041: Lock APM-agent trace contract in regression test"
+type: enhancement

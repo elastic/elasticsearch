@@ -105,7 +105,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                     + query
                     + ", "
                     + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
-                    + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
+                    + "scorer=MemoryIndexChunkScorer, numSnippets=5, docOrder=false]",
                 DataType.KEYWORD,
                 equalTo(expectedResult)
             );
@@ -155,7 +155,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                         + query
                         + ", "
                         + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}, "
-                        + "scorer=MemoryIndexChunkScorer, numSnippets=3]",
+                        + "scorer=MemoryIndexChunkScorer, numSnippets=3, docOrder=false]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
                 );
@@ -165,7 +165,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     }
 
     private static MapExpression createOptions(Integer numSnippets, Integer numWords) {
-        return createOptions(numSnippets, numWords, null, null, null, null);
+        return createOptions(numSnippets, numWords, null, null, null, null, null);
     }
 
     private static MapExpression createOptions(
@@ -174,7 +174,8 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         Boolean highlight,
         String preTag,
         String postTag,
-        String encoder
+        String encoder,
+        String order
     ) {
         List<Expression> optionsMap = new ArrayList<>();
 
@@ -206,6 +207,11 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         if (Objects.nonNull(encoder)) {
             optionsMap.add(Literal.keyword(Source.EMPTY, "encoder"));
             optionsMap.add(Literal.keyword(Source.EMPTY, encoder));
+        }
+
+        if (Objects.nonNull(order)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "order"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, order));
         }
 
         return optionsMap.isEmpty() ? null : new MapExpression(Source.EMPTY, optionsMap);
@@ -262,6 +268,30 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         assertNull(result);
     }
 
+    public void testOrderByScore() {
+        List<String> chunks = List.of("We use elasticsearch for search.", "Elasticsearch elasticsearch elasticsearch powers our stack.");
+        List<String> byScore = processMultivalueChunks(chunks, "elasticsearch", 2, "score");
+        assertThat(byScore, hasSize(2));
+        assertThat(byScore.get(0), equalTo(chunks.get(1)));
+        assertThat(byScore.get(1), equalTo(chunks.get(0)));
+    }
+
+    public void testOrderNone() {
+        List<String> chunks = List.of("We use elasticsearch for search.", "Elasticsearch elasticsearch elasticsearch powers our stack.");
+        List<String> byDocument = processMultivalueChunks(chunks, "elasticsearch", 2, "none");
+        assertThat(byDocument, hasSize(2));
+        assertThat(byDocument.get(0), equalTo(chunks.get(0)));
+        assertThat(byDocument.get(1), equalTo(chunks.get(1)));
+    }
+
+    public void testOrderDefaultIsScore() {
+        List<String> chunks = List.of("We use elasticsearch for search.", "Elasticsearch elasticsearch elasticsearch powers our stack.");
+        assertThat(
+            processMultivalueChunks(chunks, "elasticsearch", 2, null),
+            equalTo(processMultivalueChunks(chunks, "elasticsearch", 2, "score"))
+        );
+    }
+
     public void testSnippetsReturnedInScoringOrder() {
         String highRelevance = "Elasticsearch is a powerful search engine. "
             + "Elasticsearch supports full-text search and vector search. "
@@ -306,26 +336,26 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
     public void testHighlightDefaultTags() {
         String text = "The Adirondack Park is a beautiful wilderness area.";
-        List<String> result = processWithHighlight(text, "park", 5, 300, true, null, null, null);
+        List<String> result = processWithHighlight(text, "park", 5, 300, true, null, null, null, null);
         assertThat(result, equalTo(List.of("The Adirondack <em>Park</em> is a beautiful wilderness area.")));
     }
 
     public void testHighlightCustomTags() {
         String text = "The Adirondack Park is a beautiful wilderness area.";
-        List<String> result = processWithHighlight(text, "park", 5, 300, true, "<b>", "</b>", null);
+        List<String> result = processWithHighlight(text, "park", 5, 300, true, "<b>", "</b>", null, null);
         assertThat(result, equalTo(List.of("The Adirondack <b>Park</b> is a beautiful wilderness area.")));
     }
 
     public void testHighlightMultipleTerms() {
         String text = "Elasticsearch is a search engine. Lucene powers Elasticsearch.";
-        List<String> result = processWithHighlight(text, "elasticsearch lucene", 5, 300, true, null, null, null);
+        List<String> result = processWithHighlight(text, "elasticsearch lucene", 5, 300, true, null, null, null, null);
         assertThat(result, equalTo(List.of("<em>Elasticsearch</em> is a search engine. <em>Lucene</em> powers <em>Elasticsearch</em>.")));
     }
 
     public void testHighlightFalseReturnsPlainText() {
         String text = "The Adirondack Park is a beautiful wilderness area.";
-        List<String> withHighlight = processWithHighlight(text, "park", 5, 300, true, null, null, null);
-        List<String> withoutHighlight = processWithHighlight(text, "park", 5, 300, false, null, null, null);
+        List<String> withHighlight = processWithHighlight(text, "park", 5, 300, true, null, null, null, null);
+        List<String> withoutHighlight = processWithHighlight(text, "park", 5, 300, false, null, null, null, null);
         List<String> noHighlightOption = process(text, "park", 5, 300);
 
         assertThat(withHighlight, equalTo(List.of("The Adirondack <em>Park</em> is a beautiful wilderness area.")));
@@ -335,7 +365,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
     public void testHighlightHtmlEncoder() {
         String text = "Use <b>bold</b> & special chars with the Ring.";
-        List<String> result = processWithHighlight(text, "ring", 5, 300, true, null, null, "html");
+        List<String> result = processWithHighlight(text, "ring", 5, 300, true, null, null, "html", null);
         assertThat(result, equalTo(List.of("Use &lt;b&gt;bold&lt;&#x2F;b&gt; &amp; special chars with the <em>Ring</em>.")));
     }
 
@@ -348,7 +378,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
      */
     public void testHighlightNoStemmingUsesExactTermOnly() {
         String text = "The API returns results. Use the return value to continue.";
-        List<String> result = processWithHighlight(text, "return", 5, 300, true, null, null, null);
+        List<String> result = processWithHighlight(text, "return", 5, 300, true, null, null, null, null);
         assertThat(result, equalTo(List.of("The API returns results. Use the <em>return</em> value to continue.")));
     }
 
@@ -359,7 +389,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             + "Elasticsearch supports distributed search across many nodes. "
             + "Elasticsearch provides near real-time search capabilities. "
             + "Elasticsearch scales horizontally for large search workloads.";
-        List<String> result = processWithHighlight(text, "elasticsearch search", 1, 300, true, null, null, null);
+        List<String> result = processWithHighlight(text, "elasticsearch search", 1, 300, true, null, null, null, null);
         assertThat(
             result,
             equalTo(
@@ -374,20 +404,31 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     }
 
     private List<String> process(String str, String query, int numSnippets, int numWords) {
-        return processWithHighlight(str, query, numSnippets, numWords, null, null, null, null);
+        return processWithHighlight(str, query, numSnippets, numWords, null, null, null, null, null);
+    }
+
+    private List<String> processMultivalueChunks(List<String> chunks, String query, int numSnippets, String order) {
+        return processWithHighlight(chunks, query, numSnippets, 0, null, null, null, null, order);
     }
 
     private List<String> processWithHighlight(
-        String str,
+        Object fieldInput,
         String query,
         int numSnippets,
         int numWords,
         Boolean highlight,
         String preTag,
         String postTag,
-        String encoder
+        String encoder,
+        String order
     ) {
-        MapExpression optionsMap = createOptions(numSnippets, numWords, highlight, preTag, postTag, encoder);
+        MapExpression optionsMap = createOptions(numSnippets, numWords, highlight, preTag, postTag, encoder, order);
+        Object fieldValue;
+        if (fieldInput instanceof List<?> chunks) {
+            fieldValue = chunks.stream().map(c -> new BytesRef((String) c)).toList();
+        } else {
+            fieldValue = new BytesRef((String) fieldInput);
+        }
 
         try (
             ExpressionEvaluator eval = evaluator(
@@ -398,7 +439,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                     optionsMap
                 )
             ).get(driverContext());
-            Block block = eval.eval(row(List.of(new BytesRef(str))))
+            Block block = eval.eval(row(List.of(fieldValue)))
         ) {
             if (block.isNull(0)) {
                 return null;

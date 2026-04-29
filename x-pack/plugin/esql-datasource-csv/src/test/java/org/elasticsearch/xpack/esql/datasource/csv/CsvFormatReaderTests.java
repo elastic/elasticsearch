@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.After;
 
 import java.io.ByteArrayInputStream;
@@ -413,6 +414,182 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(expected10, ((BytesRefBlock) page.getBlock(1)).getBytesRef(2, new BytesRef()));
 
             assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testSchemaWithVersionType() throws IOException {
+        String csv = """
+            pkg:keyword,ver:version
+            lucene,9.10.0
+            jackson,2.18.2
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        List<Attribute> schema = reader.schema(object);
+
+        assertEquals(2, schema.size());
+        assertEquals("pkg", schema.get(0).name());
+        assertEquals(DataType.KEYWORD, schema.get(0).dataType());
+        assertEquals("ver", schema.get(1).name());
+        assertEquals(DataType.VERSION, schema.get(1).dataType());
+    }
+
+    public void testSchemaWithVersionShortAlias() throws IOException {
+        String csv = "pkg:keyword,ver:v\nlucene,9.10.0\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        List<Attribute> schema = reader.schema(object);
+
+        assertEquals(DataType.VERSION, schema.get(1).dataType());
+    }
+
+    public void testReadVersionType() throws IOException {
+        String csv = """
+            pkg:keyword,ver:version
+            lucene,9.10.0
+            jackson,2.18.2
+            esql,8.15.0-SNAPSHOT
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(3, page.getPositionCount());
+            assertEquals(2, page.getBlockCount());
+
+            BytesRef expectedLucene = EsqlDataTypeConverter.stringToVersion("9.10.0");
+            BytesRef expectedJackson = EsqlDataTypeConverter.stringToVersion("2.18.2");
+            BytesRef expectedEsql = EsqlDataTypeConverter.stringToVersion("8.15.0-SNAPSHOT");
+
+            assertEquals(new BytesRef("lucene"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            assertEquals(expectedLucene, ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+
+            assertEquals(new BytesRef("jackson"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()));
+            assertEquals(expectedJackson, ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+
+            assertEquals(new BytesRef("esql"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(2, new BytesRef()));
+            assertEquals(expectedEsql, ((BytesRefBlock) page.getBlock(1)).getBytesRef(2, new BytesRef()));
+
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testMultiValueBracketsVersion() throws IOException {
+        String csv = "pkg:keyword,vers:version\n1,\"[1.0.0,2.0.0,3.5.1]\"\n";
+        CsvFormatOptions options = new CsvFormatOptions(
+            ',',
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize(),
+            CsvFormatOptions.MultiValueSyntax.BRACKETS
+        );
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock valuesBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(3, valuesBlock.getValueCount(0));
+            int firstIdx = valuesBlock.getFirstValueIndex(0);
+            assertEquals(EsqlDataTypeConverter.stringToVersion("1.0.0"), valuesBlock.getBytesRef(firstIdx, new BytesRef()));
+            assertEquals(EsqlDataTypeConverter.stringToVersion("2.0.0"), valuesBlock.getBytesRef(firstIdx + 1, new BytesRef()));
+            assertEquals(EsqlDataTypeConverter.stringToVersion("3.5.1"), valuesBlock.getBytesRef(firstIdx + 2, new BytesRef()));
+        }
+    }
+
+    public void testSchemaWithDateNanosType() throws IOException {
+        String csv = """
+            event:keyword,ts:date_nanos
+            login,2024-01-15T12:34:56.123456789Z
+            logout,2024-01-15T12:35:00.000000000Z
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        List<Attribute> schema = reader.schema(object);
+
+        assertEquals(2, schema.size());
+        assertEquals("event", schema.get(0).name());
+        assertEquals(DataType.KEYWORD, schema.get(0).dataType());
+        assertEquals("ts", schema.get(1).name());
+        assertEquals(DataType.DATE_NANOS, schema.get(1).dataType());
+    }
+
+    public void testSchemaWithDateNanosShortAlias() throws IOException {
+        String csv = "event:keyword,ts:dn\nlogin,2024-01-15T12:34:56.123456789Z\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        List<Attribute> schema = reader.schema(object);
+
+        assertEquals(DataType.DATE_NANOS, schema.get(1).dataType());
+    }
+
+    public void testReadDateNanosType() throws IOException {
+        String csv = """
+            event:keyword,ts:date_nanos
+            login,2024-01-15T12:34:56.123456789Z
+            logout,2024-01-15T12:35:00.000000000Z
+            raw,1737030896123456789
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(3, page.getPositionCount());
+            assertEquals(2, page.getBlockCount());
+
+            LongBlock tsBlock = (LongBlock) page.getBlock(1);
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z"), tsBlock.getLong(0));
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:35:00.000000000Z"), tsBlock.getLong(1));
+            assertEquals(1737030896123456789L, tsBlock.getLong(2));
+
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testReadDateNanosNullFieldOnBadValue() throws IOException {
+        String csv = """
+            event:keyword,ts:date_nanos
+            good,2024-01-15T12:34:56.123456789Z
+            bad,not-a-date
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(permissive).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            LongBlock tsBlock = (LongBlock) page.getBlock(1);
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z"), tsBlock.getLong(0));
+            assertTrue(tsBlock.isNull(1));
         }
     }
 

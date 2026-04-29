@@ -9,6 +9,7 @@
 
 package org.elasticsearch.server.launcher;
 
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.server.launcher.common.LaunchDescriptor;
 
 import java.io.ByteArrayInputStream;
@@ -35,7 +36,7 @@ import java.util.function.Function;
  * pipes the serialized ServerArgs bytes to the server's stdin, pumps stderr for the ready marker,
  * and waits for the server to exit.
  *
- * <p> This program has zero Elasticsearch dependencies beyond the shared launcher-common library.
+ * <p> This program has zero Elasticsearch dependencies beyond the shared launcher-common and cli-terminal libraries.
  *
  * <p> Subclasses (e.g. {@code ServerlessServerLauncher}) can override lifecycle hooks to customize
  * behavior without duplicating shared logic.
@@ -44,6 +45,7 @@ import java.util.function.Function;
  */
 public class ServerLauncher<D extends LaunchDescriptor> {
 
+    private final Terminal terminal = Terminal.DEFAULT;
     private final AtomicBoolean shuttingDown = new AtomicBoolean(false);
     private volatile ServerProcess server;
 
@@ -256,7 +258,7 @@ public class ServerLauncher<D extends LaunchDescriptor> {
                 try {
                     server.stop();
                 } catch (IOException e) {
-                    System.err.println("Error stopping server: " + e.getMessage());
+                    terminal.errorPrintln("Error stopping server: " + e.getMessage());
                 }
             }
         }
@@ -293,7 +295,7 @@ public class ServerLauncher<D extends LaunchDescriptor> {
             boolean serverOk = errorPump.waitUntilReady();
             if (serverOk == false) {
                 int exitCode = jvmProcess.waitFor();
-                System.err.println("Elasticsearch died while starting up, exit code: " + exitCode);
+                terminal.errorPrintln("Elasticsearch died while starting up, exit code: " + exitCode);
                 System.exit(exitCode != 0 ? exitCode : 1);
             }
             success = true;
@@ -310,10 +312,10 @@ public class ServerLauncher<D extends LaunchDescriptor> {
         return new ServerProcess(jvmProcess, errorPump);
     }
 
-    private static void ensureWorkingDirExists(String workingDir) throws Exception {
+    private void ensureWorkingDirExists(String workingDir) throws Exception {
         Path path = Path.of(workingDir);
         if (Files.exists(path) && Files.isDirectory(path) == false) {
-            System.err.println("Error: working directory exists but is not a directory: " + workingDir);
+            terminal.errorPrintln("Error: working directory exists but is not a directory: " + workingDir);
             System.exit(1);
         }
         Files.createDirectories(path);
@@ -329,10 +331,10 @@ public class ServerLauncher<D extends LaunchDescriptor> {
         }
     }
 
-    private static String requireEnv(String name) {
+    private String requireEnv(String name) {
         String value = System.getenv(name);
         if (value == null || value.isBlank()) {
-            System.err.println("Error: required environment variable " + name + " is not set");
+            terminal.errorPrintln("Error: required environment variable " + name + " is not set");
             System.exit(1);
         }
         return value;

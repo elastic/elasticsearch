@@ -132,8 +132,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "id": "embd-45e6d99b97a645c0af96653598069cd9",
@@ -192,7 +190,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -249,7 +246,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -313,7 +309,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -375,7 +370,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             var contentTooLargeErrorMessage = """
                 This model's maximum context length is 8192 tokens, however you requested 13531 tokens (13531 in your prompt;\
@@ -455,7 +449,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             var contentTooLargeErrorMessage = """
                 This model's maximum context length is 8192 tokens, however you requested 13531 tokens (13531 in your prompt;\
@@ -533,7 +526,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             var responseJson = """
                 {
@@ -588,7 +580,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -643,7 +634,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -698,7 +688,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -747,7 +736,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -796,7 +784,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -849,7 +836,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -898,7 +884,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {

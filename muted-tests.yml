@@ -418,9 +418,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogMasterFailureOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch-serverless/issues/3515
-- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
-  method: testTranslogIsolatedNodeOnlyStressRecoveryTest
-  issue: https://github.com/elastic/elasticsearch-serverless/issues/3539
 - class: org.elasticsearch.xpack.stateless.lucene.SearchDirectoryTests
   method: testGetHighestOffsetSegmentInfos
   issue: https://github.com/elastic/elasticsearch-serverless/issues/3923

@@ -13,9 +13,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 
 /**
- * Node settings for OpenTelemetry SDK metrics export ({@link OtelSdkExportMeterSupplier}).
+ * Node settings for the OpenTelemetry SDK metrics ({@link OtelSdkExportMeterSupplier}) and traces
+ * ({@link OtelSdkExportTracerSupplier}) export paths.
  */
 public final class OtelSdkSettings {
 
@@ -38,4 +40,38 @@ public final class OtelSdkSettings {
         false,
         NodeScope
     );
+
+    /** OTLP HTTP endpoint URL where the SDK exports buffered spans. Required when the SDK trace path is active. */
+    public static final Setting<String> TELEMETRY_OTEL_TRACES_ENDPOINT = Setting.simpleString(
+        "telemetry.otel.traces.endpoint",
+        "",
+        NodeScope
+    );
+
+    /** How often {@code BatchSpanProcessor} flushes buffered spans to the exporter. */
+    public static final Setting<TimeValue> TELEMETRY_OTEL_TRACES_INTERVAL = Setting.timeSetting(
+        "telemetry.otel.traces.interval",
+        // 5 s matches the OTel SDK's default OTEL_BSP_SCHEDULE_DELAY. This caps span export latency
+        // for under-full batches; full batches (default 512 spans) are flushed immediately regardless.
+        TimeValue.timeValueSeconds(5),
+        NodeScope
+    );
+
+    /** Maximum number of child spans exported per root span. {@code 0} means only root spans are exported. */
+    public static final Setting<Integer> TELEMETRY_OTEL_TRACES_MAX_SPANS = Setting.intSetting(
+        "telemetry.otel.traces.max_spans",
+        0,
+        0,
+        OperatorDynamic,
+        NodeScope
+    );
+
+    /** Maximum stack-trace depth recorded on error events. {@code 0} suppresses stack traces. */
+    public static final Setting<Integer> TELEMETRY_OTEL_TRACES_STACK_TRACE_LIMIT = Setting.intSetting(
+        "telemetry.otel.traces.stack_trace_limit",
+        0,
+        OperatorDynamic,
+        NodeScope
+    );
+
 }

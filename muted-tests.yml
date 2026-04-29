@@ -502,3 +502,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
   method: testGenerationalFileBlobReferenceIsRetainedCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/147858
+- class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
+  method: testRetentionLeasesIgnoredForSoftDeletesPolicy
+  issue: https://github.com/elastic/elasticsearch/issues/147859

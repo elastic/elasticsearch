@@ -98,29 +98,24 @@ public class InferenceStats {
         return new DurationBuilder(deploymentDurationInstrument, constantAttributes);
     }
 
-    /**
-     * Builder for {@link LongCounter} metrics. Call {@link #withSuccess()} or {@link #withFailure(Throwable)} to set the outcome.
-     * Omitting both leaves the metric without a {@code status_code} attribute, which is correct when recording a request attempt
-     * before the outcome is known.
-     */
-    public static class CounterBuilder {
-        private final LongCounter counter;
-        private final Map<String, Object> attributes;
+    abstract static class AbstractBuilder<B extends AbstractBuilder<B>> {
+        protected final Map<String, Object> attributes;
 
-        CounterBuilder(LongCounter counter, Map<String, Object> constantAttributes) {
-            this.counter = counter;
+        AbstractBuilder(Map<String, Object> constantAttributes) {
             this.attributes = new HashMap<>(constantAttributes);
         }
 
-        public CounterBuilder withModel(Model model) {
+        @SuppressWarnings("unchecked")
+        public B withModel(Model model) {
             attributes.put(SERVICE_ATTRIBUTE, model.getConfigurations().getService());
             attributes.put(TASK_TYPE_ATTRIBUTE, model.getTaskType().toString());
-            return this;
+            return (B) this;
         }
 
-        public CounterBuilder withSuccess() {
+        @SuppressWarnings("unchecked")
+        public B withSuccess() {
             attributes.put(STATUS_CODE_ATTRIBUTE, 200);
-            return this;
+            return (B) this;
         }
 
         /**
@@ -128,17 +123,33 @@ public class InferenceStats {
          * {@link #withSuccess()} and sets {@code status_code=200}. Prefer {@link #withSuccess()} when the outcome is known to be
          * successful.
          */
-        public CounterBuilder withFailure(@Nullable Throwable throwable) {
+        @SuppressWarnings("unchecked")
+        public B withFailure(@Nullable Throwable throwable) {
             if (throwable == null) {
                 return withSuccess();
             }
             applyThrowable(throwable, attributes);
-            return this;
+            return (B) this;
         }
 
-        public CounterBuilder withAttribute(String key, Object value) {
+        @SuppressWarnings("unchecked")
+        public B withAttribute(String key, Object value) {
             attributes.put(key, value);
-            return this;
+            return (B) this;
+        }
+    }
+
+    /**
+     * Builder for {@link LongCounter} metrics. Call {@link #withSuccess()} or {@link #withFailure(Throwable)} to set the outcome.
+     * Omitting both leaves the metric without a {@code status_code} attribute, which is correct when recording a request attempt
+     * before the outcome is known.
+     */
+    public static class CounterBuilder extends AbstractBuilder<CounterBuilder> {
+        private final LongCounter counter;
+
+        CounterBuilder(LongCounter counter, Map<String, Object> constantAttributes) {
+            super(constantAttributes);
+            this.counter = counter;
         }
 
         public void incrementBy(long value) {
@@ -155,37 +166,12 @@ public class InferenceStats {
      * Omitting both leaves the metric without a {@code status_code} attribute, which is correct when recording duration before the
      * outcome is known.
      */
-    public static class DurationBuilder {
+    public static class DurationBuilder extends AbstractBuilder<DurationBuilder> {
         private final LongHistogram histogram;
-        private final Map<String, Object> attributes;
 
         DurationBuilder(LongHistogram histogram, Map<String, Object> constantAttributes) {
+            super(constantAttributes);
             this.histogram = histogram;
-            this.attributes = new HashMap<>(constantAttributes);
-        }
-
-        public DurationBuilder withModel(Model model) {
-            attributes.put(SERVICE_ATTRIBUTE, model.getConfigurations().getService());
-            attributes.put(TASK_TYPE_ATTRIBUTE, model.getTaskType().toString());
-            return this;
-        }
-
-        public DurationBuilder withSuccess() {
-            attributes.put(STATUS_CODE_ATTRIBUTE, 200);
-            return this;
-        }
-
-        /**
-         * Records failure attributes from the given throwable. If {@code null} is passed this behaves identically to
-         * {@link #withSuccess()} and sets {@code status_code=200}. Prefer {@link #withSuccess()} when the outcome is known to be
-         * successful.
-         */
-        public DurationBuilder withFailure(@Nullable Throwable throwable) {
-            if (throwable == null) {
-                return withSuccess();
-            }
-            applyThrowable(throwable, attributes);
-            return this;
         }
 
         public void record(long durationMs) {

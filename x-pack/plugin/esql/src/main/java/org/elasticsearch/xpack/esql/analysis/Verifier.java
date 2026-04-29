@@ -43,14 +43,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -148,7 +146,6 @@ public class Verifier {
         }
 
         checkTStepIncompatibleWithTRange(plan, failures);
-        checkInSubqueryUsage(plan, failures);
 
         // collect plan checkers
         var planCheckers = planCheckers(plan);
@@ -207,21 +204,6 @@ public class Verifier {
                 reported.set(true);
             }
         }));
-    }
-
-    private static void checkInSubqueryUsage(LogicalPlan plan, Failures failures) {
-        // Two structural rules for IN (subquery):
-        // 1. It can only appear inside a WHERE clause (i.e., as part of a Filter's condition).
-        // This rule is permanent — it stays after the feature is fully implemented.
-        // 2. The feature is not yet supported, so even valid uses inside WHERE are rejected.
-        // This rule is temporary — remove it when the analyzer can resolve InSubquery.
-        plan.forEachDown(p -> {
-            if (p instanceof Filter) {
-                p.forEachExpression(InSubquery.class, in -> failures.add(fail(in, "IN (subquery) is not yet supported")));
-            } else {
-                p.forEachExpression(InSubquery.class, in -> failures.add(fail(in, "IN (subquery) can only be used inside a WHERE clause")));
-            }
-        });
     }
 
     private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures, boolean skipUnresolvedTimestamp) {

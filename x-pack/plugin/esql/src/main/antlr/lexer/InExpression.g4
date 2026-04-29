@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-lexer grammar InSubquery;
+lexer grammar InExpression;
 
 fragment IN_EXPRESSION_INIT : [a-z];
 
@@ -14,7 +14,7 @@ fragment IN_EXPRESSION_INIT : [a-z];
 // subquery and we can enter DEFAULT MODE to parse that subquery
 //
 // Otherwise we jump back to EXPRESSION_MODE because we are in a IN(expr1, ..., exprN) case
-mode IN_SUBQUERY;
+mode IN_MODE;
 
 AFTER_IN_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -37,6 +37,8 @@ AFTER_IN_WS
 // `mode(DEFAULT_MODE)` replaces (rather than pushes) so the stack depth matches
 // the EXPRESSION_MODE → DEFAULT_MODE pairing the existing FROM_RP / PROJECT_RP /
 // etc. (each `popMode, popMode`) expect when closing the subquery.
+// TODO: drop the {this.isDevVersion()}? predicate when WHERE_IN_SUBQUERY graduates
+// to production (see EsqlCapabilities.WHERE_IN_SUBQUERY).
 IN_SUBQUERY_LP
     : {this.isDevVersion()}?
       '(' (WS | LINE_COMMENT | MULTILINE_COMMENT)*

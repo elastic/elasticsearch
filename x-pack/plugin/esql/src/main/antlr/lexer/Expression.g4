@@ -100,7 +100,7 @@ DESC : 'desc';
 DOT : '.';
 FALSE : 'false';
 FIRST : 'first';
-IN: 'in' -> pushMode(IN_SUBQUERY);
+IN: 'in' -> pushMode(IN_MODE);
 IS: 'is';
 LAST : 'last';
 LIKE: 'like';
@@ -179,4 +179,4 @@ EXPR_WS
     : WS -> channel(HIDDEN)
     ;
 
-mode IN_SUBQUERY;
+mode IN_MODE;

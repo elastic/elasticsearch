@@ -4130,39 +4130,8 @@ public class VerifierTests extends ESTestCase {
             """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
     }
 
-    public void testWhereInSubqueryRejected() {
-        assumeTrue("WHERE IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
-        defaultAnalyzer().error("from test | where emp_no in (from test)", containsString("IN (subquery) is not yet supported"));
-    }
-
-    public void testWhereNotInSubqueryRejected() {
-        assumeTrue("WHERE IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
-        defaultAnalyzer().error("from test | where emp_no not in (from test)", containsString("IN (subquery) is not yet supported"));
-    }
-
-    public void testInSubqueryInEvalRejected() {
-        assumeTrue("WHERE IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
-        defaultAnalyzer().error(
-            "from test | eval x = emp_no in (from test)",
-            containsString("IN (subquery) can only be used inside a WHERE clause")
-        );
-    }
-
-    public void testInSubqueryInSortRejected() {
-        assumeTrue("WHERE IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
-        defaultAnalyzer().error(
-            "from test | sort emp_no in (from test)",
-            containsString("IN (subquery) can only be used inside a WHERE clause")
-        );
-    }
-
-    public void testInSubqueryInStatsFilterRejected() {
-        assumeTrue("WHERE IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
-        defaultAnalyzer().error(
-            "from test | stats c = count(*) where emp_no in (from test)",
-            containsString("IN (subquery) can only be used inside a WHERE clause")
-        );
-    }
+    // InSubquery rejection tests moved to PreAnalysisVerifierTests — that check now runs
+    // before pre-analysis so it never reaches the analyzer-time Verifier.
 
     private static TestAnalyzer defaultAnalyzer() {
         return analyzer().addDefaultIndex().stripErrorPrefix(true);

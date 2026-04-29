@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.PreAnalysisVerifier;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -321,6 +322,11 @@ public class EsqlSession {
         );
 
         LogicalPlan plan = viewResolution.plan();
+        // Run structural checks that don't need analysis or index resolution. Doing this here
+        // (after view resolution, before pre-analysis) lets a malformed query fail-fast without
+        // paying for field-caps round trips.
+        PreAnalysisVerifier.verify(plan);
+
         Configuration configurationToUse = configuration;
         if (plan instanceof Explain explain) {
             explainMode = true;

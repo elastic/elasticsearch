@@ -1,0 +1,93 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.plugin;
+
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.junit.Before;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
+
+/**
+ * End-to-end coverage for IN-subquery rejection at the pre-analysis phase.
+ *
+ * <p>Unit tests in {@code PreAnalysisVerifierTests} cover the verifier in isolation,
+ * but they call {@code PreAnalysisVerifier.verify} directly — they don't exercise
+ * the wiring inside {@code EsqlSession}. This integration test runs a real query
+ * against a real cluster and confirms that the failure surfaces from the actual
+ * request path, with the field-caps round trip short-circuited.
+ *
+ * <p>TODO: when the InSubquery feature is fully implemented, the rejection assertions
+ * here turn into success assertions. Until then, this class doubles as a guard against
+ * accidentally exposing a half-built feature to clients.
+ */
+public class InSubqueryIT extends AbstractEsqlIntegTestCase {
+
+    @Before
+    public void setUpIndices() {
+        // Skip the whole class on non-snapshot builds. Doing this in @Before (rather than
+        // per-test assumeTrue) means we don't pay the index-create cost when the feature
+        // is gated off. Test-specific assumptions (e.g. INLINE STATS) stay in their tests.
+        assumeTrue("IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        // Two indices that actually exist, to make it obvious the rejection happens
+        // regardless of whether the subquery references a resolvable index.
+        assertAcked(client().admin().indices().prepareCreate("main_index"));
+        indexRandom(true, "main_index", 1);
+        assertAcked(client().admin().indices().prepareCreate("sub_index"));
+        indexRandom(true, "sub_index", 1);
+    }
+
+    public void testWhereInSubqueryRejectedAtRuntime() {
+        expectThrows(
+            VerificationException.class,
+            containsString("IN (subquery) is not yet supported"),
+            () -> run(syncEsqlQueryRequest("FROM main_index | WHERE x IN (FROM sub_index)"))
+        );
+    }
+
+    public void testInSubqueryOutsideWhereRejectedAtRuntime() {
+        expectThrows(
+            VerificationException.class,
+            containsString("IN (subquery) can only be used in a top level WHERE clause"),
+            () -> run(syncEsqlQueryRequest("FROM main_index | EVAL y = x IN (FROM sub_index)"))
+        );
+    }
+
+    /*
+     * STATS ... WHERE ... is an aggregation-level filter (a FilteredExpression on the
+     * Aggregate node), not a Filter plan node, so it doesn't qualify as a top-level
+     * WHERE. PreAnalysisVerifier surfaces a STATS/INLINE STATS-specific message so the
+     * user isn't left wondering why their WHERE-looking clause doesn't count.
+     */
+    public void testInSubqueryInStatsWhereRejectedAtRuntime() {
+        expectThrows(
+            VerificationException.class,
+            containsString("IN (subquery) is not allowed in STATS or INLINE STATS aggregation filter"),
+            () -> run(syncEsqlQueryRequest("FROM main_index | STATS c = COUNT(*) WHERE x IN (FROM sub_index)"))
+        );
+    }
+
+    /*
+     * Same shape as STATS WHERE: INLINE STATS ... WHERE ... is a per-aggregation filter
+     * on the inner Aggregate (which InlineStats wraps), not a Filter. Same message as
+     * STATS — both per-aggregation filters share the same "not allowed" branch.
+     */
+    public void testInSubqueryInInlineStatsWhereRejectedAtRuntime() {
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+
+        expectThrows(
+            VerificationException.class,
+            containsString("IN (subquery) is not allowed in STATS or INLINE STATS aggregation filter"),
+            () -> run(syncEsqlQueryRequest("FROM main_index | INLINE STATS c = COUNT(*) WHERE x IN (FROM sub_index)"))
+        );
+    }
+}

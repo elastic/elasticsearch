@@ -264,21 +264,6 @@ public class ReindexValidatorTests extends ESTestCase {
         return clusterService;
     }
 
-    private ProjectMetadata projectMetadata(String... indexNames) {
-        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomUniqueProjectId());
-        for (String indexName : indexNames) {
-            builder.put(
-                IndexMetadata.builder(indexName)
-                    .settings(indexSettings(IndexVersion.current(), 1, 0))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .build(),
-                true
-            );
-        }
-        return builder.build();
-    }
-
     private ProjectMetadata projectMetadataWithDestinationSliceSetting(boolean destinationSliceEnabled) {
         return ProjectMetadata.builder(randomUniqueProjectId())
             .put(

@@ -150,8 +150,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (routing == null) {
             return true;
         }
-        if (destination.isRoutingFromSlice()) {
-            return isValidSliceRoutingOrCommand(routing);
+        if (destination.isRoutingFromSlice() && isValidSliceRoutingOrCommand(routing) == false) {
+            return false;
         }
         if (routing.startsWith("=")) {
             return true;
@@ -163,9 +163,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     private static boolean isValidSliceRoutingOrCommand(String routing) {
-        if ("keep".equals(routing) || "discard".equals(routing)) {
-            return true;
-        }
         final String sliceValue = routing.startsWith("=") ? routing.substring(1) : routing;
         try {
             SliceIndexing.validateUserSliceValue(sliceValue);
@@ -427,16 +424,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             if (request.routing() != null) {
                 throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
             }
-            if ("keep".equals(slice) || "discard".equals(slice)) {
-                request.routing(slice);
-            } else if (slice.startsWith("=")) {
-                final String sliceValue = slice.substring(1);
-                SliceIndexing.validateUserSliceValue(sliceValue);
-                request.routing(slice);
-            } else {
-                SliceIndexing.validateUserSliceValue(slice);
-                request.routing(slice);
-            }
+            request.routing(slice);
             request.setRoutingFromSlice(true);
         }, new ParseField(SliceIndexing.PARAM_NAME));
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));

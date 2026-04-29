@@ -1130,7 +1130,7 @@ public class Reindexer {
                 }
                 case "discard" -> {
                     super.copyRouting(request, null);
-                    request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
+                    request.setRoutingFromSlice(false);
                 }
                 default -> throw new IllegalArgumentException("Unsupported routing command");
             }
@@ -1189,7 +1189,7 @@ public class Reindexer {
                  * Its important that routing comes after parent in case you want to
                  * change them both.
                  */
-                if (metadata.routingUpdated()) {
+                if (metadata.routingChanged() || metadata.isRoutingFromSlice()) {
                     request.setRouting(metadata.getRouting());
                     request.setRoutingFromSlice(metadata.isRoutingFromSlice());
                 }

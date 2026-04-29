@@ -144,6 +144,13 @@
       indices.refresh: {}
 
   - do:
+      indices.create:
+        index: new_twitter
+        body:
+          settings:
+            index.slice.enabled: true
+
+  - do:
       reindex:
         refresh: true
         body:
@@ -151,6 +158,7 @@
             index: twitter
           dest:
             index: new_twitter
+            _slice: discard
           script:
             lang: painless
             source: ctx._slice = ctx._source.user

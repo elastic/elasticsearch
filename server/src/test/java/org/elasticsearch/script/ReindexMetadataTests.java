@@ -117,7 +117,6 @@ public class ReindexMetadataTests extends ESTestCase {
         metadata.put(SliceIndexing.PARAM_NAME, "slice2");
         assertTrue(metadata.routingChanged());
         assertEquals("slice2", metadata.getRouting());
-        assertTrue(metadata.routingUpdated());
         assertTrue(metadata.isRoutingFromSlice());
     }
 
@@ -125,11 +124,11 @@ public class ReindexMetadataTests extends ESTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         metadata.put(SliceIndexing.PARAM_NAME, "slice2");
-        assertTrue(metadata.routingUpdated());
+        assertTrue(metadata.routingChanged());
         assertTrue(metadata.isRoutingFromSlice());
 
         metadata.put("_routing", "routing2");
-        assertTrue(metadata.routingUpdated());
+        assertTrue(metadata.routingChanged());
         assertFalse(metadata.isRoutingFromSlice());
     }
 

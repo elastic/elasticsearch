@@ -172,9 +172,6 @@ tests:
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/146106
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/145900
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativePromQLIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/146923
@@ -213,9 +210,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/146466
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   issue: https://github.com/elastic/elasticsearch/issues/146545
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/145900
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650
@@ -351,8 +345,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
   method: test {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
   issue: https://github.com/elastic/elasticsearch/issues/147654
-- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
-  issue: https://github.com/elastic/elasticsearch/issues/147658
 - class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
   method: test {csv-spec:external-basic.* [LOCAL]}
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
@@ -465,3 +457,61 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testForceCommitPrefetch
   issue: https://github.com/elastic/elasticsearch/issues/147847
+  issue: https://github.com/elastic/elasticsearch-serverless/issues/6475
+- class: org.elasticsearch.xpack.stateless.engine.RefreshNodeCreditManagerTests
+  method: testPeriodicWarning
+  issue: https://github.com/elastic/elasticsearch-serverless/issues/6518
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testDoExecutePreservesContextIdInFinalResult
+  issue: https://github.com/elastic/elasticsearch/issues/147840
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/147849
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testStress
+  issue: https://github.com/elastic/elasticsearch/issues/147850
+- class: org.elasticsearch.backwards.RareTermsIT
+  method: testSingleValuedString
+  issue: https://github.com/elastic/elasticsearch/issues/147853
+- class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
+  method: testGenerationalFileBlobReferenceIsRetainedCorrectly
+  issue: https://github.com/elastic/elasticsearch/issues/147858
+- class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
+  method: testRetentionLeasesIgnoredForSoftDeletesPolicy
+  issue: https://github.com/elastic/elasticsearch/issues/147859
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testDoExecuteReleasesRegistrationWhenDataNodeFailsAfterChunkStreaming
+  issue: https://github.com/elastic/elasticsearch/issues/147870
+- class: org.elasticsearch.xpack.stateless.recovery.SearchShardRecoveryIT
+  method: testRefreshOfRecoveringSearchShard
+  issue: https://github.com/elastic/elasticsearch/issues/147871
+- class: org.elasticsearch.search.internal.CancellableBulkScorerTests
+  method: testIntervalGrowsGeometrically
+  issue: https://github.com/elastic/elasticsearch/issues/147872
+- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
+  method: testHKmeans
+  issue: https://github.com/elastic/elasticsearch/issues/147482
+- class: org.elasticsearch.xpack.sql.jdbc.JdbcPreparedStatementTests
+  method: testSettingSqlDateValues
+  issue: https://github.com/elastic/elasticsearch/issues/147874
+- class: org.elasticsearch.xpack.stateless.StatelessMergeIT
+  method: testOnlyForceMergesAreAllowedDuringRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/147880
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
+  method: testOldCommitsAreRetainedIfSearchNodesUseThem
+  issue: https://github.com/elastic/elasticsearch/issues/147888
+- class: org.elasticsearch.xpack.security.authc.HttOptionsNoAuthnIntegTests
+  method: testNoAuthnForPreFlightRequest
+  issue: https://github.com/elastic/elasticsearch/issues/147898
+- class: org.elasticsearch.xpack.security.authc.HttOptionsNoAuthnIntegTests
+  method: testNoAuthnForResourceOptionsMethod
+  issue: https://github.com/elastic/elasticsearch/issues/147899
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=synonyms/110_synonyms_invalid/Load index with an invalid synonym rule with lenient set to false}
+  issue: https://github.com/elastic/elasticsearch/issues/147907
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=synonyms/20_synonyms_get/Cursor-based pagination with search_after}
+  issue: https://github.com/elastic/elasticsearch/issues/147908
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/41_knn_search_bbq_hnsw_bfloat16/Test index configured rescore vector score consistency}
+  issue: https://github.com/elastic/elasticsearch/issues/147909

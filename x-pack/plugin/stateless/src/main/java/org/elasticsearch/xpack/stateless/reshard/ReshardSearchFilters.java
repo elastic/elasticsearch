@@ -10,14 +10,8 @@ package org.elasticsearch.xpack.stateless.reshard;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchException;
@@ -27,13 +21,14 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
-import org.elasticsearch.lucene.util.BitSets;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 public class ReshardSearchFilters {
     /**
@@ -54,14 +49,13 @@ public class ReshardSearchFilters {
      * @return a wrapped directory reader, or the original reader if no filtering is needed
      * @throws IOException if there is an error constructing the wrapped reader
      */
-    // ES-13106 we'll likely need to add some caching here to avoid duplicate bitsets and query execution
-    // across multiple searches.
     public static DirectoryReader maybeWrapDirectoryReader(
         DirectoryReader reader,
         ShardId shardId,
         SplitShardCountSummary summary,
         IndexMetadata indexMetadata,
-        MapperService mapperService
+        MapperService mapperService,
+        @Nullable ReshardUnownedBitsetCache unownedBitsetCache
     ) throws IOException {
         if (shouldFilter(summary, indexMetadata, shardId) == false) {
             return reader;
@@ -71,7 +65,7 @@ public class ReshardSearchFilters {
         final var query = new ShardSplittingQuery(indexMetadata, shardId.id(), mapperService.hasNested());
 
         // and this filter returns the documents that do not match the query, i.e. the documents that are owned by the shard
-        return new QueryFilterDirectoryReader(reader, query);
+        return new QueryFilterDirectoryReader(reader, query, unownedBitsetCache);
     }
 
     // visible for testing
@@ -147,20 +141,23 @@ public class ReshardSearchFilters {
      */
     static class QueryFilterDirectoryReader extends FilterDirectoryReader {
         private final Query query;
+        private final ReshardUnownedBitsetCache unownedBitsetCache;
 
-        QueryFilterDirectoryReader(DirectoryReader in, Query query) throws IOException {
+        QueryFilterDirectoryReader(DirectoryReader in, Query query, @Nullable ReshardUnownedBitsetCache unownedBitsetCache)
+            throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
-                    return new QueryFilterLeafReader(reader, query);
+                    return new QueryFilterLeafReader(reader, query, unownedBitsetCache);
                 }
             });
             this.query = query;
+            this.unownedBitsetCache = unownedBitsetCache;
         }
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new QueryFilterDirectoryReader(in, query);
+            return new QueryFilterDirectoryReader(in, query, unownedBitsetCache);
         }
 
         @Override
@@ -171,13 +168,15 @@ public class ReshardSearchFilters {
 
     private static class QueryFilterLeafReader extends SequentialStoredFieldsLeafReader {
         private final Query query;
+        private final ReshardUnownedBitsetCache unownedBitsetCache;
 
         private int numDocs = -1;
         private BitSet filteredDocs;
 
-        protected QueryFilterLeafReader(LeafReader in, Query query) {
+        protected QueryFilterLeafReader(LeafReader in, Query query, @Nullable ReshardUnownedBitsetCache unownedBitsetCache) {
             super(in);
             this.query = query;
+            this.unownedBitsetCache = unownedBitsetCache;
         }
 
         /**
@@ -234,9 +233,16 @@ public class ReshardSearchFilters {
                 synchronized (this) {
                     if (numDocs == -1) {
                         try {
-                            filteredDocs = queryFilteredDocs();
+                            if (unownedBitsetCache != null) {
+                                filteredDocs = unownedBitsetCache.getBitSet(query, in.getContext());
+                            } else {
+                                filteredDocs = queryFilteredDocs();
+                            }
                             numDocs = calculateNumDocs(in, filteredDocs);
-                        } catch (Exception e) {
+                        } catch (ExecutionException e) {
+                            Throwable cause = e.getCause();
+                            throw new ElasticsearchException("Failed to execute filtered documents query", cause != null ? cause : e);
+                        } catch (IOException e) {
                             throw new ElasticsearchException("Failed to execute filtered documents query", e);
                         }
                     }
@@ -246,20 +252,7 @@ public class ReshardSearchFilters {
 
         // Returns a BitSet of documents that match the query, or null if no documents match.
         private BitSet queryFilteredDocs() throws IOException {
-            final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(in.getContext());
-
-            final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-            searcher.setQueryCache(null);
-
-            final Query rewrittenQuery = searcher.rewrite(query);
-            // TODO there is a possible optimization of checking for MatchAllDocsQuery which would mean that all documents are unowned.
-            final Weight weight = searcher.createWeight(rewrittenQuery, ScoreMode.COMPLETE_NO_SCORES, 1f);
-            final Scorer s = weight.scorer(in.getContext());
-            if (s == null) {
-                return null;
-            } else {
-                return BitSets.of(s.iterator(), in.maxDoc());
-            }
+            return ReshardUnownedBitsetCache.computeBitSet(query, in.getContext());
         }
 
         private static int calculateNumDocs(LeafReader reader, BitSet unownedDocs) {

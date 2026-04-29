@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -410,7 +411,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
-                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+                ReshardUnownedBitsetCache.CACHE_TTL_SETTING,
+                ReshardUnownedBitsetCache.CACHE_SIZE_SETTING
             )
         );
         return new SearchEngine(
@@ -568,7 +571,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
-                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+                ReshardUnownedBitsetCache.CACHE_TTL_SETTING,
+                ReshardUnownedBitsetCache.CACHE_SIZE_SETTING
             )
         );
         return new SearchEngine(

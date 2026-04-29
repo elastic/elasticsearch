@@ -198,6 +198,7 @@ import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformati
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardMetrics;
+import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
@@ -1218,6 +1219,8 @@ public class StatelessPlugin extends Plugin
             SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT,
             SplitTargetService.RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT,
             SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD,
+            ReshardUnownedBitsetCache.CACHE_TTL_SETTING,
+            ReshardUnownedBitsetCache.CACHE_SIZE_SETTING,
             StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING,
             StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,
             StatelessBalancingWeightsFactory.SEARCH_TIER_SHARD_BALANCE_FACTOR_SETTING,

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -33,6 +34,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -64,7 +66,7 @@ public class ReshardSearchFiltersTests extends ESTestCase {
                 .settings(indexSettings(IndexVersion.current(), 1, 0))
                 .build();
             var query = new ShardSplittingQuery(indexMetadata, 0, false);
-            var wrapper = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader, query);
+            var wrapper = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader, query, null);
 
             assertEquals(0, directoryReader.numDocs());
             assertEquals(0, directoryReader.leaves().size());
@@ -99,7 +101,7 @@ public class ReshardSearchFiltersTests extends ESTestCase {
                 .settings(indexSettings(IndexVersion.current(), 1, 0))
                 .build();
             var query = new ShardSplittingQuery(indexMetadata, 0, false);
-            var wrapper = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader, query);
+            var wrapper = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader, query, null);
 
             assertEquals(docs, directoryReader.numDocs());
             assertEquals(1, directoryReader.leaves().size());
@@ -156,7 +158,7 @@ public class ReshardSearchFiltersTests extends ESTestCase {
                 .settings(indexSettings(IndexVersion.current(), 2, 0))
                 .build();
             var query = new ShardSplittingQuery(indexMetadata, 0, false);
-            var wrapper = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader, query);
+            var wrapper = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader, query, null);
 
             assertEquals(docs, directoryReader.numDocs());
             assertEquals(1, directoryReader.leaves().size());
@@ -259,7 +261,7 @@ public class ReshardSearchFiltersTests extends ESTestCase {
                 .build();
             // ShardSplittingQuery with this bogus shardId will return all documents.
             var query = new ShardSplittingQuery(indexMetadata, 222, false);
-            var wrapper = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader, query);
+            var wrapper = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader, query, null);
 
             assertEquals(docs, directoryReader.numDocs());
             assertEquals(1, directoryReader.leaves().size());
@@ -272,6 +274,57 @@ public class ReshardSearchFiltersTests extends ESTestCase {
             for (int i = 0; i < docs; i++) {
                 assertFalse(liveDocs.get(i));
             }
+        }
+    }
+
+    public void testUnownedBitsetCacheSharesSegmentCoreBetweenDirectoryReaderWraps() throws IOException {
+        IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(100));
+
+        var docs = randomIntBetween(5, 15);
+        for (int i = 0; i < docs; i++) {
+            var document = new Document();
+            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Field.Store.NO));
+            iw.addDocument(document);
+        }
+        iw.commit();
+
+        Settings cacheSettings = Settings.builder().put(ReshardUnownedBitsetCache.CACHE_SIZE_SETTING.getKey(), "256mb").build();
+        ReshardUnownedBitsetCache cache = new ReshardUnownedBitsetCache(cacheSettings);
+
+        try (
+            DirectoryReader directoryReader1 = ElasticsearchDirectoryReader.wrap(
+                DirectoryReader.open(iw),
+                new ShardId(new Index("index", "_na_"), 0)
+            );
+            DirectoryReader directoryReader2 = ElasticsearchDirectoryReader.wrap(
+                DirectoryReader.open(iw),
+                new ShardId(new Index("index", "_na_"), 0)
+            );
+            iw
+        ) {
+            var indexMetadata = IndexMetadata.builder("index")
+                .numberOfShards(2)
+                .numberOfReplicas(0)
+                .settings(indexSettings(IndexVersion.current(), 2, 0))
+                .build();
+            var query = new ShardSplittingQuery(indexMetadata, 0, false);
+            var wrapper1 = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader1, query, cache);
+            var wrapper2 = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader2, query, cache);
+
+            wrapper1.leaves().get(0).reader().getLiveDocs();
+
+            Map<String, Object> afterFirst = cache.usageStats();
+            assertEquals(1L, afterFirst.get("misses"));
+
+            wrapper2.leaves().get(0).reader().getLiveDocs();
+
+            Map<String, Object> afterSecond = cache.usageStats();
+            assertEquals(1L, afterSecond.get("misses"));
+            assertEquals(1L, afterSecond.get("hits"));
+
+            cache.verifyInternalConsistency();
+        } finally {
+            cache.close();
         }
     }
 

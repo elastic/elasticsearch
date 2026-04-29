@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
+import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -112,6 +113,7 @@ public class SearchEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final SearchCommitPrefetcher commitPrefetcher;
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
+    private final ReshardUnownedBitsetCache reshardUnownedBitsetCache;
     // task runner used to process commit notifications and incoming PIT metadata merges sequentially
     private final ThrottledTaskRunner processCommitTaskRunner;
 
@@ -146,6 +148,7 @@ public class SearchEngine extends Engine {
     ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
+        this.reshardUnownedBitsetCache = new ReshardUnownedBitsetCache(config.getIndexSettings().getNodeSettings());
         this.closedShardService = closedShardService;
         var refreshExecutor = config.getThreadPool().executor(ThreadPool.Names.REFRESH);
         // we limit to one task to force sequential execution of enqueued tasks
@@ -250,7 +253,7 @@ public class SearchEngine extends Engine {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(readerManager, directoryReader, store::decRef);
+                IOUtils.closeWhileHandlingException(readerManager, directoryReader, store::decRef, reshardUnownedBitsetCache);
             }
         }
     }
@@ -626,7 +629,13 @@ public class SearchEngine extends Engine {
                 // Save any active reader information to the ClosedShardService BEFORE potentially closing the store. The ClosedShardService
                 // is hooked into store closure, so we don't want to race with it!
                 closedShardService.onShardClose(shardId, getAcquiredPrimaryTermAndGenerations());
-                IOUtils.close(this::failSegmentGenerationListeners, readerManager, relocatedPITReaderTracker, store::decRef);
+                IOUtils.close(
+                    this::failSegmentGenerationListeners,
+                    readerManager,
+                    relocatedPITReaderTracker,
+                    store::decRef,
+                    reshardUnownedBitsetCache
+                );
                 assert segmentGenerationListeners.isEmpty() : segmentGenerationListeners;
             } catch (Exception ex) {
                 logger.warn("failed to close reader", ex);
@@ -743,7 +752,8 @@ public class SearchEngine extends Engine {
             shardId,
             summary,
             engineConfig.getIndexSettings().getIndexMetadata(),
-            engineConfig.getMapperService()
+            engineConfig.getMapperService(),
+            reshardUnownedBitsetCache
         );
     }
 

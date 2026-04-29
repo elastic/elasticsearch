@@ -22,7 +22,15 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
-import org.elasticsearch.xpack.esql.expression.function.*;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
+import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -33,7 +41,10 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.*;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.IMPLICIT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
@@ -56,9 +67,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     public static final String NAME = "TStep";
 
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TStep.class)
-        .quaternaryConfig(TStep::new)
-        .name(NAME.toLowerCase());
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TStep.class).quaternaryConfig(TStep::new).name("tstep");
 
     private final Configuration configuration;
     @Nullable

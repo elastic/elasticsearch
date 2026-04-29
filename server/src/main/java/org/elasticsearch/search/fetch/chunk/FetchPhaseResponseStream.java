@@ -69,13 +69,10 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
-     * Adds a chunk of hits to the accumulated result.
-     *
-     * This method increments the reference count of each {@link SearchHit}
-     * via {@link SearchHit#incRef()} to take ownership. The hits will be released in {@link #closeInternal()}.
+     * Accumulates a chunk of hits into this stream.
      *
      * @param chunk the chunk containing hits to accumulate
-     * @param releasable a releasable to close after processing (typically releases the acquired stream reference)
+     * @param releasable closed after a successful write
      */
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
         boolean success = false;
@@ -85,20 +82,12 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
             totalBreakerBytes.addAndGet(bytesSize);
 
-            SearchHit[] chunkHits = chunk.getHits();
-            int[] positions = chunk.getHitPositions();
-
-            for (int i = 0; i < chunkHits.length; i++) {
-                SearchHit hit = chunkHits[i];
-                hit.incRef();
-
-                queue.add(new SequencedHit(hit, positions[i]));
-            }
+            chunk.consumeHits((position, hit) -> queue.add(new SequencedHit(hit, position)));
 
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
-                    chunkHits.length,
+                    chunk.hitCount(),
                     shardIndex,
                     queue.size(),
                     expectedTotalDocs,

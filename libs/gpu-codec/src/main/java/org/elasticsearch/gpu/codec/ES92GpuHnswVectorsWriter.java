@@ -17,6 +17,8 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
@@ -26,6 +28,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
@@ -36,10 +39,12 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.IORunnable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
+import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gpu.GPUSupport;
@@ -86,6 +91,9 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     private final int M;
     private final int beamWidth;
     private final FlatVectorsWriter flatVectorWriter;
+    private final FlatVectorsFormat flatVectorsFormat;
+    private FlatVectorsReader flatVectorsReader;
+    private boolean flatWriterClosed = false;
 
     private final List<FieldWriter> fields = new ArrayList<>();
     private boolean finished;
@@ -97,6 +105,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         SegmentWriteState state,
         int M,
         int beamWidth,
+        FlatVectorsFormat flatVectorsFormat,
         FlatVectorsWriter flatVectorWriter
     ) throws IOException {
         this.totalDeviceMemory = totalDeviceMemory;
@@ -105,6 +114,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         this.M = M;
         this.beamWidth = beamWidth;
         this.flatVectorWriter = flatVectorWriter;
+        this.flatVectorsFormat = flatVectorsFormat;
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
@@ -248,7 +258,9 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             throw new IllegalStateException("already finished");
         }
         finished = true;
-        flatVectorWriter.finish();
+        if (flatWriterClosed == false) {
+            flatVectorWriter.finish();
+        }
 
         if (meta != null) {
             // write end of fields marker
@@ -570,35 +582,69 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public IORunnable mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        // Note: Merged raw vectors are already in sorted order. The flatVectorWriter and MergedVectorValues utilities
-        // apply mergeState.docMaps internally, so vectors are returned in the final sorted document order.
-        // Unlike flush(), we don't need to explicitly handle sorting here.
-        try (var scorerSupplier = flatVectorWriter.mergeOneFieldToIndex(fieldInfo, mergeState)) {
+        flatVectorWriter.mergeOneFlatVectorField(fieldInfo, mergeState);
+        return () -> {
             var started = System.nanoTime();
-            int numVectors = scorerSupplier.totalVectorCount();
+            // Lazily finish flat writer and open a reader for the written segment
+            ensureFlatReaderOpen();
+            // Get the vector values and scorer supplier from the written segment
+            // Note: Merged raw vectors are already in sorted order. The flatVectorWriter and MergedVectorValues utilities
+            // apply mergeState.docMaps internally, so vectors are returned in the final sorted document order.
+            // Unlike flush(), we don't need to explicitly handle sorting here.
+            KnnVectorValues vectorValues = switch (fieldInfo.getVectorEncoding()) {
+                case BYTE -> flatVectorsReader.getByteVectorValues(fieldInfo.name);
+                case FLOAT32 -> flatVectorsReader.getFloatVectorValues(fieldInfo.name);
+            };
+            int numVectors = vectorValues.size();
             if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
                 // we don't really need real value for vectors here,
                 // we just build a mock graph where every node is connected to every other node
                 generateMockGraphAndWriteMeta(fieldInfo, numVectors);
             } else {
-                if (dataType == CuVSMatrix.DataType.FLOAT) {
-                    var randomScorerSupplier = VectorsFormatReflectionUtils.getFlatRandomVectorScorerInnerSupplier(scorerSupplier);
-                    mergeFloatVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
-                } else {
-                    // During merging, we use quantized data, so we need to support byte[] too.
-                    // That's how our current formats work: use floats during indexing, and quantized data to build a graph
-                    // during merging.
-                    assert dataType == CuVSMatrix.DataType.BYTE;
-                    var randomScorerSupplier = VectorsFormatReflectionUtils.getScalarQuantizedRandomVectorScorerInnerSupplier(
-                        scorerSupplier
-                    );
-                    mergeByteVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
+                try {
+                    if (dataType == CuVSMatrix.DataType.FLOAT || (flatVectorsReader instanceof QuantizedVectorsReader) == false) {
+                        RandomVectorScorerSupplier scorerSupplier = flatVectorsReader.getFlatVectorScorer()
+                            .getRandomVectorScorerSupplier(fieldInfo.getVectorSimilarityFunction(), vectorValues);
+                        var randomScorerSupplier = VectorsFormatReflectionUtils.getFlatRandomVectorScorerInnerSupplier(scorerSupplier);
+                        mergeFloatVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
+                    } else {
+                        // During merging, we use quantized data, so we need to support byte[] too.
+                        // That's how our current formats work: use floats during indexing, and quantized data to build a graph
+                        // during merging.
+                        assert flatVectorsReader instanceof QuantizedVectorsReader;
+                        try (
+                            CloseableRandomVectorScorerSupplier scorerSupplier = ((QuantizedVectorsReader) flatVectorsReader)
+                                .getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState)
+                        ) {
+                            assert dataType == CuVSMatrix.DataType.BYTE;
+                            var randomScorerSupplier = VectorsFormatReflectionUtils.getScalarQuantizedRandomVectorScorerInnerSupplier(
+                                scorerSupplier
+                            );
+                            mergeByteVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
+                        }
+                    }
+                } catch (Throwable t) {
+                    throw new IOException("Failed to merge GPU index: ", t);
                 }
+                var elapsed = System.nanoTime() - started;
+                logger.debug("Merged [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
             }
-            var elapsed = System.nanoTime() - started;
-            logger.debug("Merged [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
-        } catch (Throwable t) {
-            throw new IOException("Failed to merge GPU index: ", t);
+        };
+    }
+
+    private void ensureFlatReaderOpen() throws IOException {
+        if (flatVectorsReader == null) {
+            flatVectorWriter.finish();
+            flatVectorWriter.close();
+            flatWriterClosed = true;
+            SegmentReadState readState = new SegmentReadState(
+                segmentWriteState.directory,
+                segmentWriteState.segmentInfo,
+                segmentWriteState.fieldInfos,
+                segmentWriteState.context,
+                segmentWriteState.segmentSuffix
+            );
+            flatVectorsReader = flatVectorsFormat.fieldsReader(readState);
         }
     }
 
@@ -866,7 +912,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(meta, vectorIndex, flatVectorWriter);
+        if (flatWriterClosed) {
+            IOUtils.close(meta, vectorIndex, flatVectorsReader);
+        } else {
+            IOUtils.close(meta, vectorIndex, flatVectorWriter, flatVectorsReader);
+        }
     }
 
     static int distFuncToOrd(VectorSimilarityFunction func) {

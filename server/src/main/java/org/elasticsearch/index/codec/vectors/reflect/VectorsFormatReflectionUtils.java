@@ -71,7 +71,7 @@ public class VectorsFormatReflectionUtils {
         }
     }
 
-    public static RandomVectorScorerSupplier getFlatRandomVectorScorerInnerSupplier(CloseableRandomVectorScorerSupplier scorerSupplier) {
+    public static RandomVectorScorerSupplier getFlatRandomVectorScorerInnerSupplier(RandomVectorScorerSupplier scorerSupplier) {
         if (scorerSupplier.getClass().equals(FLAT_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS)) {
             return (RandomVectorScorerSupplier) FLOAT_SUPPLIER_HANDLE.get(scorerSupplier);
         }

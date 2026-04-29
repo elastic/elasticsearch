@@ -19,17 +19,12 @@ import org.elasticsearch.logging.Logger;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Random;
 
 class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicker {
 
     private static final Logger logger = LogManager.getLogger(StatelessReindexRelocationNodePicker.class);
 
-    private final Random random;
-
-    StatelessReindexRelocationNodePicker() {
-        random = Randomness.get();
-    }
+    StatelessReindexRelocationNodePicker() {}
 
     @Override
     public Optional<String> pickNode(DiscoveryNodes nodes, NodesShutdownMetadata nodeShutdowns) {
@@ -76,6 +71,6 @@ class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicke
     }
 
     private String selectRandomNodeIdFrom(List<String> nodeIds) {
-        return nodeIds.get(random.nextInt(nodeIds.size()));
+        return nodeIds.get(Randomness.get().nextInt(nodeIds.size()));
     }
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -25,8 +24,6 @@ import org.elasticsearch.compute.operator.mvdedupe.TopNMultivalueDedupeLong;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
-
-import java.util.BitSet;
 
 /**
  * Maps a {@link LongBlock} column to group ids, keeping only the top N values.
@@ -249,30 +246,19 @@ final class LongTopNBlockHash extends BlockHash {
     }
 
     @Override
-    public LongBlock[] getKeys() {
-        if (hasNull) {
-            final long[] keys = new long[topValues.getCount() + 1];
-            int keysIndex = 1;
-            for (int i = 1; i < hash.size() + 1; i++) {
-                long value = hash.get(i - 1);
-                if (isInTop(value)) {
-                    keys[keysIndex++] = value;
+    public LongBlock[] getKeys(IntVector selected) {
+        int positions = selected.getPositionCount();
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                int groupId = selected.getInt(i);
+                if (groupId == 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendLong(hash.get(groupId - 1));
                 }
             }
-            BitSet nulls = new BitSet(1);
-            nulls.set(0);
-            return new LongBlock[] {
-                blockFactory.newLongArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
+            return new LongBlock[] { builder.build() };
         }
-        final long[] keys = new long[topValues.getCount()];
-        int keysIndex = 0;
-        for (int i = 0; i < hash.size(); i++) {
-            long value = hash.get(i);
-            if (isInTop(value)) {
-                keys[keysIndex++] = value;
-            }
-        }
-        return new LongBlock[] { blockFactory.newLongArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override
@@ -287,6 +273,15 @@ final class LongTopNBlockHash extends BlockHash {
             }
         }
         return blockFactory.newIntArrayVector(ids, ids.length);
+    }
+
+    @Override
+    public int numKeys() {
+        if (hasNull) {
+            return Math.toIntExact(hash.size()) + 1;
+        } else {
+            return Math.toIntExact(hash.size());
+        }
     }
 
     @Override

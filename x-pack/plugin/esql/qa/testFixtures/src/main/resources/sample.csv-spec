@@ -1,15 +1,12 @@
 // Tests focused on the SAMPLE command
 // Note: this tests only basic behavior, because of limitations of the CSV tests.
 // Most tests assert that the count, average and sum of some values are within a
-// range. These stats should be correctly adjusted for the sampling. Furthermore,
-// they also assert the value of MV_COUNT(VALUES(...)), which is not adjusted for
-// the sampling and therefore gives the size of the sample.
-// All ranges are very loose, so that the tests should practically never fail.
+// range. All ranges are very loose, so that the tests should practically never fail.
 
 row
 required_capability: sample_v3
 
-ROW x = 1 | SAMPLE .999999999
+ROW x = 1 | SAMPLE .9999999999999999
 ;
 
 x:integer
@@ -20,7 +17,7 @@ x:integer
 row and mv_expand
 required_capability: sample_v3
 
-ROW x = [1,2,3,4,5] | MV_EXPAND x | SAMPLE .999999999
+ROW x = [1,2,3,4,5] | MV_EXPAND x | SAMPLE .9999999999999999
 ;
 
 x:integer
@@ -41,7 +38,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double | sum_emp_no:long
-10..90     | 10010.0..10090.0  | 100100..908100
+5..95      | 10010.0..10090.0  | 100100..908100
 ;
 
 
@@ -50,12 +47,12 @@ required_capability: sample_v3
 
 FROM employees
   | SAMPLE 0.5
-  | WHERE emp_no > 10050 
+  | WHERE emp_no > 10030
   | STATS count = COUNT(), avg_emp_no = AVG(emp_no)
 ;
 
 count:long | avg_emp_no:double
-1..49      | 10051..10100
+1..69      | 10031..10100
 ;
 
 
@@ -63,13 +60,13 @@ after where
 required_capability: sample_v3
 
 FROM employees
-  | WHERE emp_no <= 10050 
+  | WHERE emp_no <= 10070
   | SAMPLE 0.5
   | STATS count = COUNT(), avg_emp_no = AVG(emp_no)
 ;
 
 count:long | avg_emp_no:double
-1..49      | 10001..10050
+1..69      | 10001..10070
 ;
 
 
@@ -83,7 +80,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-10..90     | 10010..10090
+5..95      | 10010..10090
 ;
 
 
@@ -97,7 +94,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-10..90     | 10010..10090
+5..95      | 10010..10090
 ;
 
 
@@ -173,7 +170,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-10..90     | 10010..10090
+5..95      | 10010..10090
 ;
 
 

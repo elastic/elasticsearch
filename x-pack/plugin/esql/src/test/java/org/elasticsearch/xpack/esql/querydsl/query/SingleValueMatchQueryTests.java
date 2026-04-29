@@ -28,6 +28,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -98,7 +99,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test"),
+                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
                     "single-value function encountered multi-value"
                 );
                 runCase(fieldValues, ctx.searcher().count(query));
@@ -114,7 +115,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test"),
+                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
                     "single-value function encountered multi-value"
                 );
                 runCase(List.of(), ctx.searcher().count(query));
@@ -253,7 +254,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
     private static List<IndexableField> docFor(Iterable<Object> values, DocValuesMode docValuesMode) {
         long count = 0;
-        var mvField = new MultiValuedBinaryDocValuesField.SeparateCount("foo", false);
+        var mvField = new MultiValuedBinaryDocValuesField.SeparateCount("foo", MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE);
         List<IndexableField> fields = new ArrayList<>();
 
         for (Object v : values) {

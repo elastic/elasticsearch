@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteContextTestUtils;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -58,6 +60,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,6 +78,7 @@ import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceQuer
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -421,6 +425,20 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     }
 
     protected QueryRewriteContext createQueryRewriteContext(
+        List<TestIndex> testIndices,
+        Map<String, String> remoteIndexNames,
+        TransportVersion minTransportVersion,
+        Boolean ccsMinimizeRoundTrips
+    ) {
+        Map<String, Map<String, String>> localIndexInferenceFields = new HashMap<>();
+        for (TestIndex testIndex : testIndices) {
+            localIndexInferenceFields.put(testIndex.name(), testIndex.semanticTextFields());
+        }
+
+        return createQueryRewriteContext(localIndexInferenceFields, remoteIndexNames, minTransportVersion, ccsMinimizeRoundTrips);
+    }
+
+    protected QueryRewriteContext createQueryRewriteContext(
         Map<String, Map<String, String>> localIndexInferenceFields,
         Map<String, String> remoteIndexNames,
         TransportVersion minTransportVersion,
@@ -654,18 +672,51 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         assertCoordinatorNodeRewriteOnNonInferenceField(originalSerializedQuery, serializedQuery);
     }
 
-    protected static QueryBuilder rewriteAndFetch(QueryBuilder queryBuilder, QueryRewriteContext queryRewriteContext) {
-        PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
-        Rewriteable.rewriteAndFetch(queryBuilder, queryRewriteContext, future);
+    protected static <T extends Rewriteable<T>> T rewriteAndFetch(T rewritable, QueryRewriteContext queryRewriteContext) {
+        PlainActionFuture<T> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(rewritable, queryRewriteContext, future);
         return future.actionGet();
     }
 
     protected static void disableQueryInterception(QueryRewriteContext queryRewriteContext, CheckedRunnable<Exception> runnable)
         throws Exception {
+        disableQueryInterception(queryRewriteContext, () -> {
+            runnable.run();
+            return null;
+        });
+    }
+
+    protected static <T> T disableQueryInterception(QueryRewriteContext queryRewriteContext, CheckedSupplier<T, Exception> supplier)
+        throws Exception {
+
+        T result;
         QueryRewriteInterceptor interceptor = queryRewriteContext.getQueryRewriteInterceptor();
-        queryRewriteContext.setQueryRewriteInterceptor(null);
-        runnable.run();
-        queryRewriteContext.setQueryRewriteInterceptor(interceptor);
+        try {
+            queryRewriteContext.setQueryRewriteInterceptor(null);
+            result = supplier.get();
+        } finally {
+            queryRewriteContext.setQueryRewriteInterceptor(interceptor);
+        }
+
+        return result;
+    }
+
+    protected static QueryRewriteContext instrumentQueryRewriteContext(
+        QueryRewriteContext queryRewriteContext,
+        Answer<?> executeAsyncActionsAnswer
+    ) {
+        QueryRewriteContext instrumented = spy(queryRewriteContext);
+        doAnswer(executeAsyncActionsAnswer).when(instrumented).executeAsyncActions(any());
+        return instrumented;
+    }
+
+    protected static Answer<?> assertSingleUniqueAsyncAction(QueryRewriteContext queryRewriteContext) {
+        return invocation -> {
+            var uniqueAsyncActions = QueryRewriteContextTestUtils.getUniqueAsyncActions(queryRewriteContext);
+            assertThat(uniqueAsyncActions.size(), equalTo(1));
+            uniqueAsyncActions.forEach((k, v) -> assertThat(v.size(), equalTo(1)));
+            return invocation.callRealMethod();
+        };
     }
 
     private static ModelRegistry createModelRegistry(ThreadPool threadPool) {

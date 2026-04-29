@@ -1,0 +1,702 @@
+addresses
+// tag::views_plain_addresses[]
+FROM addresses
+| RENAME city.country.name AS country
+| EVAL country = CASE(country == "United States of America", "United States", country)
+| STATS count=COUNT() BY country
+// end::views_plain_addresses[]
+| SORT count DESC, country ASC
+;
+
+// tag::views_plain_addresses-result[]
+count:long | country:keyword
+1          | Japan
+1          | Netherlands
+1          | United States
+// end::views_plain_addresses-result[]
+;
+
+countryAddresses
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+// tag::views_country_addresses[]
+FROM country_addresses
+// end::views_country_addresses[]
+;
+ignoreOrder:true
+
+// tag::views_country_addresses-result[]
+count:long | country:keyword
+1          | Japan
+1          | Netherlands
+1          | United States
+// end::views_country_addresses-result[]
+;
+
+airports
+required_capability: views_crud_as_index_actions
+
+FROM airports
+| WHERE country IS NOT NULL
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+| WHERE count > 10
+;
+ignoreOrder:true
+
+count:long | country:keyword
+129        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+11         | Germany
+11         | Italy
+11         | Nigeria
+;
+
+countryAirports
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_airports
+;
+ignoreOrder:true
+
+count:long | country:keyword
+129        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+11         | Germany
+11         | Italy
+11         | Nigeria
+;
+
+countryAirportsFiltered
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_airports
+| WHERE count > 15
+;
+ignoreOrder:true
+
+count:long | country:keyword
+129        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+;
+
+countryAirportsAddresses
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_addresses, country_airports
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+;
+ignoreOrder:true
+
+count:long | country:keyword
+130        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+;
+
+countryAirportsAddressesWildcard
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_a*
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+;
+ignoreOrder:true
+
+count:long | country:keyword
+130        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+;
+
+countryAirportsAddressesUS
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_addresses, country_airports
+| WHERE country == "United States"
+;
+ignoreOrder:true
+
+count:long | country:keyword
+129        | United States
+1          | United States
+;
+
+languages
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM languages_lookup_non_unique_key
+| MV_EXPAND country
+| WHERE country IS NOT NULL AND country NOT LIKE ("*-Land*")
+| EVAL country = CASE(country == "United States of America", "United States", country)
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+;
+ignoreOrder:true
+
+count:long | country:keyword
+1          | Atlantis
+1          | Austria
+1          | Belgium
+1          | Canada
+2          | Germany
+1          | Switzerland
+1          | United Kingdom
+1          | United States
+;
+
+countryLanguages
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_languages
+;
+ignoreOrder:true
+
+count:long | country:keyword
+1          | Atlantis
+1          | Austria
+1          | Belgium
+1          | Canada
+2          | Germany
+1          | Switzerland
+1          | United Kingdom
+1          | United States
+;
+
+countryAirportsAddressesLanguages
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_addresses, country_airports, country_languages
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword
+131        | United States
+50         | India
+45         | Mexico
+41         | China
+38         | Canada
+31         | Brazil
+26         | Russia
+18         | United Kingdom
+17         | Australia
+13         | Argentina
+13         | Germany
+12         | France
+12         | Indonesia
+;
+
+countryAirportsAddressesLanguagesUnited
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+// tag::views_country_filtered[]
+FROM country_addresses, country_airports, country_languages
+| WHERE country LIKE "United*"
+| SORT country ASC, count DESC
+// end::views_country_filtered[]
+;
+
+// tag::views_country_filtered-result[]
+count:long | country:keyword
+17         | United Kingdom
+1          | United Kingdom
+129        | United States
+1          | United States
+1          | United States
+// end::views_country_filtered-result[]
+;
+
+countryAirportsAddressesLanguagesWildcard
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+// tag::views_country_wildcard_sum[]
+FROM country_*
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+// end::views_country_wildcard_sum[]
+;
+
+// tag::views_country_wildcard_sum-result[]
+count:long | country:keyword
+131        | United States
+50         | India
+45         | Mexico
+41         | China
+38         | Canada
+31         | Brazil
+26         | Russia
+18         | United Kingdom
+17         | Australia
+13         | Argentina
+13         | Germany
+12         | France
+12         | Indonesia
+// end::views_country_wildcard_sum-result[]
+;
+
+airportsLookupJoin
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: views_crud_as_index_actions
+
+FROM airports
+| RENAME abbrev AS code
+| LOOKUP JOIN airports_mp ON abbrev == code
+| WHERE abbrev IS NOT NULL
+| DROP code
+;
+ignoreOrder:true
+
+abbrev:keyword | city:keyword | city_location:geo_point     | country:keyword | location:geo_point          | name:text      | scalerank:integer | type:keyword
+LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal       | 9                 | small
+SSE            | Solāpur      | POINT (75.920000 17.680000) | India           | POINT (75.933060 17.625415) | Solapur        | 9                 | mid
+IXR            | Rānchi       | POINT (85.330000 23.360000) | India           | POINT (85.323597 23.317725) | Birsa Munda    | 9                 | mid
+AWZ            | Ahvāz        | POINT (48.669200 31.320300) | Iran            | POINT (48.747107 31.343159) | Ahwaz          | 9                 | mid
+GWL            | Gwalior      | POINT (78.178000 26.221500) | India           | POINT (78.217219 26.285488) | Gwalior        | 9                 | [mid, military]
+HOD            | Al Ḩudaydah  | POINT (42.951100 14.802200) | Yemen           | POINT (42.971096 14.755253) | Hodeidah Int'l | 9                 | mid
+;
+
+
+airportsLookupJoinView
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM airports_mp_filtered
+;
+ignoreOrder:true
+
+abbrev:keyword | city:keyword | city_location:geo_point     | country:keyword | location:geo_point          | name:text      | scalerank:integer | type:keyword
+LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal       | 9                 | small
+SSE            | Solāpur      | POINT (75.920000 17.680000) | India           | POINT (75.933060 17.625415) | Solapur        | 9                 | mid
+IXR            | Rānchi       | POINT (85.330000 23.360000) | India           | POINT (85.323597 23.317725) | Birsa Munda    | 9                 | mid
+AWZ            | Ahvāz        | POINT (48.669200 31.320300) | Iran            | POINT (48.747107 31.343159) | Ahwaz          | 9                 | mid
+GWL            | Gwalior      | POINT (78.178000 26.221500) | India           | POINT (78.217219 26.285488) | Gwalior        | 9                 | [mid, military]
+HOD            | Al Ḩudaydah  | POINT (42.951100 14.802200) | Yemen           | POINT (42.971096 14.755253) | Hodeidah Int'l | 9                 | mid
+;
+
+airportsLookupJoinViewAirports
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM airports_mp_filtered, airports METADATA _index
+| WHERE abbrev == "LUH"
+| SORT _index
+;
+
+abbrev:keyword | city:keyword | city_location:geo_point     | country:keyword | location:geo_point          | name:text | scalerank:integer | type:keyword | _index:keyword
+LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal  | 9                 | small        | airports
+LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal  | 9                 | small        | null
+;
+
+airportsLookupJoinViewAirportsStats
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+// tag::airports_mp_filtered_combined[]
+FROM airports_mp_filtered, airports
+| STATS duplications=COUNT() BY abbrev
+| STATS count=COUNT() BY duplications
+| SORT count DESC
+// end::airports_mp_filtered_combined[]
+;
+
+// tag::airports_mp_filtered_combined-result[]
+count:long | duplications:long
+880        | 1
+7          | 2
+1          | 3
+// end::airports_mp_filtered_combined-result[]
+;
+
+airportsLookupJoinViewAirportsStatsValues
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM airports_mp_filtered, airports METADATA _index
+| EVAL _index = CASE(_index IS NULL, "view", _index)
+| STATS duplications=COUNT(), indexes=VALUES(_index) BY abbrev
+| WHERE duplications == 2
+| EVAL indexes = MV_SORT(indexes)
+;
+ignoreOrder:true
+
+duplications:long | abbrev:keyword | indexes:keyword
+2                 | LUH            | [airports, view]
+2                 | SSE            | [airports, view]
+2                 | IXR            | [airports, view]
+2                 | AWZ            | [airports, view]
+2                 | GWL            | [airports, view]
+2                 | HOD            | [airports, view]
+2                 | PZU            | [airports]
+;
+
+// Testing edge cases with multi-value fields in views
+
+multiValueWarningsWithNoViews
+required_capability: views_crud_as_index_actions
+
+FROM employees
+| WHERE is_rehired == true
+| STATS rehired_count = COUNT()
+;
+warning:Line 2:9: evaluation of [is_rehired == true] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+rehired_count:long
+11
+;
+
+multiValueWarningsWithView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM employees_rehired
+| STATS rehired_count = COUNT()
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+rehired_count:long
+11
+;
+
+multiValueWarningsWithBranchedView
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM employees_*rehired
+| STATS rehired_count = COUNT() by is_rehired
+| SORT is_rehired DESC
+;
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+rehired_count:long | is_rehired:boolean
+11                 | true
+12                 | false
+;
+
+// Testing views used inside subqueries
+// These tests verify that view references inside user-written subqueries are resolved correctly.
+// The parser produces a plain UnionAll for "FROM index, (FROM ...)" syntax, and ViewResolver
+// must recurse into it to resolve any view references in the subquery children.
+
+viewInSubquery
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM sample_data, (FROM country_airports)
+| STATS sd = COUNT(client_ip), ca = COUNT(count), total = COUNT()
+;
+
+sd:long | ca:long | total:long
+7       | 15      | 22
+;
+
+viewInSubqueryMultipleRows
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM sample_data, (FROM country_airports)
+| STATS total = COUNT() BY country
+| SORT total DESC, country ASC
+| LIMIT 5
+;
+
+total:long | country:keyword
+7          | null
+1          | Argentina
+1          | Australia
+1          | Brazil
+1          | Canada
+;
+
+unmappedFields_Load_with_Count
+required_capability: optional_fields_v5
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| STATS rehired_count = COUNT()
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+rehired_count:long
+11
+;
+
+unmappedFields_Load_with_WithNonExistentField
+required_capability: optional_fields_v5
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| STATS rehired_count = COUNT(), null_count = COUNT(nonexistent_field)
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+rehired_count:long | null_count:long
+11                 | 0
+;
+
+unmappedFields_Load_with_EvalOnNonExistentField
+required_capability: optional_fields_v5
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| EVAL extra = nonexistent_field
+| WHERE extra IS NULL
+| STATS c = COUNT(*)
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long
+11
+;
+
+unmappedFields_Load_with_WhereOnNonExistentField
+required_capability: optional_fields_v5
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| WHERE nonexistent_field IS NOT NULL
+| STATS c = COUNT(*)
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long
+0
+;
+
+unmappedFields_Load_with_StatsByNonExistentField
+required_capability: optional_fields_v5
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| STATS c = COUNT(*) BY nonexistent_field
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long | nonexistent_field:keyword
+11     | null
+;
+
+unmappedFields_Load_with_SortByNonExistentField
+required_capability: optional_fields_v5
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| SORT nonexistent_field ASC, emp_no ASC
+| KEEP emp_no, nonexistent_field
+| LIMIT 3
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | nonexistent_field:keyword
+10004          | null
+10021          | null
+10029          | null
+;
+
+###############################################
+# View compaction: simple alias views
+# employees_all is defined as just "FROM employees" (a simple alias).
+# The ViewResolver compacts this into the original index pattern,
+# so "FROM employees_all" should behave identically to "FROM employees".
+# But "FROM employees_all, employees" should produce duplicated results.
+###############################################
+
+compactedViewSameAsIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+// A simple alias view should return the same document count as the underlying index
+FROM employees_all
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+100
+;
+
+compactedViewWithIndexGivesTwoCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+// FROM index, view where view is a simple alias to the same index should give two copies
+FROM employees, employees_all
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+200
+;
+
+compactedViewWithViewGivesTwoCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+// FROM view, view should only give one copy (normal Elasticsearch behaviour is to de-duplicate repeating index names)
+FROM employees_all, employees_all
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+100
+;
+
+compactedNestedViewWithIndexGivesTripleCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+// employees_extra is "FROM employees, employees_all" (200 docs after compaction).
+// FROM employees, employees_extra should give 100 + 200 = 300.
+FROM employees, employees_extra
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+300
+;
+
+compactedNestedViewWithViewGivesQuadrupleCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+// FROM employees_extra, employees_extra: each copy resolves to 200 docs, but de-duplication of same index name gives 200.
+FROM employees_extra, employees_extra
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+200
+;
+
+wildcardExcludeEmployeeViewsNoFalseCircularReference
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_false_circular_reference_fix
+
+// Reproduces https://github.com/elastic/elasticsearch/issues/146208
+// FROM *,-employees* should not trigger a false circular view reference error.
+FROM *,-employees*
+| STATS total = COUNT(*)
+| EVAL at_least_one = total > 0
+| KEEP at_least_one
+;
+
+at_least_one:boolean
+true
+;
+
+wildcardExcludeNestedEmployeeViewsNoFalseCircularReference
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_false_circular_reference_fix
+
+// Reproduces https://github.com/elastic/elasticsearch/issues/146208
+// FROM *,-employees_extra,-employees_all should not trigger a false circular view reference error.
+FROM *,-employees_extra,-employees_all
+| STATS total = COUNT(*)
+| EVAL at_least_one = total > 0
+| KEEP at_least_one
+;
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+at_least_one:boolean
+true
+;

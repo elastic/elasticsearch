@@ -7,14 +7,14 @@ mapped_pages:
 # JSON processor [json-processor]
 
 
-Converts a JSON string into a structured JSON object.
+Parses a string containing JSON data into a structured object, string, or other value.
 
 $$$json-options$$$
 
 | Name | Required | Default | Description |
 | --- | --- | --- | --- |
 | `field` | yes | - | The field to be parsed. |
-| `target_field` | no | `field` | The field that the converted structured object will be written into. Any existing content in this field will be overwritten. |
+| `target_field` | no | `field` | The field that the converted value will be written into. Any existing content in this field will be overwritten. |
 | `add_to_root` | no | false | Flag that forces the parsed JSON to be added at the top level of the document. `target_field` must not be set when this option is chosen. |
 | `add_to_root_conflict_strategy` | no | `replace` | When set to `replace`, root fields that conflict with fields from the parsed JSON will be overridden. When set to `merge`, conflicting fields will be merged. Only applicable if `add_to_root` is set to `true`. |
 | `allow_duplicate_keys` | no | false | When set to `true`, the JSON parser will not fail if the JSON contains duplicate keys. Instead, the last encountered value for any duplicate key wins. |
@@ -93,3 +93,42 @@ it will look like:
 
 This illustrates that, unless it is explicitly named in the processor configuration, the `target_field` is the same field provided in the required `field` configuration.
 
+If the input is the representation of a JSON string (which must be enclosed in double quotes) then the target field will be set to the string value. For example, if the processor above operates on this document:
+
+```js
+{
+  "string_source": "\"some text\""
+}
+```
+% NOTCONSOLE
+
+it will produce this document:
+
+```js
+{
+  "string_source" : "\"some text\"",
+  "json_target" : "some text"
+}
+```
+
+:::{note}
+In all these examples, we are showing JSON representations of the document. So, in the last example, the `string_source` field is a string with the contents `"some text"`, and is shown with the double quotes escaped. The `json_target` field is a string with the contents `some text`.
+:::
+
+If the input is the JSON representation of a number then the target field will be set to that number. For example, if the processor above operates on this document:
+
+```js
+{
+  "string_source": "999"
+}
+```
+% NOTCONSOLE
+
+it will produce this document:
+
+```js
+{
+  "string_source" : "999",
+  "json_target" : 999
+}
+```

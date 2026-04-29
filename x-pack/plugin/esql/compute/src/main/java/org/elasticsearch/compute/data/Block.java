@@ -219,7 +219,6 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     ElementType elementType();
 
     /** The block factory associated with this block. */
-    // TODO: renaming this to owning blockFactory once we pass blockFactory for filter and expand
     BlockFactory blockFactory();
 
     /**
@@ -271,11 +270,11 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
 
     /**
      * Creates a new block that only exposes the positions provided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
      * @param positions the positions to retain
      * @return a filtered block
-     * TODO: pass BlockFactory
      */
-    Block filter(int... positions);
+    Block filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Build a {@link Block} with the same values as this {@linkplain Block}, but replacing
@@ -349,6 +348,18 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     default boolean mvSortedAscending() {
         return mayHaveMultivaluedFields() == false || mvOrdering().sortedAscending;
     }
+
+    /**
+     * Return a subset of this {@link Block} from position {@code beginInclusive} to
+     * position {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     * <p>
+     *     NOTE: Implementations will not try to optimize zero length slices
+     *     as we expect them to be rare.
+     * </p>
+     */
+    Block slice(int beginInclusive, int endExclusive);
 
     /**
      * Expand multivalued fields into one row per value. Returns the same block if there aren't any multivalued

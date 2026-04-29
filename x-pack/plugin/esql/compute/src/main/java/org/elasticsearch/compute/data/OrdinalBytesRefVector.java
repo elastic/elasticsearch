@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -80,6 +81,11 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        return bytes.get(ordinals.getInt(position), scratch);
+    }
+
+    @Override
     public OrdinalBytesRefBlock asBlock() {
         return new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
     }
@@ -98,7 +104,7 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public BytesRefVector filter(int... positions) {
+    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
         // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
         // may reappear when hashing the dictionary in BlockHash.
         final BytesRef scratch = new BytesRef();
@@ -117,6 +123,17 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
          * amounts to the same thing so we can just reuse it.
          */
         return asBlock().keepMask(mask);
+    }
+
+    @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        IntVector slicedOrdinals = ordinals.slice(beginInclusive, endExclusive);
+        bytes.incRef();
+        return new OrdinalBytesRefVector(slicedOrdinals, bytes);
     }
 
     @Override

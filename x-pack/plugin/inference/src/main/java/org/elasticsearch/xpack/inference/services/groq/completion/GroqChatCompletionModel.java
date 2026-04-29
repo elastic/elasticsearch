@@ -72,11 +72,11 @@ public class GroqChatCompletionModel extends GroqModel {
             service,
             GroqChatCompletionServiceSettings.fromMap(serviceSettings, context),
             new GroqChatCompletionTaskSettings(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
-    GroqChatCompletionModel(
+    public GroqChatCompletionModel(
         String modelId,
         TaskType taskType,
         String service,
@@ -84,12 +84,20 @@ public class GroqChatCompletionModel extends GroqModel {
         GroqChatCompletionTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
+        this(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public GroqChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings,
-            secrets,
-            buildUri(serviceSettings.uri(), GroqService.NAME, GroqChatCompletionModel::buildDefaultUri)
+            modelConfigurations,
+            modelSecrets,
+            (GroqChatCompletionServiceSettings) modelConfigurations.getServiceSettings(),
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            buildUri(
+                ((GroqChatCompletionServiceSettings) (modelConfigurations.getServiceSettings())).uri(),
+                GroqService.NAME,
+                GroqChatCompletionModel::buildDefaultUri
+            )
         );
     }
 

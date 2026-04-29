@@ -23,10 +23,6 @@ import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 
 public final class ExponentialHistogramStates {
 
-    // We currently use a hardcoded limit for the number of buckets, we might make this configurable / an aggregation parameter later
-    // The current default is what's also used by the OpenTelemetry SDKs
-    public static final int MAX_BUCKET_COUNT = 320;
-
     private record HistoBreaker(CircuitBreaker delegate) implements ExponentialHistogramCircuitBreaker {
         @Override
         public void adjustBreaker(long bytesAllocated) {
@@ -50,18 +46,14 @@ public final class ExponentialHistogramStates {
             this.breaker = breaker;
         }
 
-        public void add(ExponentialHistogram histogram, boolean allowUpscale) {
+        public void add(ExponentialHistogram histogram) {
             if (histogram == null) {
                 return;
             }
             if (merger == null) {
-                merger = ExponentialHistogramMerger.create(MAX_BUCKET_COUNT, new HistoBreaker(breaker));
+                merger = ExponentialHistogramMerger.create(new HistoBreaker(breaker));
             }
-            if (allowUpscale) {
-                merger.add(histogram);
-            } else {
-                merger.addWithoutUpscaling(histogram);
-            }
+            merger.add(histogram);
         }
 
         @Override
@@ -96,12 +88,27 @@ public final class ExponentialHistogramStates {
 
     static final class GroupingState implements GroupingAggregatorState {
 
+        private final ExponentialHistogramMerger.Factory mergerFactory;
         private ObjectArray<ExponentialHistogramMerger> states;
         private final HistoBreaker breaker;
         private final BigArrays bigArrays;
 
         GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
-            this.states = bigArrays.newObjectArray(1);
+            ObjectArray<ExponentialHistogramMerger> states = null;
+            ExponentialHistogramMerger.Factory mergerFactory = null;
+
+            boolean success = false;
+            try {
+                states = bigArrays.newObjectArray(1);
+                mergerFactory = ExponentialHistogramMerger.createFactory(new HistoBreaker(breaker));
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(states, mergerFactory);
+                }
+            }
+            this.states = states;
+            this.mergerFactory = mergerFactory;
             this.bigArrays = bigArrays;
             this.breaker = new HistoBreaker(breaker);
         }
@@ -114,28 +121,23 @@ public final class ExponentialHistogramStates {
             }
         }
 
-        public void add(int groupId, ExponentialHistogram histogram, boolean allowUpscale) {
+        public void add(int groupId, ExponentialHistogram histogram) {
             if (histogram == null) {
                 return;
             }
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                state = ExponentialHistogramMerger.create(MAX_BUCKET_COUNT, breaker);
+                state = mergerFactory.createMerger();
                 states.set(groupId, state);
             }
-            if (allowUpscale) {
-                state.add(histogram);
-            } else {
-                state.addWithoutUpscaling(histogram);
-            }
+            state.add(histogram);
         }
 
         private void ensureCapacity(int groupId) {
             states = bigArrays.grow(states, groupId + 1);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 2 : "blocks=" + blocks.length + ",offset=" + offset;
             try (
@@ -178,7 +180,7 @@ public final class ExponentialHistogramStates {
             for (int i = 0; i < states.size(); i++) {
                 Releasables.close(states.get(i));
             }
-            Releasables.close(states);
+            Releasables.close(states, mergerFactory);
             states = null;
         }
 
@@ -304,7 +306,6 @@ public final class ExponentialHistogramStates {
             longValues = bigArrays.grow(longValues, groupId + 1);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 3;
             try (

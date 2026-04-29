@@ -137,21 +137,16 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
     }
 
     private void setupInferenceEndpoints() throws IOException {
-        CsvTestsDataLoader.createTextEmbeddingInferenceEndpoint(client());
-        CsvTestsDataLoader.createSparseEmbeddingInferenceEndpoint(client());
+        CsvTestsDataLoader.createInferenceEndpoint(client(), CsvTestsDataLoader.INFERENCE_CONFIGS.get("test_dense_inference"));
+        CsvTestsDataLoader.createInferenceEndpoint(client(), CsvTestsDataLoader.INFERENCE_CONFIGS.get("test_sparse_inference"));
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
         client().performRequest(new Request("DELETE", "semantic-test"));
-
-        if (CsvTestsDataLoader.clusterHasTextEmbeddingInferenceEndpoint(client())) {
-            CsvTestsDataLoader.deleteTextEmbeddingInferenceEndpoint(client());
-        }
-        if (CsvTestsDataLoader.clusterHasSparseEmbeddingInferenceEndpoint(client())) {
-            CsvTestsDataLoader.deleteSparseEmbeddingInferenceEndpoint(client());
-        }
+        CsvTestsDataLoader.deleteInferenceEndpoint(client(), "test_dense_inference");
+        CsvTestsDataLoader.deleteInferenceEndpoint(client(), "test_sparse_inference");
     }
 
     private Map<String, Object> runEsqlQuery(String query) throws IOException {

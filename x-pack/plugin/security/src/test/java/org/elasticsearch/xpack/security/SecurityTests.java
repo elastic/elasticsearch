@@ -51,6 +51,7 @@ import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -66,6 +67,7 @@ import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -271,6 +273,7 @@ public class SecurityTests extends ESTestCase {
             mock(PersistentTasksService.class),
             StubLinkedProjectConfigService.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
+            CrossProjectModeDecider.NOOP,
             ProjectRoutingResolver.NOOP
         );
     }
@@ -486,7 +489,8 @@ public class SecurityTests extends ESTestCase {
             List.of(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here
@@ -967,8 +971,6 @@ public class SecurityTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 TestEnvironment.newEnvironment(settingsModule.getSettings()),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                null,
-                settingsModule.getIndexScopedSettings(),
                 settingsModule.getClusterSettings(),
                 settingsModule.getSettingsFilter(),
                 threadPool,
@@ -984,6 +986,7 @@ public class SecurityTests extends ESTestCase {
                 List.of(),
                 RestExtension.allowAll(),
                 new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                CrossProjectModeDecider.NOOP,
                 TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);

@@ -1,0 +1,570 @@
+setup:
+  - requires:
+      cluster_features: "embedding_query_vector_builder"
+      reason: embedding query vector builder
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: text-embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-embedding-index
+        body:
+          mappings:
+            properties:
+              content:
+                type: keyword
+              embedding:
+                type: dense_vector
+                dims: 10
+                similarity: cosine
+
+  - do:
+      index:
+        index: test-embedding-index
+        id: doc_1
+        body:
+          content: "first document"
+          embedding: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        refresh: true
+
+  - do:
+      index:
+        index: test-embedding-index
+        id: doc_2
+        body:
+          content: "second document"
+          embedding: [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
+        refresh: true
+
+---
+"input as string":
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input: "test query"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input: "test query"
+
+  - match: { hits.total.value: 2 }
+
+---
+"input as single object":
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    type: text
+                    value: "test query"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    type: text
+                    value: "test query"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    type: image
+                    value: "data:image/jpeg;base64,abcdef1234567890"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    type: image
+                    value: "data:image/jpeg;base64,abcdef1234567890"
+
+  - match: { hits.total.value: 2 }
+
+---
+"input as array of objects":
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    - type: text
+                      value: "test query"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    - type: text
+                      value: "test query"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    - type: text
+                      value: "test query"
+                    - type: image
+                      value: "data:image/jpeg;base64,abcdef1234567890"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    - type: text
+                      value: "test query"
+                    - type: image
+                      value: "data:image/jpeg;base64,abcdef1234567890"
+
+  - match: { hits.total.value: 2 }
+
+---
+"inference service uses incorrect task type":
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: text-embedding-inference-id
+                  input: "test query"
+
+  - match: { error.type: "status_exception" }
+  - match: { error.reason: "Incompatible task_type for embedding API, the inference endpoint
+                            [text-embedding-inference-id] has task type [text_embedding], expected [embedding]" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: text-embedding-inference-id
+                  input: "test query"
+
+  - match: { error.type: "status_exception" }
+  - match: { error.reason: "Incompatible task_type for embedding API, the inference endpoint
+                            [text-embedding-inference-id] has task type [text_embedding], expected [embedding]" }
+
+---
+"missing required params":
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  input: "test query"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "[inference_id] must be specified" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  input: "test query"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "[inference_id] must be specified" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+
+  - match: { error.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.reason: "Required [input]" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+
+  - match: { error.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.reason: "Required [input]" }
+
+---
+"invalid type in input object":
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    type: invalid
+                    value: "test query"
+
+  - match: { error.caused_by.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.caused_by.caused_by.reason: "Unrecognized type [invalid], must be one of [text, image, audio, video, pdf]" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    type: invalid
+                    value: "test query"
+
+  - match: { error.caused_by.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.caused_by.caused_by.reason: "Unrecognized type [invalid], must be one of [text, image, audio, video, pdf]" }
+
+---
+"invalid format in input object":
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    type: text
+                    format: invalid
+                    value: "test query"
+
+  - match: { error.caused_by.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.caused_by.caused_by.reason: "Unrecognized format [invalid], must be one of [text, base64]" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    type: text
+                    format: invalid
+                    value: "test query"
+
+  - match: { error.caused_by.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.caused_by.caused_by.reason: "Unrecognized format [invalid], must be one of [text, base64]" }
+
+  # Check using a format that is valid, but not supported by the type
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    type: text
+                    format: base64
+                    value: "test query"
+
+  - match: { error.caused_by.caused_by.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.caused_by.caused_by.caused_by.reason: "Data type [text] does not support data format [base64], supported formats are [text]" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    type: text
+                    format: base64
+                    value: "test query"
+
+  - match: { error.caused_by.caused_by.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.caused_by.caused_by.caused_by.reason: "Data type [text] does not support data format [base64], supported formats are [text]" }
+
+---
+"empty input array":
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input: []
+
+  - match: { error.root_cause.0.type: "x_content_parse_exception" }
+  - match: { error.root_cause.0.reason: "/.*Must.provide.at.least.one.value.in.input/" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input: []
+
+  - match: { error.root_cause.0.type: "x_content_parse_exception" }
+  - match: { error.root_cause.0.reason: "/.*Must.provide.at.least.one.value.in.input/" }
+
+---
+"empty input object":
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input: {}
+
+  - match: { error.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.caused_by.reason: "Required [type, value]" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input: {}
+
+  - match: { error.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.caused_by.reason: "Required [type, value]" }

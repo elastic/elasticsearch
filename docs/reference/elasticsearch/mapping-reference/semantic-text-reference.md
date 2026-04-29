@@ -17,30 +17,30 @@ The `semantic_text` field type uses default indexing settings based on the [{{in
 
 `inference_id`
 :   (Optional, string) {{infer-cap}} endpoint that will be used to generate
-embeddings for the field. If `search_inference_id` is specified, the {{infer}}
+embeddings for the field. For default values, refer to [default endpoints](./semantic-text-setup-configuration.md#default-endpoints). If `search_inference_id` is specified, the {{infer}}
 endpoint will only be used at index time. Learn more about [configuring this parameter](#configuring-inference-endpoints).
 
 **Updating the `inference_id` parameter**
 
-::::{applies-switch}
+:::::{applies-switch}
 
-:::{applies-item} stack: ga 9.3+
+::::{applies-item} stack: ga 9.3+
 
 You can update this parameter by using
 the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
 You can update the {{infer}} endpoint if no values have been indexed or if the new endpoint is compatible with the current one.
 
-::::{important}
+:::{important}
 When updating an `inference_id` it is important to ensure the new {{infer}} endpoint produces embeddings compatible with those already indexed. This typically means using the same underlying model.
-::::
-
 :::
 
-:::{applies-item} stack: ga 9.0-9.2
+::::
+
+::::{applies-item} stack: ga 9.0-9.2
 This parameter cannot be updated.
-:::
-
 ::::
+
+:::::
 
 `search_inference_id`
 :   (Optional, string) The {{infer}} endpoint that will be used to generate
@@ -53,12 +53,16 @@ the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/opera
     Learn how to [use dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search).
 
 `index_options` {applies_to}`stack: ga 9.1`
-:   (Optional, object) Specifies the index options to override default values
-for the field. Currently, `dense_vector` and `sparse_vector` index options are supported. For text embeddings, `index_options` may match any allowed.
+:   (Optional, object) Specifies the index options to override default values for the field.
+`dense_vector` and `sparse_vector` index options are supported.
 
-- [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options)
+    :::{note}
+    This parameter configures vector indexing structures. It is distinct from the [`index_options`](/reference/elasticsearch/mapping-reference/index-options.md) parameter used by term-based fields to control whether term frequencies, positions, and offsets are stored in the inverted index.
+    :::
 
-- [sparse_vector index options](/reference/elasticsearch/mapping-reference/sparse-vector.md#sparse-vectors-params) {applies_to}`stack: ga 9.2`
+- [dense_vector index options](semantic-text-setup-configuration.md#index-options-dense_vectors)
+
+- [sparse_vector index options](semantic-text-setup-configuration.md#index-options-sparse_vectors) {applies_to}`stack: ga 9.2`
 
 `chunking_settings` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Settings for chunking text into smaller passages.
@@ -108,9 +112,13 @@ PUT my-index-000004
 3. Disables automatic chunking by setting the chunking strategy to `none`.
 
 ::::{note}
-{applies_to}`stack: ga 9.1`  Newly created indices with `semantic_text` fields using dense embeddings will be
+{applies_to}`serverless: ga` {applies_to}`stack: ga 9.1`  Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
 to `bbq_hnsw` automatically as long as they have a minimum of 64 dimensions.
+
+{applies_to}`serverless: ga` {applies_to}`stack: ga 9.4` Newly created indices with `semantic_text` fields that use dense embeddings with the `float` element type will automatically use the [`bfloat16`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-element-type) element type.
+This halves the storage required per vector dimension (2 bytes instead of 4) with a negligible impact on search relevance for most use cases.
+You can [override this default](./semantic-text-setup-configuration.md#index-options-dense_vectors-element-type-override) by explicitly setting `element_type` in `index_options`.
 ::::
 
 ## {{infer-cap}} endpoints [configuring-inference-endpoints]
@@ -119,7 +127,7 @@ The `semantic_text` field type specifies an {{infer}} endpoint identifier (`infe
 
 The following {{infer}} endpoint configurations are available:
 
-- [Default and preconfigured endpoints](./semantic-text-setup-configuration.md#default-and-preconfigured-endpoints): Use `semantic_text` without creating an {{infer}} endpoint manually.
+- [Default](./semantic-text-setup-configuration.md#default-endpoints) and [preconfigured](./semantic-text-setup-configuration.md#preconfigured-endpoints) endpoints: Use `semantic_text` without creating an {{infer}} endpoint manually.
 
 - [ELSER on EIS](./semantic-text-setup-configuration.md#using-elser-on-eis): Use the ELSER model through the Elastic {{infer-cap}} Service.
 
@@ -218,7 +226,7 @@ POST /_query
 }
 ```
 % TEST[skip:Requires {{infer}} endpoint]
-1. The {{esql}} [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) automatically performs a kNN search on `semantic_text` fields with dense vector embeddings.
+1. The {{esql}} [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions/match.md) automatically performs a kNN search on `semantic_text` fields with dense vector embeddings.
 
 ## Limitations [limitations]
 

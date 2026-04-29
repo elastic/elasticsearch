@@ -46,7 +46,11 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             new Mapper.IgnoreAbove(ignoreAbove),
-            true
+            true,
+            false,
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
         );
     }
 
@@ -74,23 +78,31 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             IGNORE_ABOVE,
-            true
+            true,
+            randomBoolean(),
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        RootFlattenedFieldType ft = new RootFlattenedFieldType(
+        RootFlattenedFieldType noDv = new RootFlattenedFieldType(
             "field",
             IndexType.terms(true, false),
             Collections.emptyMap(),
             false,
             false,
             IGNORE_ABOVE,
-            true
+            true,
+            randomBoolean(),
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
         );
-        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), noDv.existsQuery(null));
 
         RootFlattenedFieldType withDv = new RootFlattenedFieldType(
             "field",
@@ -99,9 +111,13 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             IGNORE_ABOVE,
-            true
+            true,
+            randomBoolean(),
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
         );
-        assertEquals(new FieldExistsQuery("field"), withDv.existsQuery(null));
+        assertEquals(new FieldExistsQuery("field._keyed"), withDv.existsQuery(null));
     }
 
     public void testFuzzyQuery() {

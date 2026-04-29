@@ -73,6 +73,12 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     static final float DEFAULT_SCORE = Float.NaN;
     private float score;
 
+    /**
+     * ToXContent param key that, when set to {@code true}, causes {@code _seq_no} and {@code _primary_term} to be
+     * emitted even when they hold sentinel (unassigned) values. Used for indices with sequence numbers disabled.
+     */
+    public static final String SEQ_NO_PRIMARY_TERM_PARAMS_KEY = "seq_no_primary_term";
+
     static final int NO_RANK = -1;
     private int rank;
 
@@ -188,7 +194,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.shard = shard;
         this.index = index;
         this.clusterAlias = clusterAlias;
-        this.innerHits = innerHits;
+        this.innerHits = innerHits != null ? unmodifiableMap(innerHits) : null;
         this.documentFields = documentFields;
         this.metaFields = metaFields;
         this.refCounted = refCounted == null ? LeakTracker.wrap(new SimpleRefCounted()) : refCounted;
@@ -684,7 +690,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     public void setInnerHits(Map<String, SearchHits> innerHits) {
         assert innerHits == null || innerHits.values().stream().noneMatch(h -> h.hasReferences() == false);
         assert this.innerHits == null;
-        this.innerHits = innerHits;
+        this.innerHits = innerHits != null ? unmodifiableMap(innerHits) : null;
     }
 
     @Override
@@ -733,6 +739,39 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
+    }
+
+    /**
+     * Creates a new pooled {@link SearchHit} with the given inner hits attached. Intended for hits where {@link #isPooled()} is
+     * {@code false} (e.g. hits without {@code _source}) that need to acquire ownership of pooled inner hits: since
+     * {@code refCounted} is final, a new hit object is required so that {@link #deallocate()} can release the inner hits
+     * when the hit is released.
+     */
+    public SearchHit withInnerHits(Map<String, SearchHits> innerHits) {
+        assert isPooled() == false;
+        assert this.innerHits == null;
+        return new SearchHit(
+            docId,
+            score,
+            rank,
+            id,
+            nestedIdentity,
+            version,
+            seqNo,
+            primaryTerm,
+            source,
+            highlightFields,
+            sortValues,
+            matchedQueries,
+            explanation,
+            shard,
+            index,
+            clusterAlias,
+            innerHits,
+            cloneIfHashMap(documentFields),
+            cloneIfHashMap(metaFields),
+            null
+        );
     }
 
     public SearchHit asUnpooled() {
@@ -832,7 +871,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             builder.field(Fields._VERSION, version);
         }
 
-        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO || params.paramAsBoolean(SEQ_NO_PRIMARY_TERM_PARAMS_KEY, false)) {
             builder.field(Fields._SEQ_NO, seqNo);
             builder.field(Fields._PRIMARY_TERM, primaryTerm);
         }

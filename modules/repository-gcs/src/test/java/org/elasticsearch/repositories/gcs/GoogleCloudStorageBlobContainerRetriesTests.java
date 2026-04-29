@@ -24,6 +24,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
@@ -53,10 +54,9 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.threeten.bp.Duration;
@@ -68,11 +68,11 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -85,6 +85,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
@@ -99,6 +100,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -139,6 +141,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     protected BlobContainer createBlobContainer(
         final @Nullable Integer maxRetries,
         final @Nullable TimeValue readTimeout,
+        final @Nullable TimeValue requestTimeout,
         final @Nullable Boolean disableChunkedEncoding,
         final @Nullable Integer maxConnections,
         final @Nullable ByteSizeValue bufferSize,
@@ -263,7 +266,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     }
 
     @Override
-    protected void addSuccessfulDownloadHeaders(HttpExchange exchange) {
+    protected void addSuccessfulDownloadHeaders(HttpExchange exchange, byte[] blobContents, int contentLength) {
         exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(randomNonNegativeInt()));
     }
 
@@ -297,10 +300,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "large_blob_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-            addSuccessfulDownloadHeaders(exchange);
             final HttpHeaderParser.Range range = getRange(exchange);
             final int offset = Math.toIntExact(range.start());
             final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.toIntExact(Math.min(range.end() + 1, bytes.length)));
+            addSuccessfulDownloadHeaders(exchange, bytes, chunk.length);
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), chunk.length);
             if (randomBoolean() && countDown.decrementAndGet() >= 0) {
                 exchange.getResponseBody().write(chunk, 0, chunk.length - 1);
@@ -418,8 +421,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             final BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
 
-            final Map<String, String> params = new HashMap<>();
-            RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+            final var params = RequestParams.fromQueryString(exchange.getRequestURI().getQuery());
             assertThat(params.get("uploadType"), equalTo("resumable"));
 
             if ("POST".equals(exchange.getRequestMethod())) {
@@ -632,7 +634,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         // The blob needs to be large enough that it won't be entirely buffered on the first request
         final int enoughBytesToNotBeEntirelyBuffered = Math.toIntExact(ByteSizeValue.ofMb(30).getBytes());
 
-        final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null);
+        final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null, null);
 
         final String key = randomIdentifier();
         byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
@@ -668,6 +670,47 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         }
     }
 
+    public void testRetriesAreTerminatedWhenClientProviderIsClosed() {
+        final GoogleCloudStorageBlobContainer blobContainer = asInstanceOf(
+            GoogleCloudStorageBlobContainer.class,
+            blobContainerBuilder().maxRetries(randomIntBetween(1000, 2000)).build()
+        );
+        final byte[] blobContents = randomByteArrayOfLength(1024);
+        final int incompleteLength = 10;
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_while_store_closes"), exchange -> {
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("GET".equals(exchange.getRequestMethod())) {
+                    final int rangeStart = getRangeStart(exchange);
+                    assertThat(rangeStart, lessThan(blobContents.length));
+                    final OptionalInt rangeEnd = getRangeEnd(exchange);
+                    final int requestedLength = rangeEnd.orElse(blobContents.length) - rangeStart;
+                    if (rangeEnd.isPresent()) {
+                        assertThat(rangeEnd.getAsInt(), greaterThanOrEqualTo(rangeStart));
+                    }
+                    assertThat(requestedLength, lessThanOrEqualTo(blobContents.length - rangeStart));
+                    assertThat(requestedLength, greaterThan(incompleteLength));
+                    addSuccessfulDownloadHeaders(exchange, blobContents, requestedLength);
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), requestedLength);
+                    exchange.getResponseBody().write(blobContents, rangeStart, incompleteLength);
+                } else {
+                    ExceptionsHelper.maybeDieOnAnotherThread(
+                        new AssertionError("unexpected request method: " + exchange.getRequestMethod())
+                    );
+                }
+            } finally {
+                exchange.close();
+                // Close the blob store once we've sent the first chunk
+                blobContainer.getBlobStore().close();
+            }
+        });
+
+        assertThrows(
+            AlreadyClosedException.class,
+            () -> Streams.readFully(blobContainer.readBlob(randomRetryingPurpose(), "read_blob_while_store_closes"))
+        );
+    }
+
     private HttpHandler safeHandler(HttpHandler handler) {
         final HttpHandler loggingHandler = ESMockAPIBasedRepositoryIntegTestCase.wrap(handler, logger);
         return exchange -> {
@@ -677,15 +720,5 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 exchange.close();
             }
         };
-    }
-
-    @Override
-    protected OperationPurpose randomRetryingPurpose() {
-        return BlobStoreTestUtil.randomRetryingPurpose();
-    }
-
-    @Override
-    protected OperationPurpose randomFiniteRetryingPurpose() {
-        return BlobStoreTestUtil.randomFiniteRetryingPurpose();
     }
 }

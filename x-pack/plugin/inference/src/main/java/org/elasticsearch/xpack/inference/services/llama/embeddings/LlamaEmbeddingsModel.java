@@ -51,7 +51,7 @@ public class LlamaEmbeddingsModel extends LlamaModel {
             service,
             LlamaEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             chunkingSettings,
-            retrieveSecretSettings(secrets)
+            retrieveSecretSettings(secrets, context)
         );
     }
 
@@ -94,11 +94,21 @@ public class LlamaEmbeddingsModel extends LlamaModel {
         ChunkingSettings chunkingSettings,
         SecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings),
             new ModelSecrets(secrets)
         );
-        setPropertiesFromServiceSettings(serviceSettings);
+    }
+
+    /**
+     * Constructor for creating a LlamaEmbeddingsModel from model configurations and secrets.
+     *
+     * @param modelConfigurations the configurations for the model
+     * @param modelSecrets the secret settings for the model
+     */
+    public LlamaEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
+        setPropertiesFromServiceSettings((LlamaEmbeddingsServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     @Override

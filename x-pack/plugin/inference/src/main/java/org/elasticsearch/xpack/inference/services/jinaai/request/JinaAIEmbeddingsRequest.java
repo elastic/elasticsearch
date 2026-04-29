@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.inference.services.jinaai.request;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
@@ -23,7 +25,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class JinaAIEmbeddingsRequest extends JinaAIRequest {
+import static org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIRequestUtils.decorateWithAuthHeader;
+
+public class JinaAIEmbeddingsRequest implements DenseEmbeddingRequest {
 
     private final List<InferenceStringGroup> input;
     private final InputType inputType;
@@ -36,7 +40,7 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -46,7 +50,7 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
 
         decorateWithAuthHeader(httpPost, model.apiKey());
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override
@@ -69,11 +73,12 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
         return null;
     }
 
-    public JinaAIEmbeddingType getEmbeddingType() {
-        return model.getServiceSettings().getEmbeddingType();
-    }
-
+    @Override
     public TaskType getTaskType() {
         return model.getTaskType();
+    }
+
+    public JinaAIEmbeddingType getEmbeddingType() {
+        return model.getServiceSettings().getEmbeddingType();
     }
 }

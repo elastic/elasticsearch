@@ -138,7 +138,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(EXECUTION_PROFILE_FORMAT_VERSION) == false) {
-            out.writeOptionalTimeValue(null);
+            out.writeOptionalTimeValue(overallTook());
         }
         if (clusterInfo != null && clusterInfoInitializing == false) {
             out.writeCollection(clusterInfo.values());
@@ -172,7 +172,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     public void markEndQuery() {
         if (isMainPlan()) {
-            queryProfile.stop();
+            queryProfile.stopAllStartedMarkers();
         }
     }
 

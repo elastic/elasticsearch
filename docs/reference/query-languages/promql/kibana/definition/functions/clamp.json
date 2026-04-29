@@ -1,0 +1,37 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "value_transformation",
+  "name" : "clamp",
+  "description" : "Clamps the sample values of all elements to be within [min, max].",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        },
+        {
+          "name" : "min",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Minimum value."
+        },
+        {
+          "name" : "max",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Maximum value."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "clamp(http_requests_total, 0, 100)"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

@@ -1,5 +1,0 @@
-pr: 140622
-summary: Use sub keyword block loader with `ignore_above` for text fields
-area: ES|QL
-type: bug
-issues: []

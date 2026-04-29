@@ -11,6 +11,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
@@ -35,7 +37,8 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             512,
             null,
             "access_key",
-            "secret_key"
+            "secret_key",
+            TaskType.COMPLETION
         );
         var requestTaskSettingsMap = getChatCompletionTaskSettingsMap(null, null, null, null);
         var overriddenModel = AmazonBedrockChatCompletionModel.of(model, requestTaskSettingsMap);
@@ -55,7 +58,8 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             null,
             null,
             "access_key",
-            "secret_key"
+            "secret_key",
+            TaskType.COMPLETION
         );
         var requestTaskSettings = getChatCompletionTaskSettingsMap(0.5, null, null, null);
         var overriddenModel = AmazonBedrockChatCompletionModel.of(model, requestTaskSettings);
@@ -73,7 +77,8 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
                     null,
                     null,
                     "access_key",
-                    "secret_key"
+                    "secret_key",
+                    TaskType.COMPLETION
                 )
             )
         );
@@ -91,7 +96,8 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             null,
             null,
             "access_key",
-            "secret_key"
+            "secret_key",
+            TaskType.COMPLETION
         );
         var requestTaskSettings = getChatCompletionTaskSettingsMap(null, 0.5, null, null);
         var overriddenModel = AmazonBedrockChatCompletionModel.of(model, requestTaskSettings);
@@ -109,7 +115,8 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
                     null,
                     null,
                     "access_key",
-                    "secret_key"
+                    "secret_key",
+                    TaskType.COMPLETION
                 )
             )
         );
@@ -127,7 +134,8 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             null,
             null,
             "access_key",
-            "secret_key"
+            "secret_key",
+            TaskType.COMPLETION
         );
         var requestTaskSettings = getChatCompletionTaskSettingsMap(null, null, 0.8, null);
         var overriddenModel = AmazonBedrockChatCompletionModel.of(model, requestTaskSettings);
@@ -145,7 +153,8 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
                     null,
                     null,
                     "access_key",
-                    "secret_key"
+                    "secret_key",
+                    TaskType.COMPLETION
                 )
             )
         );
@@ -163,7 +172,8 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             512,
             null,
             "access_key",
-            "secret_key"
+            "secret_key",
+            TaskType.COMPLETION
         );
         var requestTaskSettings = getChatCompletionTaskSettingsMap(null, null, null, 128);
         var overriddenModel = AmazonBedrockChatCompletionModel.of(model, requestTaskSettings);
@@ -181,16 +191,17 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
                     128,
                     null,
                     "access_key",
-                    "secret_key"
+                    "secret_key",
+                    TaskType.COMPLETION
                 )
             )
         );
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_OverridesExistingModelId() {
-        var model = createModel("id", "region", "model", AmazonBedrockProvider.ANTHROPIC, "access_key", "secret_key");
+        var model = createChatCompletionModel("id", "region", "model", AmazonBedrockProvider.ANTHROPIC, "access_key", "secret_key");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             "different_model",
             null,
             null,
@@ -206,9 +217,9 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
-        var model = createModel("id", "region", "model", AmazonBedrockProvider.ANTHROPIC, "access_key", "secret_key");
+        var model = createChatCompletionModel("id", "region", "model", AmazonBedrockProvider.ANTHROPIC, "access_key", "secret_key");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             null, // not overriding model
             null,
             null,
@@ -223,7 +234,7 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getServiceSettings().modelId(), is("model"));
     }
 
-    public static AmazonBedrockChatCompletionModel createModel(
+    public static AmazonBedrockChatCompletionModel createCompletionModel(
         String id,
         String region,
         String model,
@@ -231,7 +242,18 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
         String accessKey,
         String secretKey
     ) {
-        return createModel(id, region, model, provider, null, null, null, null, null, accessKey, secretKey);
+        return createModel(id, region, model, provider, null, null, null, null, null, accessKey, secretKey, TaskType.COMPLETION);
+    }
+
+    public static AmazonBedrockChatCompletionModel createChatCompletionModel(
+        String id,
+        String region,
+        String model,
+        AmazonBedrockProvider provider,
+        String accessKey,
+        String secretKey
+    ) {
+        return createModel(id, region, model, provider, null, null, null, null, null, accessKey, secretKey, TaskType.CHAT_COMPLETION);
     }
 
     public static AmazonBedrockChatCompletionModel createModel(
@@ -245,11 +267,12 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
         @Nullable Integer maxNewTokens,
         @Nullable RateLimitSettings rateLimitSettings,
         String accessKey,
-        String secretKey
+        String secretKey,
+        TaskType taskType
     ) {
         return new AmazonBedrockChatCompletionModel(
             id,
-            TaskType.COMPLETION,
+            taskType,
             "amazonbedrock",
             new AmazonBedrockChatCompletionServiceSettings(region, model, provider, rateLimitSettings),
             new AmazonBedrockCompletionTaskSettings(temperature, topP, topK, maxNewTokens),

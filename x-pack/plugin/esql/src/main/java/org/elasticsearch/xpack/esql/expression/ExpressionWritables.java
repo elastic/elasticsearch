@@ -11,10 +11,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ScalarFunctionWritables;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
@@ -22,10 +23,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBas
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
@@ -48,8 +52,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncodeComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
@@ -69,13 +76,18 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialCo
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StBuffer;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeometryType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIsEmpty;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopology;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -180,8 +192,11 @@ public class ExpressionWritables {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(Abs.ENTRY);
         entries.add(Acos.ENTRY);
+        entries.add(Acosh.ENTRY);
+        entries.add(Asinh.ENTRY);
         entries.add(Asin.ENTRY);
         entries.add(Atan.ENTRY);
+        entries.add(Atanh.ENTRY);
         entries.add(ByteLength.ENTRY);
         entries.add(Cbrt.ENTRY);
         entries.add(Ceil.ENTRY);
@@ -197,6 +212,7 @@ public class ExpressionWritables {
         entries.add(LTrim.ENTRY);
         entries.add(Neg.ENTRY);
         entries.add(Not.ENTRY);
+        entries.add(Random.ENTRY);
         entries.add(RLike.ENTRY);
         entries.add(RLikeList.ENTRY);
         entries.add(RTrim.ENTRY);
@@ -207,6 +223,9 @@ public class ExpressionWritables {
         entries.add(Space.ENTRY);
         entries.add(Sqrt.ENTRY);
         entries.add(StEnvelope.ENTRY);
+        entries.add(StDimension.ENTRY);
+        entries.add(StGeometryType.ENTRY);
+        entries.add(StIsEmpty.ENTRY);
         entries.add(StNPoints.ENTRY);
         entries.add(StXMax.ENTRY);
         entries.add(StXMin.ENTRY);
@@ -222,9 +241,11 @@ public class ExpressionWritables {
         entries.add(ToCartesianPoint.ENTRY);
         entries.add(ToDatetime.ENTRY);
         entries.add(ToDateNanos.ENTRY);
+        entries.add(ToDateRange.ENTRY);
         entries.add(ToDegrees.ENTRY);
         entries.add(ToDenseVector.ENTRY);
         entries.add(ToDouble.ENTRY);
+        entries.add(ToExponentialHistogram.ENTRY);
         entries.add(ToGeoShape.ENTRY);
         entries.add(ToCartesianShape.ENTRY);
         entries.add(ToGeoPoint.ENTRY);
@@ -240,6 +261,7 @@ public class ExpressionWritables {
         entries.add(ToLongBase.ENTRY);
         entries.add(ToRadians.ENTRY);
         entries.add(ToString.ENTRY);
+        entries.add(ToText.ENTRY);
         entries.add(ToTDigest.ENTRY);
         entries.add(ToUnsignedLong.ENTRY);
         entries.add(ToVersion.ENTRY);
@@ -267,7 +289,9 @@ public class ExpressionWritables {
             StGeohash.ENTRY,
             StGeotile.ENTRY,
             StGeohex.ENTRY,
-            StSimplify.ENTRY
+            StBuffer.ENTRY,
+            StSimplify.ENTRY,
+            StSimplifyPreserveTopology.ENTRY
         );
     }
 

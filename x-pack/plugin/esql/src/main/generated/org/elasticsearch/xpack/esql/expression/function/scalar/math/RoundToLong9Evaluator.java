@@ -12,22 +12,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToLong}.
+ * {@link ExpressionEvaluator} implementation for {@link RoundToLong}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToLong9Evaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundToLong9Evaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLong9Evaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
   private final long p0;
 
@@ -51,9 +51,8 @@ public final class RoundToLong9Evaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings;
 
-  public RoundToLong9Evaluator(Source source, EvalOperator.ExpressionEvaluator field, long p0,
-      long p1, long p2, long p3, long p4, long p5, long p6, long p7, long p8,
-      DriverContext driverContext) {
+  public RoundToLong9Evaluator(Source source, ExpressionEvaluator field, long p0, long p1, long p2,
+      long p3, long p4, long p5, long p6, long p7, long p8, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.p0 = p0;
@@ -129,20 +128,15 @@ public final class RoundToLong9Evaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
     private final long p0;
 
@@ -162,8 +156,8 @@ public final class RoundToLong9Evaluator implements EvalOperator.ExpressionEvalu
 
     private final long p8;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, long p0, long p1,
-        long p2, long p3, long p4, long p5, long p6, long p7, long p8) {
+    public Factory(Source source, ExpressionEvaluator.Factory field, long p0, long p1, long p2,
+        long p3, long p4, long p5, long p6, long p7, long p8) {
       this.source = source;
       this.field = field;
       this.p0 = p0;

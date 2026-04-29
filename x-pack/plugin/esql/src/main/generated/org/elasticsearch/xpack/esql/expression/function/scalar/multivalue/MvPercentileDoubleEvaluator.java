@@ -12,24 +12,24 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvPercentile}.
+ * {@link ExpressionEvaluator} implementation for {@link MvPercentile}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvPercentileDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class MvPercentileDoubleEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvPercentileDoubleEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator values;
+  private final ExpressionEvaluator values;
 
-  private final EvalOperator.ExpressionEvaluator percentile;
+  private final ExpressionEvaluator percentile;
 
   private final MvPercentile.DoubleSortingScratch scratch;
 
@@ -37,8 +37,8 @@ public final class MvPercentileDoubleEvaluator implements EvalOperator.Expressio
 
   private Warnings warnings;
 
-  public MvPercentileDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator values,
-      EvalOperator.ExpressionEvaluator percentile, MvPercentile.DoubleSortingScratch scratch,
+  public MvPercentileDoubleEvaluator(Source source, ExpressionEvaluator values,
+      ExpressionEvaluator percentile, MvPercentile.DoubleSortingScratch scratch,
       DriverContext driverContext) {
     this.source = source;
     this.values = values;
@@ -110,27 +110,22 @@ public final class MvPercentileDoubleEvaluator implements EvalOperator.Expressio
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory values;
+    private final ExpressionEvaluator.Factory values;
 
-    private final EvalOperator.ExpressionEvaluator.Factory percentile;
+    private final ExpressionEvaluator.Factory percentile;
 
     private final Function<DriverContext, MvPercentile.DoubleSortingScratch> scratch;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory values,
-        EvalOperator.ExpressionEvaluator.Factory percentile,
+    public Factory(Source source, ExpressionEvaluator.Factory values,
+        ExpressionEvaluator.Factory percentile,
         Function<DriverContext, MvPercentile.DoubleSortingScratch> scratch) {
       this.source = source;
       this.values = values;

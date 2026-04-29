@@ -16,11 +16,13 @@ import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.not;
 
@@ -35,14 +37,9 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
     public static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
     public static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
 
-    public enum SimilarityFunction {
-        DOT_PRODUCT,
-        SQUARE_DISTANCE
-    }
-
     protected static Arena arena;
 
-    protected final SimilarityFunction function;
+    protected final VectorSimilarityFunctions.Function function;
     protected final int size;
     protected final Optional<VectorSimilarityFunctions> vectorSimilarityFunctions;
 
@@ -52,11 +49,11 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
         var dims2 = Arrays.stream(new int[] { 1000, 1023, 1024, 1025, 2047, 2048, 2049, 4095, 4096, 4097 });
         return () -> IntStream.concat(dims1, dims2)
             .boxed()
-            .flatMap(i -> Stream.of(SimilarityFunction.values()).map(f -> new Object[] { f, i }))
+            .flatMap(i -> Stream.of(VectorSimilarityFunctions.Function.values()).map(f -> new Object[] { f, i }))
             .iterator();
     }
 
-    protected VectorSimilarityFunctionsTests(SimilarityFunction function, int size) {
+    protected VectorSimilarityFunctionsTests(VectorSimilarityFunctions.Function function, int size) {
         this.function = function;
         this.size = size;
         vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions();
@@ -119,4 +116,27 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
         return t instanceof RuntimeException re ? re : new RuntimeException(t);
     }
 
+    protected static float[] randomFloatArray(int length) {
+        float[] fa = new float[length];
+        for (int i = 0; i < length; i++) {
+            fa[i] = randomFloat();
+        }
+        return fa;
+    }
+
+    protected static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg) {
+        assertScoresEquals(expectedScores, expectedScoresSeg, 0f);
+    }
+
+    protected static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg, float delta) {
+        assert expectedScores.length == (expectedScoresSeg.byteSize() / Float.BYTES);
+        for (int i = 0; i < expectedScores.length; i++) {
+            assertEquals(
+                "Difference at offset " + i,
+                expectedScores[i],
+                expectedScoresSeg.get(JAVA_FLOAT_UNALIGNED, (long) i * Float.BYTES),
+                delta
+            );
+        }
+    }
 }

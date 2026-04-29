@@ -13,6 +13,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.MATCH_ALL;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.getAllProjectAliases;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.rewriteIndexExpression;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.validateIndexExpressionWithoutRewrite;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -330,14 +332,14 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
 
         {
             // Cannot apply exclusion for both the project and the index
-            final var messageMatcher = containsString("Cannot apply exclusion for both the project and the index expression");
+            final var messageMatcher = containsString("cannot apply exclusion for both the project and the index expression");
             expectThrows(
-                IllegalArgumentException.class,
+                InvalidIndexNameException.class,
                 messageMatcher,
                 () -> rewriteIndexExpressions(origin, linked, "-_origin:-metrics*")
             );
-            expectThrows(IllegalArgumentException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P0:-metrics*"));
-            expectThrows(IllegalArgumentException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P1:-metrics*"));
+            expectThrows(InvalidIndexNameException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P0:-metrics*"));
+            expectThrows(InvalidIndexNameException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P1:-metrics*"));
         }
     }
 
@@ -486,6 +488,125 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         }
     }
 
+    public void testChainedWildcardIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:*");
+    }
+
+    public void testChainedAllIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:_all");
+    }
+
+    public void testChainedConcreteIndexIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:logs");
+    }
+
+    public void testChainedIndexPatternIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:logs*");
+    }
+
+    public void testChainedIndexExclusionIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:-logs*");
+    }
+
+    public void testChainedConcreteIndexWithSelectorIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:logs::data");
+    }
+
+    public void testChainedConcreteIndexWithFailuresSelectorIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:logs::failures");
+    }
+
+    public void testChainedWildcardWithSelectorIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:*::data");
+    }
+
+    public void testChainedExpressionMixedWithFlatIsRejected() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        final List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("linked_project"));
+        expectThrows(
+            InvalidIndexNameException.class,
+            containsString("no cross-project chaining"),
+            () -> rewriteIndexExpressions(origin, linked, "logs", "linked_project:chained_linked_project:logs")
+        );
+    }
+
+    public void testChainedExpressionMixedWithQualifiedIsRejected() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        final List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("linked_project"));
+        expectThrows(
+            InvalidIndexNameException.class,
+            containsString("no cross-project chaining"),
+            () -> rewriteIndexExpressions(origin, linked, "linked_project:logs", "linked_project:chained_linked_project:*")
+        );
+    }
+
+    public void testChainedExpressionAppearingFirstIsRejected() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        final List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("linked_project"));
+        expectThrows(
+            InvalidIndexNameException.class,
+            containsString("no cross-project chaining"),
+            () -> rewriteIndexExpressions(origin, linked, "linked_project:chained_linked_project:logs", "logs")
+        );
+    }
+
+    public void testValidateIndexExpressionWithoutRewrite() {
+        var origin = createRandomProjectWithAlias("P0");
+        var linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
+        var allProjectAliases = getAllProjectAliases(origin, linked);
+
+        // unqualified expression should pass validation without checking projects
+        validateIndexExpressionWithoutRewrite("logs*", origin.projectAlias(), randomBoolean() ? allProjectAliases : Set.of(), null);
+
+        // qualified non-exclusion referencing existing origin or linked projects should pass
+        validateIndexExpressionWithoutRewrite(randomFrom("P1:logs*", "P0:logs*"), origin.projectAlias(), allProjectAliases, null);
+
+        // qualified expression referencing _origin when origin exists should pass
+        validateIndexExpressionWithoutRewrite("_origin:logs*", origin.projectAlias(), allProjectAliases, null);
+
+        // wildcard project alias matching existing projects should pass
+        validateIndexExpressionWithoutRewrite("P*:logs*", origin.projectAlias(), allProjectAliases, null);
+
+        // exclusion referencing existing projects should not throw validation exception
+        validateIndexExpressionWithoutRewrite(randomFrom("-P1:logs*", "-P0:logs*"), origin.projectAlias(), allProjectAliases, null);
+
+        // qualified non-exclusion referencing missing project should fail validation
+        expectThrows(
+            NoMatchingProjectException.class,
+            containsString("No such project: [missing]"),
+            () -> validateIndexExpressionWithoutRewrite("missing:logs*", origin.projectAlias(), allProjectAliases, null)
+        );
+
+        // exclusion referencing a non-existing project should fail validation
+        expectThrows(
+            NoMatchingProjectException.class,
+            containsString("No such project: [missing]"),
+            () -> validateIndexExpressionWithoutRewrite("-missing:_all", origin.projectAlias(), allProjectAliases, null)
+        );
+
+        // wildcard project alias not matching any project should fail validation
+        expectThrows(
+            NoMatchingProjectException.class,
+            containsString("No such project: [Q*]"),
+            () -> validateIndexExpressionWithoutRewrite("Q*:logs*", origin.projectAlias(), allProjectAliases, null)
+        );
+
+        // _origin qualified expression when origin is null should fail validation
+        expectThrows(
+            NoMatchingProjectException.class,
+            containsString("No such project: [_origin]"),
+            () -> validateIndexExpressionWithoutRewrite("_origin:logs*", null, allProjectAliases, null)
+        );
+
+        // no projects available should fail validation
+        var projectRouting = "_alias:" + randomAlphaOfLengthBetween(1, 10);
+        expectThrows(
+            NoMatchingProjectException.class,
+            containsString("no matching project after applying project routing [" + projectRouting + "]"),
+            () -> validateIndexExpressionWithoutRewrite("P1:logs*", null, Set.of(), projectRouting)
+        );
+    }
+
     private ProjectRoutingInfo createRandomProjectWithAlias(String alias) {
         ProjectId projectId = randomUniqueProjectId();
         String type = randomFrom("elasticsearch", "security", "observability");
@@ -521,7 +642,7 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
      * @param linkedProjects the list of linked and available projects to consider for a request
      * @param originalIndices the array of index expressions to be rewritten to canonical CCS
      * @return a map from original index expressions to lists of canonical index expressions
-     * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
+     * @throws InvalidIndexNameException if exclusions are applied to both the project and the index expression
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
     private static Map<String, CrossProjectIndexExpressionsRewriter.IndexRewriteResult> rewriteIndexExpressions(
@@ -553,5 +674,16 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
             );
         }
         return canonicalExpressionsMap;
+    }
+
+    private void assertChainedExpressionRejected(String chainedExpression) {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        final List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("linked_project"));
+        final var e = expectThrows(
+            InvalidIndexNameException.class,
+            containsString("no cross-project chaining"),
+            () -> rewriteIndexExpressions(origin, linked, chainedExpression)
+        );
+        assertThat(e.getMessage(), containsString(chainedExpression));
     }
 }

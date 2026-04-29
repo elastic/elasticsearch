@@ -1,0 +1,405 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.reindex;
+
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.support.AbstractClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.IntStream;
+
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.instanceOf;
+
+public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
+
+    private ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void tearDownThreadPool() {
+        terminate(threadPool);
+    }
+
+    // ensure we test the happy path on every build.
+    public void testStartScrollDone() throws InterruptedException {
+        dotestBasicsWithRetry(0, 0, 0, e -> fail());
+    }
+
+    public void testRetrySuccess() throws InterruptedException {
+        int retries = randomIntBetween(1, 10);
+        dotestBasicsWithRetry(retries, 0, retries, e -> fail());
+    }
+
+    public void testRetryFail() throws InterruptedException {
+        final int retries = randomInt(10);
+        final var exceptionRef = new AtomicReference<Exception>();
+        dotestBasicsWithRetry(retries, retries + 1, retries + 1, exceptionRef::set);
+        assertThat(exceptionRef.get(), instanceOf(EsRejectedExecutionException.class));
+    }
+
+    private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures, Consumer<Exception> failureHandler)
+        throws InterruptedException {
+        BlockingQueue<PaginatedHitSource.AsyncResponse> responses = new ArrayBlockingQueue<>(100);
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("thenode", randomInt());
+        AtomicInteger actualSearchRetries = new AtomicInteger();
+        int expectedSearchRetries = 0;
+
+        final var testHeaderName = randomIdentifier("header-");
+        final var threadContext = threadPool.getThreadContext();
+
+        final ClientScrollablePaginatedHitSource paginatedHitSource;
+        try (var ignored = threadContext.newStoredContext()) {
+            final var testHeaderInitialValue = randomIdentifier("initial-");
+            threadContext.putHeader(testHeaderName, testHeaderInitialValue);
+            paginatedHitSource = new ClientScrollablePaginatedHitSource(
+                logger,
+                BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
+                threadPool,
+                actualSearchRetries::incrementAndGet,
+                responses::add,
+                failureHandler,
+                new ParentTaskAssigningClient(client, parentTask) {
+                    @Override
+                    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                        ActionType<Response> action,
+                        Request request,
+                        ActionListener<Response> listener
+                    ) {
+                        // Verify that the action is always invoked in the initial thread context, even though this header is set to
+                        // different random values in the rest of the test. This ensures we don't accumulate a deeply-nested tree of spans
+                        // when tracing these requests for APM.
+                        assertEquals(testHeaderInitialValue, threadContext.getHeader(testHeaderName));
+                        super.doExecute(action, request, listener);
+                    }
+                },
+                new SearchRequest().scroll(TimeValue.timeValueMinutes(1))
+            );
+        }
+        paginatedHitSource.start();
+
+        for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
+            try (var ignored = threadContext.newStoredContext()) {
+                threadContext.putHeader(testHeaderName, randomIdentifier());
+                client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
+            }
+            if (retry >= retries) {
+                return;
+            }
+            client.awaitOperation();
+            ++expectedSearchRetries;
+        }
+        client.validateRequest(TransportSearchAction.TYPE, (SearchRequest r) -> assertTrue(r.allowPartialSearchResults() == Boolean.FALSE));
+        SearchResponse searchResponse = createSearchResponse();
+        try {
+            try (var ignored = threadContext.newStoredContext()) {
+                threadContext.putHeader(testHeaderName, randomIdentifier());
+                client.respond(TransportSearchAction.TYPE, searchResponse);
+            }
+
+            int scrollCount = randomIntBetween(1, 10);
+            for (int i = 0; i < scrollCount; ++i) {
+                PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
+                assertNotNull(asyncResponse);
+                assertEquals(responses.size(), 0);
+                assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
+                for (PaginatedHitSource.Hit hit : asyncResponse.response().getHits()) {
+                    hit.release();
+                }
+                asyncResponse.done(TimeValue.ZERO);
+
+                for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
+                    try (var ignored = threadContext.newStoredContext()) {
+                        threadContext.putHeader(testHeaderName, randomIdentifier());
+                        client.fail(TransportSearchScrollAction.TYPE, new EsRejectedExecutionException());
+                    }
+                    client.awaitOperation();
+                    ++expectedSearchRetries;
+                }
+
+                // Only send the next scroll response if there will be another iteration to poll and release it
+                if (i + 1 < scrollCount) {
+                    searchResponse.decRef();
+                    searchResponse = createSearchResponse();
+                    try (var ignored = threadContext.newStoredContext()) {
+                        threadContext.putHeader(testHeaderName, randomIdentifier());
+                        client.respond(TransportSearchScrollAction.TYPE, searchResponse);
+                    }
+                }
+            }
+
+            assertEquals(actualSearchRetries.get(), expectedSearchRetries);
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    public void testScrollKeepAlive() {
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("thenode", randomInt());
+
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            () -> fail(),
+            r -> fail(),
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            // Set the base for the scroll to wait - this is added to the figure we calculate below
+            new SearchRequest().scroll(timeValueSeconds(10))
+        );
+
+        paginatedHitSource.setScrollId("scroll_id");
+        paginatedHitSource.requestNextBatch(timeValueSeconds(100));
+        client.validateRequest(TransportSearchScrollAction.TYPE, (SearchScrollRequest r) -> assertEquals(r.scroll().seconds(), 110));
+    }
+
+    /** When scroll ID is empty or null, close runs cleanup immediately without calling clearScroll. */
+    public void testCloseWhenScrollIdEmpty() {
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("thenode", randomInt());
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            r -> fail(),
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            new SearchRequest().scroll(timeValueSeconds(10))
+        );
+        AtomicBoolean closeCallbackCalled = new AtomicBoolean();
+
+        paginatedHitSource.close(() -> closeCallbackCalled.set(true));
+
+        assertTrue(closeCallbackCalled.get());
+        assertFalse(client.hasExecuted(TransportClearScrollAction.TYPE));
+    }
+
+    /** When scroll ID is set, close calls clearScroll and runs cleanup after it completes. */
+    public void testCloseWhenScrollIdSet() throws InterruptedException {
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("thenode", randomInt());
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            r -> fail(),
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            new SearchRequest().scroll(timeValueSeconds(10))
+        );
+        paginatedHitSource.setScrollId("scroll_123");
+        AtomicBoolean closeCallbackCalled = new AtomicBoolean();
+
+        paginatedHitSource.close(() -> closeCallbackCalled.set(true));
+
+        client.awaitOperation();
+        client.validateRequest(
+            TransportClearScrollAction.TYPE,
+            (ClearScrollRequest r) -> assertThat(r.getScrollIds(), contains("scroll_123"))
+        );
+        client.respond(TransportClearScrollAction.TYPE, new ClearScrollResponse(true, 1));
+        assertTrue(closeCallbackCalled.get());
+    }
+
+    /** Verifies hasMoreBatches reflects scroll ID state: false when absent or empty, true when non-empty. */
+    public void testHasMoreBatches() {
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("id", randomInt());
+
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            r -> fail(),
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            new SearchRequest().scroll(timeValueSeconds(10))
+        );
+
+        // Initially: no scroll id -> false
+        assertFalse(paginatedHitSource.hasMoreBatches());
+
+        // Empty scroll id -> false
+        paginatedHitSource.setScrollId("");
+        assertFalse(paginatedHitSource.hasMoreBatches());
+
+        // Non-empty scroll id -> true
+        paginatedHitSource.setScrollId("scroll_id");
+        assertTrue(paginatedHitSource.hasMoreBatches());
+    }
+
+    private SearchResponse createSearchResponse() {
+        int size = randomIntBetween(0, 20);
+        SearchHit[] hitArray = IntStream.range(0, size)
+            .mapToObj(i -> new SearchHit(i, "id").sourceRef(new BytesArray("{}")))
+            .toArray(SearchHit[]::new);
+        SearchHits hits = new SearchHits(hitArray, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0);
+        SearchResponse response = SearchResponseUtils.response(hits).scrollId(randomSimpleString(random(), 1, 10)).shards(5, 4, 0).build();
+        hits.decRef(); // transfer ownership to response
+        return response;
+    }
+
+    private void assertSameHits(List<? extends PaginatedHitSource.Hit> actual, SearchHit[] expected) {
+        assertEquals(actual.size(), expected.length);
+        for (int i = 0; i < actual.size(); ++i) {
+            assertThat(expected[i].getSourceRef(), equalBytes(actual.get(i).getSource()));
+            assertEquals(actual.get(i).getIndex(), expected[i].getIndex());
+            assertEquals(actual.get(i).getVersion(), expected[i].getVersion());
+            assertEquals(actual.get(i).getPrimaryTerm(), expected[i].getPrimaryTerm());
+            assertEquals(actual.get(i).getSeqNo(), expected[i].getSeqNo());
+            assertEquals(actual.get(i).getId(), expected[i].getId());
+            assertEquals(actual.get(i).getIndex(), expected[i].getIndex());
+        }
+    }
+
+    private static class ExecuteRequest<Request extends ActionRequest, Response extends ActionResponse> {
+        private final ActionType<Response> action;
+        private final Request request;
+        private final ActionListener<Response> listener;
+
+        ExecuteRequest(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            this.action = action;
+            this.request = request;
+            this.listener = listener;
+        }
+
+        public void respond(ActionType<Response> actionType, Function<Request, Response> response) {
+            assertEquals(actionType, this.action);
+            listener.onResponse(response.apply(request));
+        }
+
+        public void fail(ActionType<Response> actionType, Exception response) {
+            assertEquals(actionType, this.action);
+            listener.onFailure(response);
+        }
+
+        public void validateRequest(ActionType<Response> actionType, Consumer<? super Request> validator) {
+            assertEquals(actionType, this.action);
+            validator.accept(request);
+        }
+    }
+
+    private static class MockClient extends AbstractClient {
+        private ExecuteRequest<?, ?> executeRequest;
+        private final List<ActionType<?>> executedActions = new ArrayList<>();
+
+        MockClient(ThreadPool threadPool) {
+            super(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
+        }
+
+        @Override
+        protected synchronized <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            executedActions.add(action);
+            this.executeRequest = new ExecuteRequest<>(action, request, listener);
+            this.notifyAll();
+        }
+
+        boolean hasExecuted(ActionType<?> action) {
+            return executedActions.contains(action);
+        }
+
+        @SuppressWarnings("unchecked")
+        public <Request extends ActionRequest, Response extends ActionResponse> void respondx(
+            ActionType<Response> action,
+            Function<Request, Response> response
+        ) {
+            ExecuteRequest<?, ?> executeRequestCopy;
+            synchronized (this) {
+                executeRequestCopy = this.executeRequest;
+                this.executeRequest = null;
+            }
+            ((ExecuteRequest<Request, Response>) executeRequestCopy).respond(action, response);
+        }
+
+        public <Response extends ActionResponse> void respond(ActionType<Response> action, Response response) {
+            respondx(action, req -> response);
+        }
+
+        @SuppressWarnings("unchecked")
+        public <Response extends ActionResponse> void fail(ActionType<Response> action, Exception response) {
+            ExecuteRequest<?, ?> executeRequestCopy;
+            synchronized (this) {
+                executeRequestCopy = this.executeRequest;
+                this.executeRequest = null;
+            }
+            ((ExecuteRequest<?, Response>) executeRequestCopy).fail(action, response);
+        }
+
+        @SuppressWarnings("unchecked")
+        public <Request extends ActionRequest, Response extends ActionResponse> void validateRequest(
+            ActionType<Response> action,
+            Consumer<? super Request> validator
+        ) {
+            ((ExecuteRequest<Request, Response>) executeRequest).validateRequest(action, validator);
+        }
+
+        public synchronized void awaitOperation() throws InterruptedException {
+            if (executeRequest == null) {
+                wait(10000);
+                assertNotNull("Must receive next request within 10s", executeRequest);
+            }
+        }
+    }
+}

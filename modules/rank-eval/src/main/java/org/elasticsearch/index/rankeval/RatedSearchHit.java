@@ -29,13 +29,28 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
     private final SearchHit searchHit;
     private final OptionalInt rating;
 
+    /**
+     * Retains a reference to a pooled {@link SearchHit} from a live search response. Callers must eventually release refs held by
+     * {@link RankEvalResponse#close()}.
+     */
     public RatedSearchHit(SearchHit searchHit, OptionalInt rating) {
-        this.searchHit = searchHit.asUnpooled();
+        this(searchHit, rating, true);
+    }
+
+    /**
+     * @param acquireRef if {@code true}, {@link SearchHit#mustIncRef()} is called for live search hits; if {@code false}, the caller
+     *                   transfers ownership (e.g. {@link SearchHit#readFrom(StreamInput, boolean)} with {@code pooled == false}).
+     */
+    private RatedSearchHit(SearchHit searchHit, OptionalInt rating, boolean acquireRef) {
+        if (acquireRef) {
+            searchHit.mustIncRef();
+        }
+        this.searchHit = searchHit;
         this.rating = rating;
     }
 
     RatedSearchHit(StreamInput in) throws IOException {
-        this(SearchHit.readFrom(in, false), in.readBoolean() ? OptionalInt.of(in.readVInt()) : OptionalInt.empty());
+        this(SearchHit.readFrom(in, false), in.readBoolean() ? OptionalInt.of(in.readVInt()) : OptionalInt.empty(), false);
     }
 
     @Override

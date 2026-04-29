@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
+import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStatsTests.randomDesiredBalanceStats;
 import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
 import static org.hamcrest.Matchers.empty;
 
@@ -27,7 +28,12 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         long unassignedShards = randomNonNegativeLong();
         long totalAllocations = randomNonNegativeLong();
         long undesiredAllocations = randomNonNegativeLong();
-        metrics.updateMetrics(new AllocationStats(unassignedShards, totalAllocations, undesiredAllocations), Map.of(), Map.of());
+        metrics.updateMetrics(
+            new AllocationStats(unassignedShards, totalAllocations, undesiredAllocations),
+            Map.of(),
+            Map.of(),
+            DesiredBalanceStats.ZERO
+        );
         assertEquals(totalAllocations, metrics.totalAllocations());
         assertEquals(unassignedShards, metrics.unassignedShards());
         assertEquals(undesiredAllocations, metrics.undesiredAllocations());
@@ -44,7 +50,13 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         long unassignedShards = randomNonNegativeLong();
         long totalAllocations = randomLongBetween(100, 10000000);
         long undesiredAllocations = randomLongBetween(0, totalAllocations);
-        metrics.updateMetrics(new AllocationStats(unassignedShards, totalAllocations, undesiredAllocations), Map.of(), Map.of());
+        DesiredBalanceStats desiredBalanceStats = randomDesiredBalanceStats();
+        metrics.updateMetrics(
+            new AllocationStats(unassignedShards, totalAllocations, undesiredAllocations),
+            Map.of(),
+            Map.of(),
+            desiredBalanceStats
+        );
 
         // Collect when not master
         meterRegistry.getRecorder().collect();
@@ -64,6 +76,33 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         assertThat(
             meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.DOUBLE_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME),
+            empty()
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_SUBMITTED_METRIC_NAME),
+            empty()
+        );
+        assertThat(
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_EXECUTED_METRIC_NAME),
+            empty()
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_CONVERGED_METRIC_NAME),
+            empty()
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_ITERATIONS_METRIC_NAME),
+            empty()
+        );
+        assertThat(
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_TIME_METRIC_NAME),
+            empty()
+        );
+        assertThat(
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.RECONCILIATIONS_TIME_METRIC_NAME),
             empty()
         );
 
@@ -88,13 +127,43 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
                 .getMeasurements(InstrumentType.DOUBLE_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME),
             measures((double) undesiredAllocations / totalAllocations)
         );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, DesiredBalanceMetrics.COMPUTATIONS_SUBMITTED_METRIC_NAME),
+            measures(desiredBalanceStats.computationSubmitted())
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, DesiredBalanceMetrics.COMPUTATIONS_EXECUTED_METRIC_NAME),
+            measures(desiredBalanceStats.computationExecuted())
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, DesiredBalanceMetrics.COMPUTATIONS_CONVERGED_METRIC_NAME),
+            measures(desiredBalanceStats.computationConverged())
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, DesiredBalanceMetrics.COMPUTATIONS_ITERATIONS_METRIC_NAME),
+            measures(desiredBalanceStats.computationIterations())
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, DesiredBalanceMetrics.COMPUTATIONS_TIME_METRIC_NAME),
+            measures(desiredBalanceStats.cumulativeComputationTime())
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, DesiredBalanceMetrics.RECONCILIATIONS_TIME_METRIC_NAME),
+            measures(desiredBalanceStats.cumulativeReconciliationTime())
+        );
     }
 
     public void testUndesiredAllocationRatioIsZeroWhenTotalShardsIsZero() {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         DesiredBalanceMetrics metrics = new DesiredBalanceMetrics(meterRegistry);
         long unassignedShards = randomNonNegativeLong();
-        metrics.updateMetrics(new AllocationStats(unassignedShards, 0, 0), Map.of(), Map.of());
+        metrics.updateMetrics(new AllocationStats(unassignedShards, 0, 0), Map.of(), Map.of(), DesiredBalanceStats.ZERO);
 
         metrics.setNodeIsMaster(true);
         meterRegistry.getRecorder().collect();

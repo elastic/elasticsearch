@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 145751
+summary: Fix waiting for enrich policy execution for users without the `monitor` privilege
+type: bug

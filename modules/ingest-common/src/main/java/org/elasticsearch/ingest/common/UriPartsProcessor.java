@@ -10,17 +10,12 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.web.UriParts;
 
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.util.HashMap;
 import java.util.Map;
 
 public class UriPartsProcessor extends AbstractProcessor {
@@ -90,87 +85,7 @@ public class UriPartsProcessor extends AbstractProcessor {
     }
 
     public static Map<String, Object> apply(String urlString) {
-        URI uri = null;
-        URL url = null;
-        try {
-            uri = new URI(urlString);
-        } catch (URISyntaxException e) {
-            try {
-                url = new URL(urlString);
-            } catch (MalformedURLException e2) {
-                throw new IllegalArgumentException("unable to parse URI [" + urlString + "]");
-            }
-        }
-        return getUriParts(uri, url);
-    }
-
-    @SuppressForbidden(reason = "URL.getPath is used only if URI.getPath is unavailable")
-    private static Map<String, Object> getUriParts(URI uri, URL fallbackUrl) {
-        var uriParts = new HashMap<String, Object>();
-        String domain;
-        String fragment;
-        String path;
-        int port;
-        String query;
-        String scheme;
-        String userInfo;
-
-        if (uri != null) {
-            domain = uri.getHost();
-            fragment = uri.getFragment();
-            path = uri.getPath();
-            port = uri.getPort();
-            query = uri.getQuery();
-            scheme = uri.getScheme();
-            userInfo = uri.getUserInfo();
-        } else if (fallbackUrl != null) {
-            domain = fallbackUrl.getHost();
-            fragment = fallbackUrl.getRef();
-            path = fallbackUrl.getPath();
-            port = fallbackUrl.getPort();
-            query = fallbackUrl.getQuery();
-            scheme = fallbackUrl.getProtocol();
-            userInfo = fallbackUrl.getUserInfo();
-        } else {
-            // should never occur during processor execution
-            throw new IllegalArgumentException("at least one argument must be non-null");
-        }
-
-        uriParts.put("domain", domain);
-        if (fragment != null) {
-            uriParts.put("fragment", fragment);
-        }
-        if (path != null) {
-            uriParts.put("path", path);
-            // To avoid any issues with extracting the extension from a path that contains a dot, we explicitly extract the extension
-            // from the last segment in the path.
-            var lastSegmentIndex = path.lastIndexOf('/');
-            if (lastSegmentIndex >= 0) {
-                var lastSegment = path.substring(lastSegmentIndex);
-                int periodIndex = lastSegment.lastIndexOf('.');
-                if (periodIndex >= 0) {
-                    // Don't include the dot in the extension field.
-                    uriParts.put("extension", lastSegment.substring(periodIndex + 1));
-                }
-            }
-        }
-        if (port != -1) {
-            uriParts.put("port", port);
-        }
-        if (query != null) {
-            uriParts.put("query", query);
-        }
-        uriParts.put("scheme", scheme);
-        if (userInfo != null) {
-            uriParts.put("user_info", userInfo);
-            if (userInfo.contains(":")) {
-                int colonIndex = userInfo.indexOf(':');
-                uriParts.put("username", userInfo.substring(0, colonIndex));
-                uriParts.put("password", colonIndex < userInfo.length() ? userInfo.substring(colonIndex + 1) : "");
-            }
-        }
-
-        return uriParts;
+        return UriParts.parse(urlString);
     }
 
     @Override

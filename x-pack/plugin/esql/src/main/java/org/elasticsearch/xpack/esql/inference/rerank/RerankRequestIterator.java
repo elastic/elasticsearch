@@ -9,16 +9,19 @@ package org.elasticsearch.xpack.esql.inference.rerank;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -40,11 +43,12 @@ import java.util.NoSuchElementException;
  */
 class RerankRequestIterator implements BulkInferenceRequestItemIterator {
 
-    private final BytesRefBlock textBlock;
+    private final BytesRefBlock[] inputBlocks;
     private final String inferenceId;
     private final String queryText;
     private final int batchSize;
     private final int totalPositions;
+    private final TimeValue timeout;
 
     /**
      * Current position being processed in the input block.
@@ -68,15 +72,19 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
      *
      * @param inferenceId The ID of the inference model to invoke.
      * @param queryText   The query text to use for reranking.
-     * @param textBlock   The input block containing documents to rerank.
+     * @param inputBlocks The input blocks containing text to rerank.
      * @param batchSize   The maximum number of documents to include in a single inference request.
+     * @param timeout     Timeout for each inference request.
      */
-    RerankRequestIterator(String inferenceId, String queryText, BytesRefBlock textBlock, int batchSize) {
+    RerankRequestIterator(String inferenceId, String queryText, BytesRefBlock[] inputBlocks, int batchSize, TimeValue timeout) {
+        assert inputBlocks.length > 0 : "inputBlocks must not be empty";
+        assert inputBlocks[0] != null : "inputBlocks[0] must not be null";
         this.inferenceId = inferenceId;
         this.queryText = queryText;
-        this.textBlock = textBlock;
+        this.inputBlocks = inputBlocks;
         this.batchSize = batchSize;
-        this.totalPositions = textBlock.getPositionCount();
+        this.timeout = timeout;
+        this.totalPositions = inputBlocks[0].getPositionCount();
         this.inputBuffer = new ArrayList<>(batchSize);
         this.positionValueCountsBuilder = BulkInferenceRequestItem.positionValueCountsBuilder(batchSize);
     }
@@ -149,21 +157,37 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
      *         position is null or contains only empty/whitespace values.
      */
     private List<String> readInputText(int position) {
-        if (textBlock.isNull(position)) {
+        if (Arrays.stream(inputBlocks).allMatch(b -> b.isNull(position))) {
+            // All input blocks are null at this position, return empty list
             return List.of();
         }
 
-        int valueCount = textBlock.getValueCount(position);
+        // Calculate total number of values across all input blocks at this position
+        int valueCount = Arrays.stream(inputBlocks).mapToInt(b -> b.getValueCount(position)).sum();
         List<String> inputs = new ArrayList<>(valueCount);
 
-        int firstValueIndex = textBlock.getFirstValueIndex(position);
-        for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-            scratch = textBlock.getBytesRef(firstValueIndex + valueIndex, scratch);
-            String inputText = scratch.utf8ToString();
+        // Read values from each input block
+        for (int blockIndex = 0; blockIndex < inputBlocks.length; blockIndex++) {
+            BytesRefBlock textBlock = inputBlocks[blockIndex];
 
-            // Filter out empty and whitespace-only strings
-            if (Strings.hasText(inputText)) {
-                inputs.add(inputText);
+            assert textBlock != null : "textBlock must not be null";
+
+            if (textBlock.isNull(position)) {
+                // Skip this block since it's null at the position
+                continue;
+            }
+
+            int firstValueIndex = textBlock.getFirstValueIndex(position);
+            int currentValueCount = textBlock.getValueCount(position);
+
+            for (int valueIndex = 0; valueIndex < currentValueCount; valueIndex++) {
+                scratch = textBlock.getBytesRef(firstValueIndex + valueIndex, scratch);
+                String inputText = scratch.utf8ToString();
+
+                // Filter out empty and whitespace-only strings
+                if (Strings.hasText(inputText)) {
+                    inputs.add(inputText);
+                }
             }
         }
 
@@ -182,7 +206,13 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
         }
 
         // Create a defensive copy since the inputBuffer is reused for subsequent batches
-        return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.copyOf(inputs)).setQuery(queryText).build();
+        InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, TaskType.RERANK)
+            .setInput(List.copyOf(inputs))
+            .setQuery(queryText);
+        if (timeout != null) {
+            builder.setInferenceTimeout(timeout);
+        }
+        return builder.build();
     }
 
     @Override
@@ -192,25 +222,35 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
 
     @Override
     public void close() {
-        textBlock.allowPassingToDifferentDriver();
-        Releasables.closeExpectNoException(textBlock);
+        Arrays.stream(inputBlocks).forEach(Block::allowPassingToDifferentDriver);
+        Releasables.closeExpectNoException(inputBlocks);
     }
 
     /**
      * Factory for creating {@link RerankRequestIterator} instances.
      */
-    record Factory(String inferenceId, String queryText, ExpressionEvaluator rowEncoder, int batchSize)
+    record Factory(String inferenceId, String queryText, ExpressionEvaluator[] inputEvaluators, int batchSize, TimeValue timeout)
         implements
             BulkInferenceRequestItemIterator.Factory {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new RerankRequestIterator(inferenceId, queryText, (BytesRefBlock) rowEncoder.eval(inputPage), batchSize);
+            BytesRefBlock[] inputBlocks = new BytesRefBlock[inputEvaluators.length];
+            try {
+                for (int i = 0; i < inputEvaluators.length; i++) {
+                    inputBlocks[i] = (BytesRefBlock) inputEvaluators[i].eval(inputPage);
+                }
+
+                return new RerankRequestIterator(inferenceId, queryText, inputBlocks, batchSize, timeout);
+            } catch (Exception e) {
+                Releasables.closeExpectNoException(inputBlocks);
+                throw e;
+            }
         }
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(rowEncoder);
+            Releasables.closeExpectNoException(inputEvaluators);
         }
     }
 }

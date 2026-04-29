@@ -1,0 +1,68 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.reindex;
+
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.tasks.TaskId;
+
+import java.util.List;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
+
+@ServerlessScope(Scope.INTERNAL)
+public class RestReindexRethrottleAction extends BaseRestHandler {
+
+    private final Supplier<DiscoveryNodes> nodesInCluster;
+    private final boolean isStateless;
+
+    public RestReindexRethrottleAction(Supplier<DiscoveryNodes> nodesInCluster, Settings settings) {
+        this.nodesInCluster = nodesInCluster;
+        this.isStateless = DiscoveryNode.isStateless(settings);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/_reindex/{task_id}/_rethrottle"));
+    }
+
+    @Override
+    public String getName() {
+        return "reindex_rethrottle_action";
+    }
+
+    @Override
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
+        RethrottleRequest internalRequest = new RethrottleRequest();
+        internalRequest.setTargetTaskId(new TaskId(request.param("task_id")));
+        Float requestsPerSecond = AbstractBaseReindexRestHandler.parseRequestsPerSecond(request);
+        if (requestsPerSecond == null) {
+            throw new IllegalArgumentException("requests_per_second is a required parameter");
+        }
+        internalRequest.setRequestsPerSecond(requestsPerSecond);
+        // This ListTasksResponse will only ever contain a single task, so grouping them is not very useful.
+        // In stateful, we allow the group_by parameter and default to "nodes", for historical reasons.
+        // In stateless, we don't allow group_by, we never group, so that we don't include the unwanted layers and node info.
+        final String groupBy = isStateless ? "none" : request.param("group_by", "nodes");
+        return channel -> client.execute(
+            ReindexPlugin.RETHROTTLE_ACTION,
+            internalRequest,
+            listTasksResponseListener(nodesInCluster, groupBy, channel)
+        );
+    }
+}

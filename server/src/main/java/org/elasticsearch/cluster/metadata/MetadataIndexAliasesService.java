@@ -150,6 +150,10 @@ public class MetadataIndexAliasesService {
                     if (view != null) {
                         return view.name();
                     }
+                    Dataset dataset = metadata.dataset(name);
+                    if (dataset != null) {
+                        return dataset.getName();
+                    }
                     return null;
                 };
 
@@ -258,7 +262,7 @@ public class MetadataIndexAliasesService {
         AliasValidator.validateAliasFilter(
             alias,
             filter,
-            indexService.newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
+            indexService.newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap(), null, null),
             xContentRegistry
         );
     }

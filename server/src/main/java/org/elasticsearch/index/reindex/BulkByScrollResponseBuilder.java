@@ -12,7 +12,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollTask.StatusBuilder;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.xcontent.ObjectParser;
 
 import java.util.ArrayList;
@@ -26,7 +25,7 @@ class BulkByScrollResponseBuilder extends StatusBuilder {
     private TimeValue took;
     private BulkByScrollTask.Status status;
     private List<Failure> bulkFailures = new ArrayList<>();
-    private List<SearchFailure> searchFailures = new ArrayList<>();
+    private List<PaginatedSearchFailure> searchFailures = new ArrayList<>();
     private boolean timedOut;
 
     BulkByScrollResponseBuilder() {}
@@ -48,8 +47,8 @@ class BulkByScrollResponseBuilder extends StatusBuilder {
             for (Object object : failures) {
                 if (object instanceof Failure) {
                     bulkFailures.add((Failure) object);
-                } else if (object instanceof SearchFailure) {
-                    searchFailures.add((SearchFailure) object);
+                } else if (object instanceof PaginatedSearchFailure) {
+                    searchFailures.add((PaginatedSearchFailure) object);
                 }
             }
         }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.mapper;
 
+import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.CopyableBucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
@@ -23,9 +24,15 @@ public record IndexWithCount(long index, long count) {
 
     public static ExponentialHistogram.Buckets asBuckets(int scale, List<IndexWithCount> bucketIndices) {
         return new ExponentialHistogram.Buckets() {
+
             @Override
             public CopyableBucketIterator iterator() {
-                return new Iterator(bucketIndices, scale, 0);
+                return Iterator.create(bucketIndices, scale);
+            }
+
+            @Override
+            public CopyableBucketIterator reverseIterator() {
+                return Iterator.createReversed(bucketIndices, scale);
             }
 
             @Override
@@ -37,13 +44,18 @@ public record IndexWithCount(long index, long count) {
             }
 
             @Override
+            public int bucketCount() {
+                return bucketIndices.size();
+            }
+
+            @Override
             public long valueCount() {
                 throw new UnsupportedOperationException("not implemented");
             }
         };
     }
 
-    public static List<IndexWithCount> fromIterator(CopyableBucketIterator iterator) {
+    public static List<IndexWithCount> fromIterator(BucketIterator iterator) {
         List<IndexWithCount> result = new ArrayList<>();
         while (iterator.hasNext()) {
             result.add(new IndexWithCount(iterator.peekIndex(), iterator.peekCount()));
@@ -56,16 +68,26 @@ public record IndexWithCount(long index, long count) {
         private final List<IndexWithCount> buckets;
         private final int scale;
         private int position;
+        private final boolean iterateForwards;
 
-        Iterator(List<IndexWithCount> buckets, int scale, int position) {
+        static Iterator create(List<IndexWithCount> buckets, int scale) {
+            return new Iterator(buckets, scale, 0, true);
+        }
+
+        static Iterator createReversed(List<IndexWithCount> buckets, int scale) {
+            return new Iterator(buckets, scale, buckets.size() - 1, false);
+        }
+
+        private Iterator(List<IndexWithCount> buckets, int scale, int position, boolean iterateForwards) {
             this.buckets = buckets;
             this.scale = scale;
             this.position = position;
+            this.iterateForwards = iterateForwards;
         }
 
         @Override
         public boolean hasNext() {
-            return position < buckets.size();
+            return iterateForwards ? position < buckets.size() : position >= 0;
         }
 
         @Override
@@ -80,7 +102,11 @@ public record IndexWithCount(long index, long count) {
 
         @Override
         public void advance() {
-            position++;
+            if (iterateForwards) {
+                position++;
+            } else {
+                position--;
+            }
         }
 
         @Override
@@ -90,7 +116,7 @@ public record IndexWithCount(long index, long count) {
 
         @Override
         public CopyableBucketIterator copy() {
-            return new Iterator(buckets, scale, position);
+            return new Iterator(buckets, scale, position, iterateForwards);
         }
     }
 }

@@ -20,6 +20,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -35,7 +37,7 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
     public static final long TOTAL_DEVICE_MEMORY_IN_BYTES = 256L * 1024 * 1024;
 
-    private static void testBasic(CagraIndexParams params) throws InterruptedException {
+    private static void testBasic(CagraIndexParams params) throws Exception {
         var mgr = new MockPoolingCuVSResourceManager(2);
         var res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, params);
         var res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, params);
@@ -52,15 +54,15 @@ public class CuVSResourceManagerTests extends ESTestCase {
         mgr.shutdown();
     }
 
-    public void testBasicWithNNDescent() throws InterruptedException {
+    public void testBasicWithNNDescent() throws Exception {
         testBasic(createNnDescentParams());
     }
 
-    public void testBasicWithIvfPq() throws InterruptedException {
+    public void testBasicWithIvfPq() throws Exception {
         testBasic(createIvfPqParams());
     }
 
-    public void testMultipleAcquireRelease() throws InterruptedException {
+    public void testMultipleAcquireRelease() throws Exception {
         var mgr = new MockPoolingCuVSResourceManager(2);
         var res1 = mgr.acquire(16 * 1024, 1024, CuVSMatrix.DataType.FLOAT, createNnDescentParams());
         var res2 = mgr.acquire(16 * 1024, 1024, CuVSMatrix.DataType.FLOAT, createIvfPqParams());
@@ -91,7 +93,7 @@ public class CuVSResourceManagerTests extends ESTestCase {
             try {
                 var res3 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, params);
                 holder.set(res3);
-            } catch (InterruptedException e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
         });
@@ -120,7 +122,7 @@ public class CuVSResourceManagerTests extends ESTestCase {
             try {
                 var res2 = mgr.acquire((16 * 1024) + 1, 1024, CuVSMatrix.DataType.FLOAT, params);
                 holder.set(res2);
-            } catch (InterruptedException e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
         });
@@ -151,7 +153,7 @@ public class CuVSResourceManagerTests extends ESTestCase {
             try {
                 var res2 = mgr.acquire((16 * 1024) - 1000, 1024, CuVSMatrix.DataType.FLOAT, params);
                 holder.set(res2);
-            } catch (InterruptedException e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
         });
@@ -180,7 +182,40 @@ public class CuVSResourceManagerTests extends ESTestCase {
         mgr.shutdown();
     }
 
-    public void testDoubleRelease() throws InterruptedException {
+    // Tests that a failed createNew() causes acquire to wait for an existing resource rather than crash with NPE.
+    public void testCreateNewFailsAfterFirstResource() throws Exception {
+        var mgr = new FailingAfterNMockPoolingCuVSResourceManager(2, 1);
+        var res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, createNnDescentParams());
+        assertThat(res1.toString(), containsString("id=0"));
+
+        AtomicReference<CuVSResourceManager.ManagedCuVSResources> holder = new AtomicReference<>();
+        Thread t = new Thread(() -> {
+            try {
+                var res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, createNnDescentParams());
+                holder.set(res2);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+        t.start();
+        // Wait until createNew() has failed and returned null, meaning the thread is about to block
+        assertTrue(mgr.createFailedLatch.await(5, TimeUnit.SECONDS));
+        mgr.release(res1);
+        t.join(5_000);
+        // Should have received the first (now released) resource
+        assertNotNull(holder.get());
+        assertThat(holder.get().toString(), containsString("id=0"));
+        mgr.shutdown();
+    }
+
+    // Tests that acquire throws IOException immediately if no resources exist and createNew() always fails.
+    public void testCreateNewAlwaysFailsThrowsIOException() throws Exception {
+        var mgr = new FailingAfterNMockPoolingCuVSResourceManager(2, 0);
+        expectThrows(java.io.IOException.class, () -> mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, createNnDescentParams()));
+        mgr.shutdown();
+    }
+
+    public void testDoubleRelease() throws Exception {
         var mgr = new MockPoolingCuVSResourceManager(2);
         var res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, createNnDescentParams());
         var res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, createNnDescentParams());
@@ -231,6 +266,28 @@ public class CuVSResourceManagerTests extends ESTestCase {
         @Override
         protected CuVSResources createNew() {
             return new MockCuVSResources(idGenerator.getAndIncrement());
+        }
+    }
+
+    static class FailingAfterNMockPoolingCuVSResourceManager extends CuVSResourceManager.PoolingCuVSResourceManager {
+
+        private final AtomicInteger idGenerator = new AtomicInteger();
+        private final int succeedCount;
+        private final CountDownLatch createFailedLatch = new CountDownLatch(1);
+
+        FailingAfterNMockPoolingCuVSResourceManager(int capacity, int succeedCount) {
+            super(capacity, new TrackingGPUMemoryService(TOTAL_DEVICE_MEMORY_IN_BYTES));
+            this.succeedCount = succeedCount;
+        }
+
+        @Override
+        protected CuVSResources createNew() {
+            int id = idGenerator.getAndIncrement();
+            if (id < succeedCount) {
+                return new MockCuVSResources(id);
+            }
+            createFailedLatch.countDown();
+            return null;
         }
     }
 

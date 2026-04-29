@@ -1,0 +1,4 @@
+SET unmapped_fields="nullify"; FROM employees
+| SORT first_name
+| WHERE qstr("first_name: test")
+| EVAL x = does_not_exist_field + 1

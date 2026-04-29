@@ -10,15 +10,14 @@ package org.elasticsearch.xpack.inference.services.elastic.sparseembeddings;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.SecretSettings;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
@@ -28,28 +27,25 @@ import java.util.Map;
 
 public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceModel {
 
+    public static final String SPARSE_EMBEDDING_PATH = "/api/v1/embed/text/sparse";
     private final URI uri;
 
     public ElasticInferenceServiceSparseEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        Map<String, Object> secrets,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ConfigurationParseContext context,
-        ChunkingSettings chunkingSettings
+        ChunkingSettings chunkingSettings,
+        @Nullable EndpointMetadata endpointMetadata
     ) {
         this(
             inferenceEntityId,
             taskType,
-            service,
             ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents,
-            chunkingSettings
+            chunkingSettings,
+            endpointMetadata
         );
     }
 
@@ -64,17 +60,45 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
     public ElasticInferenceServiceSparseEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
-        String service,
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings,
-        @Nullable TaskSettings taskSettings,
-        @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ChunkingSettings chunkingSettings
     ) {
+        this(inferenceEntityId, taskType, serviceSettings, elasticInferenceServiceComponents, chunkingSettings, null);
+    }
+
+    public ElasticInferenceServiceSparseEmbeddingsModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ChunkingSettings chunkingSettings,
+        @Nullable EndpointMetadata endpointMetadata
+    ) {
+        this(
+            new ModelConfigurations(
+                inferenceEntityId,
+                taskType,
+                ElasticInferenceService.NAME,
+                serviceSettings,
+                EmptyTaskSettings.INSTANCE,
+                chunkingSettings,
+                endpointMetadata
+            ),
+            ModelSecrets.emptySecrets(),
+            elasticInferenceServiceComponents
+        );
+    }
+
+    public ElasticInferenceServiceSparseEmbeddingsModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+    ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings,
+            modelConfigurations,
+            modelSecrets,
+            (ElasticInferenceServiceSparseEmbeddingsServiceSettings) modelConfigurations.getServiceSettings(),
             elasticInferenceServiceComponents
         );
         this.uri = createUri();
@@ -92,7 +116,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
     private URI createUri() throws ElasticsearchStatusException {
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/text/sparse");
+            return getBaseURIBuilder().setPath(SPARSE_EMBEDDING_PATH).build();
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service ["

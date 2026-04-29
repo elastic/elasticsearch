@@ -78,9 +78,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         );
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, LlamaService.NAME, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new LlamaEmbeddingsServiceSettings(model, uri, dimensions, similarity, maxInputTokens, rateLimitSettings);
     }
@@ -204,7 +202,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         out.writeString(modelId);
         out.writeString(uri.toString());
         out.writeOptionalVInt(dimensions);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(maxInputTokens);
         rateLimitSettings.writeTo(out);
     }

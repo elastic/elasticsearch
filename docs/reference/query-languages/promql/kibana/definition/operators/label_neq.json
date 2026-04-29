@@ -1,0 +1,32 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/operators/",
+  "type" : "label_matching_operator",
+  "operator" : "!=",
+  "name" : "label_neq",
+  "description" : "Matches labels not equal to the provided string.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "label",
+          "type" : "string",
+          "optional" : false,
+          "description" : "Label name."
+        },
+        {
+          "name" : "value",
+          "type" : "string",
+          "optional" : false,
+          "description" : "String or regex."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "requests_total{method!=\"DELETE\"}"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

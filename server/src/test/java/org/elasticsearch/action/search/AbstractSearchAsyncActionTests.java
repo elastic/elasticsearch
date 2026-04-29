@@ -22,6 +22,10 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -91,6 +95,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             logger,
             null,
             null,
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             nodeIdToConnection,
             Collections.singletonMap("foo", AliasFilter.of(new MatchAllQueryBuilder())),
             Collections.singletonMap("foo", 2.0f),
@@ -100,6 +105,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             Collections.singletonList(
                 new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
             ),
+            Collections.emptyMap(),
             timeProvider,
             ClusterState.EMPTY_STATE,
             null,
@@ -107,7 +113,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             Mockito.mock(SearchResponseMetrics.class),
-            Map.of()
+            Map.of(),
+            false
         ) {
             @Override
             protected SearchPhase getNextPhase() {
@@ -252,6 +259,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             @Override
             public SearchShardTarget getSearchShardTarget() {
                 return new SearchShardTarget(null, null, null);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {
+
             }
         });
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
@@ -440,6 +452,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             PhaseResult phaseResult = new PhaseResult(contextId);
             phaseResult.setSearchShardTarget(shardTarget);
             return phaseResult;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+
         }
     }
 }

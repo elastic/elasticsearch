@@ -18,7 +18,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -63,7 +62,6 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
      * @param singleConsumer    true if the snapshot is accessed by a single thread that creates the snapshot
      * @param accessStats       true if the stats of the snapshot can be accessed via {@link #totalOperations()}
-     * @param indexVersionCreated the version on which this index was created
      */
     public LuceneChangesSnapshot(
         MapperService mapperService,
@@ -73,10 +71,9 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats,
-        IndexVersion indexVersionCreated
+        boolean accessStats
     ) throws IOException {
-        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
+        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats);
         this.creationThread = Assertions.ENABLED ? Thread.currentThread() : null;
         this.singleConsumer = singleConsumer;
         this.parallelArray = new ParallelArray(this.searchBatchSize);

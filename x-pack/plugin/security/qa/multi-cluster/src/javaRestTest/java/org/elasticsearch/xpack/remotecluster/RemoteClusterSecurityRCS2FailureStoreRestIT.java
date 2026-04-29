@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -72,7 +73,6 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
     public void testRCS2CrossClusterSearch() throws Exception {
         // configure remote cluster using API Key-based authentication
         configureRemoteCluster();
-        final String crossClusterAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
         final boolean ccsMinimizeRoundtrips = randomBoolean();
 
         // fulfilling cluster setup
@@ -105,26 +105,24 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
             assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(dataSearchRequest), expectedIndices);
         }
         {
-            // query remote cluster using ::data selector should fail
-            final boolean alsoSearchLocally = randomBoolean();
+            // query remote cluster using ::data selector should succeed
             final Request dataSearchRequest = new Request(
                 "GET",
                 String.format(
                     Locale.ROOT,
                     "/%s:%s/_search?ccs_minimize_roundtrips=%s&ignore_unavailable=false",
                     randomFrom("my_remote_cluster", "*", "my_remote_*"),
-                    randomFrom("test1::data", "test*::data", "*::data", "non-existing::data"),
+                    randomFrom("test1::data", "test*::data", "*::data", backingDataIndexName + "::data"),
                     ccsMinimizeRoundtrips
                 )
             );
-            final ResponseException exception = expectThrows(
-                ResponseException.class,
-                () -> performRequestWithRemoteSearchUser(dataSearchRequest)
-            );
-            assertSelectorsNotSupported(exception);
+            final String[] expectedIndices = new String[] { backingDataIndexName };
+            assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(dataSearchRequest), expectedIndices);
         }
+
+        // query remote cluster using ::failures selector should fail when missing authorization
         {
-            // query remote cluster using ::failures selector should fail
+            // We return authentication failures for concrete index patterns
             final ResponseException exception = expectThrows(
                 ResponseException.class,
                 () -> performRequestWithRemoteSearchUser(
@@ -133,13 +131,29 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                         String.format(
                             Locale.ROOT,
                             "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
-                            randomFrom("test1::failures", "test*::failures", "*::failures", "non-existing::failures"),
+                            "test1::failures",
                             ccsMinimizeRoundtrips
                         )
                     )
                 )
             );
-            assertSelectorsNotSupported(exception);
+            final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards";
+            final String privileges = ccsMinimizeRoundtrips ? "read,all" : "read_cross_cluster,view_index_metadata,manage,read,all";
+            assertActionUnauthorized(exception, action, "test1::failures", privileges);
+        }
+        // Any wildcard patterns are treated as empty searches since they resolve to no visible indices
+        {
+            var request = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
+                    randomFrom("test*::failures", "*::failures"),
+                    ccsMinimizeRoundtrips
+                )
+            );
+            Response response = performRequestWithRemoteSearchUser(request);
+            assertSearchResponseEmpty(response);
         }
         {
             // direct access to backing failure index is not allowed - no explicit read privileges over .fs-* indices
@@ -156,22 +170,9 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                 ResponseException.class,
                 () -> performRequestWithRemoteSearchUser(failureIndexSearchRequest)
             );
-            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(
-                exception.getMessage(),
-                containsString(
-                    "action ["
-                        + (ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards")
-                        + "] towards remote cluster is unauthorized for user [remote_search_user] "
-                        + "with assigned roles [remote_search] authenticated by API key id ["
-                        + crossClusterAccessApiKeyId
-                        + "] of user [test_user] on indices ["
-                        + backingFailureIndexName
-                        + "], this action is granted by the index privileges ["
-                        + (ccsMinimizeRoundtrips ? "read,all" : "view_index_metadata,manage,read_cross_cluster,all")
-                        + "]"
-                )
-            );
+            final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards";
+            final String privileges = ccsMinimizeRoundtrips ? "read,all" : "read_cross_cluster,view_index_metadata,manage,read,all";
+            assertActionUnauthorized(exception, action, backingFailureIndexName, privileges);
         }
     }
 
@@ -196,7 +197,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
               "remote_indices": [
                 {
                   "names": ["test*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_remote_cluster"]
                 }
               ]
@@ -211,4 +212,27 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
         assertOK(adminClient().performRequest(putUserRequest));
     }
 
+    private static void assertActionUnauthorized(ResponseException exception, String action, String indexName, String expectedPrivileges) {
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "action ["
+                    + action
+                    + "] towards remote cluster is unauthorized for user ["
+                    + AbstractRemoteClusterSecurityTestCase.REMOTE_SEARCH_USER
+                    + "] with assigned roles ["
+                    + AbstractRemoteClusterSecurityTestCase.REMOTE_SEARCH_ROLE
+                    + "] authenticated by API key id ["
+                    + API_KEY_MAP_REF.get().get("id")
+                    + "] of user ["
+                    + USER
+                    + "] on indices ["
+                    + indexName
+                    + "], this action is granted by the index privileges ["
+                    + expectedPrivileges
+                    + "]"
+            )
+        );
+    }
 }

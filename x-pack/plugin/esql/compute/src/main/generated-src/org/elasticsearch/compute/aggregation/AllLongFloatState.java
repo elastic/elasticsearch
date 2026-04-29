@@ -9,12 +9,11 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 // end generated imports
 
@@ -23,17 +22,36 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
 final class AllLongFloatState implements AggregatorState {
-    // Whether an observation was recorded in this state
+
+    private BigArrays bigArrays;
+
+    /**
+     * Whether an observation was recorded in this state
+     */
     private boolean observed;
 
-    // The timestamp
+    /**
+     * The timestamp
+     */
     private long v1;
 
-    // Tells whether the observed timestamp was null
+    /**
+     * Whether the observed timestamp was null
+     */
     private boolean v1Seen;
 
-    // The value can be null, single valued of multivalued.
+    /**
+     * The value can be null, single valued of multivalued.
+     */
     private FloatArray v2;
+
+    public AllLongFloatState(BigArrays bigArrays) {
+        this.bigArrays = bigArrays;
+    }
+
+    BigArrays bigArrays() {
+        return bigArrays;
+    }
 
     boolean observed() {
         return observed;
@@ -74,10 +92,10 @@ final class AllLongFloatState implements AggregatorState {
         blocks[offset + 0] = driverContext.blockFactory().newConstantBooleanBlockWith(observed, 1);
         blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(v1Seen, 1);
         blocks[offset + 2] = driverContext.blockFactory().newConstantLongBlockWith(v1, 1);
-        blocks[offset + 3] = intermediateValuesBlockBuilder(driverContext);
+        blocks[offset + 3] = valuesBlock(driverContext);
     }
 
-    public Block intermediateValuesBlockBuilder(DriverContext driverContext) {
+    public Block valuesBlock(DriverContext driverContext) {
         if (v2 == null) {
             return driverContext.blockFactory().newConstantNullBlock(1);
         }

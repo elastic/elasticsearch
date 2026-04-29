@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.inference.services.llama.request.embeddings;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModel;
@@ -28,7 +31,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * This class is responsible for creating a request to the Llama embeddings model.
  * It constructs an HTTP POST request with the necessary headers and body content.
  */
-public class LlamaEmbeddingsRequest implements Request {
+public class LlamaEmbeddingsRequest implements DenseEmbeddingRequest {
     private final URI uri;
     private final LlamaEmbeddingsModel model;
     private final String inferenceEntityId;
@@ -50,13 +53,8 @@ public class LlamaEmbeddingsRequest implements Request {
         this.truncationResult = input;
     }
 
-    /**
-     * Returns the URI for this request.
-     *
-     * @return the URI of the Llama embeddings model
-     */
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(this.uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -70,7 +68,7 @@ public class LlamaEmbeddingsRequest implements Request {
             httpPost.setHeader(createAuthBearerHeader(secretSettings.apiKey()));
         }
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override
@@ -92,5 +90,10 @@ public class LlamaEmbeddingsRequest implements Request {
     @Override
     public String getInferenceEntityId() {
         return inferenceEntityId;
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

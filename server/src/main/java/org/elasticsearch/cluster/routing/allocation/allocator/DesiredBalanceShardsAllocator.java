@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * A {@link ShardsAllocator} which asynchronously refreshes the desired balance held by the {@link DesiredBalanceComputer} and then takes
@@ -123,7 +124,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
         ShardAllocationExplainer shardAllocationExplainer,
         DesiredBalanceMetrics desiredBalanceMetrics,
-        AllocationBalancingRoundMetrics balancingRoundMetrics
+        AllocationBalancingRoundMetrics balancingRoundMetrics,
+        ShardRelocationOrder shardRelocationOrder
     ) {
         this(
             delegateAllocator,
@@ -133,7 +135,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             reconciler,
             nodeAllocationStatsAndWeightsCalculator,
             desiredBalanceMetrics,
-            balancingRoundMetrics
+            balancingRoundMetrics,
+            shardRelocationOrder
         );
     }
 
@@ -145,7 +148,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         DesiredBalanceReconcilerAction reconciler,
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
         DesiredBalanceMetrics desiredBalanceMetrics,
-        AllocationBalancingRoundMetrics balancingRoundMetrics
+        AllocationBalancingRoundMetrics balancingRoundMetrics,
+        ShardRelocationOrder shardRelocationOrder
     ) {
         this.desiredBalanceMetrics = desiredBalanceMetrics;
         this.balancingRoundMetrics = balancingRoundMetrics;
@@ -159,7 +163,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.threadPool = threadPool;
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
-        this.desiredBalanceReconciler = new DesiredBalanceReconciler(clusterService.getClusterSettings(), threadPool);
+        this.desiredBalanceReconciler = new DesiredBalanceReconciler(clusterService.getClusterSettings(), threadPool, shardRelocationOrder);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override
@@ -257,6 +261,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     @Override
     public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
         return delegateAllocator.explainShardAllocation(shard, allocation);
+    }
+
+    @Override
+    public Function<ShardRouting, ShardAllocationDecision> explainShardAllocationFunction(RoutingAllocation allocation) {
+        return delegateAllocator.explainShardAllocationFunction(allocation);
     }
 
     @Override
@@ -368,8 +377,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
         }
         recordTime(cumulativeReconciliationTime, () -> {
-            DesiredBalanceMetrics.AllocationStats allocationStats = desiredBalanceReconciler.reconcile(desiredBalance, allocation);
-            updateDesireBalanceMetrics(desiredBalance, allocation, allocationStats);
+            final var allocationStats = desiredBalanceReconciler.reconcile(desiredBalance, allocation);
+            final var desiredBalanceStats = getStats();
+            updateDesireBalanceMetrics(desiredBalance, allocation, allocationStats, desiredBalanceStats);
         });
 
         if (logger.isTraceEnabled()) {
@@ -415,7 +425,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private void updateDesireBalanceMetrics(
         DesiredBalance desiredBalance,
         RoutingAllocation routingAllocation,
-        DesiredBalanceMetrics.AllocationStats allocationStats
+        DesiredBalanceMetrics.AllocationStats allocationStats,
+        DesiredBalanceStats desiredBalanceStats
     ) {
         var nodesStatsAndWeights = nodeAllocationStatsAndWeightsCalculator.nodesAllocationStatsAndWeights(
             routingAllocation.metadata(),
@@ -432,7 +443,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 filteredNodeAllocationStatsAndWeights.put(node, nodeStatsAndWeight.getValue());
             }
         }
-        desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode(), filteredNodeAllocationStatsAndWeights);
+        desiredBalanceMetrics.updateMetrics(
+            allocationStats,
+            desiredBalance.weightsPerNode(),
+            filteredNodeAllocationStatsAndWeights,
+            desiredBalanceStats
+        );
     }
 
     public DesiredBalanceStats getStats() {
@@ -544,5 +560,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     // Visible for testing
     Set<String> getProcessedNodeShutdowns() {
         return Set.copyOf(processedNodeShutdowns);
+    }
+
+    // Visible for testing
+    public DesiredBalanceReconciler getReconciler() {
+        return desiredBalanceReconciler;
     }
 }

@@ -52,7 +52,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -60,8 +59,8 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -88,42 +87,45 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntConsumer;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.io.Streams.readFully;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomFiniteRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_CONNECTIONS_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettingsTests.DEFAULT_REGION_UNAVAILABLE;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
  */
 @SuppressForbidden(reason = "use a http server")
+@TestLogging(
+    value = "org.elasticsearch.entitlement.runtime.policy.PolicyManager.repository-s3.ALL-UNNAMED.software.amazon.awssdk.profiles:ERROR",
+    reason = "reduce WARN spam from ~/.aws/credentials"
+)
 public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
 
     private static final int MAX_NUMBER_SNAPSHOT_DELETE_RETRIES = 10;
@@ -142,7 +144,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             DEFAULT_REGION_UNAVAILABLE
         ) {
             private InetAddress[] resolveHost(String host) throws UnknownHostException {
-                assertEquals("127.0.0.1", host);
+                assertTrue(InetAddress.getByName(host).isLoopbackAddress());
                 if (shouldErrorOnDns && randomBoolean() && randomBoolean()) {
                     throw new UnknownHostException(host);
                 }
@@ -197,6 +199,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     protected BlobContainer createBlobContainer(
         final @Nullable Integer maxRetries,
         final @Nullable TimeValue readTimeout,
+        final @Nullable TimeValue requestTimeout,
         final @Nullable Boolean disableChunkedEncoding,
         final @Nullable Integer maxConnections,
         final @Nullable ByteSizeValue bufferSize,
@@ -207,7 +210,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
         final InetSocketAddress address = httpServer.getAddress();
-        final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        String host = InetAddresses.toUriString(address.getAddress());
+        final String endpoint = "http://" + host + ":" + address.getPort();
         logger.info("--> creating client with endpoint [{}]", endpoint);
         clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
 
@@ -250,7 +254,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             "bucket",
             S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
             bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
-            S3Repository.MAX_COPY_SIZE_BEFORE_MULTIPART.getDefault(Settings.EMPTY),
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
             S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getDefault(Settings.EMPTY) == Boolean.FALSE,
@@ -504,7 +507,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final int nbErrors = 2; // we want all requests to fail at least once
         final CountDown countDownInitiate = new CountDown(nbErrors);
         final AtomicInteger counterUploads = new AtomicInteger(0);
-        final AtomicLong bytesReceived = new AtomicLong(0L);
+        final ConcurrentHashMap<String, Integer> bytesReceivedByPart = new ConcurrentHashMap<>();
         final CountDown countDownComplete = new CountDown(nbErrors);
 
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob_streaming"), exchange -> {
@@ -532,7 +535,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 BytesReference bytes = Streams.readFully(exchange.getRequestBody());
 
                 if (counterUploads.incrementAndGet() % 2 == 0) {
-                    bytesReceived.addAndGet(bytes.length());
+                    bytesReceivedByPart.computeIfAbsent(s3Request.getQueryParamOnce("partNumber"), ignored -> bytes.length());
                     exchange.getResponseHeaders().add("ETag", S3HttpHandler.getEtagFromContents(bytes));
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                     exchange.close();
@@ -595,14 +598,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
 
-        assertEquals(blobSize, bytesReceived.get());
+        final long totalBytesReceived = bytesReceivedByPart.values().stream().mapToLong(Integer::longValue).sum();
+        assertEquals(blobSize, totalBytesReceived);
     }
 
     public void testMaxConnections() throws InterruptedException, IOException {
         final CountDownLatch requestReceived = new CountDownLatch(1);
         final CountDownLatch releaseRequest = new CountDownLatch(1);
         int maxConnections = 1;
-        final BlobContainer blobContainer = createBlobContainer(null, null, null, maxConnections, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(null, null, null, null, maxConnections, null, null, null);
 
         // Setting up a simple request handler that returns NOT_FOUND, so as to avoid setting up a response.
         @SuppressForbidden(reason = "use a http server")
@@ -1270,7 +1274,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final var denyAccessAfterAttempt = between(1, 5);
         logger.info("--> maxRetries = {}, denyAccessAfterAttempt = {}", maxRetries, denyAccessAfterAttempt);
         final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
-        final var statefulBlobContainer = createBlobContainer(maxRetries, null, null, null, null, null, blobContainerPath);
+        final var statefulBlobContainer = createBlobContainer(maxRetries, null, null, null, null, null, null, blobContainerPath);
         final var requestCount = new AtomicInteger();
         final var invalidAccessKeyIdResponseCount = new AtomicInteger();
         final var accessDeniedResponseCount = new AtomicInteger();
@@ -1333,7 +1337,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         );
         service.start();
         recordingMeterRegistry = new RecordingMeterRegistry();
-        final var statelessBlobContainer = createBlobContainer(maxRetries, null, null, null, null, null, blobContainerPath);
+        final var statelessBlobContainer = createBlobContainer(maxRetries, null, null, null, null, null, null, blobContainerPath);
 
         assertThat(
             ExceptionsHelper.unwrap(
@@ -1352,7 +1356,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     public void testUploadNotFoundInCompareAndExchange() {
         final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
-        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, blobContainerPath);
+        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, null, blobContainerPath);
 
         @SuppressForbidden(reason = "use a http server")
         class RejectsUploadPartRequests extends S3HttpHandler {
@@ -1389,7 +1393,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     public void testCompareAndExchangeWithConcurrentPutObject() throws Exception {
         final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
-        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, blobContainerPath);
+        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, null, blobContainerPath);
 
         final var objectContentsRequestedLatch = new CountDownLatch(1);
 
@@ -1463,7 +1467,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         // The blob needs to be large enough that it won't be entirely buffered on the first request
         final int enoughBytesToNotBeEntirelyBuffered = Math.toIntExact(ByteSizeValue.ofMb(30).getBytes());
 
-        final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null);
+        final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null, null);
 
         final String key = randomIdentifier();
         byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
@@ -1498,22 +1502,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 )
             );
         }
-    }
-
-    @Override
-    protected Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
-        // some attempts make meaningful progress and do not count towards the max retry limit
-        return allOf(greaterThanOrEqualTo(maxRetries), lessThanOrEqualTo(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS));
-    }
-
-    @Override
-    protected OperationPurpose randomRetryingPurpose() {
-        return BlobStoreTestUtil.randomRetryingPurpose();
-    }
-
-    @Override
-    protected OperationPurpose randomFiniteRetryingPurpose() {
-        return BlobStoreTestUtil.randomFiniteRetryingPurpose();
     }
 
     private void assertMetricsForOpeningStream() {
@@ -1567,24 +1555,35 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private List<Measurement> getRetryStartedMeasurements() {
         return Measurement.combine(
             recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, S3RepositoriesMetrics.METRIC_RETRY_EVENT_TOTAL)
+                .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_EVENT_TOTAL)
         );
     }
 
     private List<Measurement> getRetryCompletedMeasurements() {
         return Measurement.combine(
             recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, S3RepositoriesMetrics.METRIC_RETRY_SUCCESS_TOTAL)
+                .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_SUCCESS_TOTAL)
         );
     }
 
     private List<Measurement> getRetryHistogramMeasurements() {
         return recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, S3RepositoriesMetrics.METRIC_RETRY_ATTEMPTS_HISTOGRAM);
+            .getMeasurements(InstrumentType.LONG_HISTOGRAM, RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_ATTEMPTS_HISTOGRAM);
     }
 
     private Map<String, Object> metricAttributes(String action) {
-        return Map.of("repo_type", "s3", "repo_name", "repository", "operation", "GetObject", "purpose", "Indices", "action", action);
+        return Map.of(
+            "repo_type",
+            "s3",
+            "repo_name",
+            "repository",
+            "operation",
+            "GetObject",
+            "purpose",
+            "Indices",
+            "es_retry_action",
+            action
+        );
     }
 
     private static boolean isMultiDeleteRequest(HttpExchange exchange) {

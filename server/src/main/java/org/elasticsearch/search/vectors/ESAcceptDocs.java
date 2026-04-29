@@ -27,10 +27,10 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IOSupplier;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -40,6 +40,14 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  */
 public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
+    private final int sliceOrd;
+    private final IOSupplier<SliceAcceptDocs> sliceAcceptDocsSupplier;
+
+    protected ESAcceptDocs(int sliceOrd, IOSupplier<SliceAcceptDocs> sliceAcceptDocsSupplier) {
+        this.sliceOrd = sliceOrd;
+        this.sliceAcceptDocsSupplier = sliceAcceptDocsSupplier;
+    }
+
     /** Returns an approximate cost of the accepted documents.
      * This is generally much cheaper than {@link #cost()}, as implementations may
      * not fully evaluate filters to provide this estimate and may ignore deletions
@@ -48,17 +56,15 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
      */
     public abstract int approximateCost() throws IOException;
 
-    /**
-     * Returns an optional BitSet representing the accepted documents.
-     * If a BitSet representation is not available, returns an empty Optional. An empty optional indicates that
-     * there are some accepted documents, but they cannot be represented as a BitSet efficiently.
-     * Null implies that all documents are accepted.
-     * @return an Optional containing the BitSet of accepted documents, or empty if not available, or null if all documents are accepted
-     * @throws IOException if an I/O error occurs
-     */
-    public abstract Optional<BitSet> getBitSet() throws IOException;
+    public final int sliceOrd() {
+        return sliceOrd;
+    }
 
-    private static BitSet createBitSet(DocIdSetIterator iterator, Bits liveDocs, int maxDoc) throws IOException {
+    public final SliceAcceptDocs sliceAcceptDocs() throws IOException {
+        return sliceAcceptDocsSupplier.get();
+    }
+
+    protected static BitSet createBitSet(DocIdSetIterator iterator, Bits liveDocs, int maxDoc) throws IOException {
         if (liveDocs == null && iterator instanceof BitSetIterator bitSetIterator) {
             // If we already have a BitSet and no deletions, reuse the BitSet
             return bitSetIterator.getBitSet();
@@ -82,20 +88,22 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
     }
 
+    public record SliceAcceptDocs(int startDoc, int endDoc) {}
+
     /** An AcceptDocs that accepts all documents. */
     public static final class ESAcceptDocsAll extends ESAcceptDocs {
-        public static final ESAcceptDocsAll INSTANCE = new ESAcceptDocsAll();
 
-        private ESAcceptDocsAll() {}
+        public ESAcceptDocsAll() {
+            this(-1, null);
+        }
+
+        public ESAcceptDocsAll(int sliceOrd, IOSupplier<SliceAcceptDocs> sliceAcceptDocsSupplier) {
+            super(sliceOrd, sliceAcceptDocsSupplier);
+        }
 
         @Override
         public int approximateCost() throws IOException {
             return 0;
-        }
-
-        @Override
-        public Optional<BitSet> getBitSet() throws IOException {
-            return null;
         }
 
         @Override
@@ -121,7 +129,12 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         private final int maxDoc;
         private final int approximateCost;
 
-        BitsAcceptDocs(Bits bits, int maxDoc) {
+        public BitsAcceptDocs(Bits bits, int maxDoc) {
+            this(bits, maxDoc, -1, null);
+        }
+
+        public BitsAcceptDocs(Bits bits, int maxDoc, int sliceOrd, IOSupplier<SliceAcceptDocs> sliceAcceptDocsSupplier) {
+            super(sliceOrd, sliceAcceptDocsSupplier);
             if (bits != null && bits.length() != maxDoc) {
                 throw new IllegalArgumentException("Bits length = " + bits.length() + " != maxDoc = " + maxDoc);
             }
@@ -166,14 +179,6 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         public int approximateCost() {
             return approximateCost;
         }
-
-        @Override
-        public Optional<BitSet> getBitSet() {
-            if (bits == null) {
-                return null;
-            }
-            return Optional.ofNullable(bitSetRef);
-        }
     }
 
     /** An AcceptDocs that wraps a ScorerSupplier. Indicates that a filter was provided. */
@@ -184,7 +189,18 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         private final int maxDoc;
         private int cardinality = -1;
 
-        ScorerSupplierAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs, int maxDoc) {
+        public ScorerSupplierAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs, int maxDoc) {
+            this(scorerSupplier, liveDocs, maxDoc, -1, null);
+        }
+
+        public ScorerSupplierAcceptDocs(
+            ScorerSupplier scorerSupplier,
+            Bits liveDocs,
+            int maxDoc,
+            int sliceOrd,
+            IOSupplier<SliceAcceptDocs> sliceAcceptDocsSupplier
+        ) {
+            super(sliceOrd, sliceAcceptDocsSupplier);
             this.scorerSupplier = scorerSupplier;
             this.liveDocs = liveDocs;
             this.maxDoc = maxDoc;
@@ -232,12 +248,6 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
                 return cardinality != -1 ? cardinality : acceptBitSet.approximateCardinality();
             }
             return Math.toIntExact(scorerSupplier.cost());
-        }
-
-        @Override
-        public Optional<BitSet> getBitSet() throws IOException {
-            createBitSetIfNecessary();
-            return Optional.of(acceptBitSet);
         }
     }
 }

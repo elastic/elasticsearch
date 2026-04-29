@@ -17,17 +17,33 @@ import java.util.Objects;
  * has been specified using the {@code es.total_memory_bytes} system property, or
  * else returns the value provided by a fallback provider.
  */
-public final class OverridableSystemMemoryInfo extends JvmArgumentParsingSystemMemoryInfo {
+public final class OverridableSystemMemoryInfo implements SystemMemoryInfo {
 
+    private final List<String> userDefinedJvmOptions;
     private final SystemMemoryInfo fallbackSystemMemoryInfo;
 
     public OverridableSystemMemoryInfo(final List<String> userDefinedJvmOptions, SystemMemoryInfo fallbackSystemMemoryInfo) {
-        super(userDefinedJvmOptions);
+        this.userDefinedJvmOptions = Objects.requireNonNull(userDefinedJvmOptions);
         this.fallbackSystemMemoryInfo = Objects.requireNonNull(fallbackSystemMemoryInfo);
     }
 
     @Override
     public long availableSystemMemory() {
-        return getBytesFromSystemProperty("es.total_memory_bytes", fallbackSystemMemoryInfo.availableSystemMemory());
+
+        return userDefinedJvmOptions.stream()
+            .filter(option -> option.startsWith("-Des.total_memory_bytes="))
+            .map(totalMemoryBytesOption -> {
+                try {
+                    long bytes = Long.parseLong(totalMemoryBytesOption.split("=", 2)[1]);
+                    if (bytes < 0) {
+                        throw new IllegalArgumentException("Negative memory size specified in [" + totalMemoryBytesOption + "]");
+                    }
+                    return bytes;
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Unable to parse number of bytes from [" + totalMemoryBytesOption + "]", e);
+                }
+            })
+            .reduce((previous, current) -> current) // this is effectively findLast(), so that ES_JAVA_OPTS overrides jvm.options
+            .orElse(fallbackSystemMemoryInfo.availableSystemMemory());
     }
 }

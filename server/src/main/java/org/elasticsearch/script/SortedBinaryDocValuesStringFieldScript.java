@@ -11,6 +11,8 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.OnScriptError;
@@ -23,10 +25,19 @@ public class SortedBinaryDocValuesStringFieldScript extends StringFieldScript {
     private final SortedBinaryDocValues sortedBinaryDocValues;
     boolean hasValue = false;
 
-    public SortedBinaryDocValuesStringFieldScript(String fieldName, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public SortedBinaryDocValuesStringFieldScript(
+        String fieldName,
+        SearchLookup searchLookup,
+        LeafReaderContext ctx,
+        IndexVersion indexVersion
+    ) {
         super(fieldName, Map.of(), searchLookup, OnScriptError.FAIL, ctx);
         try {
-            sortedBinaryDocValues = MultiValuedSortedBinaryDocValues.from(ctx.reader(), fieldName);
+            // Pre-DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES indices may use the deprecated IntegratedCounts format, which
+            // fromMultiValued() handles as a fallback when the .counts field is absent.
+            sortedBinaryDocValues = indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)
+                ? MultiValuedSortedBinaryDocValues.from(ctx.reader(), fieldName)
+                : MultiValuedSortedBinaryDocValues.fromMultiValued(ctx.reader(), fieldName);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

@@ -211,8 +211,7 @@ public class ClusterStateChanges {
                 MapperService mapperService = mock(MapperService.class);
                 when(indexService.mapperService()).thenReturn(mapperService);
                 when(mapperService.documentMapper()).thenReturn(null);
-                when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {
-                });
+                when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
                 when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
                 return ((CheckedFunction<IndexService, ?, ?>) invocationOnMock.getArguments()[1]).apply(indexService);
             });

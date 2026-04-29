@@ -87,12 +87,14 @@ public class AggregatorProcessor implements Processor {
             );
             if (aggClass.getAnnotation(Aggregator.class) != null) {
                 IntermediateState[] intermediateState = aggClass.getAnnotation(Aggregator.class).value();
+                boolean processNulls = aggClass.getAnnotation(Aggregator.class).processNulls();
                 implementer = new AggregatorImplementer(
                     env.getElementUtils(),
                     env.getTypeUtils(),
                     aggClass,
                     intermediateState,
-                    warnExceptionsTypes
+                    warnExceptionsTypes,
+                    processNulls
                 );
                 write(aggClass, "aggregator", implementer.sourceFile(), env);
             }
@@ -102,12 +104,14 @@ public class AggregatorProcessor implements Processor {
                 if (intermediateState.length == 0 && aggClass.getAnnotation(Aggregator.class) != null) {
                     intermediateState = aggClass.getAnnotation(Aggregator.class).value();
                 }
+                boolean processNulls = aggClass.getAnnotation(GroupingAggregator.class).processNulls();
                 groupingAggregatorImplementer = new GroupingAggregatorImplementer(
                     env.getElementUtils(),
                     env.getTypeUtils(),
                     aggClass,
                     intermediateState,
-                    warnExceptionsTypes
+                    warnExceptionsTypes,
+                    processNulls
                 );
                 write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);
             }

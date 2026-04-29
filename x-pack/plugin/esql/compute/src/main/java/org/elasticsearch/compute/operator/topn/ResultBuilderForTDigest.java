@@ -22,7 +22,7 @@ public class ResultBuilderForTDigest implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         throw new AssertionError("TDigest can't be a key");
     }
 
@@ -41,6 +41,11 @@ public class ResultBuilderForTDigest implements ResultBuilder {
     @Override
     public Block build() {
         return builder.build();
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
     }
 
     @Override

@@ -73,9 +73,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new NvidiaEmbeddingsServiceSettings(
             commonServiceSettings.model(),
@@ -192,7 +190,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalVInt(dimensions);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(maxInputTokens);
     }
 

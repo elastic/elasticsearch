@@ -20,6 +20,8 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -43,22 +45,34 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.time.Clock;
@@ -66,6 +80,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
@@ -93,6 +108,7 @@ public class MlDailyMaintenanceService implements Releasable {
     private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
+    private final AnomalyDetectionAuditor auditor;
     private final MlAssignmentNotifier mlAssignmentNotifier;
 
     /**
@@ -111,12 +127,14 @@ public class MlDailyMaintenanceService implements Releasable {
     private volatile Scheduler.Cancellable cancellable;
     private volatile float deleteExpiredDataRequestsPerSecond;
     private volatile ByteSizeValue rolloverMaxSize;
+    private volatile TimeValue idleJobAutoCloseTimeout;
 
     MlDailyMaintenanceService(
         Settings settings,
         ThreadPool threadPool,
         Client client,
         ClusterService clusterService,
+        AnomalyDetectionAuditor auditor,
         MlAssignmentNotifier mlAssignmentNotifier,
         Supplier<TimeValue> schedulerProvider,
         IndexNameExpressionResolver expressionResolver,
@@ -128,11 +146,13 @@ public class MlDailyMaintenanceService implements Releasable {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.auditor = auditor;
         this.mlAssignmentNotifier = Objects.requireNonNull(mlAssignmentNotifier);
         this.schedulerProvider = Objects.requireNonNull(schedulerProvider);
         this.expressionResolver = Objects.requireNonNull(expressionResolver);
         this.deleteExpiredDataRequestsPerSecond = MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND.get(settings);
         this.rolloverMaxSize = MachineLearning.RESULTS_INDEX_ROLLOVER_MAX_SIZE.get(settings);
+        this.idleJobAutoCloseTimeout = MachineLearning.IDLE_JOB_AUTO_CLOSE_TIMEOUT.get(settings);
         this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
         this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
         this.isNlpEnabled = isNlpEnabled;
@@ -145,6 +165,7 @@ public class MlDailyMaintenanceService implements Releasable {
         ThreadPool threadPool,
         Client client,
         ClusterService clusterService,
+        AnomalyDetectionAuditor auditor,
         MlAssignmentNotifier mlAssignmentNotifier,
         IndexNameExpressionResolver expressionResolver,
         boolean isAnomalyDetectionEnabled,
@@ -157,6 +178,7 @@ public class MlDailyMaintenanceService implements Releasable {
             threadPool,
             client,
             clusterService,
+            auditor,
             mlAssignmentNotifier,
             () -> delayToNextTime(clusterName),
             expressionResolver,
@@ -179,6 +201,10 @@ public class MlDailyMaintenanceService implements Releasable {
      */
     public void setRolloverMaxSize(ByteSizeValue value) {
         this.rolloverMaxSize = value;
+    }
+
+    public void setIdleJobAutoCloseTimeout(TimeValue value) {
+        this.idleJobAutoCloseTimeout = value;
     }
 
     /**
@@ -270,22 +296,27 @@ public class MlDailyMaintenanceService implements Releasable {
             e -> logger.warn("An error occurred during [ML] maintenance tasks execution", e)
         );
 
-        // Step 5: Roll over state indices
+        // Step 6: Roll over state indices
         Runnable rollStateIndices = () -> triggerRollStateIndicesIfNecessaryTask(finalListener);
 
-        // Step 4: Roll over results indices
+        // Step 5: Roll over results indices
         Runnable rollResultsIndices = () -> triggerRollResultsIndicesIfNecessaryTask(
             continueOnFailureListener("roll-state-indices", rollStateIndices)
         );
 
-        // Step 3: Delete expired data
+        // Step 4: Delete expired data
         Runnable deleteExpiredData = () -> triggerDeleteExpiredDataTask(
             continueOnFailureListener("roll-results-indices", rollResultsIndices)
         );
 
+        // Step 3: Close idle jobs with stopped datafeeds
+        Runnable closeIdleJobs = () -> triggerCloseIdleJobsWithStoppedDatafeeds(
+            continueOnFailureListener("delete-expired-data", deleteExpiredData)
+        );
+
         // Step 2: Reset jobs that are in resetting state without a task
         Runnable resetJobs = () -> triggerResetJobsInStateResetWithoutResetTask(
-            continueOnFailureListener("delete-expired-data", deleteExpiredData)
+            continueOnFailureListener("close-idle-jobs", closeIdleJobs)
         );
 
         // Step 1: Delete jobs that are in deleting state without a task
@@ -631,6 +662,183 @@ public class MlDailyMaintenanceService implements Releasable {
         }, finalListener::onFailure);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, new GetJobsAction.Request("*"), getJobsActionListener);
+    }
+
+    /**
+     * Computes the set of open job IDs that do not have a running datafeed task, based purely
+     * on cluster state. Returns an empty set if there are no persistent tasks or no open jobs
+     * without datafeeds.
+     */
+    static Set<String> collectOpenJobsWithoutRunningDatafeeds(ClusterState state) {
+        ProjectMetadata project = state.getMetadata().getProject();
+        PersistentTasksCustomMetadata tasks = project.custom(PersistentTasksCustomMetadata.TYPE);
+        if (tasks == null) {
+            return Set.of();
+        }
+
+        Set<String> jobsWithRunningDatafeeds = tasks.tasks()
+            .stream()
+            .filter(t -> MlTasks.DATAFEED_TASK_NAME.equals(t.getTaskName()))
+            .map(t -> ((StartDatafeedAction.DatafeedParams) t.getParams()).getJobId())
+            .filter(Objects::nonNull)
+            .collect(toSet());
+
+        Set<String> openJobIds = tasks.tasks().stream().filter(t -> MlTasks.JOB_TASK_NAME.equals(t.getTaskName())).filter(t -> {
+            JobTaskState taskState = (JobTaskState) t.getState();
+            return taskState != null && taskState.getState() == JobState.OPENED;
+        }).map(t -> t.getId().substring(MlTasks.JOB_TASK_ID_PREFIX.length())).collect(toSet());
+
+        return Sets.difference(openJobIds, jobsWithRunningDatafeeds);
+    }
+
+    /**
+     * Closes anomaly detection jobs that have a configured datafeed which is stopped and have
+     * not received any data within the configured idle timeout. Jobs without a configured
+     * datafeed (e.g. those fed via the POST data API) are not affected. Disabled when the
+     * timeout is set to {@code -1}.
+     */
+    // Visible for testing
+    public void triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener<AcknowledgedResponse> finalListener) {
+        TimeValue timeout = idleJobAutoCloseTimeout;
+        if (timeout.millis() < 0) {
+            logger.debug("[ML] idle job auto-close is disabled");
+            finalListener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
+
+        Set<String> openJobsWithoutRunningDatafeeds = collectOpenJobsWithoutRunningDatafeeds(clusterService.state());
+        if (openJobsWithoutRunningDatafeeds.isEmpty()) {
+            finalListener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
+
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            GetDatafeedsAction.INSTANCE,
+            new GetDatafeedsAction.Request("*"),
+            finalListener.delegateFailureAndWrap((delegate, getDatafeedsResponse) -> {
+                Set<String> jobsWithConfiguredDatafeeds = getDatafeedsResponse.getResponse()
+                    .results()
+                    .stream()
+                    .map(DatafeedConfig.class::cast)
+                    .map(DatafeedConfig::getJobId)
+                    .collect(toSet());
+
+                Set<String> candidateJobIds = Sets.intersection(openJobsWithoutRunningDatafeeds, jobsWithConfiguredDatafeeds);
+                if (candidateJobIds.isEmpty()) {
+                    logger.debug("[ML] no open jobs with stopped datafeeds found");
+                    delegate.onResponse(AcknowledgedResponse.TRUE);
+                    return;
+                }
+
+                logger.info("[ML] checking {} open job(s) with stopped datafeeds for idle auto-close", candidateJobIds.size());
+                closeIdleJobs(candidateJobIds, timeout, delegate);
+            })
+        );
+    }
+
+    private void closeIdleJobs(Set<String> candidateJobIds, TimeValue timeout, ActionListener<AcknowledgedResponse> finalListener) {
+        long cutoffMillis = threadPool.absoluteTimeInMillis() - timeout.millis();
+
+        TypedChainTaskExecutor<Tuple<String, Boolean>> chainTaskExecutor = new TypedChainTaskExecutor<>(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            Predicates.always(),
+            Predicates.never()
+        );
+
+        for (String jobId : candidateJobIds) {
+            chainTaskExecutor.add(listener -> checkAndCloseIdleJob(jobId, cutoffMillis, listener));
+        }
+
+        chainTaskExecutor.execute(finalListener.delegateFailureAndWrap((delegate, results) -> {
+            long closedCount = results.stream().filter(Tuple::v2).count();
+            if (closedCount > 0) {
+                logger.info("[ML] auto-closed {} idle job(s) with stopped datafeeds", closedCount);
+            } else {
+                logger.debug("[ML] no idle jobs qualified for auto-close");
+            }
+            delegate.onResponse(AcknowledgedResponse.TRUE);
+        }));
+    }
+
+    private void checkAndCloseIdleJob(String jobId, long cutoffMillis, ActionListener<Tuple<String, Boolean>> listener) {
+        ActionListener<Tuple<String, Boolean>> safeListener = ActionListener.wrap(listener::onResponse, e -> {
+            logger.warn("[{}] failed to check/close idle job, skipping", jobId, e);
+            listener.onResponse(Tuple.tuple(jobId, false));
+        });
+
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        SearchRequest searchRequest = new SearchRequest(indexName).source(
+            new SearchSourceBuilder().size(1)
+                .query(new IdsQueryBuilder().addIds(DataCounts.documentId(jobId)))
+                .fetchSource(new String[] { DataCounts.LATEST_RECORD_TIME.getPreferredName() }, null)
+                .sort(DataCounts.LOG_TIME.getPreferredName(), SortOrder.DESC)
+                .sort(DataCounts.LATEST_RECORD_TIME.getPreferredName(), SortOrder.DESC)
+        ).indicesOptions(IndicesOptions.lenientExpandOpen());
+
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportSearchAction.TYPE,
+            searchRequest,
+            safeListener.delegateFailureAndWrap((l, sr) -> {
+                if (sr.getHits().getHits().length == 0) {
+                    logger.debug("[{}] no data_counts document found, skipping auto-close", jobId);
+                    l.onResponse(Tuple.tuple(jobId, false));
+                    return;
+                }
+
+                Map<String, Object> source = sr.getHits().getHits()[0].getSourceAsMap();
+                Object latestRecordTime = source.get(DataCounts.LATEST_RECORD_TIME.getPreferredName());
+                if (latestRecordTime == null) {
+                    logger.debug("[{}] no latest_record_timestamp in data_counts, skipping auto-close", jobId);
+                    l.onResponse(Tuple.tuple(jobId, false));
+                    return;
+                }
+
+                long latestRecordMillis;
+                if (latestRecordTime instanceof Number n) {
+                    latestRecordMillis = n.longValue();
+                } else {
+                    logger.debug("[{}] unexpected latest_record_timestamp type: {}", jobId, latestRecordTime.getClass());
+                    l.onResponse(Tuple.tuple(jobId, false));
+                    return;
+                }
+
+                if (latestRecordMillis < cutoffMillis) {
+                    closeIdleJob(jobId, l);
+                } else {
+                    logger.debug("[{}] job received data recently, skipping auto-close", jobId);
+                    l.onResponse(Tuple.tuple(jobId, false));
+                }
+            })
+        );
+    }
+
+    private void closeIdleJob(String jobId, ActionListener<Tuple<String, Boolean>> listener) {
+        TimeValue timeout = idleJobAutoCloseTimeout;
+        logger.info("[{}] closing idle job: datafeed stopped and no data received within [{}]", jobId, timeout);
+
+        CloseJobAction.Request closeRequest = new CloseJobAction.Request(jobId);
+        closeRequest.setTimeout(TimeValue.timeValueMinutes(5));
+        executeAsyncWithOrigin(client, ML_ORIGIN, CloseJobAction.INSTANCE, closeRequest, listener.delegateFailureAndWrap((l, response) -> {
+            if (response.isClosed()) {
+                auditIdleJobClosed(jobId, timeout);
+                logger.info("[{}] successfully auto-closed idle job", jobId);
+            } else {
+                logger.warn("[{}] close request for idle job was not acknowledged", jobId);
+            }
+            l.onResponse(Tuple.tuple(jobId, response.isClosed()));
+        }));
+    }
+
+    private void auditIdleJobClosed(String jobId, TimeValue timeout) {
+        try {
+            auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_IDLE_JOB_CLOSED, timeout));
+        } catch (Exception e) {
+            logger.warn(() -> "[" + jobId + "] failed to write audit message for idle job auto-close", e);
+        }
     }
 
     /**

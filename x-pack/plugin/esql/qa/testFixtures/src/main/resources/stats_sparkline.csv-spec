@@ -1,0 +1,176 @@
+sparklineWithCountAll
+required_capability: fn_sparkline
+// tag::sparkline[]
+FROM employees
+| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+// end::sparkline[]
+;
+
+// tag::sparkline-result[]
+sparkline:long
+[0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0]
+// end::sparkline-result[]
+;
+
+sparklineWithIntegerAggregate
+required_capability: fn_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(MAX(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:integer
+[0, 66174, 0, 0, 44817, 0, 62405, 0, 49095, 54329, 74999, 0]
+;
+
+sparklineWithLongAggregate
+required_capability: fn_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(SUM(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:long
+[0, 92610, 0, 0, 44817, 0, 62405, 0, 49095, 103064, 218159, 0]
+;
+
+sparklineWithGrouping
+required_capability: fn_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z") BY gender
+| SORT gender
+;
+
+sparkline:long                         | gender:keyword
+[0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0] | F
+[0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0] | M
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0] | null
+;
+
+sparklineWithInlineFilter
+required_capability: fn_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z") WHERE gender == "M"
+;
+
+sparkline:long
+[0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0, 0]
+;
+
+sparklineInInlineStats
+required_capability: fn_sparkline
+FROM employees
+| INLINE STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+| KEEP sparkline, emp_no
+| SORT emp_no ASC
+| LIMIT 3
+;
+
+sparkline:long | emp_no:integer
+[0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0] | 10001
+[0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0] | 10002
+[0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0] | 10003
+;
+
+sparklineWithMultipleSparklines
+required_capability: fn_sparkline
+FROM employees
+| STATS s1 = SPARKLINE(MAX(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+        s2 = SPARKLINE(MIN(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+s1:integer                                                      | s2:integer
+[0, 66174, 0, 0, 44817, 0, 62405, 0, 49095, 54329, 74999, 0]  | [0, 26436, 0, 0, 44817, 0, 62405, 0, 49095, 48735, 33956, 0]
+;
+
+sparklineWithSparklinesInMultipleStatsCalls
+required_capability: fn_sparkline
+FROM employees
+| STATS min_salary = MIN(salary), 
+        s1 = SPARKLINE(MAX(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1986-12-31T00:00:00Z") 
+        BY bucket_date = BUCKET(hire_date, 1year)
+| STATS s2 = SPARKLINE(SUM(min_salary), bucket_date, 12, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+s2:long
+[26436, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+;
+
+sparklineWithNonSparklineAggregates
+required_capability: fn_sparkline
+FROM employees
+| STATS s = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+        c = COUNT(*),
+        m = MAX(salary)
+;
+
+s:long                                 | c:long | m:integer
+[0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0]   | 100    | 74999
+;
+
+sparklineWithNonSparklineAggregatesAndGrouping
+required_capability: fn_sparkline
+FROM employees
+| STATS s = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+        c = COUNT(*),
+        m = MAX(salary) BY gender
+| SORT gender
+;
+
+s:long                                 | c:long | m:integer | gender:keyword
+[0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0]   | 33     | 74572     | F
+[0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0]   | 57     | 74999     | M
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]   | 10     | 73717     | null
+;
+
+sparklineEmptyNoRows
+required_capability: fn_sparkline
+FROM employees
+| WHERE hire_date < "1900-01-01T00:00:00Z"
+| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:long
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+;
+
+sparklineAfterInlineStats
+required_capability: fn_sparkline
+FROM employees
+| INLINE STATS avg_height = AVG(height) BY gender
+| EVAL tall = height > avg_height
+| STATS s1=SPARKLINE(AVG(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z") WHERE tall,
+         s2=SPARKLINE(AVG(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z") WHERE NOT tall
+;
+
+s1:double                               | s2:double
+[0.0, 46305.0, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 51532.0, 54539.75, 31897.0, 0.0] | [0.0, 49095.0, 0.0, 0.0, 54462.0, 0.0, 32263.0, 0.0, 37702.0, 43602.0, 32272.0, 0.0]
+;
+
+sparklineComplexWithGrouping
+required_capability: fn_sparkline_complex
+FROM employees
+| STATS name_length = SPARKLINE(AVG(LENGTH(first_name)::DOUBLE), hire_date, 8, "1985-01-01T00:00:00Z", "1999-12-31T00:00:00Z"),
+          silly_sin = SPARKLINE(MAX(SIN(emp_no + 12))          , hire_date, 8, "1985-01-01T00:00:00Z", "1999-12-31T00:00:00Z")
+     BY gender
+| SORT gender
+;
+
+name_length:double                                                                                                                    | silly_sin:double                                                                                                                                                                                                                                  | gender:keyword
+[7.0, 7.25, 6.0, 7.333333333333333, 6.125, 7.0, 9.0, 4.5, 4.5, 7.0, 0.0, 0.0, 7.0, 0.0, 0.0]                                          | [0.3474410387926566, 0.9392303171452907, 0.7080633732181456, 0.9767720779155781, 0.6838777683583536, 0.9965396834497365, -0.8111100013828146, 0.9987737948222514, 0.7855030103579055, 0.2358412446491156, 0.0, 0.0, 0.9834351042369986, 0.0, 0.0] | F
+[5.0, 6.285714285714286, 6.857142857142857, 5.666666666666667, 5.666666666666667, 5.857142857142857, 6.0, 6.75, 0.0, 6.5, 6.25, 7.0, 0.0, 0.0, 0.0] | [0.9336232396810002, 0.8059011528037987, 0.9800723473517968, 0.18561118578230287, 0.999493658326963, 0.945160000165055, 0.8855330099400073, 0.9728258415816549, 0.0, 0.9949121795773727, 0.33078747019624394, 0.9977409328844171, 0.0, 0.0, 0.0]  | M
+[9.0, 0.0, 7.0, 0.0, 9.0, 4.0, 0.0, 8.0, 9.0, 0.0, 8.0, 0.0, 0.0, 0.0, 7.0]                                                           | [-0.17690641225790246, 0.0, 0.8936181522971705, 0.0, 0.31403023852776757, 0.9685747384543749, 0.0, 0.7326160906572906, 0.8604997102011178, 0.0, 0.03624180294388945, 0.0, 0.0, 0.0, 0.10514818630245748]                                          | null
+;
+
+sparklineComplexWithGroupingMapped-Ignore
+required_capability: fn_sparkline_complex
+FROM employees
+| STATS name_length = TO_STRING(SPARKLINE(AVG(LENGTH(first_name)::DOUBLE), hire_date, 8, "1985-01-01T00:00:00Z", "1999-12-31T00:00:00Z")),
+          silly_sin = TO_STRING(SPARKLINE(MAX(SIN(emp_no + 12))          , hire_date, 8, "1985-01-01T00:00:00Z", "1999-12-31T00:00:00Z"))
+     BY gender
+| SORT gender
+;
+
+name_length:double                                                                                                                    | silly_sin:double                                                                                                                                                                                                                                  | gender:keyword
+[7.0, 7.25, 6.0, 7.333333333333333, 6.125, 7.0, 9.0, 4.5, 4.5, 7.0, 0.0, 0.0, 7.0, 0.0, 0.0]                                          | [0.3474410387926566, 0.9392303171452907, 0.7080633732181456, 0.9767720779155781, 0.6838777683583536, 0.9965396834497365, -0.8111100013828146, 0.9987737948222514, 0.7855030103579055, 0.2358412446491156, 0.0, 0.0, 0.9834351042369986, 0.0, 0.0] | F
+[5.0, 6.285714285714286, 6.857142857142857, 5.666666666666667, 5.666666666666667, 5.857142857142857, 6.0, 6.75, 0.0, 6.5, 6.25, 7.0, 0.0, 0.0, 0.0] | [0.9336232396810002, 0.8059011528037987, 0.9800723473517968, 0.18561118578230287, 0.999493658326963, 0.945160000165055, 0.8855330099400073, 0.9728258415816549, 0.0, 0.9949121795773727, 0.33078747019624394, 0.9977409328844171, 0.0, 0.0, 0.0]  | M
+[9.0, 0.0, 7.0, 0.0, 9.0, 4.0, 0.0, 8.0, 9.0, 0.0, 8.0, 0.0, 0.0, 0.0, 7.0]                                                           | [-0.17690641225790246, 0.0, 0.8936181522971705, 0.0, 0.31403023852776757, 0.9685747384543749, 0.0, 0.7326160906572906, 0.8604997102011178, 0.0, 0.03624180294388945, 0.0, 0.0, 0.0, 0.10514818630245748]                                          | null
+;

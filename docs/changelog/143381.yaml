@@ -1,0 +1,18 @@
+area: Downsampling
+issues:
+ - 136178
+pr: 143381
+summary: Rate calculation for downsampled counters becomes aware of counter resets when the `aggregate` sampling method is used.
+type: enhancement
+highlight:
+  title: Downsampling preserves the resets of counters when the `aggregate` sampling method is used.
+  body: |-
+    Until {es} `9.3`, both downsampling methods (`aggregate` and `last_value`) used to store only the last value of a counter
+    in the downsampled document. This works great for the `last_value` method where we optimise for storage efficiency, but
+    it is not ideal for the `aggregate` method where we optimise for accuracy.
+
+    In {es} `9.4`, we change the way the (default) `aggregate` sampling method is working. We store the first encountered
+    value for a counter in the downsampled document and then we add auxiliary documents when we detect counter resets.
+    This enables the rate calculation to take the counter resets into account and produce more accurate results. This change
+    is backwards compatible.
+  notable: true

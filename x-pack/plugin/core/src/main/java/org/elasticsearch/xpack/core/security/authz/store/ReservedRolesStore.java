@@ -52,6 +52,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     /** Alerts, Rules, Cases (RAC) index used by multiple solutions */
     public static final String ALERTS_INDEX_ALIAS = ".alerts*";
 
+    /** Alerting V2 - alert events and action indexes used by multiple solutions */
+    public static final String ALERTING_V2_ALERT_INDEX_ALIAS = ".alert*";
+    public static final String ALERTING_V2_RULE_INDEX_ALIAS = ".rule*";
+    public static final String ALERTING_V2_ALERT_VIEWS = "$.alert*";
+    public static final String ALERTING_V2_RULE_VIEWS = "$.rule*";
+
     /** Cases analytics indexes and aliases */
     public static final String CASES_ANALYTICS_INDEXES = ".internal.cases*";
     public static final String CASES_ANALYTICS_ALIASES = ".cases*";

@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
@@ -29,12 +30,12 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -59,6 +60,7 @@ public class AzureHttpHandler implements HttpHandler {
     static final String X_MS_LEASE_BREAK_PERIOD = "x-ms-lease-break-period";
     static final String X_MS_BLOB_TYPE = "x-ms-blob-type";
     static final String X_MS_BLOB_CONTENT_LENGTH = "x-ms-blob-content-length";
+    static final String X_MS_COPY_SOURCE = "x-ms-copy-source";
 
     private final String account;
     private final String container;
@@ -137,8 +139,7 @@ public class AzureHttpHandler implements HttpHandler {
         try {
             if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*blockid=*", request)) {
                 // Put Block (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block)
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
+                final var params = RequestParams.fromQueryString(exchange.getRequestURI().getRawQuery());
 
                 final String blockId = params.get("blockid");
                 assert assertValidBlockId(blockId);
@@ -200,17 +201,32 @@ public class AzureHttpHandler implements HttpHandler {
                 }
             } else if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*", request)) {
                 // PUT Blob (see https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob)
-                final String blobType = requireHeader(exchange, X_MS_BLOB_TYPE);
-                final String ifNoneMatch = exchange.getRequestHeaders().getFirst("If-None-Match");
-                mockAzureBlobStore.putBlob(
-                    blobPath(exchange),
-                    Streams.readFully(exchange.getRequestBody()),
-                    blobType,
-                    ifNoneMatch,
-                    leaseId(exchange)
-                );
-                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
-                exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                final Headers requestHeaders = exchange.getRequestHeaders();
+                final String ifNoneMatch = requestHeaders.getFirst("If-None-Match");
+                BytesReference contents = Streams.readFully(exchange.getRequestBody());
+
+                final String copySourceUrl = requestHeaders.getFirst(X_MS_COPY_SOURCE);
+                if (copySourceUrl != null) {
+                    assert contents.length() == 0;
+                    final String sourceBlobPath = stripPrefix(
+                        "/" + account + "/" + container + "/",
+                        URI.create(RestUtils.decodeComponent(copySourceUrl)).getPath()
+                    );
+                    final MockAzureBlobStore.CopyInfo copyInfo = mockAzureBlobStore.copyBlob(
+                        blobPath(exchange),
+                        sourceBlobPath,
+                        copySourceUrl
+                    );
+                    exchange.getResponseHeaders().add("x-ms-copy-id", copyInfo.copyId());
+                    exchange.getResponseHeaders().add("x-ms-copy-status", "success");
+                    exchange.getResponseHeaders().add("ETag", "\"mock-etag\"");
+                    exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), -1);
+                } else {
+                    String blobType = requireHeader(exchange, X_MS_BLOB_TYPE);
+                    mockAzureBlobStore.putBlob(blobPath(exchange), contents, blobType, ifNoneMatch, leaseId(exchange), null);
+                    exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                }
 
             } else if (Regex.simpleMatch("HEAD /" + account + "/" + container + "/*", request)) {
                 // Get Blob Properties (see https://docs.microsoft.com/en-us/rest/api/storageservices/get-blob-properties)
@@ -221,6 +237,16 @@ public class AzureHttpHandler implements HttpHandler {
                 responseHeaders.add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(blobContents.length()));
                 responseHeaders.add("Content-Length", String.valueOf(blobContents.length()));
                 responseHeaders.add(X_MS_BLOB_TYPE, blob.type());
+
+                final MockAzureBlobStore.CopyInfo copyInfo = blob.copyInfo();
+                if (copyInfo != null) {
+                    // Copy status polling requires these fields
+                    responseHeaders.add("x-ms-copy-status", "success");
+                    responseHeaders.add("x-ms-copy-id", copyInfo.copyId());
+                    responseHeaders.add(X_MS_COPY_SOURCE, "source");
+                    responseHeaders.add("ETag", "\"mock-etag\"");
+                    responseHeaders.add("x-ms-version", "2018-11-09");
+                }
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
             } else if (Regex.simpleMatch("GET /" + account + "/" + container + "/*", request)) {
@@ -247,11 +273,13 @@ public class AzureHttpHandler implements HttpHandler {
                         return;
                     }
 
-                    responseContent = blobContents.slice(
-                        Math.toIntExact(range.start()),
-                        Math.toIntExact(Math.min(range.end() - range.start() + 1, blobContents.length() - range.start()))
-                    );
+                    long start = range.start();
+                    long end = Math.min(range.end(), blobContents.length() - 1);
+                    long sliceLength = end - start + 1;
+                    responseContent = blobContents.slice(Math.toIntExact(start), Math.toIntExact(sliceLength));
                     successStatus = RestStatus.PARTIAL_CONTENT;
+                    // Azure SDK expects Content-Range for 206 responses (RFC 7233: bytes start-end/total)
+                    exchange.getResponseHeaders().add("Content-Range", "bytes " + start + "-" + end + "/" + blobContents.length());
                 } else {
                     responseContent = blob.getContents();
                     successStatus = RestStatus.OK;
@@ -271,8 +299,7 @@ public class AzureHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("GET /" + account + "/" + container + "?*restype=container*comp=list*", request)) {
                 // List Blobs (https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs)
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                final var params = RequestParams.fromQueryString(exchange.getRequestURI().getQuery());
 
                 final StringBuilder list = new StringBuilder();
                 list.append("""

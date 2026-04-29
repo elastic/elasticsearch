@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -61,6 +62,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.suggestedCast;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDateRange;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class EsqlDataTypeConverterTests extends ESTestCase {
@@ -117,6 +120,15 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
             DateUtils.toLong(Instant.parse("2023-05-01T22:00:00.000Z")),
             EsqlDataTypeConverter.convert("2023-05-02", DATE_NANOS, cetCestConfig)
         );
+    }
+
+    public void testParseDateRangeRejectsFromAfterTo() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> parseDateRange("2024-12-31T00:00:00.000Z..2024-01-01T00:00:00.000Z", ZoneOffset.UTC)
+        );
+        assertThat(e.getMessage(), containsString("'from'"));
+        assertThat(e.getMessage(), containsString("must be less than or equal to 'to'"));
     }
 
     public void testCommonTypeNull() {
@@ -180,6 +192,8 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
         commonNumericType(FLOAT, List.of(NULL, BYTE, SHORT, INTEGER, LONG, UNSIGNED_LONG, FLOAT, HALF_FLOAT));
         commonNumericType(DOUBLE, List.of(NULL, BYTE, SHORT, INTEGER, LONG, UNSIGNED_LONG, HALF_FLOAT, FLOAT, DOUBLE, SCALED_FLOAT));
         commonNumericType(SCALED_FLOAT, List.of(NULL, BYTE, SHORT, INTEGER, LONG, UNSIGNED_LONG, HALF_FLOAT, FLOAT, SCALED_FLOAT, DOUBLE));
+        // dense vectors
+        commonNumericType(DENSE_VECTOR, List.of(NULL, BYTE, SHORT, INTEGER, LONG, UNSIGNED_LONG, HALF_FLOAT, FLOAT, DOUBLE, SCALED_FLOAT));
     }
 
     /**
@@ -189,7 +203,10 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
         List<DataType> NUMERICS = Arrays.stream(DataType.values()).filter(DataType::isNumeric).toList();
         List<DataType> DOUBLES = Arrays.stream(DataType.values()).filter(DataType::isRationalNumber).toList();
         for (DataType dataType : DataType.values()) {
-            if (DOUBLES.containsAll(List.of(numericType, dataType)) && (dataType.estimatedSize() == numericType.estimatedSize())) {
+            if (dataType == DENSE_VECTOR) {
+                // special case for dense_vector since it's neither NUMERICS or DOUBLES
+                assertEquals(DENSE_VECTOR, commonType(dataType, numericType));
+            } else if (DOUBLES.containsAll(List.of(numericType, dataType)) && (dataType.estimatedSize() == numericType.estimatedSize())) {
                 assertEquals(numericType, commonType(dataType, numericType));
             } else if (lowerTypes.contains(dataType)) {
                 assertEqualsCommonType(numericType, dataType, numericType);

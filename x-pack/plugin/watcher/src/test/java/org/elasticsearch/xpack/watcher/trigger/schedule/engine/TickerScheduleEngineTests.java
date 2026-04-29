@@ -28,16 +28,18 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
+import static java.util.stream.Collectors.toSet;
+import static java.util.stream.IntStream.range;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.daily;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.weekly;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
@@ -66,7 +68,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     @After
-    public void cleanup() throws Exception {
+    public void cleanup() {
         engine.stop();
     }
 
@@ -80,57 +82,113 @@ public class TickerScheduleEngineTests extends ESTestCase {
         }
         final BitSet bits = new BitSet(count);
 
-        engine.register(new Consumer<Iterable<TriggerEvent>>() {
-            @Override
-            public void accept(Iterable<TriggerEvent> events) {
-                for (TriggerEvent event : events) {
-                    int index = Integer.parseInt(event.jobName());
-                    if (bits.get(index) == false) {
-                        logger.info("job [{}] first fire", index);
-                        bits.set(index);
-                        firstLatch.countDown();
-                    } else {
-                        logger.info("job [{}] second fire", index);
-                        secondLatch.countDown();
-                    }
+        engine.register(events -> {
+            for (TriggerEvent event : events) {
+                int index = Integer.parseInt(event.jobName());
+                if (bits.get(index) == false) {
+                    logger.info("job [{}] first fire", index);
+                    bits.set(index);
+                    firstLatch.countDown();
+                } else {
+                    logger.info("job [{}] second fire", index);
+                    secondLatch.countDown();
                 }
             }
         });
 
         engine.start(watches);
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
-        if (firstLatch.await(3 * count, TimeUnit.SECONDS) == false) {
+        if (firstLatch.await(3L * count, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
 
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
-        if (secondLatch.await(3 * count, TimeUnit.SECONDS) == false) {
+        if (secondLatch.await(3L * count, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
-        engine.stop();
         assertThat(bits.cardinality(), is(count));
+    }
+
+    /**
+     * When a cluster state changes and watches are restarted, the engine should clean up any previous watches because they may change
+     * the node they are running on. When not cleaned up, they may start triggering on more nodes than they should.
+     */
+    public void testStartsShouldCleanUpPreviousWatches() {
+        final List<Watch> initialWatches = createRandomWatches(2);
+        engine.start(initialWatches);
+        assertThat(
+            "Assumed initial watches added",
+            engine.getSchedules().keySet(),
+            is(initialWatches.stream().map(Watch::id).collect(toSet()))
+        );
+
+        final List<Watch> newWatches = createRandomWatches(3);
+
+        engine.start(newWatches);
+        assertThat(
+            "Only new watches should be visible after engine restart",
+            engine.getSchedules().keySet(),
+            is(newWatches.stream().map(Watch::id).collect(toSet()))
+        );
+    }
+
+    /**
+     * When the .watches index is first created, the index creation triggers a reload while the document indexing runs concurrently.
+     * WatcherIndexingListener.postIndex() calls add() while the engine is paused. These watches must survive the subsequent start()
+     * call even if loadWatches() returns an empty set due to the race.
+     */
+    public void testWatchesAddedWhilePausedSurviveStart() {
+        engine.start(List.of());
+        engine.pauseExecution();
+
+        Watch watch = createWatch("concurrently_indexed", interval("1s"));
+        engine.add(watch);
+
+        // start() with empty list simulates loadWatches() finding nothing due to the race
+        engine.start(List.of());
+
+        assertThat("Watch added while paused should be present after start", engine.getSchedules(), hasKey("concurrently_indexed"));
+    }
+
+    /**
+     * Watches added while paused should not override watches loaded by start() if they share the same id.
+     * The loaded version is authoritative since it comes from the index.
+     */
+    public void testConcurrentlyAddedTakesPrecedenceOverLoadedWatch() {
+        final String watchName = "watch_name";
+        engine.start(List.of());
+        engine.pauseExecution();
+
+        Watch addedWatch = createWatch(watchName, interval("1s"));
+        engine.add(addedWatch);
+
+        Watch loadedWatch = createWatch(watchName, interval("5s"));
+        engine.start(List.of(loadedWatch));
+
+        var schedules = engine.getSchedules();
+        assertThat("Loaded watch should be present", schedules, hasKey(watchName));
+        assertThat(schedules, aMapWithSize(1));
+        assertThat(schedules.get(watchName).getSchedule(), is(interval("1s")));
+    }
+
+    private List<Watch> createRandomWatches(int watchesToCreate) {
+        return range(0, watchesToCreate).mapToObj(__ -> createWatch(randomAlphanumericOfLength(5), interval("1s"))).toList();
     }
 
     public void testAddHourly() throws Exception {
         final String name = "job_name";
         final CountDownLatch latch = new CountDownLatch(1);
-        engine.start(Collections.emptySet());
-        engine.register(new Consumer<Iterable<TriggerEvent>>() {
-            @Override
-            public void accept(Iterable<TriggerEvent> events) {
-                for (TriggerEvent event : events) {
-                    assertThat(event.jobName(), is(name));
-                    logger.info("triggered job on [{}]", clock);
-                }
-                latch.countDown();
+        engine.start(List.of());
+        engine.register(events -> {
+            for (TriggerEvent event : events) {
+                assertThat(event.jobName(), is(name));
+                logger.info("triggered job on [{}]", clock);
             }
+            latch.countDown();
         });
 
         int randomMinute = randomIntBetween(0, 59);
-        ZonedDateTime testNowTime = clock.instant()
-            .atZone(ZoneOffset.UTC)
-            .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
-            .with(ChronoField.SECOND_OF_MINUTE, 59);
+        ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC).withMinute(randomMinute).withSecond(59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
         logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);
@@ -147,27 +205,20 @@ public class TickerScheduleEngineTests extends ESTestCase {
     public void testAddDaily() throws Exception {
         final String name = "job_name";
         final CountDownLatch latch = new CountDownLatch(1);
-        engine.start(Collections.emptySet());
+        engine.start(List.of());
 
-        engine.register(new Consumer<Iterable<TriggerEvent>>() {
-            @Override
-            public void accept(Iterable<TriggerEvent> events) {
-                for (TriggerEvent event : events) {
-                    assertThat(event.jobName(), is(name));
-                    logger.info("triggered job on [{}]", clock.instant().atZone(ZoneOffset.UTC));
-                    latch.countDown();
-                }
+        engine.register(events -> {
+            for (TriggerEvent event : events) {
+                assertThat(event.jobName(), is(name));
+                logger.info("triggered job on [{}]", clock.instant().atZone(ZoneOffset.UTC));
+                latch.countDown();
             }
         });
 
         int randomHour = randomIntBetween(0, 23);
         int randomMinute = randomIntBetween(0, 59);
 
-        ZonedDateTime testNowTime = clock.instant()
-            .atZone(ZoneOffset.UTC)
-            .with(ChronoField.HOUR_OF_DAY, randomHour)
-            .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
-            .with(ChronoField.SECOND_OF_MINUTE, 59);
+        ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC).withHour(randomHour).withMinute(randomMinute).withSecond(59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
         logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);
@@ -184,16 +235,13 @@ public class TickerScheduleEngineTests extends ESTestCase {
     public void testAddWeekly() throws Exception {
         final String name = "job_name";
         final CountDownLatch latch = new CountDownLatch(1);
-        engine.start(Collections.emptySet());
-        engine.register(new Consumer<Iterable<TriggerEvent>>() {
-            @Override
-            public void accept(Iterable<TriggerEvent> events) {
-                for (TriggerEvent event : events) {
-                    assertThat(event.jobName(), is(name));
-                    logger.info("triggered job");
-                }
-                latch.countDown();
+        engine.start(List.of());
+        engine.register(events -> {
+            for (TriggerEvent event : events) {
+                assertThat(event.jobName(), is(name));
+                logger.info("triggered job");
             }
+            latch.countDown();
         });
 
         int randomHour = randomIntBetween(0, 23);
@@ -203,9 +251,9 @@ public class TickerScheduleEngineTests extends ESTestCase {
         ZonedDateTime testNowTime = clock.instant()
             .atZone(ZoneOffset.UTC)
             .with(ChronoField.DAY_OF_WEEK, randomDay)
-            .with(ChronoField.HOUR_OF_DAY, randomHour)
-            .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
-            .with(ChronoField.SECOND_OF_MINUTE, 59);
+            .withHour(randomHour)
+            .withMinute(randomMinute)
+            .withSecond(59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
 
@@ -231,23 +279,18 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     public void testAddSameJobSeveralTimesAndExecutedOnce() throws InterruptedException {
-        engine.start(Collections.emptySet());
+        engine.start(List.of());
 
         final CountDownLatch firstLatch = new CountDownLatch(1);
         final CountDownLatch secondLatch = new CountDownLatch(1);
         AtomicInteger counter = new AtomicInteger(0);
-        engine.register(new Consumer<Iterable<TriggerEvent>>() {
-            @Override
-            public void accept(Iterable<TriggerEvent> events) {
-                events.forEach(event -> {
-                    if (counter.getAndIncrement() == 0) {
-                        firstLatch.countDown();
-                    } else {
-                        secondLatch.countDown();
-                    }
-                });
+        engine.register(events -> events.forEach(event -> {
+            if (counter.getAndIncrement() == 0) {
+                firstLatch.countDown();
+            } else {
+                secondLatch.countDown();
             }
-        });
+        }));
 
         int times = scaledRandomIntBetween(3, 30);
         for (int i = 0; i < times; i++) {
@@ -269,7 +312,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     public void testAddOnlyWithNewSchedule() {
-        engine.start(Collections.emptySet());
+        engine.start(List.of());
 
         // add watch with schedule
         Watch oncePerSecondWatch = createWatch("_id", interval("1s"));
@@ -299,14 +342,14 @@ public class TickerScheduleEngineTests extends ESTestCase {
             InternalAlwaysCondition.INSTANCE,
             null,
             null,
-            Collections.emptyList(),
+            List.of(),
             null,
             new WatchStatus(-1L, null, null, clock.instant().minusMillis(500).atZone(ZoneOffset.UTC), null, null, null),
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             SequenceNumbers.UNASSIGNED_PRIMARY_TERM
         );
 
-        var watches = Collections.singletonList(watch);
+        var watches = List.of(watch);
 
         var runCount = new AtomicInteger(0);
 
@@ -334,8 +377,6 @@ public class TickerScheduleEngineTests extends ESTestCase {
         }
 
         assertThat(runCount.get(), is(2));
-
-        engine.stop();
     }
 
     /**
@@ -353,7 +394,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             InternalAlwaysCondition.INSTANCE,
             null,
             null,
-            Collections.emptyList(),
+            List.of(),
             null,
             new WatchStatus(
                 -1L,
@@ -368,7 +409,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             SequenceNumbers.UNASSIGNED_PRIMARY_TERM
         );
 
-        var watches = Collections.singletonList(watch);
+        var watches = List.of(watch);
 
         var runCount = new AtomicInteger(0);
 
@@ -396,8 +437,6 @@ public class TickerScheduleEngineTests extends ESTestCase {
         }
 
         assertThat(runCount.get(), is(2));
-
-        engine.stop();
     }
 
     /**
@@ -415,7 +454,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             InternalAlwaysCondition.INSTANCE,
             null,
             null,
-            Collections.emptyList(),
+            List.of(),
             null,
             new WatchStatus(-1L, null, null, clock.instant().minusMillis(500).atZone(ZoneOffset.UTC), null, null, null),
             SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -436,7 +475,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             }
         });
 
-        engine.start(Collections.emptyList());
+        engine.start(List.of());
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
         engine.add(watch);
 
@@ -451,8 +490,6 @@ public class TickerScheduleEngineTests extends ESTestCase {
         }
 
         assertThat(runCount.get(), is(2));
-
-        engine.stop();
     }
 
     /**
@@ -470,7 +507,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             InternalAlwaysCondition.INSTANCE,
             null,
             null,
-            Collections.emptyList(),
+            List.of(),
             null,
             new WatchStatus(
                 -1L,
@@ -499,7 +536,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             }
         });
 
-        engine.start(Collections.emptyList());
+        engine.start(List.of());
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
         engine.add(watch);
 
@@ -514,8 +551,6 @@ public class TickerScheduleEngineTests extends ESTestCase {
         }
 
         assertThat(runCount.get(), is(2));
-
-        engine.stop();
     }
 
     private Watch createWatch(String name, Schedule schedule) {
@@ -526,7 +561,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             InternalAlwaysCondition.INSTANCE,
             null,
             null,
-            Collections.emptyList(),
+            List.of(),
             null,
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,

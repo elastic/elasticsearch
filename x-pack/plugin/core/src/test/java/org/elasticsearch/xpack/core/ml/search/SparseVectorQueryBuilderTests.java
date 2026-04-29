@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
@@ -66,26 +67,26 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         TokenPruningConfig tokenPruningConfig = randomBoolean()
             ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), randomBoolean())
             : null;
-        return createTestQueryBuilder(tokenPruningConfig);
+        return createTestQueryBuilder(false, tokenPruningConfig);
     }
 
-    private SparseVectorQueryBuilder createTestQueryBuilder(TokenPruningConfig tokenPruningConfig) {
+    private SparseVectorQueryBuilder createTestQueryBuilder(boolean forceQueryVector, @Nullable TokenPruningConfig tokenPruningConfig) {
         SparseVectorQueryBuilder builder;
-        if (randomBoolean()) {
+        if (forceQueryVector || randomBoolean()) {
             builder = new SparseVectorQueryBuilder(
                 SPARSE_VECTOR_FIELD,
+                WEIGHTED_TOKENS,
                 null,
-                randomAlphaOfLength(10),
-                randomAlphaOfLengthBetween(10, 25),
+                null,
                 tokenPruningConfig != null,
                 tokenPruningConfig
             );
         } else {
             builder = new SparseVectorQueryBuilder(
                 SPARSE_VECTOR_FIELD,
-                WEIGHTED_TOKENS,
                 null,
-                null,
+                randomAlphaOfLength(10),
+                randomAlphaOfLengthBetween(10, 25),
                 tokenPruningConfig != null,
                 tokenPruningConfig
             );
@@ -204,7 +205,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
             iw.addDocument(document);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
-                SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder();
+                SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(true, null);
                 queryBuilder.toQuery(context);
             }
         }
@@ -335,7 +336,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
         TokenPruningConfig TokenPruningConfig = randomBoolean() ? new TokenPruningConfig(2, 0.3f, false) : null;
 
-        SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(TokenPruningConfig);
+        SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(false, TokenPruningConfig);
         QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
         assertTrue(rewrittenQueryBuilder instanceof SparseVectorQueryBuilder);
         assertEquals(queryBuilder.shouldPruneTokens(), ((SparseVectorQueryBuilder) rewrittenQueryBuilder).shouldPruneTokens());

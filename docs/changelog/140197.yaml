@@ -1,5 +1,0 @@
-pr: 140197
-summary: Allow relocation to NOT_PREFERRED node for evacuating shards
-area: Allocation
-type: bug
-issues: []

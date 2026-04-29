@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.index.FloatVectorValues;
-import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,9 +24,21 @@ public interface CentroidSupplier {
 
     float[] centroid(int centroidOrdinal) throws IOException;
 
-    FloatVectorValues asFloatVectorValues() throws IOException;
+    default KMeansResult secondLevelClusters() throws IOException {
+        return null;
+    }
 
-    static CentroidSupplier fromArray(float[][] centroids, int dims) {
+    default CentroidSlices slices() throws IOException {
+        return null;
+    }
+
+    KMeansFloatVectorValues asKmeansFloatVectorValues() throws IOException;
+
+    static CentroidSupplier empty(int dims) {
+        return fromArray(new float[0][dims], KMeansResult.EMPTY, dims);
+    }
+
+    static CentroidSupplier fromArray(float[][] centroids, KMeansResult secondLevelClusters, int dims) {
         return new CentroidSupplier() {
             @Override
             public int size() {
@@ -39,9 +51,15 @@ public interface CentroidSupplier {
             }
 
             @Override
-            public FloatVectorValues asFloatVectorValues() {
-                return KmeansFloatVectorValues.build(Arrays.asList(centroids), null, dims);
+            public KMeansResult secondLevelClusters() {
+                return secondLevelClusters;
+            }
+
+            @Override
+            public KMeansFloatVectorValues asKmeansFloatVectorValues() {
+                return KMeansFloatVectorValues.build(Arrays.asList(centroids), null, dims);
             }
         };
     }
+
 }

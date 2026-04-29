@@ -23,8 +23,10 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -36,6 +38,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
@@ -45,6 +48,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.junit.Assert;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -329,32 +333,193 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         ScoreDoc[] hits = getTestNonVectorSearchHits();
         docs.add(hits);
 
-        ElasticsearchStatusException badDocFieldEx = assertThrows(
-            ElasticsearchStatusException.class,
-            () -> retriever.combineInnerRetrieverResults(docs, false)
-        );
-        assertEquals(
-            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] field?",
-            badDocFieldEx.getMessage()
-        );
-        assertEquals(400, badDocFieldEx.status().getStatus());
+        RankDoc[] results = retriever.combineInnerRetrieverResults(docs, false);
+        assertEquals(0, results.length);
 
         cleanDocsAndHits(docs, hits);
 
         ScoreDoc[] hitsWithNoValues = getTestSearchHitsWithNoValues();
         docs.add(hitsWithNoValues);
 
-        ElasticsearchStatusException docsWithNoValuesEx = assertThrows(
-            ElasticsearchStatusException.class,
-            () -> retriever.combineInnerRetrieverResults(docs, false)
-        );
-        assertEquals(
-            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] field?",
-            docsWithNoValuesEx.getMessage()
-        );
-        assertEquals(400, docsWithNoValuesEx.status().getStatus());
+        RankDoc[] resultsWithNoValues = retriever.combineInnerRetrieverResults(docs, false);
+        assertEquals(0, resultsWithNoValues.length);
 
         cleanDocsAndHits(docs, hitsWithNoValues);
+    }
+
+    public void testItCanPerformDiversificationForInferenceFields() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
+            0.3f
+        );
+
+        // run the rewrite to set the internal diversification context
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = getTestVectorSupplierScoreDocuments();
+        docs.add(hits);
+
+        try {
+            var result = retriever.combineInnerRetrieverResults(docs, false);
+
+            assertEquals(3, result.length);
+            assertEquals(3, result[0].rank);
+            assertEquals(4, result[1].rank);
+            assertEquals(6, result[2].rank);
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
+    }
+
+    public void testMustHaveQueryVectorForInferenceFields() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            null,
+            null,
+            0.3f
+        );
+
+        // run the rewrite to set the internal diversification context
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = getTestVectorSupplierScoreDocuments();
+        docs.add(hits);
+
+        try {
+            IllegalArgumentException docsWithNoValuesEx = assertThrows(
+                IllegalArgumentException.class,
+                () -> retriever.combineInnerRetrieverResults(docs, false)
+            );
+            assertEquals(
+                "[query_vector] or [query_vector_builder] must be supplied when diversifying on a [mock_supplier_field] field.",
+                docsWithNoValuesEx.getMessage()
+            );
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
+    }
+
+    public void testIncompatibleQueryVectorForInferenceFields() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            new VectorData(new byte[] { 10, 20, 30, 40 }),
+            null,
+            0.3f
+        );
+
+        // run the rewrite to set the internal diversification context
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = getTestVectorSupplierScoreDocuments();
+        docs.add(hits);
+
+        // should not throw an exception
+        try {
+            retriever.combineInnerRetrieverResults(docs, false);
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
+
+        retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            new VectorData(new float[] { 0.5f, 0.4f, 0.3f, 0.2f }),
+            null,
+            0.3f
+        );
+
+        // run the rewrite to set the internal diversification context
+        retriever.doRewrite(queryRewriteContext);
+
+        docs = new ArrayList<>();
+        hits = getTestVectorSupplierScoreDocumentsByteVectors();
+        docs.add(hits);
+
+        // should still not throw an exception
+        try {
+            retriever.combineInnerRetrieverResults(docs, false);
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
+    }
+
+    public void testCombineInnerRetrieverResultsWithAllMissingVectors() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "rgb_vector",
+            10,
+            3,
+            new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
+            0.5f
+        );
+
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = new DiversifyRetrieverBuilder.RankDocWithSearchHit[] { getTestSearchHitWithNoValue(1, 90002, 1.0f) };
+        docs.add(hits);
+
+        try {
+            RankDoc[] results = retriever.combineInnerRetrieverResults(docs, false);
+            assertEquals(0, results.length);
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
+    }
+
+    public void testCombineInnerRetrieverResultsDropsMissingVectorDocs() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            10,
+            new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
+            0.5f
+        );
+
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
+            getTestSearchHitWithNoValue(1, 90002, 1.0f),
+            getTestSearchHit(2, 4, 4.0f, new float[] { 0.5f, 0.2f, 0.4f, 0.4f }) };
+        docs.add(hits);
+
+        try {
+            RankDoc[] results = retriever.combineInnerRetrieverResults(docs, false);
+            assertEquals(1, results.length);
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
     }
 
     private void cleanDocsAndHits(List<ScoreDoc[]> docs, ScoreDoc[] hits) {
@@ -387,6 +552,38 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             getTestSearchHitWithNoValue(1, 1, 2.0f),
             getTestSearchHitWithNoValue(2, 1, 1.8f),
             getTestSearchHitWithNoValue(3, 1, 1.8f) };
+    }
+
+    private ScoreDoc[] getTestVectorSupplierScoreDocuments() {
+        return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
+            getTestVectorSupplierScoreDoc(1, 1, 2.0f, List.of(new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f }))),
+            getTestVectorSupplierScoreDoc(2, 2, 1.8f, List.of(new VectorData(new float[] { 0.4f, 0.2f, 0.3f, 0.3f }))),
+            getTestVectorSupplierScoreDoc(3, 0, 1.8f, List.of(new VectorData(new float[] { 0.4f, 0.1f, 0.3f, 0.3f }))),
+            getTestVectorSupplierScoreDoc(4, 0, 1.0f, List.of(new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }))),
+            getTestVectorSupplierScoreDoc(5, 1, 0.8f, List.of(new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }))),
+            getTestVectorSupplierScoreDoc(6, 1, 0.8f, List.of(new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f }))) };
+    }
+
+    private ScoreDoc[] getTestVectorSupplierScoreDocumentsByteVectors() {
+        return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
+            getTestVectorSupplierScoreDoc(1, 1, 2.0f, List.of(new VectorData(new float[] { 10, 20, 30, 40 }))),
+            getTestVectorSupplierScoreDoc(2, 2, 1.8f, List.of(new VectorData(new float[] { 12, 24, 36, 48 }))),
+            getTestVectorSupplierScoreDoc(3, 0, 1.8f, List.of(new VectorData(new float[] { 45, 35, 25, 15 }))), };
+    }
+
+    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestVectorSupplierScoreDoc(
+        int rank,
+        int docId,
+        float score,
+        List<VectorData> vectorData
+    ) {
+        MockDenseVectorTestSupplier supplierField = new MockDenseVectorTestSupplier(vectorData);
+        Map<String, Object> inferenceFieldValues = Map.of("dense_vector_field", supplierField);
+        SearchHit hit = new SearchHit(docId);
+        hit.setDocumentField(new DocumentField(InferenceMetadataFieldsMapper.NAME, List.of(inferenceFieldValues)));
+        DiversifyRetrieverBuilder.RankDocWithSearchHit doc = new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+        doc.rank = rank;
+        return doc;
     }
 
     private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestSearchHit(int rank, int docId, float score, float[] value) {
@@ -505,7 +702,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         final ResolvedIndices resolvedIndices = createMockResolvedIndices(Map.of(indexName, testDenseVectorFields));
         final Index localIndex = resolvedIndices.getConcreteLocalIndices()[0];
         final Predicate<String> nameMatcher = testDenseVectorFields::contains;
-        final MappingLookup mappingLookup = MappingLookup.fromMapping(getTestMapping());
+        final MappingLookup mappingLookup = MappingLookup.fromMapping(getTestMapping(), randomFrom(IndexMode.values()));
 
         var indexMetadata = IndexMetadata.builder("index")
             .settings(
@@ -543,9 +740,23 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
     private Mapping getTestMapping() {
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false, false).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc").add(
-            new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, List.of())
+            new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, false, List.of())
         ).build(MapperBuilderContext.root(true, false));
 
         return new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
+    }
+
+    public record MockDenseVectorTestSupplier(List<VectorData> vectors) implements DenseVectorSupplier {
+        public static String NAME = "mock_supplier_field";
+
+        @Override
+        public List<VectorData> getDenseVectorData() throws IOException {
+            return vectors;
+        }
+
+        @Override
+        public String getSupplierContentType() {
+            return NAME;
+        }
     }
 }

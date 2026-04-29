@@ -337,7 +337,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 scheduler,
                 transformNode,
                 crossProjectModeDecider,
-                hasLinkedProjects
+                hasLinkedProjects,
+                services.projectResolver()
             )
         );
 

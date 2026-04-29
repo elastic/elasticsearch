@@ -523,6 +523,65 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         });
     }
 
+    public void testNonCcsDatafeedHasNoCrossClusterStats() throws Exception {
+        String jobId = "no-ccs-stats-job";
+        String datafeedId = jobId + "-datafeed";
+        startRealtime(jobId);
+
+        // While the datafeed is running, remote_cluster_stats should be null for a non-CCS datafeed
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            GetDatafeedsStatsAction.Response.DatafeedStats stats = response.getResponse().results().get(0);
+            assertThat(stats.getDatafeedState(), equalTo(DatafeedState.STARTED));
+            assertNotNull(stats.getRunningState());
+            assertNull(stats.getRunningState().getCrossClusterStats());
+        });
+
+        StopDatafeedAction.Response stopResponse = stopDatafeed(datafeedId);
+        assertTrue(stopResponse.isStopped());
+
+        // After stopping, running_state and remote_cluster_stats should both be absent
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            GetDatafeedsStatsAction.Response.DatafeedStats stats = response.getResponse().results().get(0);
+            assertThat(stats.getDatafeedState(), equalTo(DatafeedState.STOPPED));
+            assertNull(stats.getRunningState());
+        });
+    }
+
+    public void testLookbackOnlyHasNoCrossClusterStats() throws Exception {
+        client().admin().indices().prepareCreate("ccs-check-data").setMapping("time", "type=date").get();
+        long numDocs = randomIntBetween(32, 512);
+        long now = System.currentTimeMillis();
+        long oneWeekAgo = now - 604800000;
+        indexDocs(logger, "ccs-check-data", numDocs, oneWeekAgo, now);
+
+        Job.Builder job = createScheduledJob("ccs-lookback-job");
+        putJob(job);
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+
+        DatafeedConfig datafeedConfig = createDatafeed(
+            "ccs-lookback-job-datafeed",
+            job.getId(),
+            Collections.singletonList("ccs-check-data")
+        );
+        putDatafeed(datafeedConfig);
+
+        startDatafeed(datafeedConfig.getId(), 0L, now);
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            GetDatafeedsStatsAction.Response.DatafeedStats stats = response.getResponse().results().get(0);
+            assertThat(stats.getDatafeedState(), equalTo(DatafeedState.STOPPED));
+            assertNull(stats.getRunningState());
+        }, 60, TimeUnit.SECONDS);
+
+        waitUntilJobIsClosed(job.getId());
+    }
+
     private void doTestStopRealtime_GivenCloseJobAndForceStopParameters(
         String jobId,
         boolean closeJobParameter,

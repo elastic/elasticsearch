@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -49,7 +48,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
@@ -88,14 +86,14 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
      * @param state cluster state used for matching
      */
     public void assertClusterStateMatchesNodeState(ClusterState state, IndicesClusterStateService indicesClusterStateService) {
-        MockIndicesService indicesService = (MockIndicesService) indicesClusterStateService.indicesService;
-        ConcurrentMap<ShardId, ShardRouting> failedShardsCache = indicesClusterStateService.failedShardsCache;
-        RoutingNode localRoutingNode = state.getRoutingNodes().node(state.getNodes().getLocalNodeId());
+        final var indicesService = (MockIndicesService) indicesClusterStateService.indicesService;
+        final var failedShardsCache = indicesClusterStateService.failedShardsCache;
+        final var localRoutingNode = state.getRoutingNodes().node(state.getNodes().getLocalNodeId());
         if (localRoutingNode != null) {
             if (enableRandomFailures == false) {
                 // initializing a shard should succeed when enableRandomFailures is disabled
                 // active shards can be failed if state persistence was disabled in an earlier CS update
-                if (failedShardsCache.values().stream().anyMatch(ShardRouting::initializing)) {
+                if (failedShardsCache.values().stream().anyMatch(e -> e.routing().initializing())) {
                     fail("failed shard cache should not contain initializing shard routing: " + failedShardsCache.values());
                 }
             }
@@ -105,22 +103,39 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 IndexMetadata indexMetadata = state.metadata().getProject().getIndexSafe(index);
 
                 MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
-                ShardRouting failedShard = failedShardsCache.get(shardRouting.shardId());
+                final var failedShard = failedShardsCache.get(shardRouting.shardId());
 
                 if (state.blocks().disableStatePersistence()) {
                     if (shard != null) {
                         fail("Shard with id " + shardRouting + " should be removed from indicesService due to disabled state persistence");
                     }
                 } else {
-                    if (failedShard != null && failedShard.isSameAllocation(shardRouting) == false) {
-                        fail("Shard cache has not been properly cleaned for " + failedShard);
+                    if (failedShard != null && failedShard.routing().isSameAllocation(shardRouting) == false) {
+                        fail(
+                            "Shard cache has not been properly cleaned. Cached allocation id ["
+                                + failedShard.routing().allocationId()
+                                + "] does not match current allocation id ["
+                                + shardRouting.allocationId()
+                                + "] for "
+                                + failedShard
+                        );
+                    }
+                    if (failedShard != null && failedShard.primaryTerm() < indexMetadata.primaryTerm(shardRouting.id())) {
+                        fail(
+                            "Shard cache has not been properly cleaned. Cached primary term ["
+                                + failedShard.primaryTerm()
+                                + "] is lower than current primary term ["
+                                + indexMetadata.primaryTerm(shardRouting.id())
+                                + "] for "
+                                + failedShard
+                        );
                     }
                     if (shard == null && failedShard == null) {
                         // shard must either be there or there must be a failure
                         fail("Shard with id " + shardRouting + " expected but missing in indicesService and failedShardsCache");
                     }
                     if (enableRandomFailures == false) {
-                        if (shard == null && shardRouting.initializing() && failedShard == shardRouting) {
+                        if (shard == null && shardRouting.initializing() && failedShard.routing() == shardRouting) {
                             // initializing a shard should succeed when enableRandomFailures is disabled
                             fail("Shard with id " + shardRouting + " expected but missing in indicesService " + failedShard);
                         }

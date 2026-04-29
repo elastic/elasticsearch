@@ -66,6 +66,7 @@ public class OrcFormatReaderTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        OrcStorageObjectAdapter.clearCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -974,7 +975,25 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
-        assertEquals("Single-stripe file should return empty list", 0, ranges.size());
+        assertEquals("Single-stripe file should return one range with stats", 1, ranges.size());
+        SplitRange range = ranges.getFirst();
+        assertTrue("Range offset must be non-negative", range.offset() >= 0);
+        assertTrue("Range length must be positive", range.length() > 0);
+        assertNotNull("Statistics should be present", range.statistics());
+        assertEquals(3L, range.statistics().get("_stats.row_count"));
+        assertEquals(0L, range.statistics().get("_stats.columns.id.null_count"));
+        assertNotNull("Column min should be present", range.statistics().get("_stats.columns.id.min"));
+        assertNotNull("Column max should be present", range.statistics().get("_stats.columns.id.max"));
+    }
+
+    public void testDiscoverSplitRanges_emptyFile() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> batch.size = 0);
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Empty file (no stripes) should return empty ranges", ranges.isEmpty());
     }
 
     public void testDiscoverSplitRanges_multiStripeFile() throws Exception {

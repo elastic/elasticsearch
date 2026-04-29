@@ -137,6 +137,7 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
             assertNotNull(asyncResponse);
             assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
+            asyncResponse.response().getHits().forEach(PaginatedHitSource.Hit::release);
         } finally {
             searchResponse.decRef();
         }
@@ -277,6 +278,7 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             client.respond(TransportSearchAction.TYPE, searchResponse);
             PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
             assertNotNull(asyncResponse);
+            asyncResponse.response().getHits().forEach(PaginatedHitSource.Hit::release);
         } finally {
             searchResponse.decRef();
         }
@@ -372,6 +374,7 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
                 assertNotNull(asyncResponse);
                 assertEquals(0, responses.size());
                 assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
+                asyncResponse.response().getHits().forEach(PaginatedHitSource.Hit::release);
                 asyncResponse.done(TimeValue.ZERO);
 
                 for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
@@ -391,6 +394,12 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
                 }
             }
 
+            // Each loop iteration ends with client.respond(), which synchronously queues one trailing
+            // async response. Drain and release its hits before asserting and before the finally decRef.
+            PaginatedHitSource.AsyncResponse trailingResponse = responses.poll();
+            assertNotNull(trailingResponse);
+            trailingResponse.response().getHits().forEach(PaginatedHitSource.Hit::release);
+
             assertEquals(actualSearchRetries.get(), expectedSearchRetries);
         } finally {
             searchResponse.decRef();
@@ -408,14 +417,16 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
 
     private SearchResponse createPitSearchResponse(int hitCount) {
         Object[] sortValues = new Object[] { randomLong(), randomAlphaOfLengthBetween(1, 10) };
-        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
-        hit.sortValues(sortValues, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
-        SearchHits hits = SearchHits.unpooled(
-            IntStream.range(0, hitCount).mapToObj(i -> hit).toArray(SearchHit[]::new),
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            0
-        );
-        return SearchResponseUtils.response(hits).pointInTimeId(PIT_ID).shards(5, 4, 0).build();
+        SearchHit[] hitArray = IntStream.range(0, hitCount).mapToObj(i -> {
+            SearchHit h = new SearchHit(i, "id");
+            h.sourceRef(new BytesArray("{}"));
+            h.sortValues(sortValues, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+            return h;
+        }).toArray(SearchHit[]::new);
+        SearchHits hits = new SearchHits(hitArray, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0);
+        SearchResponse response = SearchResponseUtils.response(hits).pointInTimeId(PIT_ID).shards(5, 4, 0).build();
+        hits.decRef();
+        return response;
     }
 
     private void assertSameHits(List<? extends PaginatedHitSource.Hit> actual, SearchHit[] expected) {

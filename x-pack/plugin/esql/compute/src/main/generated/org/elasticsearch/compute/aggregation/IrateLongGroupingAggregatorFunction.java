@@ -34,16 +34,13 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
 
   private final DriverContext driverContext;
 
-  private final boolean isDelta;
-
   private final boolean isDateNanos;
 
   IrateLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      boolean isDelta, boolean isDateNanos) {
-    this.isDelta = isDelta;
+      boolean isDateNanos) {
     this.isDateNanos = isDateNanos;
     this.channels = channels;
-    this.state = IrateLongAggregator.initGrouping(driverContext, isDelta, isDateNanos);
+    this.state = IrateLongAggregator.initGrouping(driverContext, isDateNanos);
     this.driverContext = driverContext;
   }
 

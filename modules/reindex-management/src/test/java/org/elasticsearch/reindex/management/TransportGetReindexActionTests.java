@@ -13,9 +13,10 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
-import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
@@ -23,6 +24,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -35,6 +37,7 @@ import static org.elasticsearch.reindex.management.TransportGetReindexAction.not
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -46,7 +49,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
     private TaskId taskId;
     private TimeValue timeout;
     private TransportGetReindexAction action;
-    private ClusterAdminClient client;
+    private Client client;
     private AtomicReference<GetReindexResponse> responseRef;
     private AtomicReference<Exception> failureRef;
     private ActionListener<GetReindexResponse> listener;
@@ -55,8 +58,11 @@ public class TransportGetReindexActionTests extends ESTestCase {
     public void setup() {
         timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 600));
         taskId = new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000));
-        client = mock();
-        action = new TransportGetReindexAction(mock(), mock(), setupMockClient(client));
+        client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        action = new TransportGetReindexAction(mock(), mock(), client);
         responseRef = new AtomicReference<>();
         failureRef = new AtomicReference<>();
         listener = ActionListener.wrap(responseRef::set, failureRef::set);
@@ -167,14 +173,14 @@ public class TransportGetReindexActionTests extends ESTestCase {
 
         RuntimeException fetchException = new RuntimeException("random error");
         doAnswer(inv -> {
-            ActionListener<GetTaskResponse> l = inv.getArgument(1);
+            ActionListener<GetTaskResponse> l = inv.getArgument(2);
             l.onResponse(new GetTaskResponse(probeResult));
             return null;
         }).doAnswer(inv -> {
-            ActionListener<GetTaskResponse> l = inv.getArgument(1);
+            ActionListener<GetTaskResponse> l = inv.getArgument(2);
             l.onFailure(fetchException);
             return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
+        }).when(client).execute(eq(TransportGetTaskAction.TYPE), any(GetTaskRequest.class), any());
 
         action.doExecute(mock(), request, listener);
 
@@ -236,36 +242,36 @@ public class TransportGetReindexActionTests extends ESTestCase {
 
     private void mockGetTask(TaskResult result) {
         doAnswer(inv -> {
-            ActionListener<GetTaskResponse> l = inv.getArgument(1);
+            ActionListener<GetTaskResponse> l = inv.getArgument(2);
             l.onResponse(new GetTaskResponse(result));
             return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
+        }).when(client).execute(eq(TransportGetTaskAction.TYPE), any(GetTaskRequest.class), any());
     }
 
     private void mockGetTaskFailure(Exception e) {
         doAnswer(inv -> {
-            ActionListener<GetTaskResponse> l = inv.getArgument(1);
+            ActionListener<GetTaskResponse> l = inv.getArgument(2);
             l.onFailure(e);
             return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
+        }).when(client).execute(eq(TransportGetTaskAction.TYPE), any(GetTaskRequest.class), any());
     }
 
     private void mockGetTaskSequence(TaskResult first, TaskResult second) {
         doAnswer(inv -> {
-            ActionListener<GetTaskResponse> l = inv.getArgument(1);
+            ActionListener<GetTaskResponse> l = inv.getArgument(2);
             l.onResponse(new GetTaskResponse(first));
             return null;
         }).doAnswer(inv -> {
-            ActionListener<GetTaskResponse> l = inv.getArgument(1);
+            ActionListener<GetTaskResponse> l = inv.getArgument(2);
             l.onResponse(new GetTaskResponse(second));
             return null;
-        }).when(client).getTask(any(GetTaskRequest.class), any());
+        }).when(client).execute(eq(TransportGetTaskAction.TYPE), any(GetTaskRequest.class), any());
     }
 
     /** Asserts only the probe was issued (validation rejected before the fetch). */
     private void assertSingleProbe() {
         ArgumentCaptor<GetTaskRequest> captor = ArgumentCaptor.captor();
-        verify(client).getTask(captor.capture(), any());
+        verify(client).execute(eq(TransportGetTaskAction.TYPE), captor.capture(), any());
         GetTaskRequest probe = captor.getValue();
         assertFalse(probe.getWaitForCompletion());
         assertFalse(probe.getFollowRelocations());
@@ -274,7 +280,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
     /** Asserts probe + fetch were issued with the expected wait_for_completion. */
     private void assertProbeAndFetch(boolean expectWait) {
         ArgumentCaptor<GetTaskRequest> captor = ArgumentCaptor.captor();
-        verify(client, times(2)).getTask(captor.capture(), any());
+        verify(client, times(2)).execute(eq(TransportGetTaskAction.TYPE), captor.capture(), any());
         List<GetTaskRequest> requests = captor.getAllValues();
 
         GetTaskRequest probe = requests.get(0);
@@ -308,13 +314,5 @@ public class TransportGetReindexActionTests extends ESTestCase {
 
     private GetReindexRequest createGetReindexRequest(boolean waitForCompletion) {
         return new GetReindexRequest(taskId, waitForCompletion, timeout);
-    }
-
-    private Client setupMockClient(ClusterAdminClient clusterAdminClient) {
-        Client client = mock();
-        AdminClient adminClient = mock();
-        when(client.admin()).thenReturn(adminClient);
-        when(adminClient.cluster()).thenReturn(clusterAdminClient);
-        return client;
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -130,6 +131,26 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         // valid partitioned index
         createMapperService(settings, topMapping(b -> b.startObject("_routing").field("required", true).endObject()));
+    }
+
+    public void testSliceEnabledRequiresRouting() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        assertTrue(mapperService.documentMapper().routingFieldMapper().required());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_routing").field("required", false).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("must not configure [_routing] settings when [index.slice.enabled] is true"));
+
+        MapperService explicitRequired = createMapperService(
+            settings,
+            topMapping(b -> b.startObject("_routing").field("required", true).endObject())
+        );
+        assertTrue(explicitRequired.documentMapper().routingFieldMapper().required());
     }
 
     public void testIndexSortWithNestedFields() throws IOException {

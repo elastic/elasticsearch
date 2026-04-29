@@ -10,6 +10,7 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
@@ -36,6 +37,7 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  * </p>
  */
 public class PagedBytesCursor {
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(PagedBytesCursor.class);
     private static final VarHandle INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     private static final VarHandle LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
@@ -72,7 +74,7 @@ public class PagedBytesCursor {
      * Used by {@link #init(byte[], int, int)} to hold the single page so
      * we only have to allocate one time.
      */
-    private byte[][] singlePageHolder;
+    private byte[][] singlePageHolder; // TODO solve this the same way we solve the view allocation?
 
     /**
      * Make an empty cursor, pointing at nothing. Use a variant of
@@ -273,6 +275,32 @@ public class PagedBytesCursor {
             throw new IllegalStateException("Invalid last byte for a vint [" + Integer.toHexString(b) + "]");
         }
         return i;
+    }
+
+    /**
+     * Slices a length-prefixed byte sequence written by {@link PagedBytesBuilder#appendLengthPrefixed}.
+     * Reads the vint length, then returns a zero-copy slice of the next {@code len} bytes
+     * pointed at by {@code scratch}.
+     */
+    public PagedBytesCursor readLengthPrefixed(PagedBytesCursor scratch) {
+        int len = readVInt();
+        return slice(len, scratch);
+    }
+
+    /**
+     * Append all remaining bytes from this cursor into {@code dest}, advancing the cursor to
+     * exhaustion. Walks the underlying pages directly without allocating any scratch objects.
+     */
+    void appendTo(PagedBytesBuilder dest) {
+        while (remaining > 0) {
+            int len = Math.min(pages[pageIndex].length - pageOffset, remaining);
+            dest.append(pages[pageIndex], pageOffset, len);
+            remaining -= len;
+            if (remaining > 0) {
+                pageIndex++;
+                pageOffset = 0;
+            }
+        }
     }
 
     /**

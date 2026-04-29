@@ -191,6 +191,7 @@ toc:
                   - file: esql/functions-operators/grouping-functions/bucket.md
                   - file: esql/functions-operators/grouping-functions/tbucket.md
                   - file: esql/functions-operators/grouping-functions/categorize.md
+                  - file: esql/functions-operators/grouping-functions/without.md
               - file: esql/functions-operators/conditional-functions-and-expressions.md
                 children:
                   - file: esql/functions-operators/conditional-functions-and-expressions/case.md
@@ -384,8 +385,9 @@ toc:
         children:
           - file: esql/esql-multi-index.md
           - file: esql/esql-cross-clusters.md
-          - file: esql/esql-subquery.md
           - file: esql/esql-cross-serverless-projects.md
+          - file: esql/esql-subquery.md
+          - file: esql/esql-views.md
       - file: esql/esql-advanced.md
         children:
           - file: esql/esql-process-data-with-dissect-grok.md

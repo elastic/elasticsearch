@@ -21,8 +21,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AdaptiveExponentialHistogramMergerTests extends ESTestCase {
 
@@ -45,7 +43,7 @@ public class AdaptiveExponentialHistogramMergerTests extends ESTestCase {
             var factory = new AdaptiveExponentialHistogramMerger.Factory(
                 breaker,
                 ExponentialHistogramMerger.DEFAULT_MAX_HISTOGRAM_BUCKETS,
-                200,
+                20,
                 0.90,
                 reductionCount::incrementAndGet
             )
@@ -67,7 +65,7 @@ public class AdaptiveExponentialHistogramMergerTests extends ESTestCase {
     public void testReducesBucketLimitUnderMemoryPressure() {
         CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(10));
         AtomicInteger reductionCount = new AtomicInteger();
-        int startingBucketLimit = 320;
+        int startingBucketLimit = ExponentialHistogramMerger.DEFAULT_MAX_HISTOGRAM_BUCKETS;
         int minimumBucketLimit = 20;
         int numMergers = 10_000;
 

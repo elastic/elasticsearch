@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.allocation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -24,9 +25,11 @@ import org.elasticsearch.cluster.routing.allocation.allocator.NodeSorters;
 import org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -47,6 +50,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.ClusterServiceUtils.addTemporaryStateListener;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -150,6 +154,65 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
             )
         );
 
+    }
+
+    public void testShardsFromSameIndexAreNeverCoLocatedWhenIndexBalanceDeciderEnabled() {
+        setUpThreeHealthyIndexNodesAndThreeHealthSearchNodes();
+
+        // Weight function should push shards to the first index node
+        lightWeightedNodes.add(testHarness.firstIndexNode.getId());
+
+        // When the decider is disabled, we should allocate the 3 shards to the same node. We check this to ensure that it's
+        // the decider that's causing the spread, and the test is still valid
+        updateClusterSettings(Settings.builder().put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false));
+        createIndexAndEnsureIndexAllocationMatches(
+            allocatedPrimaries -> allocatedPrimaries.stream().map(ShardRouting::currentNodeId).distinct().count() == Math.min(
+                1,
+                allocatedPrimaries.size()
+            )
+        );
+
+        // When the decider is enabled, we should allocate the 3 shards to different nodes
+        updateClusterSettings(Settings.builder().put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true));
+        createIndexAndEnsureIndexAllocationMatches(
+            allocatedPrimaries -> allocatedPrimaries.stream().map(ShardRouting::currentNodeId).distinct().count() == allocatedPrimaries
+                .size()
+        );
+    }
+
+    /**
+     * Create a 3-shard index and ensure that in every cluster state, a predicate is met for the allocated primary shards. Returns
+     * when the 3 shards are all allocated.
+     *
+     * @param allocatedPrimariesPredicate A predicate used to check the state of the allocated primaries
+     */
+    private void createIndexAndEnsureIndexAllocationMatches(Predicate<List<ShardRouting>> allocatedPrimariesPredicate) {
+        final String indexName = randomIndexName();
+        final var desiredStateListener = addTemporaryStateListener(clusterService(), state -> {
+            final var indexRoutingTables = state.globalRoutingTable().routingTable(ProjectId.DEFAULT);
+            final var optionalIndexRoutingTable = indexRoutingTables.indicesRouting()
+                .values()
+                .stream()
+                .filter(ir -> ir.getIndex().getName().equals(indexName))
+                .findFirst();
+            return optionalIndexRoutingTable.map(indexRoutingTable -> {
+                // Index was created, assert there are 3 primaries and they are never co-located
+                final var allocatedPrimaries = indexRoutingTable.allShards()
+                    .map(IndexShardRoutingTable::primaryShard)
+                    .filter(ShardRouting::assignedToNode)
+                    .toList();
+                assertTrue(
+                    "Unexpected shard allocation:\n" + indexRoutingTable.prettyPrint(),
+                    allocatedPrimariesPredicate.test(allocatedPrimaries)
+                );
+
+                // All primaries are active
+                return indexRoutingTable.allPrimaryShardsActive();
+            }).orElse(false);
+        }, TimeValue.THIRTY_SECONDS);
+
+        createIndex(indexName, 3, 1);
+        safeAwait(desiredStateListener, TimeValue.THIRTY_SECONDS);
     }
 
     private Predicate<ClusterState> getAllocationStateListener(String indexName, Map<String, Integer> nodesToShards) {
@@ -302,7 +365,10 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
     }
 
     private void setUpThreeHealthyIndexNodesAndThreeHealthSearchNodes() {
-        Settings settings = Settings.builder().build();
+        // Ensure balancing is disabled for the indexing tier
+        Settings settings = Settings.builder()
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.REPLICAS)
+            .build();
         startMasterOnlyNode(settings);
         final var indexNodes = startIndexNodes(3, settings);
         final var searchNodes = startSearchNodes(3);

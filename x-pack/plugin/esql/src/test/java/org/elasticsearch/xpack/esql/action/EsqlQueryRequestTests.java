@@ -339,6 +339,36 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(message, containsString("n2={pattern=[]} parameter is multivalued, only VALUE parameters can be multivalued"));
     }
 
+    /**
+     * Empty lists as unnamed/positional VALUE params are also coerced to null (see
+     * <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>).
+     */
+    public void testEmptyListPositionalParamIsNull() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        String json = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "params": [[], null, "non-empty", [1, 2, 3]]
+            }""", query);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(4, request.params().size());
+
+        QueryParam emptyList = request.params().get(1);
+        QueryParam explicitNull = request.params().get(2);
+        assertNull(emptyList.value());
+        assertNull(explicitNull.value());
+        assertEquals(NULL, emptyList.type());
+        assertEquals(NULL, explicitNull.type());
+        assertEquals(ParserUtils.ParamClassification.VALUE, emptyList.classification());
+
+        assertEquals("non-empty", request.params().get(3).value());
+        assertEquals(KEYWORD, request.params().get(3).type());
+
+        assertEquals(List.of(1, 2, 3), request.params().get(4).value());
+        assertEquals(INTEGER, request.params().get(4).type());
+    }
+
     public void testInvalidParams() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();

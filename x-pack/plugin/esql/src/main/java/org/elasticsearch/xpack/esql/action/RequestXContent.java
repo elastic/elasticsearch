@@ -233,7 +233,13 @@ final class RequestXContent {
                         } else if (mixedTypesFound) {
                             addMixedTypesError(errors, loc, null, paramValues);
                         }
-                        unNamedParams.add(new QueryParam(null, paramValues, arrayType, VALUE));
+                        // An empty list as an unnamed param is treated as null (see #147448),
+                        // matching the named-param behavior and avoiding empty-list values reaching the analyzer.
+                        if (paramValues.isEmpty()) {
+                            unNamedParams.add(new QueryParam(null, null, DataType.NULL, VALUE));
+                        } else {
+                            unNamedParams.add(new QueryParam(null, paramValues, arrayType, VALUE));
+                        }
                     } else {
                         ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
                         unNamedParams.add(new QueryParam(null, valueAndDataType.value, valueAndDataType.type, VALUE));

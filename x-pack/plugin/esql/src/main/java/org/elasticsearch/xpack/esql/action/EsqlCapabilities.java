@@ -2652,6 +2652,14 @@ public class EsqlCapabilities {
          */
         EMPTY_LIST_NAMED_PARAM_AS_NULL,
 
+        /**
+         * An empty list passed as an unnamed/positional query parameter is also treated as null,
+         * matching the named-param behavior. A defined-but-null param used in an identifier or
+         * pattern position now produces a clean parsing error instead of silently producing an
+         * empty column name.
+         */
+        EMPTY_LIST_PARAM_AS_NULL,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

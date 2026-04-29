@@ -968,3 +968,79 @@ version is not allowed:
         body:
           query: 'from test | keep ?f | limit 1'
           params: [{"f" : {"pattern" : []}}]
+
+
+---
+"Empty list positional param is treated as null":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ empty_list_param_as_null ]
+      reason: "empty list positional parameter is treated as null"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row a = ?, b = ?1, c = ?'
+          params: [[], null, []]
+
+  - length: {columns: 3}
+  - match: {columns.0.type: "null"}
+  - match: {columns.1.type: "null"}
+  - match: {columns.2.type: "null"}
+  - length: {values: 1}
+  - match: {values.0: [null, null, null]}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row v = 1 | eval x = COALESCE(?1, v)'
+          params: [[]]
+
+  - length: {values: 1}
+  - match: {values.0.1: 1}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row v = 1 | eval x = CASE(?1, 1, 2)'
+          params: [[]]
+
+  - length: {values: 1}
+  - match: {values.0.1: 2}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row v = 1 | eval is_null = ?1 is null, is_not_null = ?1 is not null'
+          params: [[]]
+
+  - match: {values.0.1: true}
+  - match: {values.0.2: false}
+
+  # Identifier-pattern positions: positional params are always VALUE-classified, so an empty list
+  # (now coerced to null) must produce a clean parsing error instead of an empty column name.
+  - do:
+      catch: /Query parameter \[\?1\] is null or undefined, cannot be used as an identifier or pattern/
+      esql.query:
+        body:
+          query: 'from test | drop ?1'
+          params: [[]]
+
+  - do:
+      catch: /Query parameter \[\?1\] is null or undefined, cannot be used as an identifier or pattern/
+      esql.query:
+        body:
+          query: 'from test | rename color as ?1'
+          params: [[]]

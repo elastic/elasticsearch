@@ -89,3 +89,32 @@ setup:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "img_1" }
 
+---
+"Semantic query on semantic field":
+
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: "1"
+        body:
+          my_field: "the quick brown fox"
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: "2"
+        body:
+          my_field: "the slow green turtle"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            semantic:
+              field: my_field
+              query: "the quick brown fox"
+
+  - match: { hits.total.value: 2 }

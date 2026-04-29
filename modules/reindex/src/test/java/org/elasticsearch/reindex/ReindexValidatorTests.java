@@ -57,12 +57,11 @@ public class ReindexValidatorTests extends ESTestCase {
             indexResolver,
             EmptySystemIndices.INSTANCE
         );
-        ProjectMetadata projectMetadata = projectMetadata("source-index", "dest-index");
         ReindexValidator validator = new ReindexValidator(
             settings,
-            clusterService(projectMetadata),
+            mock(ClusterService.class),
             indexResolver,
-            TestProjectResolvers.singleProject(projectMetadata.id()),
+            DefaultProjectResolver.INSTANCE,
             autoCreateIndex
         );
 
@@ -92,9 +91,12 @@ public class ReindexValidatorTests extends ESTestCase {
             EmptySystemIndices.INSTANCE
         );
 
-        ProjectMetadata projectMetadata = projectMetadata("source-index", "dest-index");
-        ProjectId projectId = projectMetadata.id();
-        ClusterService clusterService = clusterService(projectMetadata);
+        ProjectId projectId = randomUniqueProjectId();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
         ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId);
         ReindexValidator validator = new ReindexValidator(settings, clusterService, indexResolver, projectResolver, autoCreateIndex);
 

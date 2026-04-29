@@ -79,7 +79,6 @@ public class ReindexValidator {
         checkAllowedRemote(allowedRemotes, remoteBlocklistSettingInUse, request.getRemoteInfo());
         ClusterState state = clusterService.state();
         SearchRequest source = request.getSearchRequest();
-        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
 
         if (source.indicesOptions().resolveCrossProjectIndexExpression() == false
             && request.getRemoteInfo() == null
@@ -90,6 +89,8 @@ public class ReindexValidator {
             );
             throw e;
         }
+
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         validateAgainstAliases(source, request.getDestination(), request.getRemoteInfo(), indexResolver, autoCreateIndex, projectMetadata);
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             validateDestinationSliceRouting(request, projectMetadata);

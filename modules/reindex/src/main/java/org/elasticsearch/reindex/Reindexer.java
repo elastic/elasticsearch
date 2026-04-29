@@ -1115,15 +1115,23 @@ public class Reindexer {
             String routingSpec = mainRequest.getDestination().routing();
             if (routingSpec == null) {
                 super.copyRouting(request, routing);
+                request.setRoutingFromSlice(false);
                 return;
             }
             if (routingSpec.startsWith("=")) {
                 super.copyRouting(request, mainRequest.getDestination().routing().substring(1));
+                request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
                 return;
             }
             switch (routingSpec) {
-                case "keep" -> super.copyRouting(request, routing);
-                case "discard" -> super.copyRouting(request, null);
+                case "keep" -> {
+                    super.copyRouting(request, routing);
+                    request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
+                }
+                case "discard" -> {
+                    super.copyRouting(request, null);
+                    request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
+                }
                 default -> throw new IllegalArgumentException("Unsupported routing command");
             }
         }
@@ -1181,8 +1189,9 @@ public class Reindexer {
                  * Its important that routing comes after parent in case you want to
                  * change them both.
                  */
-                if (metadata.routingChanged()) {
+                if (metadata.routingUpdated()) {
                     request.setRouting(metadata.getRouting());
+                    request.setRoutingFromSlice(metadata.isRoutingFromSlice());
                 }
             }
         }

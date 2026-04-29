@@ -81,6 +81,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_routing", routing));
         assertEquals(routing, index.routing());
+        assertFalse(index.isRoutingFromSlice());
     }
 
     public void testSetSlice() throws Exception {
@@ -88,6 +89,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         String slice = randomRealisticUnicodeOfLengthBetween(5, 20);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put(SliceIndexing.PARAM_NAME, slice));
         assertEquals(slice, index.routing());
+        assertTrue(index.isRoutingFromSlice());
     }
 
     public void testSetSliceRejectedWhenFeatureFlagDisabled() {

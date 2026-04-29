@@ -70,6 +70,8 @@ public class ReindexMetadata extends Metadata {
     protected final String id;
     protected final Long version;
     protected final String routing;
+    private boolean routingUpdated;
+    private boolean routingFromSlice;
 
     public ReindexMetadata(String index, String id, Long version, String routing, String op, long timestamp) {
         super(metadataMap(index, id, version, routing, op, timestamp), PROPERTIES);
@@ -101,6 +103,8 @@ public class ReindexMetadata extends Metadata {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && (ROUTING.equals(key) || SLICE.equals(key))) {
             final Object previous = super.put(ROUTING, value);
             super.put(SLICE, value);
+            routingUpdated = true;
+            routingFromSlice = SLICE.equals(key);
             return previous;
         }
         return super.put(key, value);
@@ -111,6 +115,8 @@ public class ReindexMetadata extends Metadata {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && (ROUTING.equals(key) || SLICE.equals(key))) {
             final Object previous = super.remove(ROUTING);
             super.remove(SLICE);
+            routingUpdated = true;
+            routingFromSlice = SLICE.equals(key);
             return previous;
         }
         return super.remove(key);
@@ -174,5 +180,13 @@ public class ReindexMetadata extends Metadata {
 
     public boolean routingChanged() {
         return Objects.equals(routing, getString(ROUTING)) == false;
+    }
+
+    public boolean routingUpdated() {
+        return routingUpdated;
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 }

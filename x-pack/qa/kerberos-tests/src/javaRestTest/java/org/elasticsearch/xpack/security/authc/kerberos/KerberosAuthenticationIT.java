@@ -72,9 +72,11 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        // force localhost IPv4 otherwise it is a chicken and egg problem where we need the keytab for the hostname when starting the
-        // cluster but do not know the exact address that is first in the http ports file
-        .setting("http.host", "127.0.0.1")
+        // Pin HTTP to a single-family loopback so the bound address resolves back to `localhost` for the SPNEGO
+        // `HTTP/localhost` principal in our keytab. Match the IP stack the test JVM prefers, otherwise the test
+        // client (which canonicalises the bound address to `localhost`) will resolve `localhost` to the other
+        // family and fail with connection refused.
+        .setting("http.host", () -> Boolean.getBoolean("java.net.preferIPv6Addresses") ? "_local:ipv6_" : "_local:ipv4_")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.authc.realms.file.file1.order", "0")

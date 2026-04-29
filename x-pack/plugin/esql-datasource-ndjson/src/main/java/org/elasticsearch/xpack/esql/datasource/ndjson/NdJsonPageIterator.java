@@ -52,15 +52,24 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         ErrorPolicy errorPolicy
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        String sourceLocation = object.path().toString();
         InputStream inputStream = object.newStream();
         if (skipFirstLine) {
             skipToNextLine(inputStream);
         }
         if (trimLastPartialLine) {
-            inputStream = trimLastPartialLine(inputStream, errorPolicy);
+            inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation);
         }
         this.rowLimit = rowLimit;
-        this.pageDecoder = new NdJsonPageDecoder(inputStream, resolvedAttributes, projectedColumns, batchSize, blockFactory, errorPolicy);
+        this.pageDecoder = new NdJsonPageDecoder(
+            inputStream,
+            resolvedAttributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation
+        );
     }
 
     @Override
@@ -148,8 +157,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
      * the last {@code '\n'}, without materializing the whole stream in memory. The delegate is closed
      * when the returned stream is closed. Oversized partial lines follow {@code errorPolicy}.
      */
-    static InputStream trimLastPartialLine(InputStream in, ErrorPolicy errorPolicy) {
+    static InputStream trimLastPartialLine(InputStream in, ErrorPolicy errorPolicy, String sourceLocation) {
         // TODO: thread in a centralized error counter?
-        return new TrimLastPartialLineInputStream(in, errorPolicy);
+        return new TrimLastPartialLineInputStream(in, errorPolicy, sourceLocation);
     }
 }

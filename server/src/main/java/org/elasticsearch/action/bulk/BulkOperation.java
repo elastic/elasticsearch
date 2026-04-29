@@ -105,6 +105,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
+    private final boolean useBatch;
 
     BulkOperation(
         Task task,
@@ -183,6 +184,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
+        this.useBatch = ShardBatchIndexer.BATCH_INDEXING.get(clusterService.getSettings())
+            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH);
     }
 
     @Override
@@ -491,6 +494,16 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             );
             releaseOnFinish.close();
         } else {
+            if (ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled()
+                && useBatch
+                && BulkShardBatch.shouldConvertToShardBatch(bulkShardRequest)) {
+                try {
+                    BulkShardBatch shardBatch = BulkShardBatch.createShardBatch(bulkShardRequest);
+                    bulkShardRequest.setBulkShardBatch(shardBatch);
+                } catch (Exception e) {
+                    logger.debug("skipping BulkShardBatch conversion for shard bulk request", e);
+                }
+            }
             client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
 
                 // Lazily get the project metadata to avoid keeping it around longer than it is needed

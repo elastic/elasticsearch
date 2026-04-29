@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -50,8 +53,22 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
     @FunctionInfo(
         returnType = "keyword",
         description = "Groups by all time-series dimensions except the specified ones. "
-            + "When called with no arguments, groups by all dimensions.",
-        type = FunctionType.GROUPING
+            + "When called with no arguments, groups by all dimensions. ",
+        type = FunctionType.GROUPING,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
+        examples = {
+            @Example(
+                description = "Aggregate by every dimension except `pod`:",
+                file = "k8s-timeseries-without",
+                tag = "docsWithoutSingleDimension"
+            ),
+            @Example(description = "Exclude multiple dimensions:", file = "k8s-timeseries-without", tag = "docsWithoutMultipleDimensions"),
+            @Example(
+                description = "`WITHOUT()` with no arguments groups by every dimension, equivalent to the "
+                    + "implicit \"group by all\" behavior of a bare time series aggregation function:",
+                file = "k8s-timeseries-without",
+                tag = "docsWithoutEmpty"
+            ) }
     )
     public TimeSeriesWithout(
         Source source,

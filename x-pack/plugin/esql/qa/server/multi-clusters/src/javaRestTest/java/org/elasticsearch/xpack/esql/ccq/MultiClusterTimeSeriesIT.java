@@ -1,3 +1,4 @@
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -22,6 +23,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
@@ -52,8 +54,11 @@ import static org.hamcrest.Matchers.nullValue;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterTimeSeriesIT extends ESRestTestCase {
 
-    static final List<String> REQUIRED_CAPABILITIES = List.of("ts_command_v0");
-    static final List<String> WINDOW_REQUIRED_CAPABILITIES = List.of("ts_command_v0", "fix_ime_series_window_backward");
+    static final List<String> REQUIRED_CAPABILITIES = List.of(EsqlCapabilities.Cap.TS_COMMAND_V0.capabilityName());
+    static final List<String> WINDOW_REQUIRED_CAPABILITIES = List.of(
+        EsqlCapabilities.Cap.TS_COMMAND_V0.capabilityName(),
+        EsqlCapabilities.Cap.FIX_TIME_SERIES_WINDOW_BACKWARD.capabilityName()
+    );
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
     static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);

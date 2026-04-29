@@ -158,12 +158,12 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         IntVector outputSelected = null;
         long startInNanos = System.nanoTime();
         boolean success = false;
+        boolean keysFiltered = false;
         try {
             allSelected = blockHash.nonEmpty();
 
             Block[] fullKeys = blockHash.getKeys(allSelected);
             outputKeys = new Block[fullKeys.length];
-            boolean keysFiltered = false;
             try {
                 for (int b = 0; b < fullKeys.length; b++) {
                     outputKeys[b] = fullKeys[b].filter(false, outputPositions);
@@ -209,11 +209,13 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         } finally {
             rowsAddedInCurrentBatch = 0;
             Releasables.close(allSelected, outputSelected);
-            if (success == false && blocks != null) {
-                Releasables.closeExpectNoException(blocks);
-            }
-            if (outputKeys != null) {
-                Releasables.closeExpectNoException(outputKeys);
+            if (success == false) {
+                if (blocks != null) {
+                    Releasables.closeExpectNoException(blocks);
+                }
+                if (keysFiltered) {
+                    Releasables.closeExpectNoException(outputKeys);
+                }
             }
             emitNanos += System.nanoTime() - startInNanos;
             emitCount++;
@@ -351,10 +353,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         for (long groupId = 0; groupId < numGroups; groupId++) {
             int tsid = tsBlockHash.tsidForGroup(groupId);
             long startTimestamp = tsBlockHash.timestampForGroup(groupId);
-            long endTimestamp = startTimestamp + timeResolution.convert(windowMillis);
+            long effectiveEnd = Math.min(startTimestamp + timeResolution.convert(windowMillis), maxBound + 1);
             long bucket = optimizedTimeBucket.nextRoundingValue(startTimestamp);
             // Fill the missing buckets between (timestamp - window, timestamp).
-            while (bucket < endTimestamp && bucket <= maxBound) {
+            while (bucket < effectiveEnd) {
                 if (tsBlockHash.addExtraGroup(tsid, bucket) >= 0) {
                     expandingGroups.addGroup(Math.toIntExact(groupId));
                 }
@@ -480,20 +482,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             }
 
             @Override
-            public void forEachBucketInRange(long rangeStartMillis, long rangeEndMillis, java.util.function.LongConsumer action) {
-                long bucket = optimizedTimeBucket.nextRoundingValue(rangeStartMillis);
-                while (bucket < rangeEndMillis) {
-                    action.accept(bucket);
-                    bucket = optimizedTimeBucket.nextRoundingValue(bucket);
-                }
-            }
-
-            @Override
             public void forEachGroupInRange(int startingGroupId, long rangeStartMillis, long rangeEndMillis, IntConsumer action) {
                 int tsid = tsBlockHash.tsidForGroup(startingGroupId);
-                action.accept(startingGroupId);
                 long minMillis = timeResolution.roundDownToMillis(tsBlockHash.minTimestamp());
-                long bucket = optimizedTimeBucket.round(Math.max(rangeStartMillis, minMillis));
+                long bucket = Math.max(rangeStartMillis, minMillis);
                 while (bucket < rangeEndMillis) {
                     long groupId = tsBlockHash.getGroupId(tsid, bucket);
                     if (groupId != -1 && groupId != startingGroupId) {

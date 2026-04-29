@@ -69,7 +69,7 @@ bytes_in:double | step:datetime            | cluster:keyword
 count_over_time_with_window
 required_capability: ts_command_v0
 required_capability: time_series_window_v1
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS k8s 
 | STATS bytes_in = sum(count_over_time(network.bytes_in, 10 minute)) BY cluster, time_bucket = tbucket(2minute) 
@@ -102,7 +102,7 @@ bytes_in:long | cluster:keyword | time_bucket:datetime
 count_over_time_with_window_promql
 required_capability: promql_command_v0
 required_capability: time_series_window_v1
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 PROMQL index=k8s step=2m bytes_in=(sum by (cluster) (count_over_time(network.bytes_in[10m])))
 | SORT step, cluster | LIMIT 20;

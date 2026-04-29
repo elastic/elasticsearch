@@ -16,7 +16,7 @@
 sum_over_time_window_smaller_than_bucket_2m_window_5m_bucket
 required_capability: ts_command_v0
 required_capability: time_series_window_smaller_than_bucket
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS ts_window
 | STATS s = sum(sum_over_time(val, 2m)) BY dim, time_bucket = TBUCKET(5minute)
@@ -41,7 +41,7 @@ s:long | dim:keyword | time_bucket:datetime
 max_over_time_window_smaller_than_bucket_2m_window_5m_bucket
 required_capability: ts_command_v0
 required_capability: time_series_window_smaller_than_bucket
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS ts_window
 | STATS mx = sum(max_over_time(val, 2m)) BY dim, time_bucket = TBUCKET(5minute)
@@ -70,7 +70,7 @@ mx:long | dim:keyword | time_bucket:datetime
 sum_over_time_non_multiple_7m_window_5m_bucket
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS ts_window
 | STATS s = sum(sum_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
@@ -96,7 +96,7 @@ s:long | dim:keyword | time_bucket:datetime
 sum_over_time_non_multiple_8m_window_6m_bucket
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS ts_window
 | STATS s = sum(sum_over_time(val, 8m)) BY dim, time_bucket = TBUCKET(6minute)
@@ -119,7 +119,7 @@ s:long | dim:keyword | time_bucket:datetime
 avg_over_time_non_multiple_7m_window_5m_bucket
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS ts_window
 | STATS a = sum(avg_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
@@ -144,7 +144,7 @@ a:double | dim:keyword | time_bucket:datetime
 count_over_time_non_multiple_7m_window_5m_bucket
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS ts_window
 | STATS c = sum(count_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
@@ -169,7 +169,7 @@ c:long | dim:keyword | time_bucket:datetime
 max_over_time_non_multiple_7m_window_5m_bucket
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS ts_window
 | STATS mx = sum(max_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
@@ -194,7 +194,7 @@ mx:long | dim:keyword | time_bucket:datetime
 min_over_time_non_multiple_7m_window_5m_bucket
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS ts_window
 | STATS mn = sum(min_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
@@ -219,7 +219,7 @@ mn:long | dim:keyword | time_bucket:datetime
 sum_over_time_non_multiple_with_trange
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS ts_window
 | WHERE TRANGE("2024-01-01T00:05:00.000Z", "2024-01-01T00:20:00.000Z")
@@ -239,7 +239,7 @@ s:long | dim:keyword | time_bucket:datetime
 sum_over_time_non_multiple_single_dim_filter
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS ts_window
 | WHERE dim == "a"
@@ -256,10 +256,35 @@ s:long | dim:keyword | time_bucket:datetime
 161    | a           | 2024-01-01T00:25:00.000Z
 ;
 
+sum_over_time_non_multiple_single_dim_with_trange_long_fixture
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+required_capability: fix_time_series_window_backward
+
+TS ts_window_long
+| WHERE dim == "a"
+| WHERE TRANGE("2024-01-01T00:05:00.000Z", "2024-01-01T00:59:00.000Z")
+| STATS s = sum(sum_over_time(val, 7m)) BY time_bucket = TBUCKET(5minute)
+| SORT time_bucket
+| LIMIT 20;
+
+s:long | time_bucket:datetime
+45     | 2024-01-01T00:10:00.000Z
+91     | 2024-01-01T00:15:00.000Z
+126    | 2024-01-01T00:20:00.000Z
+161    | 2024-01-01T00:25:00.000Z
+196    | 2024-01-01T00:30:00.000Z
+231    | 2024-01-01T00:35:00.000Z
+266    | 2024-01-01T00:40:00.000Z
+301    | 2024-01-01T00:45:00.000Z
+336    | 2024-01-01T00:50:00.000Z
+371    | 2024-01-01T00:55:00.000Z
+;
+
 sum_over_time_exact_multiple_baseline
 required_capability: ts_command_v0
 required_capability: time_series_window_v1
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS ts_window
 | STATS s = sum(sum_over_time(val, 10m)) BY dim, time_bucket = TBUCKET(5minute)
@@ -291,7 +316,7 @@ s:long | dim:keyword | time_bucket:datetime
 rate_non_multiple_avg_rate_7m_window_5m_bucket
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 required_capability: rate_with_interpolation
 
 TS ts_window

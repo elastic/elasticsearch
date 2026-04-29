@@ -72,7 +72,7 @@ ip:ip       | cluster:keyword | time_bucket:datetime
 max_over_time_with_window
 required_capability: ts_command_v0
 required_capability: time_series_window_v1
-required_capability: fix_ime_series_window_backward
+required_capability: fix_time_series_window_backward
 
 TS k8s 
 | STATS ip = max(max_over_time(client.ip, 3 minute)) BY cluster, time_bucket = bucket(@timestamp,1minute) 

@@ -567,11 +567,21 @@ public class RestController implements HttpServerTransport.Dispatcher {
             final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
             attributes.put("http.request.headers." + lowerKey, values == null ? "" : String.join("; ", values));
         });
-        attributes.put("http.method", Objects.requireNonNullElse(method, "<unknown>"));
-        attributes.put("http.url", Objects.requireNonNullElse(req.uri(), "<unknown>"));
+        String resolvedMethod = Objects.requireNonNullElse(method, "<unknown>");
+        String resolvedUri = Objects.requireNonNullElse(req.uri(), "<unknown>");
+        attributes.put("http.method", resolvedMethod);
+        attributes.put("http.request.method", resolvedMethod);
+        attributes.put("http.url", resolvedUri);
+        attributes.put("url.full", resolvedUri);
         switch (req.getHttpRequest().protocolVersion()) {
-            case HTTP_1_0 -> attributes.put("http.flavour", "1.0");
-            case HTTP_1_1 -> attributes.put("http.flavour", "1.1");
+            case HTTP_1_0 -> {
+                attributes.put("http.flavour", "1.0");
+                attributes.put("network.protocol.version", "1.0");
+            }
+            case HTTP_1_1 -> {
+                attributes.put("http.flavour", "1.1");
+                attributes.put("network.protocol.version", "1.1");
+            }
         }
 
         tracer.startTrace(threadContext, channel.request(), name, attributes);

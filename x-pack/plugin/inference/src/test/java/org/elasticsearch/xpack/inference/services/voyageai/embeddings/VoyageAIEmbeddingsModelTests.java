@@ -14,7 +14,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.util.Map;
@@ -82,7 +82,7 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "service",
             url,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(model, null),
+                new VoyageAICommonServiceSettings(model, null),
                 VoyageAIEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
@@ -108,7 +108,7 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "service",
             url,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(model, null),
+                new VoyageAICommonServiceSettings(model, null),
                 VoyageAIEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
@@ -135,7 +135,7 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "service",
             url,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(model, null),
+                new VoyageAICommonServiceSettings(model, null),
                 embeddingType,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
@@ -162,7 +162,7 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "service",
             url,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(model, null),
+                new VoyageAICommonServiceSettings(model, null),
                 VoyageAIEmbeddingType.FLOAT,
                 similarityMeasure,
                 dimensions,

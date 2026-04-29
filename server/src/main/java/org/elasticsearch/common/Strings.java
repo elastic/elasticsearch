@@ -753,6 +753,95 @@ public class Strings {
     }
 
     /**
+     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
+     * up to 1 mebibyte; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out
+     * instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values printed in a
+     * human-readable way (see {@link XContentBuilder#humanReadable()}).
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     */
+    public static String toTruncatedString(ChunkedToXContent chunkedToXContent) {
+        return toTruncatedString(chunkedToXContent, 1024 * 1024 /* 1 MiB */).appendIfTruncated("[...]");
+    }
+
+    /**
+     * Returns a {@link TruncatedString} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will
+     * be truncated up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be
+     * printed out instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values
+     * printed in a human-readable way (see {@link XContentBuilder#humanReadable()}).
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     * @param maxBytes The maximum number of bytes after which the serialization will stop.
+     */
+    public static TruncatedString toTruncatedString(ChunkedToXContent chunkedToXContent, int maxBytes) {
+        return toTruncatedString(chunkedToXContent, maxBytes, false, false);
+    }
+
+    /**
+     * Returns a {@link TruncatedString} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will
+     * be truncated up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be
+     * printed out instead.
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     * @param maxBytes The maximum number of bytes after which the serialization will stop.
+     * @param pretty True if the content should be pretty-printed. Also see {@link XContentBuilder#prettyPrint()}.
+     * @param human True if the values should be printed in a human-readable way. Also see {@link XContentBuilder#humanReadable()}}.
+     */
+    public static TruncatedString toTruncatedString(ChunkedToXContent chunkedToXContent, int maxBytes, boolean pretty, boolean human) {
+        try {
+            final var truncatedStream = new TruncatedByteArrayOutputStream(maxBytes);
+            final var builder = createBuilder(pretty, human, truncatedStream);
+
+            if (chunkedToXContent.isFragment()) {
+                builder.startObject();
+            }
+            final var chunks = chunkedToXContent.toXContentChunked(ToXContent.EMPTY_PARAMS);
+            while (chunks.hasNext()) {
+                chunks.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.flush();
+                if (truncatedStream.isTruncated()) {
+                    break;
+                }
+            }
+            if (chunkedToXContent.isFragment()) {
+                builder.endObject();
+            }
+
+            return new TruncatedString(toString(builder), truncatedStream.isTruncated());
+        } catch (IOException e) {
+            return new TruncatedString(exceptionToJsonString(e, pretty, human), false);
+        }
+    }
+
+    /**
+     * A small value class that represents a {@link String} that might be truncated.
+     *
+     * @param string The string value.
+     * @param truncated {@code true} if the string was truncated, {@code false} otherwise.
+     */
+    public record TruncatedString(String string, boolean truncated) {
+
+        /**
+         * Appends a given {@code suffix} and returns the result if the value if {@link #string} was truncated; or the unchanged
+         * {@link #string} otherwise.
+         *
+         * @param suffix Suffix to append.
+         */
+        public String appendIfTruncated(String suffix) {
+            return truncated ? string + suffix : string;
+        }
+    }
+
+    /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
      * Wraps the output into an anonymous object if needed. The content is not pretty-printed
      * nor human readable.
@@ -763,7 +852,8 @@ public class Strings {
 
     /**
      * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
-     * @deprecated don't add usages of this method, it will be removed eventually
+     * @deprecated don't add usages of this method, it will be removed eventually. Use {@link #toTruncatedString(ChunkedToXContent, int)}
+     *             instead.
      * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
      */
     @Deprecated
@@ -808,7 +898,8 @@ public class Strings {
     /**
      * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
-     * @deprecated don't add usages of this method, it will be removed eventually
+     * @deprecated don't add usages of this method, it will be removed eventually. Use
+     *             {@link #toTruncatedString(ChunkedToXContent, int, boolean, boolean)} instead.
      * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
      */
     @Deprecated
@@ -824,7 +915,7 @@ public class Strings {
      */
     public static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
         try {
-            XContentBuilder builder = createBuilder(pretty, human);
+            XContentBuilder builder = createBuilder(pretty, human, null);
             if (toXContent.isFragment()) {
                 builder.startObject();
             }
@@ -834,21 +925,25 @@ public class Strings {
             }
             return toString(builder);
         } catch (IOException e) {
-            try {
-                XContentBuilder builder = createBuilder(pretty, human);
-                builder.startObject();
-                builder.field("error", "error building toString out of XContent: " + e.getMessage());
-                builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
-                builder.endObject();
-                return toString(builder);
-            } catch (IOException e2) {
-                throw new ElasticsearchException("cannot generate error message for deserialization", e);
-            }
+            return exceptionToJsonString(e, pretty, human);
         }
     }
 
-    private static XContentBuilder createBuilder(boolean pretty, boolean human) throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder();
+    private static String exceptionToJsonString(Exception exception, boolean pretty, boolean human) {
+        try {
+            XContentBuilder builder = createBuilder(pretty, human, null);
+            builder.startObject();
+            builder.field("error", "error building toString out of XContent: " + exception.getMessage());
+            builder.field("stack_trace", ExceptionsHelper.stackTrace(exception));
+            builder.endObject();
+            return toString(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchException("cannot generate error message for deserialization", exception);
+        }
+    }
+
+    private static XContentBuilder createBuilder(boolean pretty, boolean human, @Nullable OutputStream out) throws IOException {
+        XContentBuilder builder = out == null ? JsonXContent.contentBuilder() : new XContentBuilder(JsonXContent.jsonXContent, out);
         if (pretty) {
             builder.prettyPrint();
         }

@@ -84,6 +84,19 @@ book_no:keyword | title:text                                                    
 7350            | Return of the Shadow                                             | Tolkien for long believed would be a far shorter book, 'a sequel to The Hobbit'.
 ;
 
+topSnippetsOrderNoneVsScore
+required_capability: top_snippets_order
+
+ROW chunks = ["We use elasticsearch for search.", "Elasticsearch elasticsearch elasticsearch powers our stack."]
+| EVAL doc_order = TOP_SNIPPETS(chunks, "elasticsearch", { "num_snippets": 2, "num_words": 0, "order": "none" })
+| EVAL score_order = TOP_SNIPPETS(chunks, "elasticsearch", { "num_snippets": 2, "num_words": 0, "order": "score" })
+| KEEP doc_order, score_order
+;
+
+doc_order:keyword | score_order:keyword
+[We use elasticsearch for search., Elasticsearch elasticsearch elasticsearch powers our stack.] | [Elasticsearch elasticsearch elasticsearch powers our stack., We use elasticsearch for search.]
+;
+
 topSnippetsWithMultivaluedField
 required_capability: top_snippets_mv
 

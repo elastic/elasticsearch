@@ -56,6 +56,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder.QUERY_VECTOR_FIELD;
+import static org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder.SPARSE_VECTOR_FIELD_PRUNING_OPTIONS;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
@@ -353,7 +354,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         SparseVectorQueryBuilder queryBuilder = new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, WEIGHTED_TOKENS, null, null, null, null);
 
         TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(
-            TransportVersion.fromName("sparse_vector_field_pruning_options")
+            TransportVersion.fromName(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)
         );
 
         BytesStreamOutput out = new BytesStreamOutput();

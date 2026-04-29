@@ -173,7 +173,7 @@ public class Approximation {
         if (EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled()) {
             SUPPORTED_COMMANDS_BUILDER.add(Join.class);
         }
-        if (EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled()) {
+        if (EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled()) {
             SUPPORTED_COMMANDS_BUILDER.add(InlineJoin.class);
             SUPPORTED_COMMANDS_BUILDER.add(StubRelation.class);  // temporary node
         }

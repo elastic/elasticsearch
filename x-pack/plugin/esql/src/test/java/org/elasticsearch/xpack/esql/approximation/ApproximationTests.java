@@ -43,12 +43,12 @@ public class ApproximationTests extends ApproximationTestCase {
     }
 
     public void testVerify_inlineStats() {
-        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled());
+        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
         verify("FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10");
     }
 
     public void testVerify_inlineStats_disabled() {
-        assumeTrue("needs approximation inline stats disabled", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled() == false);
+        assumeTrue("needs approximation inline stats disabled", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled() == false);
         assertError(
             "FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10",
             equalTo("line 1:13: approximation not supported: query with [INLINE STATS COUNT() BY last_name] cannot be approximated")
@@ -96,7 +96,7 @@ public class ApproximationTests extends ApproximationTestCase {
     }
 
     public void testVerify_validQuery_queryProperties_inlineStats() throws Exception {
-        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled());
+        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
         assertThat(
             verify("FROM test | WHERE emp_no < 3 | INLINE STATS COUNT()"),
             equalTo(new Approximation.QueryProperties(false, true, false))
@@ -115,7 +115,7 @@ public class ApproximationTests extends ApproximationTestCase {
     }
 
     public void testVerify_exactlyOneStats_inlineStats() {
-        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled());
+        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
         assertError(
             "FROM test | INLINE STATS count=COUNT() BY emp_no | STATS AVG(count)",
             equalTo("line 1:52: approximation not supported: query with multiple [STATS] cannot be approximated")

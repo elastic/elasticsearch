@@ -2639,7 +2639,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with INLINE STATS
          */
-        APPROXIMATION_INLINE_STATS(Build.current().isSnapshot()),
+        APPROXIMATION_INLINE_STATS_V2(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL year() function.

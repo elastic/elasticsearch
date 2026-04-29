@@ -292,3 +292,31 @@ view_dls_fls_user:
       query: '{"match": {"org": "sales"}}'
       field_security:
         grant: [ "value" ]
+
+ds_read_datasource:
+  cluster:
+    - read_datasource
+  indices: []
+
+ds_manage_datasource:
+  cluster:
+    - manage_datasource
+  indices: []
+
+ds_dataset_create:
+  cluster: []
+  indices:
+    - names: [ 'security_it_ds_*' ]
+      privileges: [ 'create_dataset' ]
+
+ds_dataset_read_metadata:
+  cluster: []
+  indices:
+    - names: [ 'security_it_ds_*' ]
+      privileges: [ 'read_dataset_metadata' ]
+
+ds_dataset_delete:
+  cluster: []
+  indices:
+    - names: [ 'security_it_ds_*' ]
+      privileges: [ 'delete_dataset' ]

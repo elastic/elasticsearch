@@ -5,7 +5,7 @@ apply plugin: 'java-library'
 apply plugin: 'application'
 
 dependencies {
-    // The elasticsearch modules-self-managed:vector module (KnnIndexTester and friends)
+    // The elasticsearch vector module (KnnIndexTester and friends)
     api project(':qa:vector')
     api(project(':x-pack:plugin:stateless')) {
         capabilities {

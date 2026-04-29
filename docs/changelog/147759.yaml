@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 147759
+summary: Log entitlement agent attach timing
+type: bug

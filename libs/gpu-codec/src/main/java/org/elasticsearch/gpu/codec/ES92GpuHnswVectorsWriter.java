@@ -585,48 +585,43 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         flatVectorWriter.mergeOneFlatVectorField(fieldInfo, mergeState);
         return () -> {
             var started = System.nanoTime();
-            // Lazily finish flat writer and open a reader for the written segment
-            ensureFlatReaderOpen();
-            // Get the vector values and scorer supplier from the written segment
-            // Note: Merged raw vectors are already in sorted order. The flatVectorWriter and MergedVectorValues utilities
-            // apply mergeState.docMaps internally, so vectors are returned in the final sorted document order.
-            // Unlike flush(), we don't need to explicitly handle sorting here.
-            KnnVectorValues vectorValues = switch (fieldInfo.getVectorEncoding()) {
-                case BYTE -> flatVectorsReader.getByteVectorValues(fieldInfo.name);
-                case FLOAT32 -> flatVectorsReader.getFloatVectorValues(fieldInfo.name);
-            };
-            int numVectors = vectorValues.size();
-            if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                // we don't really need real value for vectors here,
-                // we just build a mock graph where every node is connected to every other node
-                generateMockGraphAndWriteMeta(fieldInfo, numVectors);
-            } else {
-                try {
-                    if (dataType == CuVSMatrix.DataType.FLOAT || (flatVectorsReader instanceof QuantizedVectorsReader) == false) {
-                        RandomVectorScorerSupplier scorerSupplier = flatVectorsReader.getFlatVectorScorer()
-                            .getRandomVectorScorerSupplier(fieldInfo.getVectorSimilarityFunction(), vectorValues);
-                        mergeFloatVectorField(fieldInfo, mergeState, scorerSupplier, numVectors);
-                    } else {
-                        // During merging, we use quantized data, so we need to support byte[] too.
-                        // That's how our current formats work: use floats during indexing, and quantized data to build a graph
-                        // during merging.
-                        assert flatVectorsReader instanceof QuantizedVectorsReader;
-                        try (
-                            CloseableRandomVectorScorerSupplier scorerSupplier = ((QuantizedVectorsReader) flatVectorsReader)
-                                .getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState)
-                        ) {
-                            assert dataType == CuVSMatrix.DataType.BYTE;
-                            var randomScorerSupplier = VectorsFormatReflectionUtils.getScalarQuantizedRandomVectorScorerInnerSupplier(
-                                scorerSupplier
-                            );
-                            mergeByteVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
-                        }
+            try {
+                // Lazily finish flat writer and open a reader for the written segment
+                ensureFlatReaderOpen();
+                // Note: Merged raw vectors are already in sorted order. The flatVectorWriter and MergedVectorValues utilities
+                // apply mergeState.docMaps internally, so vectors are returned in the final sorted document order.
+                // Unlike flush(), we don't need to explicitly handle sorting here.
+                assert fieldInfo.getVectorEncoding() == VectorEncoding.FLOAT32 : "GPU writer only supports FLOAT32 indexing";
+                FloatVectorValues vectorValues = flatVectorsReader.getFloatVectorValues(fieldInfo.name);
+                int numVectors = vectorValues.size();
+                if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+                    // we don't really need real value for vectors here,
+                    // we just build a mock graph where every node is connected to every other node
+                    generateMockGraphAndWriteMeta(fieldInfo, numVectors);
+                } else if (dataType == CuVSMatrix.DataType.FLOAT) {
+                    RandomVectorScorerSupplier scorerSupplier = flatVectorsReader.getFlatVectorScorer()
+                        .getRandomVectorScorerSupplier(fieldInfo.getVectorSimilarityFunction(), vectorValues);
+                    mergeFloatVectorField(fieldInfo, mergeState, scorerSupplier, numVectors);
+                } else {
+                    // During merging, we use quantized data, so we need to support byte[] too.
+                    // That's how our current formats work: use floats during indexing, and quantized data to build a graph
+                    // during merging.
+                    assert dataType == CuVSMatrix.DataType.BYTE;
+                    assert flatVectorsReader instanceof QuantizedVectorsReader;
+                    try (
+                        CloseableRandomVectorScorerSupplier scorerSupplier = ((QuantizedVectorsReader) flatVectorsReader)
+                            .getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState)
+                    ) {
+                        var randomScorerSupplier = VectorsFormatReflectionUtils.getScalarQuantizedRandomVectorScorerInnerSupplier(
+                            scorerSupplier
+                        );
+                        mergeByteVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
                     }
-                } catch (Throwable t) {
-                    throw new IOException("Failed to merge GPU index: ", t);
                 }
                 var elapsed = System.nanoTime() - started;
                 logger.debug("Merged [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
+            } catch (Throwable t) {
+                throw new IOException("Failed to merge GPU index: ", t);
             }
         };
     }

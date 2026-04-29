@@ -46,6 +46,18 @@ public class TransportVersionUtils {
         return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
     }
 
+    /**
+     * Returns a random {@link TransportVersion} that does not support the provided version. Effectively, this returns a version
+     * "before" the given version.
+     */
+    public static TransportVersion randomVersionNotSupporting(Random random, TransportVersion version) {
+        List<TransportVersion> notSupportingVersions = ALL_VERSIONS.stream().filter(v -> v.supports(version) == false).collect(Collectors.toList());
+        if (notSupportingVersions.isEmpty()) {
+            throw new IllegalArgumentException("couldn't find any released versions not supporting [" + version + "]");
+        }
+        return notSupportingVersions.get(random.nextInt(notSupportingVersions.size()));
+    }
+
     /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static TransportVersion randomVersionBetween(
         Random random,

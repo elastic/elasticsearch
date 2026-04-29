@@ -12,6 +12,7 @@ package org.elasticsearch.inference.telemetry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -30,8 +31,8 @@ public class InferenceStats {
     static final String PRODUCTION_RELEASE_ATTRIBUTE = "es_production_release";
     static final String SERVICE_ATTRIBUTE = "service";
     static final String TASK_TYPE_ATTRIBUTE = "task_type";
-    static final String STATUS_CODE_ATTRIBUTE = "status_code";
-    static final String ERROR_TYPE_ATTRIBUTE = "error_type";
+    public static final String STATUS_CODE_ATTRIBUTE = "status_code";
+    public static final String ERROR_TYPE_ATTRIBUTE = "error_type";
 
     private static final Logger logger = LogManager.getLogger(InferenceStats.class);
 
@@ -115,9 +116,10 @@ public class InferenceStats {
             return this;
         }
 
-        public CounterBuilder withThrowable(Throwable t) {
-            applyThrowable(t, attributes);
-            responseSet = true;
+        public CounterBuilder withThrowable(@Nullable Throwable t) {
+            if (applyThrowable(t, attributes)) {
+                responseSet = true;
+            }
             return this;
         }
 
@@ -158,9 +160,10 @@ public class InferenceStats {
             return this;
         }
 
-        public DurationBuilder withThrowable(Throwable t) {
-            applyThrowable(t, attributes);
-            responseSet = true;
+        public DurationBuilder withThrowable(@Nullable Throwable t) {
+            if (applyThrowable(t, attributes)) {
+                responseSet = true;
+            }
             return this;
         }
 
@@ -177,8 +180,10 @@ public class InferenceStats {
         }
     }
 
-    private static void applyThrowable(Throwable throwable, Map<String, Object> attributes) {
-        Objects.requireNonNull(throwable);
+    private static boolean applyThrowable(@Nullable Throwable throwable, Map<String, Object> attributes) {
+        if (throwable == null) {
+            return false;
+        }
 
         if (throwable instanceof ElasticsearchStatusException ese) {
             attributes.put(STATUS_CODE_ATTRIBUTE, ese.status().getStatus());
@@ -186,5 +191,7 @@ public class InferenceStats {
         } else {
             attributes.put(ERROR_TYPE_ATTRIBUTE, throwable.getClass().getSimpleName());
         }
+
+        return true;
     }
 }

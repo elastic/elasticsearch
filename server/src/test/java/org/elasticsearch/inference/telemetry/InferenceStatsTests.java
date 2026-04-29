@@ -29,9 +29,6 @@ import static org.elasticsearch.inference.telemetry.InferenceStats.STACK_VERSION
 import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.create;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -60,14 +57,27 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testRecordWithoutModel() {
+    public void testLongCounter_WithNullThrowable_Returns200() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
 
-        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, null)).incrementBy(1);
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withThrowable(null).incrementBy(1);
 
         verify(longCounter).incrementBy(
             eq(1L),
+            eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString(), STATUS_CODE_ATTRIBUTE, 200))
+        );
+    }
+
+    public void testLongHistogram_WithNullThrowable_Returns200() {
+        var expectedDuration = randomLong();
+        var longHistogram = mock(LongHistogram.class);
+        var stats = new InferenceStats(mock(), longHistogram, mock(), Map.of());
+
+        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withThrowable(null).record(expectedDuration);
+
+        verify(longHistogram).record(
+            eq(expectedDuration),
             eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString(), STATUS_CODE_ATTRIBUTE, 200))
         );
     }
@@ -87,13 +97,115 @@ public class InferenceStatsTests extends ESTestCase {
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).incrementBy(1);
 
-        verify(longCounter).incrementBy(eq(1L), assertArg(attributes -> {
-            assertThat(attributes.get(SERVICE_ATTRIBUTE), is(TEST_SERVICE));
-            assertThat(attributes.get(TASK_TYPE_ATTRIBUTE), is(TaskType.ANY.toString()));
-            assertThat(attributes.get(STACK_VERSION_ATTRIBUTE), is(TEST_STACK_VERSION));
-            assertThat(attributes.get(PRODUCTION_RELEASE_ATTRIBUTE), is(TEST_IS_PRODUCTION_RELEASE));
-            assertThat(attributes.get(STATUS_CODE_ATTRIBUTE), is(200));
-        }));
+        verify(longCounter).incrementBy(
+            eq(1L),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    TEST_SERVICE,
+                    TASK_TYPE_ATTRIBUTE,
+                    TaskType.ANY.toString(),
+                    STACK_VERSION_ATTRIBUTE,
+                    TEST_STACK_VERSION,
+                    PRODUCTION_RELEASE_ATTRIBUTE,
+                    TEST_IS_PRODUCTION_RELEASE,
+                    STATUS_CODE_ATTRIBUTE,
+                    200
+                )
+            )
+        );
+    }
+
+    public void testCounterWithElasticsearchStatusException() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+        var statusCode = RestStatus.BAD_REQUEST;
+        var exception = new ElasticsearchStatusException("hello", statusCode);
+        var expectedError = String.valueOf(statusCode.getStatus());
+
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withThrowable(exception).incrementBy(1);
+
+        verify(longCounter).incrementBy(
+            eq(1L),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    TEST_SERVICE,
+                    TASK_TYPE_ATTRIBUTE,
+                    TaskType.ANY.toString(),
+                    STATUS_CODE_ATTRIBUTE,
+                    statusCode.getStatus(),
+                    ERROR_TYPE_ATTRIBUTE,
+                    expectedError
+                )
+            )
+        );
+    }
+
+    public void testCounterWithOtherException() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+        var exception = new IllegalStateException("ahh");
+        var expectedError = exception.getClass().getSimpleName();
+
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withThrowable(exception).incrementBy(1);
+
+        verify(longCounter).incrementBy(
+            eq(1L),
+            eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString(), ERROR_TYPE_ATTRIBUTE, expectedError))
+        );
+    }
+
+    public void testCounterWithUnknownModelAndElasticsearchStatusException() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+        var statusCode = RestStatus.BAD_REQUEST;
+        var exception = new ElasticsearchStatusException("hello", statusCode);
+        var expectedError = String.valueOf(statusCode.getStatus());
+
+        stats.requestCount().withThrowable(exception).incrementBy(1);
+
+        verify(longCounter).incrementBy(
+            eq(1L),
+            eq(Map.of(STATUS_CODE_ATTRIBUTE, statusCode.getStatus(), ERROR_TYPE_ATTRIBUTE, expectedError))
+        );
+    }
+
+    public void testCounterWithUnknownModelAndOtherException() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+        var exception = new IllegalStateException("ahh");
+        var expectedError = exception.getClass().getSimpleName();
+
+        stats.requestCount().withThrowable(exception).incrementBy(1);
+
+        verify(longCounter).incrementBy(eq(1L), eq(Map.of(ERROR_TYPE_ATTRIBUTE, expectedError)));
+    }
+
+    public void testCounterWithCustomAttribute() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+
+        stats.requestCount()
+            .withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID))
+            .withAttribute("custom_key", "custom_value")
+            .incrementBy(1);
+
+        verify(longCounter).incrementBy(
+            eq(1L),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    TEST_SERVICE,
+                    TASK_TYPE_ATTRIBUTE,
+                    TaskType.ANY.toString(),
+                    STATUS_CODE_ATTRIBUTE,
+                    200,
+                    "custom_key",
+                    "custom_value"
+                )
+            )
+        );
     }
 
     public void testRecordDurationWithoutError() {
@@ -103,12 +215,10 @@ public class InferenceStatsTests extends ESTestCase {
 
         stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).record(expectedLong);
 
-        verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
-            assertThat(attributes.get(SERVICE_ATTRIBUTE), is(TEST_SERVICE));
-            assertThat(attributes.get(TASK_TYPE_ATTRIBUTE), is(TaskType.ANY.toString()));
-            assertThat(attributes.get(STATUS_CODE_ATTRIBUTE), is(200));
-            assertThat(attributes.get(ERROR_TYPE_ATTRIBUTE), nullValue());
-        }));
+        verify(histogramCounter).record(
+            eq(expectedLong),
+            eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString(), STATUS_CODE_ATTRIBUTE, 200))
+        );
     }
 
     /**
@@ -126,12 +236,21 @@ public class InferenceStatsTests extends ESTestCase {
 
         stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withThrowable(exception).record(expectedLong);
 
-        verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
-            assertThat(attributes.get(SERVICE_ATTRIBUTE), is(TEST_SERVICE));
-            assertThat(attributes.get(TASK_TYPE_ATTRIBUTE), is(TaskType.ANY.toString()));
-            assertThat(attributes.get(STATUS_CODE_ATTRIBUTE), is(statusCode.getStatus()));
-            assertThat(attributes.get(ERROR_TYPE_ATTRIBUTE), is(expectedError));
-        }));
+        verify(histogramCounter).record(
+            eq(expectedLong),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    TEST_SERVICE,
+                    TASK_TYPE_ATTRIBUTE,
+                    TaskType.ANY.toString(),
+                    STATUS_CODE_ATTRIBUTE,
+                    statusCode.getStatus(),
+                    ERROR_TYPE_ATTRIBUTE,
+                    expectedError
+                )
+            )
+        );
     }
 
     /**
@@ -148,12 +267,10 @@ public class InferenceStatsTests extends ESTestCase {
 
         stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).withThrowable(exception).record(expectedLong);
 
-        verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
-            assertThat(attributes.get(SERVICE_ATTRIBUTE), is(TEST_SERVICE));
-            assertThat(attributes.get(TASK_TYPE_ATTRIBUTE), is(TaskType.ANY.toString()));
-            assertThat(attributes.get(STATUS_CODE_ATTRIBUTE), nullValue());
-            assertThat(attributes.get(ERROR_TYPE_ATTRIBUTE), is(expectedError));
-        }));
+        verify(histogramCounter).record(
+            eq(expectedLong),
+            eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString(), ERROR_TYPE_ATTRIBUTE, expectedError))
+        );
     }
 
     public void testRecordDurationWithUnknownModelAndElasticsearchStatusException() {
@@ -166,12 +283,10 @@ public class InferenceStatsTests extends ESTestCase {
 
         stats.inferenceDuration().withThrowable(exception).record(expectedLong);
 
-        verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
-            assertThat(attributes.get(SERVICE_ATTRIBUTE), nullValue());
-            assertThat(attributes.get(TASK_TYPE_ATTRIBUTE), nullValue());
-            assertThat(attributes.get(STATUS_CODE_ATTRIBUTE), is(statusCode.getStatus()));
-            assertThat(attributes.get(ERROR_TYPE_ATTRIBUTE), is(expectedError));
-        }));
+        verify(histogramCounter).record(
+            eq(expectedLong),
+            eq(Map.of(STATUS_CODE_ATTRIBUTE, statusCode.getStatus(), ERROR_TYPE_ATTRIBUTE, expectedError))
+        );
     }
 
     public void testRecordDurationWithUnknownModelAndOtherException() {
@@ -183,12 +298,51 @@ public class InferenceStatsTests extends ESTestCase {
 
         stats.inferenceDuration().withThrowable(exception).record(expectedLong);
 
-        verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
-            assertThat(attributes.get(SERVICE_ATTRIBUTE), nullValue());
-            assertThat(attributes.get(TASK_TYPE_ATTRIBUTE), nullValue());
-            assertThat(attributes.get(STATUS_CODE_ATTRIBUTE), nullValue());
-            assertThat(attributes.get(ERROR_TYPE_ATTRIBUTE), is(expectedError));
-        }));
+        verify(histogramCounter).record(eq(expectedLong), eq(Map.of(ERROR_TYPE_ATTRIBUTE, expectedError)));
+    }
+
+    public void testConstantAttributesIncludedInDurationMetrics() {
+        var expectedDuration = randomLong();
+        var longHistogram = mock(LongHistogram.class);
+        var stats = new InferenceStats(
+            mock(),
+            longHistogram,
+            mock(),
+            Map.of(STACK_VERSION_ATTRIBUTE, TEST_STACK_VERSION, PRODUCTION_RELEASE_ATTRIBUTE, TEST_IS_PRODUCTION_RELEASE)
+        );
+
+        stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).record(expectedDuration);
+
+        verify(longHistogram).record(
+            eq(expectedDuration),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    TEST_SERVICE,
+                    TASK_TYPE_ATTRIBUTE,
+                    TaskType.ANY.toString(),
+                    STACK_VERSION_ATTRIBUTE,
+                    TEST_STACK_VERSION,
+                    PRODUCTION_RELEASE_ATTRIBUTE,
+                    TEST_IS_PRODUCTION_RELEASE,
+                    STATUS_CODE_ATTRIBUTE,
+                    200
+                )
+            )
+        );
+    }
+
+    public void testDeploymentDuration() {
+        var expectedDuration = randomLong();
+        var deploymentHistogram = mock(LongHistogram.class);
+        var stats = new InferenceStats(mock(), mock(), deploymentHistogram, Map.of());
+
+        stats.deploymentDuration().withModel(model(TEST_SERVICE, TaskType.ANY, TEST_MODEL_ID)).record(expectedDuration);
+
+        verify(deploymentHistogram).record(
+            eq(expectedDuration),
+            eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString(), STATUS_CODE_ATTRIBUTE, 200))
+        );
     }
 
     private Model model(String service, TaskType taskType, String modelId) {

@@ -67,7 +67,10 @@ The following [aggregation functions](/reference/query-languages/esql/functions-
 
 When `STATS` is used under the [`TS`](/reference/query-languages/esql/commands/ts.md) source command,
 [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
-are also supported.
+are also supported, with different semantics when `BY` is omitted or combined with
+[`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
+({applies_to}`stack: ga 9.4`). For more details, check out the
+[`TS`](/reference/query-languages/esql/commands/ts.md) source command.
 
 The following [grouping functions](/reference/query-languages/esql/functions-operators/grouping-functions.md) are supported:
 

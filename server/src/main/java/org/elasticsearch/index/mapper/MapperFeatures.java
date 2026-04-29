@@ -77,6 +77,10 @@ public class MapperFeatures implements FeatureSpecification {
     );
     static final NodeFeature KEYWORD_NORMALIZER_SKIP_STORE_SETTING = new NodeFeature("mapper.keyword.normalizer_skip_store_setting");
 
+    public static final NodeFeature KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED = new NodeFeature(
+        "mapper.keyword.multi_fields_not_stored_when_ignored"
+    );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
@@ -129,7 +133,8 @@ public class MapperFeatures implements FeatureSpecification {
             TDIGEST_TYPE,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
-            KEYWORD_NORMALIZER_SKIP_STORE_SETTING
+            KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
+            KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED
         );
     }
 }

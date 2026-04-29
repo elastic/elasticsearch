@@ -71,7 +71,6 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;

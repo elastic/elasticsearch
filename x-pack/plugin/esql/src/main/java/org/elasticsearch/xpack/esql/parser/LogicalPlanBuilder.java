@@ -868,9 +868,37 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Expression tablePath = expression(ctx.stringOrParameter());
 
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
-        Map<String, Expression> params = options != null ? options.keyFoldedMap() : Map.of();
+        Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
 
-        return new UnresolvedExternalRelation(source, tablePath, params);
+        return new UnresolvedExternalRelation(source, tablePath, config);
+    }
+
+    /**
+     * Folds {@link MapExpression} entries to plain values for the {@code EXTERNAL} options carrier.
+     * Mirrors the unwrap that the downstream resolver previously performed at use site, but moves it
+     * to parse time so the relation node carries plain {@code Object} values instead of
+     * {@link Literal}-wrapped configuration.
+     *
+     * <p>Non-literal entries (e.g. unbound parameter references) are dropped — same behavior as the
+     * prior unwrap path. {@link BytesRef} values are normalized to {@link String} so the carrier shape
+     * matches what data-source plugins receive on the dataset path.
+     */
+    private static Map<String, Object> foldOptionLiterals(Map<String, Expression> entries) {
+        if (entries.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> folded = new LinkedHashMap<>(entries.size());
+        for (Map.Entry<String, Expression> entry : entries.entrySet()) {
+            if (entry.getValue() instanceof Literal literal) {
+                Object value = literal.value();
+                if (value instanceof BytesRef bytesRef) {
+                    folded.put(entry.getKey(), BytesRefs.toString(bytesRef));
+                } else if (value != null) {
+                    folded.put(entry.getKey(), value);
+                }
+            }
+        }
+        return folded;
     }
 
     @Override

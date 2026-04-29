@@ -24,7 +24,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -33,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -245,7 +245,7 @@ public class DatasetRewriterTests extends ESTestCase {
         // A wildcard expanding to exactly the cap proves the bucketing + UnionAll construction path
         // is bounded-time at the platform's largest supported shape.
         DataSource parent = dataSource("s3_parent", Map.of());
-        java.util.Map<String, Dataset> datasets = new java.util.HashMap<>();
+        Map<String, Dataset> datasets = new HashMap<>();
         for (int i = 0; i < 8; i++) {
             datasets.put(
                 "logs_" + i,
@@ -268,7 +268,7 @@ public class DatasetRewriterTests extends ESTestCase {
         // the pattern + the cap, not Fork's internal name. Tracked as esql-planning#614 (raise the
         // cap or coalesce siblings) for the long-term fix.
         DataSource parent = dataSource("s3_parent", Map.of());
-        java.util.Map<String, Dataset> datasets = new java.util.HashMap<>();
+        Map<String, Dataset> datasets = new HashMap<>();
         for (int i = 0; i < 9; i++) {
             datasets.put(
                 "logs_" + i,
@@ -354,8 +354,7 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     private static String paramValue(UnresolvedExternalRelation relation, String key) {
-        Expression expression = relation.params().get(key);
-        Object value = ((Literal) expression).value();
-        return value instanceof BytesRef br ? BytesRefs.toString(br) : value.toString();
+        Object value = relation.config().get(key);
+        return value instanceof BytesRef br ? BytesRefs.toString(br) : String.valueOf(value);
     }
 }

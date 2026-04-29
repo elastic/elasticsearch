@@ -38,7 +38,7 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
         assertThat(iceberg.tablePath(), instanceOf(Literal.class));
         Literal pathLiteral = as(iceberg.tablePath(), Literal.class);
         assertThat(BytesRefs.toString(pathLiteral.value()), equalTo("s3://bucket/table"));
-        assertThat(iceberg.params().size(), equalTo(0));
+        assertThat(iceberg.config().size(), equalTo(0));
     }
 
     public void testIcebergCommandWithParameters() {
@@ -56,19 +56,14 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
         Literal pathLiteral = as(iceberg.tablePath(), Literal.class);
         assertThat(BytesRefs.toString(pathLiteral.value()), equalTo("s3://bucket/table"));
 
-        Map<String, org.elasticsearch.xpack.esql.core.expression.Expression> params = iceberg.params();
-        assertThat(params.size(), equalTo(2));
+        Map<String, Object> config = iceberg.config();
+        assertThat(config.size(), equalTo(2));
 
-        assertThat(params.containsKey("access_key"), equalTo(true));
-        assertThat(params.get("access_key"), instanceOf(Literal.class));
-        assertThat(BytesRefs.toString(as(params.get("access_key"), Literal.class).value()), equalTo("AKIAIOSFODNN7EXAMPLE"));
+        assertThat(config.containsKey("access_key"), equalTo(true));
+        assertThat(config.get("access_key"), equalTo("AKIAIOSFODNN7EXAMPLE"));
 
-        assertThat(params.containsKey("secret_key"), equalTo(true));
-        assertThat(params.get("secret_key"), instanceOf(Literal.class));
-        assertThat(
-            BytesRefs.toString(as(params.get("secret_key"), Literal.class).value()),
-            equalTo("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
-        );
+        assertThat(config.containsKey("secret_key"), equalTo(true));
+        assertThat(config.get("secret_key"), equalTo("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"));
     }
 
     public void testIcebergCommandWithBooleanParameter() {
@@ -79,11 +74,10 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
         assertThat(plan, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation iceberg = as(plan, UnresolvedExternalRelation.class);
 
-        Map<String, org.elasticsearch.xpack.esql.core.expression.Expression> params = iceberg.params();
-        assertThat(params.size(), equalTo(1));
-        assertThat(params.containsKey("use_cache"), equalTo(true));
-        assertThat(params.get("use_cache"), instanceOf(Literal.class));
-        assertThat(as(params.get("use_cache"), Literal.class).value(), equalTo(true));
+        Map<String, Object> config = iceberg.config();
+        assertThat(config.size(), equalTo(1));
+        assertThat(config.containsKey("use_cache"), equalTo(true));
+        assertThat(config.get("use_cache"), equalTo(true));
     }
 
     public void testIcebergCommandNotAvailableInProduction() {

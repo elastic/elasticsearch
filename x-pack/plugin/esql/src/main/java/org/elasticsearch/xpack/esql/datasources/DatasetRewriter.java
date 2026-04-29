@@ -20,9 +20,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -31,7 +29,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -155,7 +152,7 @@ public final class DatasetRewriter {
             }
             Map<String, Object> merged = mergeSettings(parent, dataset);
             Literal path = Literal.keyword(relation.source(), dataset.resource());
-            children.add(new UnresolvedExternalRelation(relation.source(), path, toParams(relation.source(), merged)));
+            children.add(new UnresolvedExternalRelation(relation.source(), path, merged));
         }
         if (children.size() == 1) {
             return children.get(0);
@@ -179,7 +176,13 @@ public final class DatasetRewriter {
         return new UnionAll(relation.source(), children, List.of());
     }
 
-    /** Parent data source settings (secrets unwrapped to plaintext) overlaid by the dataset's settings. */
+    /**
+     * Parent data source settings (secrets unwrapped to plaintext) overlaid by the dataset's settings.
+     * Returns plain {@code Map<String, Object>} — no {@code Literal} wrapping. Plaintext-secret
+     * hardening (typed {@code SecretLiteral} or redaction infrastructure) is tracked separately;
+     * dropping the {@code Literal} carrier already removes the plan-tree {@code toString()}/{@code writeTo}
+     * leak path that was the immediate concern.
+     */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
         for (Map.Entry<String, DataSourceSetting> e : parent.settings().entrySet()) {
@@ -187,13 +190,5 @@ public final class DatasetRewriter {
         }
         merged.putAll(dataset.settings());
         return merged;
-    }
-
-    private static Map<String, Expression> toParams(Source source, Map<String, Object> merged) {
-        Map<String, Expression> params = new LinkedHashMap<>();
-        for (Map.Entry<String, Object> e : merged.entrySet()) {
-            params.put(e.getKey(), Literal.keyword(source, String.valueOf(e.getValue())));
-        }
-        return params;
     }
 }

@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
@@ -1082,32 +1081,32 @@ public class EsqlSession {
             return;
         }
 
-        Map<String, Map<String, Expression>> pathParams = extractIcebergParams(plan);
+        Map<String, Map<String, Object>> pathConfigs = extractExternalConfigs(plan);
 
         var filterHints = PartitionFilterHintExtractor.extract(plan);
 
         externalSourceResolver.resolve(
             preAnalysis.icebergPaths(),
-            pathParams,
+            pathConfigs,
             filterHints.isEmpty() ? null : filterHints,
             listener.map(result::withExternalSourceResolution)
         );
     }
 
     /**
-     * Extract external source parameters from UnresolvedExternalRelation nodes in the plan.
-     * Returns a map from table path to parameter map.
+     * Extract external source configuration from UnresolvedExternalRelation nodes in the plan.
+     * Returns a map from table path to plain configuration values.
      */
-    private Map<String, Map<String, Expression>> extractIcebergParams(LogicalPlan plan) {
-        Map<String, Map<String, Expression>> pathParams = new HashMap<>();
+    private Map<String, Map<String, Object>> extractExternalConfigs(LogicalPlan plan) {
+        Map<String, Map<String, Object>> pathConfigs = new HashMap<>();
         plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
             if (p.tablePath() instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
                 // Use BytesRefs.toString() which handles both BytesRef and String
                 String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
-                pathParams.put(path, p.params());
+                pathConfigs.put(path, p.config());
             }
         });
-        return pathParams;
+        return pathConfigs;
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {

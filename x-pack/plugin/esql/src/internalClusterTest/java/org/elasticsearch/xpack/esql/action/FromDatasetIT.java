@@ -59,6 +59,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
     private Path csvFixture;
+    private Path csvFixtureAlt;
 
     public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
@@ -123,8 +124,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         csvFixtureAlt = createTempFile("dataset-fixture-alt-", ".csv");
         Files.writeString(csvFixtureAlt, String.join("\n", "emp_no:integer,first_name:keyword", "10,Diana", "11,Eve") + "\n");
     }
-
-    private Path csvFixtureAlt;
 
     @After
     public void cleanupRegistry() throws Exception {
@@ -394,6 +393,31 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
         }
+    }
+
+    public void testFromDatasetWithMetadataIndexFails() throws Exception {
+        // The rewriter drops `METADATA _index` because UnresolvedExternalRelation has no
+        // metadata-fields slot. The analyzer then rejects `_index` as an unknown column.
+        // Pins the Phase 1 limitation tracked in the PR description.
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM employees METADATA _index | KEEP _index | LIMIT 1"), TIMEOUT)
+        );
+        Throwable cause = ex;
+        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("_index") == false) {
+            cause = cause.getCause();
+        }
+        assertThat("error chain should mention _index column", cause, org.hamcrest.Matchers.notNullValue());
     }
 
     public void testWildcardSpanningIndexAndDatasetRejected() throws Exception {

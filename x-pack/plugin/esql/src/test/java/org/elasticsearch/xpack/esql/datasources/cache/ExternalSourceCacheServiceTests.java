@@ -351,7 +351,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD, Nullability.TRUE, null, false),
             new ReferenceAttribute(Source.EMPTY, null, "value", DataType.DOUBLE, Nullability.TRUE, null, false)
         );
-        return SchemaCacheEntry.from(schema, "parquet", "s3://bucket/data/file.parquet", Map.of());
+        return SchemaCacheEntry.from(schema, "parquet", "s3://bucket/data/file.parquet", Map.of(), Map.of());
     }
 
     private static FileList testGenericFileList() {

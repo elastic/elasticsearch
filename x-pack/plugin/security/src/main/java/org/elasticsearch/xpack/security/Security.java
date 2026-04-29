@@ -220,6 +220,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexRe
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
+import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -347,6 +348,7 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
+import org.elasticsearch.xpack.security.crypto.PrimaryEncryptionKeyService;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
@@ -1041,6 +1043,9 @@ public class Security extends Plugin
             customRoleProviders,
             getLicenseState()
         );
+        final List<ImplicitPrivilegesProvider> implicitPrivilegesProviders = securityExtensions.stream()
+            .flatMap(extension -> extension.getImplicitPrivilegesProviders(extensionComponents).stream())
+            .toList();
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(
             settings,
             clusterService,
@@ -1055,7 +1060,8 @@ public class Security extends Plugin
             dlsBitsetCache.get(),
             restrictedIndices,
             buildRoleBuildingExecutor(threadPool, settings),
-            new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool)
+            new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool),
+            implicitPrivilegesProviders
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
@@ -1271,6 +1277,10 @@ public class Security extends Plugin
         }
 
         cacheInvalidatorRegistry.validate();
+
+        if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
+            components.add(PrimaryEncryptionKeyService.create(clusterService, projectResolver, featureService));
+        }
 
         setClosableAndReloadableComponents(components);
         return components;
@@ -2410,7 +2420,7 @@ public class Security extends Plugin
                 if (fieldPermissions.hasFieldLevelSecurity() == false) {
                     return FieldPredicate.ACCEPT_ALL;
                 }
-                if (FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
+                if (!indexPermissions.isDlsFlsImplicit() && !FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
                     // check license last, once we know FLS is actually used
                     return FieldPredicate.ACCEPT_ALL;
                 }

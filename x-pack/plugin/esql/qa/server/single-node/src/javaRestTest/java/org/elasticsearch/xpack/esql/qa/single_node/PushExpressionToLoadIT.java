@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
@@ -411,6 +412,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
      * between rounding points (e.g. 11-99 rounds down to 10).
      */
     public void testRoundToLong() throws IOException {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         long value = randomLongBetween(11, 99);
         test(
             // index:false so the field uses doc values skippers, which the ROUND_TO block loader requires
@@ -429,6 +431,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
      * matches a rounding point.
      */
     public void testRoundToLongExactMatch() throws IOException {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         test(
             // index:false so the field uses doc values skippers, which the ROUND_TO block loader requires
             b -> b.startObject("test").field("type", "long").field("index", false).endObject(),
@@ -602,6 +605,49 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .item("ExchangeSinkOperator")
             );
         });
+    }
+
+    /**
+     * Tests that {@code LENGTH} on a field from the original index is pushed to field loading
+     * even when a {@code LOOKUP JOIN} follows. The EVAL precedes the join, so the expression
+     * falls below the join boundary and the {@code Primaries} check still sees exactly one source.
+     */
+    public void testLengthPushedBeyondLookupJoin() throws IOException {
+        initLookupIndex();
+        String value = "v".repeat(between(0, 256));
+        test(b -> {
+            b.startObject("test").field("type", "keyword").endObject();
+            b.startObject("main_matching").field("type", "keyword").endObject();
+        },
+            b -> b.field("test", value).field("main_matching", "lookup"),
+            """
+                FROM test
+                | EVAL length = LENGTH(test)
+                | DROP test
+                | LOOKUP JOIN lookup ON matching == main_matching
+                | STATS test = VALUES(CONCAT(test, length::KEYWORD))
+                """,
+            matchesList().item("a" + value.length()),
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            Map.of(
+                "data",
+                List.of(
+                    matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+                    matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
+                )
+            ),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item(lookupOperatorName())
+                    .item("EvalOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
     }
 
     /**

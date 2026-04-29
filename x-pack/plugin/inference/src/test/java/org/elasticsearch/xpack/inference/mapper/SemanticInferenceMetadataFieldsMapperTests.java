@@ -40,8 +40,19 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
             .build();
         assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));
 
+        // The legacy format setting cannot be set to true for versions >= SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN,
+        // so we restrict to new-format-compatible versions that still allow the setting.
+        IndexVersion newFormatVersionAllowingLegacySetting = randomBoolean()
+            ? IndexVersionUtils.randomVersionBetween(
+                IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+            )
+            : IndexVersionUtils.randomVersionBetween(
+                IndexVersions.INFERENCE_METADATA_FIELDS,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+            );
         settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), getRandomCompatibleIndexVersion(false))
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), newFormatVersionAllowingLegacySetting)
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
             .build();
         assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));

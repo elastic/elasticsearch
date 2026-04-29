@@ -97,7 +97,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         final LeaderBulkByScrollTaskState leaderState = task.getLeaderState();
 
         try {
-            leaderState.setRequestsPerSecond(newRequestsPerSecond);
+            leaderState.setRequestsPerSecondWithRelocationGuard(newRequestsPerSecond);
         } catch (ElasticsearchStatusException e) {
             listener.onFailure(e);
             return;

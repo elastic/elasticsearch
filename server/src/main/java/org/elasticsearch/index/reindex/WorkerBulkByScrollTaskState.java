@@ -81,7 +81,8 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      */
     private final AtomicReference<DelayedPrepareBulkRequest> delayedPrepareBulkRequestReference = new AtomicReference<>();
 
-    /** Set under {@link #delayedPrepareBulkRequestReference} lock during relocation to block concurrent rethrottle. */
+    /// Set under {@link #delayedPrepareBulkRequestReference} lock during relocation to block concurrent rethrottle.
+    /// Otherwise, rethrottle would succeed and relocated task would proceed with old RPS value.
     private boolean capturedRpsForRelocation = false;
 
     public WorkerBulkByScrollTaskState(BulkByScrollTask task, Integer sliceId, float requestsPerSecond) {
@@ -282,12 +283,11 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         }
     }
 
-    /**
-     * Rethrottle with relocation guard. For non-sliced workers ({@code sliceId == null}), checks whether the RPS
-     * has been captured for relocation and throws 503 if so. For sliced children the guard is skipped since the
-     * leader guard handles the race. Java {@code synchronized} is reentrant so the nested acquire inside
-     * {@link #rethrottle} is safe.
-     */
+    /// Rethrottle with relocation guard.
+    /// For non-sliced workers ({@code sliceId == null}), checks whether the RPS
+    /// has been captured for relocation and throws 503 if so. For sliced children the guard is skipped since the
+    /// leader guard handles the race. Java {@code synchronized} is reentrant so the nested acquire inside
+    /// {@link #rethrottle} is safe.
     public void rethrottleWithRelocationGuard(float newRequestsPerSecond) {
         synchronized (delayedPrepareBulkRequestReference) {
             if (sliceId == null && capturedRpsForRelocation) {
@@ -297,10 +297,8 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         }
     }
 
-    /**
-     * Atomically reads the current RPS and sets a flag preventing further rethrottle via
-     * {@link #rethrottleWithRelocationGuard}. Only valid for non-sliced workers.
-     */
+    /// Atomically reads the current RPS and sets a flag preventing further rethrottle via
+    /// {@link #rethrottleWithRelocationGuard}. Only valid for non-sliced workers.
     public float captureRequestsPerSecondForRelocation() {
         assert sliceId == null : "should only be called on non-sliced workers";
         synchronized (delayedPrepareBulkRequestReference) {

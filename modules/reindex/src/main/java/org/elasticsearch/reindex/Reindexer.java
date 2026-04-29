@@ -740,14 +740,15 @@ public class Reindexer {
             // Then patch per-worker RPS in the ResumeInfo so the destination inherits the correct rate.
             final ResumeInfo patchedResumeInfo;
             if (task.isLeader()) {
+                // note: treats parent as source-of-truth for RPS, meaning if child was directly rethrottled, its RPS value will be ignored.
                 float capturedRPS = task.getLeaderState().captureRequestsPerSecondForRelocation();
-                // todo(szy): review -- if incompleteSlices is 0 all work is done; should we still relocate?
-                long incompleteSlices = resumeInfo.slices().values().stream().filter(s -> s.isCompleted() == false).count();
-                float perSliceRPS = capturedRPS / incompleteSlices;
+                final long incompleteSlices = resumeInfo.slices().values().stream().filter(s -> s.isCompleted() == false).count();
+                assert incompleteSlices > 0 : "leader shouldn't produce ResumeInfo when all slices are complete";
+                final float perSliceRPS = capturedRPS / incompleteSlices;
 
-                Map<Integer, ResumeInfo.SliceStatus> patched = new HashMap<>();
+                final Map<Integer, ResumeInfo.SliceStatus> patched = new HashMap<>();
                 for (var entry : resumeInfo.slices().entrySet()) {
-                    ResumeInfo.SliceStatus s = entry.getValue();
+                    final ResumeInfo.SliceStatus s = entry.getValue();
                     if (s.isCompleted()) {
                         patched.put(entry.getKey(), s);
                     } else {
@@ -759,7 +760,7 @@ public class Reindexer {
                 }
                 patchedResumeInfo = new ResumeInfo(resumeInfo.relocationOrigin(), null, patched, sourceTaskResult);
             } else {
-                float capturedRPS = task.getWorkerState().captureRequestsPerSecondForRelocation();
+                final float capturedRPS = task.getWorkerState().captureRequestsPerSecondForRelocation();
                 patchedResumeInfo = new ResumeInfo(
                     resumeInfo.relocationOrigin(),
                     resumeInfo.worker().withRequestsPerSecond(capturedRPS),

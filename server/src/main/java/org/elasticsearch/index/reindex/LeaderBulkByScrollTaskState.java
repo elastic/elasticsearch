@@ -52,10 +52,10 @@ public class LeaderBulkByScrollTaskState {
      */
     private final AtomicReference<BytesReference> latestPitId = new AtomicReference<>();
 
-    /**
-     * The canonical total requests-per-second for this sliced task. Updated by rethrottle, read during relocation
-     * to patch per-slice RPS in ResumeInfo. Guarded by {@code synchronized(this)}.
-     */
+    /// The source-of-truth requests-per-second for this sliced task.
+    /// Updated by rethrottle, read during relocation to patch per-slice RPS in ResumeInfo.
+    /// Used to prevent race condition to ensure customer doesn't get success on rethrottling, and then we relocate with old RPS.
+    /// Guarded by {@code synchronized(this)}.
     private float relocationRequestsPerSecond;
     private boolean capturedRpsForRelocation = false;
 
@@ -65,7 +65,7 @@ public class LeaderBulkByScrollTaskState {
         results = new AtomicArray<>(slices);
         runningSubtasks = new AtomicInteger(slices);
         this.nodeToRelocateToSupplier = new SetOnce<>();
-        setRequestsPerSecond(requestsPerSecond);
+        setRequestsPerSecondWithRelocationGuard(requestsPerSecond);
     }
 
     /**
@@ -145,22 +145,18 @@ public class LeaderBulkByScrollTaskState {
         return supplier.get();
     }
 
-    /**
-     * Updates the canonical total RPS for this leader task. Called by rethrottle before fanning out to children.
-     * Throws 503 if the RPS has already been captured for relocation, meaning the task is mid-relocation and the
-     * caller should retry after the relocation completes.
-     */
-    public synchronized void setRequestsPerSecond(float rps) {
+    /// Updates the source-of-truth total RPS for this leader task. Called by rethrottle before fanning out to children.
+    /// Throws 503 if the RPS has already been captured for relocation, meaning the task is mid-relocation and the
+    /// caller should retry after the relocation completes. If we apply RPS then relocated task would resume with old RPS value.
+    public synchronized void setRequestsPerSecondWithRelocationGuard(float rps) {
         if (capturedRpsForRelocation) {
             throw new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.SERVICE_UNAVAILABLE);
         }
         relocationRequestsPerSecond = rps;
     }
 
-    /**
-     * Atomically reads the canonical RPS and sets a flag preventing further rethrottle. Called during relocation
-     * assembly so that the captured value is consistent with what the destination will inherit.
-     */
+    /// Atomically reads the source-of-truth total RPS and sets a flag preventing further rethrottle. Called during relocation
+    /// so that the captured value is consistent with what the destination will inherit.
     public synchronized float captureRequestsPerSecondForRelocation() {
         capturedRpsForRelocation = true;
         return relocationRequestsPerSecond;

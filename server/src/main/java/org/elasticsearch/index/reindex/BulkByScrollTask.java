@@ -130,7 +130,7 @@ public class BulkByScrollTask extends CancellableTask {
 
     /**
      * Sets this task to be a leader task for {@code slices} sliced subtasks
-     * @param requestsPerSecond the initial total RPS for the leader, tracked for relocation
+     * @param requestsPerSecond the initial total RPS for the leader, tracked in leader as source-of-truth RPS for relocation
      */
     public void setWorkerCount(int slices, float requestsPerSecond) {
         if (isLeader()) {

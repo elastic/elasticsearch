@@ -149,7 +149,7 @@ public final class SearchResponseMerger implements Releasable {
 
             Collections.addAll(failures, searchResponse.getShardFailures());
 
-            shardProfileResults.putAll(searchResponse.getProfileResults());
+            shardProfileResults.putAll(searchResponse.getSearchProfileShardResults());
 
             if (searchResponse.hasAggregations()) {
                 InternalAggregations internalAggs = searchResponse.getAggregations();

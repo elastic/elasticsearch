@@ -24,7 +24,7 @@ import java.io.IOException;
  * via {@link DatasetConfig#createDataGenerator}, eliminating the need
  * for instanceof checks in the orchestration code.
  */
-public sealed abstract class DataGenerator permits PartitionDataGenerator, NonPartitionDataGenerator {
+public abstract sealed class DataGenerator permits PartitionDataGenerator, NonPartitionDataGenerator {
 
     private final IOSupplier<IndexVectorReader> docs;
     private final IOSupplier<IndexVectorReader> queries;

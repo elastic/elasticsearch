@@ -76,6 +76,11 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      * the engine schedules) and {@code triggerService.start(watches)} where {@link TriggerService#add} would be a no-op.
      */
     private final Consumer<Watch> pendingWatchTracker;
+    /**
+     * Removes a previously tracked watch by id. Called from {@link #preDelete} so the next {@code loadWatches} run
+     * does not merge a stale entry for a watch that has since been deleted.
+     */
+    private final Consumer<String> pendingWatchUntracker;
     private volatile Configuration configuration = INACTIVE;
 
     WatcherIndexingListener(
@@ -83,13 +88,15 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         Clock clock,
         TriggerService triggerService,
         Supplier<WatcherState> watcherState,
-        Consumer<Watch> pendingWatchTracker
+        Consumer<Watch> pendingWatchTracker,
+        Consumer<String> pendingWatchUntracker
     ) {
         this.parser = parser;
         this.clock = clock;
         this.triggerService = triggerService;
         this.watcherState = watcherState;
         this.pendingWatchTracker = pendingWatchTracker;
+        this.pendingWatchUntracker = pendingWatchUntracker;
     }
 
     // package private for testing
@@ -159,6 +166,9 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                     } else {
                         logger.debug("removing watch [{}] from trigger service", watch.id());
                         triggerService.remove(watch.id());
+                        // The watch is no longer active so make sure a stale pending entry doesn't get merged
+                        // back in by the next loadWatches.
+                        pendingWatchUntracker.accept(watch.id());
                     }
                 } else {
                     logger.debug("watch [{}] should not be triggered. watcher state [{}]", watch.id(), currentState);
@@ -197,6 +207,9 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         if (isWatchDocument(shardId.getIndexName())) {
             logger.debug("removing watch [{}] from trigger service via delete", delete.id());
             triggerService.remove(delete.id());
+            // Drop any pending entry for this id so a subsequent loadWatches does not resurrect a watch that has
+            // just been deleted from the index.
+            pendingWatchUntracker.accept(delete.id());
         }
         return delete;
     }

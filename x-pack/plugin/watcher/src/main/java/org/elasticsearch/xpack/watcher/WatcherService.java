@@ -447,6 +447,15 @@ public class WatcherService {
         pendingWatches.put(watch.id(), watch);
     }
 
+    /**
+     * Drop a pending entry for a watch that has been deleted (or deactivated) since it was tracked. Without this the
+     * next {@link #loadWatches} would merge the stale in-memory entry back into the schedule even though the watch is
+     * no longer in the index, causing the trigger engine to fire executions that fail with "watch not found".
+     */
+    void onWatchDeleted(String watchId) {
+        pendingWatches.remove(watchId);
+    }
+
     // Non private for unit testing purposes
     void refreshWatches(IndexMetadata indexMetadata) {
         BroadcastResponse refreshResponse = client.admin()

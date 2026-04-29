@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FileLayout;
@@ -293,9 +294,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(location);
         assertNotNull(resolved);
         FileList fileList = resolved.fileList();
-        assertNotNull("single-file resolution should attach pre-resolved ranges", fileList.fileSplitRanges());
-        assertEquals(1, fileList.fileSplitRanges().size());
-        assertEquals(List.of(r1, r2), fileList.fileSplitRanges().get(storagePath));
+        // Verify pre-resolved ranges via the indexed range API
+        assertEquals(1, fileList.fileCount());
+        assertEquals(2, fileList.rangeCount(0));
+        assertEquals(r1.offset(), fileList.rangeOffset(0, 0));
+        assertEquals(r1.length(), fileList.rangeLength(0, 0));
+        assertEquals(r2.offset(), fileList.rangeOffset(0, 1));
+        assertEquals(r2.length(), fileList.rangeLength(0, 1));
+        // Verify rangeStats returns non-null SplitStats with correct row counts
+        SplitStats stats0 = fileList.rangeStats(0, 0);
+        assertNotNull("rangeStats should be non-null for range with statistics", stats0);
+        assertEquals(50L, stats0.rowCount());
+        SplitStats stats1 = fileList.rangeStats(0, 1);
+        assertNotNull("rangeStats should be non-null for range with statistics", stats1);
+        assertEquals(50L, stats1.rowCount());
     }
 
     public void testMultiFileResolutionThreadsSplitRangesForUnionByName() throws Exception {
@@ -329,10 +341,87 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         FileList fileList = resolved.fileList();
-        assertNotNull("multi-file UNION_BY_NAME should attach pre-resolved ranges", fileList.fileSplitRanges());
-        assertEquals(2, fileList.fileSplitRanges().size());
-        assertEquals(List.of(r1), fileList.fileSplitRanges().get(p1));
-        assertEquals(List.of(r2), fileList.fileSplitRanges().get(p2));
+        // Verify pre-resolved ranges via the indexed range API
+        assertEquals(2, fileList.fileCount());
+        // File order in the file list depends on the listing order; find each file's index
+        int idx1 = -1, idx2 = -1;
+        for (int i = 0; i < fileList.fileCount(); i++) {
+            if (fileList.path(i).equals(p1)) idx1 = i;
+            if (fileList.path(i).equals(p2)) idx2 = i;
+        }
+        assertTrue("p1 should be in the file list", idx1 >= 0);
+        assertTrue("p2 should be in the file list", idx2 >= 0);
+        assertEquals(1, fileList.rangeCount(idx1));
+        assertEquals(r1.offset(), fileList.rangeOffset(idx1, 0));
+        assertEquals(r1.length(), fileList.rangeLength(idx1, 0));
+        assertEquals(1, fileList.rangeCount(idx2));
+        assertEquals(r2.offset(), fileList.rangeOffset(idx2, 0));
+        assertEquals(r2.length(), fileList.rangeLength(idx2, 0));
+        // Verify rangeStats returns non-null SplitStats with correct row counts
+        SplitStats statsF1 = fileList.rangeStats(idx1, 0);
+        assertNotNull("rangeStats should be non-null for range with statistics", statsF1);
+        assertEquals(50L, statsF1.rowCount());
+        SplitStats statsF2 = fileList.rangeStats(idx2, 0);
+        assertNotNull("rangeStats should be non-null for range with statistics", statsF2);
+        assertEquals(100L, statsF2.rowCount());
+    }
+
+    // ===== Compact round-trip preserves ranges =====
+
+    public void testCompactRoundTripPreservesRanges() {
+        StoragePath p1 = StoragePath.of("s3://bucket/data/file1.parquet");
+        StoragePath p2 = StoragePath.of("s3://bucket/data/file2.parquet");
+
+        SplitRange r1 = new SplitRange(4, 100, Map.of("_stats.row_count", 50L));
+        SplitRange r2 = new SplitRange(104, 200, Map.of("_stats.row_count", 75L));
+        SplitRange r3 = new SplitRange(8, 150, Map.of("_stats.row_count", 60L));
+
+        Map<StoragePath, List<SplitRange>> rangesByPath = new HashMap<>();
+        rangesByPath.put(p1, List.of(r1, r2));
+        rangesByPath.put(p2, List.of(r3));
+
+        List<StorageEntry> entries = List.of(entry("s3://bucket/data/file1.parquet", 300), entry("s3://bucket/data/file2.parquet", 150));
+
+        // Create a GenericFileList with ranges attached
+        FileList raw = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
+        FileList withRanges = GlobExpander.withFileSplitRanges(raw, rangesByPath);
+
+        // Compact the list (should produce a DictionaryFileList with CompactRangeStore)
+        FileList compact = GlobExpander.compact(withRanges, "s3://bucket/data/");
+
+        // Verify the compact list preserves file count and paths
+        assertEquals(2, compact.fileCount());
+
+        // Find indices in the compact list (order may differ from raw)
+        int idx1 = -1, idx2 = -1;
+        for (int i = 0; i < compact.fileCount(); i++) {
+            if (compact.path(i).equals(p1)) idx1 = i;
+            if (compact.path(i).equals(p2)) idx2 = i;
+        }
+        assertTrue("p1 should be in the compact file list", idx1 >= 0);
+        assertTrue("p2 should be in the compact file list", idx2 >= 0);
+
+        // Verify ranges survived compaction
+        assertEquals(2, compact.rangeCount(idx1));
+        assertEquals(r1.offset(), compact.rangeOffset(idx1, 0));
+        assertEquals(r1.length(), compact.rangeLength(idx1, 0));
+        assertEquals(r2.offset(), compact.rangeOffset(idx1, 1));
+        assertEquals(r2.length(), compact.rangeLength(idx1, 1));
+
+        assertEquals(1, compact.rangeCount(idx2));
+        assertEquals(r3.offset(), compact.rangeOffset(idx2, 0));
+        assertEquals(r3.length(), compact.rangeLength(idx2, 0));
+
+        // Verify stats survived compaction
+        SplitStats s1r0 = compact.rangeStats(idx1, 0);
+        assertNotNull("rangeStats should survive compaction", s1r0);
+        assertEquals(50L, s1r0.rowCount());
+        SplitStats s1r1 = compact.rangeStats(idx1, 1);
+        assertNotNull("rangeStats should survive compaction", s1r1);
+        assertEquals(75L, s1r1.rowCount());
+        SplitStats s2r0 = compact.rangeStats(idx2, 0);
+        assertNotNull("rangeStats should survive compaction", s2r0);
+        assertEquals(60L, s2r0.rowCount());
     }
 
     // ===== Schema type preservation =====

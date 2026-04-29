@@ -309,6 +309,8 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
+        // Only anchor file ranges are captured here (FIRST_FILE_WINS opens only the anchor for schema);
+        // non-anchor files fall back to the slow path during split discovery.
         if (anchorRanges != null && anchorRanges.isEmpty() == false) {
             listing = GlobExpander.withFileSplitRanges(listing, Map.of(anchorPath, anchorRanges));
         }

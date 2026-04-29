@@ -195,7 +195,7 @@ public class FileSplitProvider implements SplitProvider {
                 continue;
             }
 
-            if (tryRangeAwareSplits(fileList, filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
+            if (tryRangeAwareSplits(fileList, i, filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
                 continue;
             }
 
@@ -362,6 +362,7 @@ public class FileSplitProvider implements SplitProvider {
      */
     private boolean tryRangeAwareSplits(
         FileList fileList,
+        int fileIndex,
         StoragePath filePath,
         long fileLength,
         String format,
@@ -372,13 +373,27 @@ public class FileSplitProvider implements SplitProvider {
     ) {
         // Fast path: pre-resolved ranges captured during metadata resolution. This avoids a
         // second open of the file (e.g. Parquet footer read) on remote storage.
-        Map<StoragePath, List<SplitRange>> preResolved = fileList != null ? fileList.fileSplitRanges() : null;
-        if (preResolved != null) {
-            List<SplitRange> cached = preResolved.get(filePath);
-            if (cached != null && cached.isEmpty() == false) {
-                LOGGER.trace("Using {} pre-resolved split ranges for [{}]", cached.size(), filePath);
-                buildSplitsFromRanges(cached, filePath, fileLength, format, config, partitionValues, columnMapping, splits);
+        if (fileList != null) {
+            int rc = fileList.rangeCount(fileIndex);
+            if (rc > 0) {
+                LOGGER.trace("Using {} pre-resolved split ranges for [{}]", rc, filePath);
+                buildSplitsFromIndexedRanges(
+                    fileList,
+                    fileIndex,
+                    rc,
+                    filePath,
+                    fileLength,
+                    format,
+                    config,
+                    partitionValues,
+                    columnMapping,
+                    splits
+                );
                 return true;
+            }
+            // rc == 0: resolution ran but produced no ranges — skip range-aware, fall through to single-split
+            if (rc == 0) {
+                return false;
             }
         }
 
@@ -417,6 +432,40 @@ public class FileSplitProvider implements SplitProvider {
         } catch (IOException e) {
             LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
             return false;
+        }
+    }
+
+    private static void buildSplitsFromIndexedRanges(
+        FileList fileList,
+        int fileIndex,
+        int rangeCount,
+        StoragePath filePath,
+        long fileLength,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        List<ExternalSplit> splits
+    ) {
+        Map<String, Object> splitConfig = new HashMap<>(config);
+        splitConfig.put(RANGE_SPLIT_KEY, "true");
+        splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
+
+        for (int r = 0; r < rangeCount; r++) {
+            SplitStats stats = fileList.rangeStats(fileIndex, r);
+            splits.add(
+                FileSplit.withSplitStats(
+                    "file",
+                    filePath,
+                    fileList.rangeOffset(fileIndex, r),
+                    fileList.rangeLength(fileIndex, r),
+                    format,
+                    splitConfig,
+                    partitionValues,
+                    columnMapping,
+                    stats
+                )
+            );
         }
     }
 

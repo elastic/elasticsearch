@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.glob;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
@@ -86,10 +87,36 @@ final class GenericFileList implements FileList {
         return fileSchemaInfo;
     }
 
+    @Nullable
+    Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> fileSplitRanges() {
+        return fileSplitRanges;
+    }
+
+    @Override
+    public int rangeCount(int i) {
+        if (fileSplitRanges == null) {
+            return -1;
+        }
+        StoragePath p = path(i);
+        List<RangeAwareFormatReader.SplitRange> ranges = fileSplitRanges.get(p);
+        return ranges != null ? ranges.size() : 0;
+    }
+
+    @Override
+    public long rangeOffset(int i, int r) {
+        return fileSplitRanges.get(path(i)).get(r).offset();
+    }
+
+    @Override
+    public long rangeLength(int i, int r) {
+        return fileSplitRanges.get(path(i)).get(r).length();
+    }
+
     @Override
     @Nullable
-    public Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> fileSplitRanges() {
-        return fileSplitRanges;
+    public SplitStats rangeStats(int i, int r) {
+        Map<String, Object> stats = fileSplitRanges.get(path(i)).get(r).statistics();
+        return (stats == null || stats.isEmpty()) ? null : SplitStats.of(stats);
     }
 
     /**

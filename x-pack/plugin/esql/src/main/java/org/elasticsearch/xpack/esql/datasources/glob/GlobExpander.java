@@ -73,10 +73,9 @@ public final class GlobExpander {
      * Captured during single-pass file layout resolution and consumed by split discovery to
      * avoid re-reading file footers.
      * <p>
-     * Returns the input unchanged when {@code splitRanges} is null/empty, or when the file list
-     * is a compact representation (e.g. {@code DictionaryFileList}, {@code HiveFileList}) that
-     * does not currently carry per-file ranges. In that case split discovery falls back to
-     * re-opening each file -- a follow-up may extend compact lists to carry ranges as well.
+     * For compact representations ({@code DictionaryFileList}, {@code HiveFileList}), the ranges
+     * are stored in a {@link CompactRangeStore} that uses CSR indexing and dictionary encoding.
+     * Returns the input unchanged when {@code splitRanges} is null/empty.
      */
     public static FileList withFileSplitRanges(FileList fileList, Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> splitRanges) {
         if (splitRanges == null || splitRanges.isEmpty()) {
@@ -84,6 +83,14 @@ public final class GlobExpander {
         }
         if (fileList instanceof GenericFileList generic) {
             return generic.withFileSplitRanges(splitRanges);
+        }
+        if (fileList instanceof DictionaryFileList dict) {
+            CompactRangeStore store = CompactRangeStore.build(dict.fileCount(), dict::path, splitRanges);
+            return store != null ? dict.withRanges(store) : fileList;
+        }
+        if (fileList instanceof HiveFileList hive) {
+            CompactRangeStore store = CompactRangeStore.build(hive.fileCount(), hive::path, splitRanges);
+            return store != null ? hive.withRanges(store) : fileList;
         }
         return fileList;
     }

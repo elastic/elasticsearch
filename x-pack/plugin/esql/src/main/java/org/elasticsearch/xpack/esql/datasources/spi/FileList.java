@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -163,18 +163,36 @@ public interface FileList {
     }
 
     /**
-     * Per-file split ranges captured during single-pass file layout resolution
-     * (see {@link RangeAwareFormatReader#resolveFileLayout(StorageObject)}). Split discovery
-     * uses the ranges associated with a file to skip re-opening it to read row group/stripe
-     * metadata.
-     * <p>
-     * Returns {@code null} when no pre-resolved ranges are available for any file (e.g. cache
-     * hit, non-range-aware format, or compact {@code FileList} implementations that do not
-     * carry ranges). When the returned map is non-null but does not contain an entry for a
-     * given {@link StoragePath}, split discovery falls back to opening that file.
+     * Number of pre-resolved split ranges for file {@code i}.
+     * Returns {@code -1} if ranges were not resolved (caller should use slow path),
+     * {@code 0} if resolved but the file has no independently-readable ranges,
+     * or a positive count of available ranges.
+     */
+    default int rangeCount(int i) {
+        return -1;
+    }
+
+    /**
+     * Byte offset of range {@code r} within file {@code i}.
+     * Only valid when {@code rangeCount(i) > 0} and {@code 0 <= r < rangeCount(i)}.
+     */
+    default long rangeOffset(int i, int r) {
+        return 0L;
+    }
+
+    /**
+     * Byte length of range {@code r} within file {@code i}.
+     * Only valid when {@code rangeCount(i) > 0} and {@code 0 <= r < rangeCount(i)}.
+     */
+    default long rangeLength(int i, int r) {
+        return size(i);
+    }
+
+    /**
+     * Compact statistics for range {@code r} within file {@code i}, or {@code null} if unavailable.
      */
     @Nullable
-    default Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> fileSplitRanges() {
+    default SplitStats rangeStats(int i, int r) {
         return null;
     }
 }

@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 147799
+summary: Honor OTLP log document metadata
+type: bug

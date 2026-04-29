@@ -597,9 +597,14 @@ public final class InferenceQueryUtils {
 
             switch (taskType) {
                 case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
-                    if (input.containsNonTextEntry() || input.containsMultipleInferenceStrings()) {
+                    if (input.containsNonTextEntry()) {
                         gal.onFailure(
                             new IllegalArgumentException("Non-text input is not supported for [" + taskType + "] inference endpoints")
+                        );
+                        return;
+                    } else if (input.containsMultipleInferenceStrings()) {
+                        gal.onFailure(
+                            new IllegalArgumentException("Multiple text inputs are not supported for [" + taskType + "] inference endpoints")
                         );
                         return;
                     }

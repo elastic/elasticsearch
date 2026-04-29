@@ -16,10 +16,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.runners.model.Statement;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -37,21 +34,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Ensures metrics are being exported as expected.
+ * Tests in this class are applied to all subclasses, ensuring all metrics implementations satisfy our requirements.
  */
-public abstract class AbstractMetricsIT extends ESRestTestCase {
+public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
     private static final Logger logger = LogManager.getLogger(AbstractMetricsIT.class);
-
-    /**
-     * The APM agent is reconfigured dynamically by the APM module after booting,
-     * and the agent only reloads its configuration every 30 seconds.
-     * The first telemetry can be blocked waiting for this, so let's give it
-     * a good long time before giving up.
-     * <p>
-     * This should be unnecessary when the APM agent is no longer used.
-     */
-    static final int TELEMETRY_TIMEOUT = 40;
-
-    protected static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     /**
      * Returns a builder with common cluster settings (distribution, modules, telemetry.metrics.enabled).
@@ -63,26 +49,6 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
             .module("test-apm-integration")
             .module("apm")
             .setting("telemetry.metrics.enabled", "true");
-    }
-
-    /**
-     * Builds the rule chain for a subclass: recording server first, then cluster, then closeClients in finally.
-     */
-    protected static org.junit.rules.TestRule buildRuleChain(RecordingApmServer server, ElasticsearchCluster cluster) {
-        return org.junit.rules.RuleChain.outerRule(server).around(cluster).around((base, description) -> new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                try {
-                    base.evaluate();
-                } finally {
-                    try {
-                        closeClients();
-                    } catch (IOException e) {
-                        logger.error("failed to close REST clients after test", e);
-                    }
-                }
-            }
-        });
     }
 
     public void testExplicitMetrics() throws Exception {
@@ -140,7 +106,7 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
             }
         };
 
-        recordingApmServer.addMessageConsumer(messageConsumer);
+        apmServer().addMessageConsumer(messageConsumer);
 
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
         client().performRequest(new Request("GET", "/_flush_telemetry"));
@@ -206,7 +172,7 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
             }
         };
 
-        recordingApmServer.addMessageConsumer(messageConsumer);
+        apmServer().addMessageConsumer(messageConsumer);
 
         client().performRequest(new Request("GET", "/_flush_telemetry"));
         logger.debug("About to wait for telemetry");

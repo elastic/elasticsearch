@@ -43,7 +43,6 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PrintStreamInfoStream;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.StandardIOBehaviorHint;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
@@ -123,7 +122,8 @@ public class KnnIndexer {
                 docsPath,
                 dim,
                 vectorEncoding,
-                numDocs
+                numDocs,
+                normalizeVectors
             )
         ) {
             this.dim = reader.dim();
@@ -176,16 +176,7 @@ public class KnnIndexer {
                 for (int i = 0; i < numIndexThreads; i++) {
                     futures.add(
                         exec.submit(
-                            new IndexerThread(
-                                iw,
-                                vectorReader,
-                                vectorEncoding,
-                                fieldType,
-                                documentFactory,
-                                normalizeVectors,
-                                numDocsIndexed,
-                                totalDocs
-                            )
+                            new IndexerThread(iw, vectorReader, vectorEncoding, fieldType, documentFactory, numDocsIndexed, totalDocs)
                         )
                     );
                 }
@@ -354,7 +345,6 @@ public class KnnIndexer {
         private final DocumentFactory documentFactory;
         private final AtomicInteger numDocsIndexed;
         private final int numDocsToIndex;
-        private final boolean normalizeVectors;
 
         IndexerThread(
             IndexWriter iw,
@@ -362,7 +352,6 @@ public class KnnIndexer {
             VectorEncoding vectorEncoding,
             FieldType fieldType,
             DocumentFactory documentFactory,
-            boolean normalizeVectors,
             AtomicInteger numDocsIndexed,
             int numDocsToIndex
         ) {
@@ -371,7 +360,6 @@ public class KnnIndexer {
             this.vectorEncoding = vectorEncoding;
             this.fieldType = fieldType;
             this.documentFactory = documentFactory;
-            this.normalizeVectors = normalizeVectors;
             this.numDocsIndexed = numDocsIndexed;
             this.numDocsToIndex = numDocsToIndex;
         }
@@ -385,14 +373,11 @@ public class KnnIndexer {
                     final IndexableField field;
                     switch (vectorEncoding) {
                         case BYTE -> {
-                            byte[] vector = vectorReader.nextByteVector(idx);
+                            byte[] vector = vectorReader.nextByteVector();
                             field = new KnnByteVectorField(VECTOR_FIELD, vector, fieldType);
                         }
                         case FLOAT32 -> {
-                            float[] vector = vectorReader.nextFloatVector(idx);
-                            if (normalizeVectors) {
-                                VectorUtil.l2normalize(vector);
-                            }
+                            float[] vector = vectorReader.nextFloatVector();
                             field = new KnnFloatVectorField(VECTOR_FIELD, vector, fieldType);
                         }
                         default -> throw new UnsupportedOperationException();

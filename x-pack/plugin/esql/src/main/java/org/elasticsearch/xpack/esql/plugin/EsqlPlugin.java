@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveLocalViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
@@ -320,7 +321,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             blockFactoryProvider,
             dataSourceModule,
-            new ViewResolver(services.clusterService(), services.projectResolver(), services.client(), services.crossProjectModeDecider()),
+            new ViewResolver(
+                services.threadPool(),
+                services.clusterService(),
+                services.projectResolver(),
+                services.client(),
+                services.crossProjectModeDecider()
+            ),
             new ViewService(services.clusterService(), parser),
             new DataSourceService(services.clusterService(), crudValidators),
             new DatasetService(services.clusterService(), crudValidators)
@@ -397,6 +404,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
                 new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
                 new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+                new ActionHandler(EsqlResolveLocalViewAction.TYPE, EsqlResolveLocalViewAction.class),
                 new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
             )
         );

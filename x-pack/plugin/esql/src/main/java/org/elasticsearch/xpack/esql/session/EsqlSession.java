@@ -262,6 +262,7 @@ public class EsqlSession {
         viewResolutionProfile.start();
         viewResolver.replaceViews(
             statement.plan(),
+            projectRouting(request, statement),
             (query, viewName) -> parser.parseView(
                 query,
                 request.params(),

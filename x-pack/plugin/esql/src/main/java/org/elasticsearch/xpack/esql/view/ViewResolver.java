@@ -10,18 +10,22 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlResolveLocalViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -44,7 +48,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -53,6 +59,7 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 public class ViewResolver {
 
     protected Logger log = LogManager.getLogger(getClass());
+    private final Executor executor;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
@@ -75,6 +82,7 @@ public class ViewResolver {
      * Public constructor for NOOP instance (in release mode, when component is not registered, but TransportEsqlQueryAction still needs it)
      */
     public ViewResolver() {
+        this.executor = null;
         this.clusterService = null;
         this.projectResolver = null;
         this.crossProjectModeDecider = CrossProjectModeDecider.NOOP;
@@ -83,11 +91,13 @@ public class ViewResolver {
     }
 
     public ViewResolver(
+        ThreadPool threadPool,
         ClusterService clusterService,
         ProjectResolver projectResolver,
         Client client,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
+        this.executor = threadPool != null ? threadPool.executor(ThreadPool.Names.SEARCH) : null;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.crossProjectModeDecider = crossProjectModeDecider;
@@ -96,7 +106,7 @@ public class ViewResolver {
     }
 
     ViewMetadata getMetadata() {
-        return clusterService.state().metadata().getProject(projectResolver.getProjectId()).custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+        return projectResolver.getProjectMetadata(clusterService.state()).custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
     }
 
     // TODO: Remove this function entirely if we no longer need to do micro-benchmarks on views enabled/disabled
@@ -131,6 +141,7 @@ public class ViewResolver {
      */
     public void replaceViews(
         LogicalPlan plan,
+        String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         ActionListener<ViewResolutionResult> listener
     ) {
@@ -139,11 +150,17 @@ public class ViewResolver {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries));
             return;
         }
-        replaceViews(plan, parser, new LinkedHashSet<>(), viewQueries, 0, listener.delegateFailureAndWrap((l, rewritten) -> {
-            LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
-            postProcessed = compactNestedViewUnionAlls(postProcessed);
-            postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
-            listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries));
+        doResolveOriginViews(projectRouting, listener.delegateFailure((l1, shouldResolveLocalViews) -> {
+            if (shouldResolveLocalViews == false) {
+                l1.onResponse(new ViewResolutionResult(plan, viewQueries));
+            } else {
+                replaceViews(plan, parser, new LinkedHashSet<>(), viewQueries, 0, l1.delegateFailureAndWrap((l2, rewritten) -> {
+                    LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
+                    postProcessed = compactNestedViewUnionAlls(postProcessed);
+                    postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
+                    l2.onResponse(new ViewResolutionResult(postProcessed, viewQueries));
+                }));
+            }
         }));
     }
 
@@ -487,6 +504,20 @@ public class ViewResolver {
         ActionListener<EsqlResolveViewAction.Response> listener
     ) {
         client.execute(EsqlResolveViewAction.TYPE, request, listener);
+    }
+
+    protected void doResolveOriginViews(String projectRouting, ActionListener<Boolean> listener) {
+        if (crossProjectModeDecider.crossProjectEnabled() == false
+            || Strings.isNullOrBlank(projectRouting)
+            || Objects.equals(projectRouting, "_alias:_origin")) {
+            listener.onResponse(true);
+        } else {
+            client.execute(
+                EsqlResolveLocalViewAction.TYPE,
+                new EsqlResolveLocalViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, projectRouting),
+                new ThreadedActionListener<>(executor, listener.map(EsqlResolveLocalViewAction.Response::resolveLocalViews))
+            );
+        }
     }
 
     record ViewPlan(String name, LogicalPlan plan) {}

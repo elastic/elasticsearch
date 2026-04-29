@@ -1124,7 +1124,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             InMemoryViewResolver customViewResolver = customViewService.getViewResolver();
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view2"), this::parse, future);
+                customViewResolver.replaceViews(query("FROM view2"), null, this::parse, future);
                 // FROM view2 should fail
                 Exception e = expectThrows(VerificationException.class, future::actionGet);
                 assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
@@ -1132,7 +1132,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             // But FROM view1 should work
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view1"), this::parse, future);
+                customViewResolver.replaceViews(query("FROM view1"), null, this::parse, future);
                 LogicalPlan rewritten = future.actionGet().plan();
                 assertThat(rewritten, matchesPlan(query("FROM emp")));
             }
@@ -1970,7 +1970,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private LogicalPlan replaceViews(LogicalPlan plan, ViewResolver resolver) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        resolver.replaceViews(plan, this::parse, future);
+        resolver.replaceViews(plan, null, this::parse, future);
         return future.actionGet().plan();
     }
 
@@ -1978,7 +1978,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         var cpsDecider = new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build());
         InMemoryViewResolver cpsResolver = viewService.getViewResolver(cpsDecider);
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        cpsResolver.replaceViews(plan, this::parse, future);
+        cpsResolver.replaceViews(plan, null, this::parse, future);
         return future.actionGet().plan();
     }
 

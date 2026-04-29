@@ -10,24 +10,24 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import java.util.BitSet;
 
 /**
- * Reusable decode buffers for {@link PageColumnReader} batch operations. Eliminates per-batch
- * allocation of primitive arrays by keeping warm arrays that are reused across batches.
+ * Reusable scratch buffers for {@link PageColumnReader} batch decoding. Eliminates per-batch
+ * allocation of primitive arrays by keeping warm arrays that are reused across batches within
+ * a single column reader.
  *
- * <p>Each buffer type is lazily allocated and grown as needed. {@code BlockFactory.newXxxArrayVector}
- * wraps arrays by reference (no copy), so each {@link PageColumnReader} must own its own
- * {@code DecodeBuffers} instance. Within a single column, the {@link #takeLongs()} and
- * {@link #takeDoubles()} methods alternate between two slots so the previous batch's array can
- * be handed off to a Block while the next batch decodes into the alternate slot.
+ * <p>Buffers are pure scratch space: {@link PageColumnReader} decodes into them, then copies the
+ * decoded slice into a freshly allocated, tightly sized array before handing it to
+ * {@code BlockFactory}. The Block therefore never aliases anything inside this class, so the
+ * reader is free to overwrite the scratch arrays on the next batch. See the {@code Block
+ * construction helpers} section in {@link PageColumnReader} for the full ownership rationale.
  *
- * <p><b>Important:</b> each {@link PageColumnReader} must own its own {@code DecodeBuffers} instance.
- * Sharing across columns causes block corruption because {@code BlockFactory.newXxxArrayVector()}
- * wraps arrays by reference. When two columns share a buffer, the second column's decode overwrites
- * the first column's live block data. The double-buffering for longs/doubles (slot A/B via
- * {@link #takeLongs()}/{@link #takeDoubles()}) handles at most 2 consumers but fails with 3+.
+ * <p>Each buffer type is lazily allocated and grown as needed. Longs and doubles still rotate
+ * between two slots (see {@link #takeLongs()} / {@link #takeDoubles()}); after the copy-on-emit
+ * fix this is no longer required for correctness - one slot would be sufficient - and is kept
+ * only to avoid changing the buffer-growth profile in the same patch. Collapsing to a single
+ * slot is left as a follow-up.
  *
- * <p>TODO: when {@code ColumnBlockConversions} gains an {@code ownsArray=true} overload (zero-copy
- * handoff), revisit sharing: a single DecodeBuffers per row group would reduce object overhead if
- * blocks take ownership and the buffer is immediately recycled.
+ * <p>Each {@link PageColumnReader} owns its own instance. Sharing across columns is unnecessary
+ * and would only complicate ownership without buying anything.
  */
 final class DecodeBuffers {
 
@@ -65,10 +65,14 @@ final class DecodeBuffers {
     }
 
     /**
-     * Returns the current long buffer and swaps to the alternate slot. The caller takes
-     * exclusive ownership of the returned array (e.g., to hand off to a Block without copying).
-     * The next call to {@link #longs(int)} will use the alternate slot, avoiding reallocation
-     * as long as the previous buffer is released before the one after next is taken.
+     * Returns the current long scratch buffer and swaps to the alternate slot for the next
+     * call to {@link #longs(int)}. The returned array is still owned by this {@code DecodeBuffers}
+     * - callers must not retain it past the next {@code takeLongs()} or {@code longs(int)}
+     * call. {@link PageColumnReader} reads the decoded slice and copies it into a fresh,
+     * Block-owned array before emit, so this is safe by construction.
+     *
+     * <p>The slot flip is a historical artifact: with copy-on-emit a single slot would be
+     * enough. Kept for now to leave allocation behavior unchanged in this patch.
      */
     long[] takeLongs() {
         if (longSlotA) {
@@ -95,10 +99,10 @@ final class DecodeBuffers {
     }
 
     /**
-     * Returns the current double buffer and swaps to the alternate slot. The caller takes
-     * exclusive ownership of the returned array (e.g., to hand off to a Block without copying).
-     * The next call to {@link #doubles(int)} will use the alternate slot, avoiding reallocation
-     * as long as the previous buffer is released before the one after next is taken.
+     * Returns the current double scratch buffer and swaps to the alternate slot. Same ownership
+     * rules as {@link #takeLongs()}: the array stays owned by this {@code DecodeBuffers} and
+     * must not be retained past the next call. {@link PageColumnReader} copies the decoded
+     * slice into a Block-owned array before emit.
      */
     double[] takeDoubles() {
         if (doubleSlotA) {

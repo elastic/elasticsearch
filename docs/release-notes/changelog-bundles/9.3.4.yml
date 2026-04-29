@@ -1,0 +1,153 @@
+version: 9.3.4
+released: false
+generated: 2026-04-24T00:07:53.119826658Z
+changelogs:
+  - pr: 140200
+    summary: Use `IllegalArgumentException` over `RepositoryException` for readonly-repository checks
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 141708
+    summary: Add cancellation support to `IndicesRequestCache`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 142370
+    summary: Replace `IllegalStateException` with `IllegalArgumentException` for conflicting time series metadata
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 143262
+    summary: Skip time series field type merge for non-TS agg queries
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 144648
+    summary: Fix pipeline resolution cache for bulk requests
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 144679
+    summary: Bump heap usage limits for INLINE STATS
+    area: Aggregations
+    type: enhancement
+    issues: []
+  - pr: 145341
+    summary: "[DiskBBQ] Wait for queue saturation in `MaxScoreTopKnnCollector`"
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 145390
+    summary: Keywords mv count fix
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 145427
+    summary: Use query circuit breaker for wildcard/regexp determinization
+    area: Search
+    type: bug
+    issues:
+      - 145128
+  - pr: 145452
+    summary: Collapse pathological regex quantifier stacking to prevent NFA construction OOM
+    area: Search
+    type: bug
+    issues: []
+  - pr: 145632
+    summary: Don't use a Literal for `constant_keyword` fields when used inside full-text functions
+    area: ES|QL
+    type: bug
+    issues:
+      - 145570
+  - pr: 145726
+    summary: "Fix bug parsing \"request\" parameter in clear cache API, it should clear the request cache only"
+    area: Search
+    type: bug
+    issues: []
+  - pr: 145741
+    summary: Fix nested fields loading under NULLIFY
+    area: ES|QL
+    type: bug
+    issues:
+      - 142616
+  - pr: 145751
+    summary: Fix waiting for enrich policy execution for users without the `monitor` privilege
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 145777
+    summary: Throw a 400 error for malformed parsing input when missing element end
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 145794
+    summary: Fix handling of values on the time bucket boundaries for ES|QL increase
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 145813
+    summary: Fix propagation of filters on join keys for missing events
+    area: EQL
+    type: bug
+    issues:
+      - 145402
+  - pr: 145941
+    summary: Do not discard disjunction conditions when is null/is not null might invalidate them
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 146134
+    summary: Restore initial thread context during reindex etc
+    area: Reindex
+    type: bug
+    issues: []
+  - pr: 146186
+    summary: Omit uncomputed model stats
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 146199
+    summary: Fix `terminate_after` not honored for aggs when size=0
+    area: Search
+    type: bug
+    issues:
+      - 126665
+  - pr: 146223
+    summary: ESQL - Fix performance loading source when vectors are excluded
+    area: ES|QL
+    type: bug
+    issues:
+      - 145799
+  - pr: 146347
+    summary: "[DiskBBQ] Fix `offHeap` size for empty indices"
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 146348
+    summary: Fix starts_with/ends_with with special chars
+    area: ES|QL
+    type: bug
+    issues:
+      - 130851
+  - pr: 146518
+    summary: Fix rate/increase single-value bucket handling for delta temporality
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 146567
+    summary: Fix match only text decoding surrogate pairs
+    area: Mapping
+    type: bug
+    issues:
+      - 146538
+  - pr: 146632
+    summary: Fix NPE in GPU resource pool when CuVSResources creation fails
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 146933
+    summary: Fix NPE when having double nested field with knn query
+    area: Vector Search
+    type: bug
+    issues:
+      - 141830

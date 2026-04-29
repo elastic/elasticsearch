@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.voyageai.request;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -17,7 +18,7 @@ import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerank
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.hamcrest.Matchers.is;
 
 public class VoyageAIRerankRequestEntityTests extends ESTestCase {
     public void testXContent_SingleRequest_WritesAllFieldsIfDefined() throws IOException {
@@ -34,7 +35,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
                 "model": "model",
                 "query": "query",
@@ -44,7 +45,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
                 "return_documents": true,
                 "top_k": 12
             }
-            """));
+            """)));
     }
 
     public void testXContent_SingleRequest_WritesMinimalFields() throws IOException {
@@ -61,7 +62,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
                 "model": "model",
                 "query": "query",
@@ -70,7 +71,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
                 ],
                 "return_documents": true
             }
-            """));
+            """)));
     }
 
     public void testXContent_SingleRequest_WritesModelAndTopKIfDefined_TruncationTrue() throws IOException {
@@ -87,7 +88,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
                 "model": "model",
                 "query": "query",
@@ -98,7 +99,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
                 "top_k": 8,
                 "truncation": true
             }
-            """));
+            """)));
     }
 
     public void testXContent_SingleRequest_WritesModelAndTopKIfDefined_TruncationFalse() throws IOException {
@@ -115,7 +116,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
                 "model": "model",
                 "query": "query",
@@ -126,7 +127,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
                 "top_k": 8,
                 "truncation": false
             }
-            """));
+            """)));
     }
 
     public void testXContent_MultipleRequests_WritesAllFieldsIfDefined() throws IOException {
@@ -143,7 +144,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
                 "model": "model",
                 "query": "query",
@@ -154,7 +155,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
                 "return_documents": false,
                 "top_k": 11
             }
-            """));
+            """)));
     }
 
     public void testXContent_MultipleRequests_DoesNotWriteTopKIfNull() throws IOException {
@@ -164,7 +165,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
                 "model": "model",
                 "query": "query",
@@ -173,7 +174,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
                    "def"
                 ]
             }
-            """));
+            """)));
     }
 
     public void testXContent_UsesTaskSettingsTopNIfRootIsNotDefined() throws IOException {
@@ -190,7 +191,7 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
                 "model": "model",
                 "query": "query",
@@ -200,7 +201,6 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
                 "return_documents": false,
                 "top_k": 8
             }
-            """));
+            """)));
     }
-
 }

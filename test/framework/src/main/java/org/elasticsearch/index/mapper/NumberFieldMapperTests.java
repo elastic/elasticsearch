@@ -370,7 +370,10 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             DocumentParsingException.class,
             () -> mapperService.documentMapper().parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
         );
-        assertThat(e.getCause().getMessage(), containsString("Only one field can be stored per key"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
     }
 
     protected abstract Number randomNumber();
@@ -548,5 +551,113 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             e.getMessage(),
             containsString("Unknown value [sorted_set] for field [multi_value] - accepted values are [no, sorted, arrays]")
         );
+    }
+
+    public void testMultiValueNoAcceptsSingleValue() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+    }
+
+    public void testMultiValueNoRejectsArray() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", getSampleValueForDocument(), getSampleValueForDocument())))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * Both values are malformed and would route to the {@code _ignored} fallback. Enforcement still throws on the second
+     * {@link FieldMapper#parse(DocumentParserContext)} call before either is handled.
+     */
+    public void testMultiValueNoRejectsTwoIgnoreMalformedFallbacks() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("ignore_malformed", true);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "not-a-number", "also-not-a-number")))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * One regular value and one malformed value (routed to {@code _ignored} fallback). Single value enforcement throws on the
+     * second (malformed) value.
+     */
+    public void testMultiValueNoRejectsRegularPlusMalformed() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("ignore_malformed", true);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", getSampleValueForDocument(), "not-a-number")))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * One malformed value (routed to {@code _ignored} fallback) followed by one regular value. Single value enforcement throws on the
+     * second (regular) value.
+     */
+    public void testMultiValueNoRejectsMalformedPlusRegular() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("ignore_malformed", true);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "not-a-number", getSampleValueForDocument())))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
+    public void testMultiValueNoUsesNumericDocValues() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse("expected at least one indexable field for [field]", fields.isEmpty());
+        boolean hasDocValuesField = false;
+        for (IndexableField f : fields) {
+            DocValuesType dvType = f.fieldType().docValuesType();
+            if (dvType != DocValuesType.NONE) {
+                hasDocValuesField = true;
+                assertEquals("multi_value=no must use NUMERIC doc values, not SORTED_NUMERIC", DocValuesType.NUMERIC, dvType);
+            }
+        }
+        assertTrue("expected a doc values field for [field]", hasDocValuesField);
     }
 }

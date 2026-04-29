@@ -67,6 +67,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ReindexSslConfig sslConfig,
         @Nullable ReindexMetrics reindexMetrics,
         ReindexRelocationNodePicker relocationNodePicker,
+        ReindexSettings reindexSettings,
         FeatureService featureService,
         TaskResultsService taskResultsService
     ) {
@@ -85,6 +86,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             sslConfig,
             reindexMetrics,
             relocationNodePicker,
+            reindexSettings,
             featureService,
             taskResultsService
         );
@@ -105,6 +107,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ReindexSslConfig sslConfig,
         @Nullable ReindexMetrics reindexMetrics,
         ReindexRelocationNodePicker relocationNodePicker,
+        ReindexSettings reindexSettings,
         FeatureService featureService,
         TaskResultsService taskResultsService
     ) {
@@ -119,6 +122,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         );
         this.reindexer = new Reindexer(
             clusterService,
+            reindexSettings,
             projectResolver,
             client,
             threadPool,

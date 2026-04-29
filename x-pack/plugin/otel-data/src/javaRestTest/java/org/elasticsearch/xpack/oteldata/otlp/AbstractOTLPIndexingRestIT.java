@@ -95,6 +95,17 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
     }
 
     protected static String createApiKey(String indexPattern) throws IOException {
+        return createApiKey(new String[] { indexPattern });
+    }
+
+    protected static String createApiKey(String... indexPatterns) throws IOException {
+        StringBuilder indexPatternsJson = new StringBuilder();
+        for (int i = 0; i < indexPatterns.length; i++) {
+            if (i > 0) {
+                indexPatternsJson.append(", ");
+            }
+            indexPatternsJson.append('"').append(indexPatterns[i]).append('"');
+        }
         Request createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity("""
             {
@@ -103,14 +114,14 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
                 "writer": {
                   "index": [
                     {
-                      "names": ["$INDEX_PATTERN"],
+                      "names": [$INDEX_PATTERNS],
                       "privileges": ["create_doc", "auto_configure"]
                     }
                   ]
                 }
               }
             }
-            """.replace("$INDEX_PATTERN", indexPattern));
+            """.replace("$INDEX_PATTERNS", indexPatternsJson.toString()));
         ObjectPath createApiKeyResponse = ObjectPath.createFromResponse(client().performRequest(createApiKeyRequest));
         return createApiKeyResponse.evaluate("encoded");
     }

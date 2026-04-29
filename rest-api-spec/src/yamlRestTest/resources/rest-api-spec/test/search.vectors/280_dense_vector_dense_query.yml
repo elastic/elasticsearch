@@ -1,0 +1,375 @@
+setup:
+  - requires:
+      cluster_features: "search.vectors.dense_vector_query"
+      test_runner_features: "close_to"
+      reason: 'dense_vector query introduced in 9.5'
+
+  - do:
+      indices.create:
+        index: dv_flat
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: flat
+
+  - do:
+      indices.create:
+        index: dv_hnsw
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+
+  - do:
+      indices.create:
+        index: dv_int8_hnsw
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: cosine
+                index_options:
+                  type: int8_hnsw
+
+  - do:
+      indices.create:
+        index: dv_int4_hnsw
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 8
+                index: true
+                similarity: cosine
+                index_options:
+                  type: int4_hnsw
+
+  - do:
+      indices.create:
+        index: dv_byte
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: byte
+                dims: 5
+                index: true
+                similarity: dot_product
+
+  - do:
+      indices.create:
+        index: dv_bit
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: true
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: dv_flat
+        id: "1"
+        body: { name: cow.jpg,    vector: [230.0, 300.33, -34.8988, 15.555, -200.0] }
+  - do:
+      index:
+        index: dv_flat
+        id: "2"
+        body: { name: moose.jpg,  vector: [-0.5, 100.0, -13, 14.8, -156.0] }
+  - do:
+      index:
+        index: dv_flat
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 111.3, -13.0, 14.8, -156.0] }
+
+  # dv_hnsw mirrors dv_flat exactly so we can compare quantized=true vs default (must be a no-op).
+  - do:
+      index:
+        index: dv_hnsw
+        id: "1"
+        body: { name: cow.jpg,    vector: [230.0, 300.33, -34.8988, 15.555, -200.0] }
+  - do:
+      index:
+        index: dv_hnsw
+        id: "2"
+        body: { name: moose.jpg,  vector: [-0.5, 100.0, -13, 14.8, -156.0] }
+  - do:
+      index:
+        index: dv_hnsw
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 111.3, -13.0, 14.8, -156.0] }
+
+  - do:
+      index:
+        index: dv_int8_hnsw
+        id: "1"
+        body: { name: cow.jpg,    vector: [0.6, 0.5, 0.4, 0.3, 0.2] }
+  - do:
+      index:
+        index: dv_int8_hnsw
+        id: "2"
+        body: { name: moose.jpg,  vector: [0.1, 0.2, 0.3, 0.4, 0.6] }
+  - do:
+      index:
+        index: dv_int8_hnsw
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 0.5, 0.5, 0.5, 0.5] }
+
+  - do:
+      index:
+        index: dv_int4_hnsw
+        id: "1"
+        body: { name: cow.jpg,    vector: [0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.05, 0.0] }
+  - do:
+      index:
+        index: dv_int4_hnsw
+        id: "2"
+        body: { name: moose.jpg,  vector: [0.1, 0.2, 0.3, 0.4, 0.6, 0.5, 0.4, 0.3] }
+  - do:
+      index:
+        index: dv_int4_hnsw
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] }
+
+  - do:
+      index:
+        index: dv_byte
+        id: "1"
+        body: { name: cow.jpg,    vector: [10, -20, 30, -40, 50] }
+  - do:
+      index:
+        index: dv_byte
+        id: "2"
+        body: { name: moose.jpg,  vector: [-10, 20, -30, 40, -50] }
+  - do:
+      index:
+        index: dv_byte
+        id: "3"
+        body: { name: rabbit.jpg, vector: [5, -10, 15, -20, 25] }
+
+  - do:
+      index:
+        index: dv_bit
+        id: "1"
+        body: { name: cow.jpg,    vector: [2, -1, 1, 4, -3] }
+  - do:
+      index:
+        index: dv_bit
+        id: "2"
+        body: { name: moose.jpg,  vector: [-1, 5, 0, 1, 4] }
+  - do:
+      index:
+        index: dv_bit
+        id: "3"
+        body: { name: rabbit.jpg, vector: [3, 0, -1, 2, 6] }
+
+  - do:
+      indices.refresh: {}
+
+---
+"quantized: true is a no-op on FLAT (non-quantized) indexes":
+  # The codec has no quantized representation to fall back to, so default and quantized must match exactly.
+  - do:
+      search:
+        index: dv_flat
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - set: { hits.hits.0._score: flat_score_0 }
+  - set: { hits.hits.1._score: flat_score_1 }
+  - set: { hits.hits.2._score: flat_score_2 }
+
+  - do:
+      search:
+        index: dv_flat
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              quantized: true
+  - close_to: {hits.hits.0._score: {value: $flat_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $flat_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $flat_score_2, error: 0.000001}}
+
+---
+"quantized: true is a no-op on HNSW (non-quantized) indexes":
+  - do:
+      search:
+        index: dv_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - set: { hits.hits.0._score: hnsw_score_0 }
+  - set: { hits.hits.1._score: hnsw_score_1 }
+  - set: { hits.hits.2._score: hnsw_score_2 }
+
+  - do:
+      search:
+        index: dv_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              quantized: true
+  - close_to: {hits.hits.0._score: {value: $hnsw_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $hnsw_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $hnsw_score_2, error: 0.000001}}
+
+---
+"dense_vector exact query against int4_hnsw uses raw scoring by default":
+  # int4_hnsw is more lossy than int8 but the raw path still iterates the preserved float values.
+  # Top hit must be the document whose vector matches the query (rabbit, all-equal vector).
+  - do:
+      search:
+        index: dv_int4_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+  - match: {hits.total.value: 3}
+  - match: {hits.hits.0._id: "3"}
+  # Score against an identical (post-normalization) vector ⇒ ≈ 1.0; tighter than int8 because the raw
+  # path is unaffected by int4 quantization.
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.001}}
+
+  - do:
+      search:
+        index: dv_int4_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+              quantized: true
+  - match: {hits.hits.0._id: "3"}
+  # quantized=true on int4 lets int4 quantization noise through — give a wider tolerance.
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.05}}
+
+---
+"dense_vector on a byte field: quantized flag is a no-op":
+  # BYTE fields have no codec-level quantization (the bytes are the storage). default and quantized
+  # must produce identical scores.
+  - do:
+      search:
+        index: dv_byte
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [10, -20, 30, -40, 50]
+  - set: { hits.hits.0._score: byte_score_0 }
+  - set: { hits.hits.1._score: byte_score_1 }
+  - set: { hits.hits.2._score: byte_score_2 }
+
+  - do:
+      search:
+        index: dv_byte
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [10, -20, 30, -40, 50]
+              quantized: true
+  - close_to: {hits.hits.0._score: {value: $byte_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $byte_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $byte_score_2, error: 0.000001}}
+
+---
+"dense_vector on a bit field: quantized flag is a no-op":
+  # BIT fields encode hamming distance over the bits themselves — no codec quantization layer.
+  - do:
+      search:
+        index: dv_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+  - set: { hits.hits.0._score: bit_score_0 }
+  - set: { hits.hits.1._score: bit_score_1 }
+  - set: { hits.hits.2._score: bit_score_2 }
+
+  - do:
+      search:
+        index: dv_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+              quantized: true
+  - close_to: {hits.hits.0._score: {value: $bit_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $bit_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $bit_score_2, error: 0.000001}}
+
+---
+"dense_vector on a bit field rejects non-l2 similarity_function override":
+  - do:
+      catch: bad_request
+      search:
+        index: dv_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+              similarity_function: cosine
+
+---
+"similarity_function override changes the score function":
+  # Override the cosine-mapped int8_hnsw index to l2_norm. Top hit is still doc 3 (its stored vector
+  # equals the query post-normalization), but the score formula is 1/(1+distance²) instead of cosine,
+  # which lands well below 1.0 — proving the override actually drove scoring.
+  - do:
+      search:
+        index: dv_int8_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5]
+              similarity_function: l2_norm
+  - match: {hits.hits.0._id: "3"}
+  # Stored doc 3 is index-time-normalized to unit ([0.4472, …]); query is non-unit.
+  # ||q - stored_unit||² ≈ 0.01394 ⇒ Lucene EUCLIDEAN score = 1/(1+0.01394) ≈ 0.9862. Comfortably
+  # below the cosine default of ~1.0, so passing this assertion implies the override changed scoring.
+  - close_to: {hits.hits.0._score: {value: 0.986, error: 0.01}}

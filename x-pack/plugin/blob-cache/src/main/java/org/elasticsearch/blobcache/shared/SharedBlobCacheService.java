@@ -324,6 +324,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     private interface Cache<K, T> extends Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
+        /// Returns the entry for the provided `cacheKey` and `region` if it exists and is fully initialized
+        /// (i.e. its IO slot has been assigned), or `null` otherwise.
+        ///
+        /// Unlike [#get], this method will not allocate a new region slot if the entry does not exist.
         @Nullable
         CacheEntry<T> getIfPresent(K cacheKey, int region);
 
@@ -1360,7 +1364,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     // nothing to read, skip
                     continue;
                 }
-                CacheEntry<CacheFileRegion<KeyType>> fileRegion;
+                var fileRegion = lastAccessedRegion;
                 try {
                     fileRegion = cache.getIfPresent(cacheKey, region);
                 } catch (AlreadyClosedException exc) {
@@ -1389,7 +1393,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (startRegion != endRegion) {
                 return false;
             }
-            CacheEntry<CacheFileRegion<KeyType>> fileRegion = lastAccessedRegion;
+            var fileRegion = lastAccessedRegion;
             boolean incrementReads = false;
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
                 // existing item, check if we need to promote item
@@ -1977,7 +1981,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         @Override
         public LFUCacheEntry get(KeyType cacheKey, long fileLength, int region) {
-            final RegionKey<KeyType> regionKey = new RegionKey<>(cacheKey, region);
+            final var regionKey = new RegionKey<>(cacheKey, region);
             final long now = epoch.get();
             // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path
             // if we did not find an entry
@@ -2011,7 +2015,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @Override
         @Nullable
         public LFUCacheEntry getIfPresent(KeyType cacheKey, int region) {
-            final RegionKey<KeyType> regionKey = new RegionKey<>(cacheKey, region);
+            final var regionKey = new RegionKey<>(cacheKey, region);
             final long now = epoch.get();
             var entry = keyMapping.get(cacheKey.shardId(), regionKey);
             if (entry == null) {

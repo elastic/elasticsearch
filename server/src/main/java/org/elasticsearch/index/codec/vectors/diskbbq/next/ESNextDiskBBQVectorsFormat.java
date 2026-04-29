@@ -418,7 +418,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new ESNextDiskBBQVectorsWriter(
             state,
-            rawVectorFormat.getName(),
+            rawVectorFormat,
             useDirectIO,
             rawVectorFormat.fieldsWriter(state),
             quantEncoding,

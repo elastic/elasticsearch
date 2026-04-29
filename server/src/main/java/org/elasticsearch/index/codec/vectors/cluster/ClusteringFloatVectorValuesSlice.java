@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
@@ -17,11 +18,11 @@ import java.util.Random;
 
 public final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues {
 
-    private final ClusteringFloatVectorValues allValues;
+    private final FloatVectorValues allValues;
     private final IntToIntFunction ordTranslator;
     private final int size;
 
-    public ClusteringFloatVectorValuesSlice(ClusteringFloatVectorValues allValues, IntToIntFunction ordTranslator, int size) {
+    public ClusteringFloatVectorValuesSlice(FloatVectorValues allValues, IntToIntFunction ordTranslator, int size) {
         assert ordTranslator != null;
         assert allValues.size() >= size;
         this.allValues = allValues;

@@ -13,6 +13,8 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
@@ -20,6 +22,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
@@ -29,9 +32,12 @@ import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.IORunnable;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValuesSlice;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -56,6 +62,10 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final IndexOutput ivfMeta;
     private final String rawVectorFormatName;
     private final Boolean useDirectIOReads;
+    private final FlatVectorsFormat flatVectorsFormat;
+    private final SegmentWriteState segmentWriteState;
+    private boolean flatWriterClosed = false;
+    private FlatVectorsReader flatVectorsReader;
     private final FlatVectorsWriter rawVectorDelegate;
     private final int flatVectorThreshold;
     private final boolean shouldWriteDirectIoReads;
@@ -63,7 +73,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(
         SegmentWriteState state,
-        String rawVectorFormatName,
+        FlatVectorsFormat flatVectorsFormat,
         Boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
         int writeVersion,
@@ -74,11 +84,13 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         boolean shouldWriteDirectIoReads,
         int flatVectorThreshold
     ) throws IOException {
-        this.rawVectorFormatName = rawVectorFormatName;
+        this.flatVectorsFormat = flatVectorsFormat;
+        this.rawVectorFormatName = flatVectorsFormat.getName();
         this.useDirectIOReads = useDirectIOReads;
         this.rawVectorDelegate = rawVectorDelegate;
         this.flatVectorThreshold = flatVectorThreshold;
         this.shouldWriteDirectIoReads = shouldWriteDirectIoReads;
+        this.segmentWriteState = state;
         final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
         final String ivfCentroidsFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, centroidExtension);
         final String ivfClustersFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, clusterExtension);
@@ -112,12 +124,12 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return rawVectorDelegate;
     }
 
-    public abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues)
+    public abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, ClusteringFloatVectorValues floatVectorValues)
         throws IOException;
 
     public abstract CentroidAssignments calculateCentroids(
         FieldInfo fieldInfo,
-        KMeansFloatVectorValues floatVectorValues,
+        ClusteringFloatVectorValues floatVectorValues,
         MergeState mergeState
     ) throws IOException;
 
@@ -338,15 +350,17 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     }
 
     @Override
-    public final void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    public final IORunnable mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
-            mergeOneFieldIVF(fieldInfo, mergeState);
+            return () -> mergeOneFieldIVF(fieldInfo, mergeState);
         } else {
             // we simply write information that the field is present but we don't do anything with it.
             writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, 0, 0);
+            return null;
         }
         // we merge the vectors at the end so we only have two copies of the vectors on disk at the same time.
-        rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
+
     }
 
     private void writeMeta(
@@ -396,67 +410,76 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        final int numVectors;
-        String tempRawVectorsFileName = null;
-        String docsFileName = null;
-        // build a float vector values with random access. In order to do that we dump the vectors to
-        // a temporary file and if the segment is not dense, the docs to another file/
-        Preconditioner preconditioner;
-        try (
-            IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfvec_", IOContext.DEFAULT)
-        ) {
-            tempRawVectorsFileName = vectorsOut.getName();
-            FloatVectorValues mergedFloatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
-
-            // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
-            preconditioner = inheritPreconditioner(fieldInfo, mergeState);
-            mergedFloatVectorValues = preconditionVectors(preconditioner, mergedFloatVectorValues);
-
-            // if the segment is dense, we don't need to do anything with docIds.
-            boolean dense = mergedFloatVectorValues.size() == mergeState.segmentInfo.maxDoc();
-            try (
-                IndexOutput docsOut = dense
-                    ? null
-                    : mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfdoc_", IOContext.DEFAULT)
-            ) {
-                if (docsOut != null) {
-                    docsFileName = docsOut.getName();
-                }
-                // TODO do this better, we shouldn't have to write to a temp file, we should be able to
-                // to just from the merged vector values, the tricky part is the random access.
-                numVectors = writeFloatVectorValues(fieldInfo, docsOut, vectorsOut, mergedFloatVectorValues);
-                CodecUtil.writeFooter(vectorsOut);
-                if (docsOut != null) {
-                    CodecUtil.writeFooter(docsOut);
-                }
-            }
-        } catch (Throwable t) {
-            if (tempRawVectorsFileName != null) {
-                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
-            }
-            if (docsFileName != null) {
-                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, docsFileName);
-            }
-            throw t;
-        }
+        ensureFlatReaderOpen();
+        assert fieldInfo.getVectorEncoding() == VectorEncoding.FLOAT32;
+        FloatVectorValues mergedFloatVectorValues = flatVectorsReader.getFloatVectorValues(fieldInfo.name);
+        final int numVectors = mergedFloatVectorValues.size();
         if (numVectors == 0) {
             long centroidOffset = ivfCentroids.getFilePointer();
             writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0, 0, 0);
             return;
         }
+        // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
+        Preconditioner preconditioner = inheritPreconditioner(fieldInfo, mergeState);
+        FloatVectorValues mergedFloatVectorValuesWithPreconditioner = preconditionVectors(preconditioner, mergedFloatVectorValues);
+        String tempRawVectorsFileName = null;
+        String docsFileName = null;
+        if (mergedFloatVectorValuesWithPreconditioner != mergedFloatVectorValues) {
+
+            try (
+                IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(
+                    mergeState.segmentInfo.name,
+                    "ivfvec_",
+                    IOContext.DEFAULT
+                )
+            ) {
+                tempRawVectorsFileName = vectorsOut.getName();
+                // if the segment is dense, we don't need to do anything with docIds.
+                boolean dense = mergedFloatVectorValues.size() == mergeState.segmentInfo.maxDoc();
+                try (
+                    IndexOutput docsOut = dense
+                        ? null
+                        : mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfdoc_", IOContext.DEFAULT)
+                ) {
+                    if (docsOut != null) {
+                        docsFileName = docsOut.getName();
+                    }
+                    // TODO do this better, we shouldn't have to write to a temp file, we should be able to
+                    // to just from the merged vector values, the tricky part is the random access.
+                    writeFloatVectorValues(fieldInfo, docsOut, vectorsOut, mergedFloatVectorValues);
+                    CodecUtil.writeFooter(vectorsOut);
+                    if (docsOut != null) {
+                        CodecUtil.writeFooter(docsOut);
+                    }
+                }
+            } catch (Throwable t) {
+                if (tempRawVectorsFileName != null) {
+                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
+                }
+                if (docsFileName != null) {
+                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, docsFileName);
+                }
+                throw t;
+            }
+        }
+
         // now open the temp file and build the index structures. It is expected these files to be read in sequential order.
         // Even when the file might be sample, the reads will be always in increase order, therefore we set the ReadAdvice to SEQUENTIAL
         // so the OS can optimize read ahead in low memory situations.
         try (
-            IndexInput vectors = mergeState.segmentInfo.dir.openInput(
-                tempRawVectorsFileName,
-                IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL)
-            );
+            IndexInput vectors = tempRawVectorsFileName == null
+                ? null
+                : mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL));
             IndexInput docs = docsFileName == null
                 ? null
                 : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
         ) {
-            final KMeansFloatVectorValues floatVectorValues = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
+            final ClusteringFloatVectorValues floatVectorValues;
+            if (vectors == null) {
+                floatVectorValues = new ClusteringFloatVectorValuesSlice(mergedFloatVectorValues, i -> i, mergedFloatVectorValues.size());
+            } else {
+                floatVectorValues = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
+            }
 
             final long centroidOffset;
             final long centroidLength;
@@ -564,7 +587,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                     tempRawVectorsFileName,
                     docsFileName
                 );
-            } else {
+            } else if (tempRawVectorsFileName != null) {
                 org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
             }
         }
@@ -608,9 +631,27 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         throw new IllegalArgumentException("invalid distance function: " + func);
     }
 
+    private void ensureFlatReaderOpen() throws IOException {
+        if (flatVectorsReader == null) {
+            rawVectorDelegate.finish();
+            rawVectorDelegate.close();
+            flatWriterClosed = true;
+            SegmentReadState readState = new SegmentReadState(
+                segmentWriteState.directory,
+                segmentWriteState.segmentInfo,
+                segmentWriteState.fieldInfos,
+                segmentWriteState.context,
+                segmentWriteState.segmentSuffix
+            );
+            flatVectorsReader = flatVectorsFormat.fieldsReader(readState);
+        }
+    }
+
     @Override
     public final void finish() throws IOException {
-        rawVectorDelegate.finish();
+        if (flatWriterClosed == false) {
+            rawVectorDelegate.finish();
+        }
         if (ivfMeta != null) {
             // write end of fields marker
             ivfMeta.writeInt(-1);
@@ -626,7 +667,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public final void close() throws IOException {
-        IOUtils.close(rawVectorDelegate, ivfMeta, ivfCentroids, ivfClusters);
+        if (flatWriterClosed) {
+            IOUtils.close(ivfMeta, ivfCentroids, ivfClusters, flatVectorsReader);
+        } else {
+            IOUtils.close(rawVectorDelegate, ivfMeta, ivfCentroids, ivfClusters, flatVectorsReader);
+        }
     }
 
     @Override

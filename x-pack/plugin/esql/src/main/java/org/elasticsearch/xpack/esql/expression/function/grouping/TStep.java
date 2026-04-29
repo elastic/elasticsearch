@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -67,7 +68,9 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     public static final String NAME = "TStep";
 
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TStep.class).quaternaryConfig(TStep::new).name("tstep");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TStep.class)
+        .quaternaryConfig(TStep::new)
+        .name(NAME.toLowerCase(Locale.ROOT));
 
     private final Configuration configuration;
     @Nullable

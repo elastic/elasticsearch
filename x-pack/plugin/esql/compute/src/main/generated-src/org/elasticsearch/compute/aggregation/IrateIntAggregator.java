@@ -62,7 +62,7 @@ public class IrateIntAggregator {
                 current.ensureCapacity(groupId);
                 current.append(groupId, timestamp, value);
             } else {
-                //TODO: emit warning that delta is unsupported on this cluster version
+                // TODO: emit warning that delta is unsupported on this cluster version
             }
         } catch (InvalidTemporalityException e) {
             // TODO: emit a warning

@@ -48,6 +48,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
@@ -2184,7 +2185,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return (input, values) -> decoder.decodeOrdinals(input, values, bitsPerOrd);
         } else {
             var numericFieldReader = numericCodec.createReader(readContext);
-            final NumericFieldReader.Decoder decoder = numericFieldReader.decoder();
+            final NumericFieldReader.Decoder decoder = numericFieldReader.decoder(entry.pipelineDescriptor);
             return (input, values) -> decoder.decodeBlock(input, values, numericBlockSize);
         }
     }
@@ -2745,6 +2746,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         public long valuesOffset;
         public long valuesLength;
         public DirectMonotonicReader.Meta sortedOrdinals;
+        public PipelineDescriptor pipelineDescriptor;
     }
 
     static class BinaryEntry {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -30,7 +31,8 @@ public record TransformServices(
     TransformScheduler scheduler,
     TransformNode transformNode,
     CrossProjectModeDecider crossProjectModeDecider,
-    Function<ProjectId, Boolean> hasLinkedProjects
+    Function<ProjectId, Boolean> hasLinkedProjects,
+    ProjectResolver projectResolver
 ) {
     public TransformServices {
         Objects.requireNonNull(configManager);
@@ -40,5 +42,6 @@ public record TransformServices(
         Objects.requireNonNull(transformNode);
         Objects.requireNonNull(crossProjectModeDecider);
         Objects.requireNonNull(hasLinkedProjects);
+        Objects.requireNonNull(projectResolver);
     }
 }

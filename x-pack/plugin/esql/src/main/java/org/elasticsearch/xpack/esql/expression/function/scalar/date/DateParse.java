@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Options;
@@ -60,6 +61,9 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         "DateParse",
         DateParse::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DateParse.class)
+        .ternaryConfig(DateParse::new)
+        .name("date_parse");
 
     private static final String TIME_ZONE_PARAM_NAME = "time_zone";
     private static final String LOCALE_PARAM_NAME = "locale";

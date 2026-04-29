@@ -25,10 +25,13 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
 
     /**
      * Retrieves the float value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
      * @param valueIndex the value index
      * @return the data value (as a float)
      */

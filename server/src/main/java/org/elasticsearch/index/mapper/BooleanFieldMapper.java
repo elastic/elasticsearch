@@ -516,6 +516,7 @@ public class BooleanFieldMapper extends FieldMapper {
     private final Boolean nullValue;
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final boolean stored;
     private final Script script;
     private final FieldValues<Boolean> scriptValues;
@@ -539,6 +540,11 @@ public class BooleanFieldMapper extends FieldMapper {
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            fieldType().indexType.hasDocValuesSkipper(),
+            builder.indexSettings.getIndexVersionCreated()
+        );
         this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
@@ -555,6 +561,11 @@ public class BooleanFieldMapper extends FieldMapper {
 
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
+    }
+
+    @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue().isSingleValued();
     }
 
     @Override
@@ -620,11 +631,7 @@ public class BooleanFieldMapper extends FieldMapper {
             context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
         }
         if (docValuesParameters.enabled()) {
-            if (fieldType().indexType.hasDocValuesSkipper()) {
-                context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), value ? 1 : 0));
-            } else {
-                context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
-            }
+            dvFactory.addNumericField(context.doc(), fieldType().name(), value ? 1 : 0);
         } else {
             context.addToFieldNames(fieldType().name());
         }

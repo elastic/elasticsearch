@@ -24,7 +24,8 @@ import java.io.IOException;
 // end generated imports
 
 /**
- * Arrow buffer backed FloatVector.
+ * Implementation of FloatVector backed by an Arrow buffer holding 32 bits floats.
+ * <p>
  * This class is generated. Edit {@code X-ArrowBufVector.java.st} instead.
  */
 public final class FloatArrowBufVector extends AbstractArrowBufVector<FloatVector, FloatBlock> implements FloatVector {
@@ -56,8 +57,8 @@ public final class FloatArrowBufVector extends AbstractArrowBufVector<FloatVecto
     }
 
     @Override
-    public float getFloat(int position) {
-        return valueBuffer.getFloat((long) position * Float.BYTES);
+    public float getFloat(int valueIndex) {
+        return valueBuffer.getFloat((long) valueIndex * Float.BYTES);
     }
 
     @Override

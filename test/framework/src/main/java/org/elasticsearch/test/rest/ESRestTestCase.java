@@ -2475,6 +2475,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".slm-history") || name.startsWith("ilm-history")) {
             return true;
         }
+        if (name.startsWith("logs-elasticsearch.querylog")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":

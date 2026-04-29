@@ -83,7 +83,7 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         }
 
         logger.debug("Parquet filter pushdown: validated {} of {} expressions for pushdown", pushed.size(), filters.size());
-        return new PushdownResult(new ParquetPushedExpressions(pushed), remainder);
+        return new PushdownResult(new ParquetPushedExpressions(pushed), pushed, remainder);
     }
 
     @Override

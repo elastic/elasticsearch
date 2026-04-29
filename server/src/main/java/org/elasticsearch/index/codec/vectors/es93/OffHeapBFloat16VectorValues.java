@@ -25,13 +25,13 @@ import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.codec.vectors.VectorScoringUtils;
 
 import java.io.IOException;
 
@@ -182,22 +182,7 @@ public abstract class OffHeapBFloat16VectorValues extends BFloat16VectorValues i
             DenseOffHeapVectorValues copy = copy();
             DocIndexIterator iterator = copy.iterator();
             RandomVectorScorer randomVectorScorer = flatVectorsScorer.getRandomVectorScorer(similarityFunction, copy, query);
-            return new VectorScorer() {
-                @Override
-                public float score() throws IOException {
-                    return randomVectorScorer.score(iterator.docID());
-                }
-
-                @Override
-                public DocIdSetIterator iterator() {
-                    return iterator;
-                }
-
-                @Override
-                public VectorScorer.Bulk bulk(DocIdSetIterator matchedDocs) {
-                    return VectorScorer.Bulk.fromRandomScorerDense(randomVectorScorer, iterator, matchedDocs);
-                }
-            };
+            return VectorScoringUtils.denseVectorScorer(randomVectorScorer, iterator);
         }
     }
 
@@ -273,22 +258,7 @@ public abstract class OffHeapBFloat16VectorValues extends BFloat16VectorValues i
             SparseOffHeapVectorValues copy = copy();
             DocIndexIterator iterator = copy.iterator();
             RandomVectorScorer randomVectorScorer = flatVectorsScorer.getRandomVectorScorer(similarityFunction, copy, query);
-            return new VectorScorer() {
-                @Override
-                public float score() throws IOException {
-                    return randomVectorScorer.score(iterator.index());
-                }
-
-                @Override
-                public DocIdSetIterator iterator() {
-                    return iterator;
-                }
-
-                @Override
-                public VectorScorer.Bulk bulk(DocIdSetIterator matchedDocs) {
-                    return VectorScorer.Bulk.fromRandomScorerSparse(randomVectorScorer, iterator, matchedDocs);
-                }
-            };
+            return VectorScoringUtils.sparseVectorScorer(randomVectorScorer, iterator);
         }
     }
 

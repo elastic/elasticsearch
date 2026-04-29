@@ -50,7 +50,7 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
             VoyageAIEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets),
+            DefaultSecretSettings.fromMap(secrets, context),
             buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildRequestUri)
         );
     }

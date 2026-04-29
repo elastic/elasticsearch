@@ -1,0 +1,27 @@
+area: Mapping
+highlight:
+  body: |-
+    In Elasticsearch `9.4` we expand the supportability of `aggregate_metric_double` to include non-native operations in ES|QL,
+    such as `std_dev`, using the average. The average is calculated using the `sum` and `value_count` sub-fields.
+    The average was selected because in most cases it is a more representative signal compared to a single sub-field. Native
+    operations such as `max`, `min`, `sum`, `avg`, and `count` will be supported natively by the respective sub-fields.
+
+    For example, the following query is now supported where `network.eth0.tx` is a an `aggregate_metric_double`:
+    [source]
+    ----
+      FROM k8s-downsampled
+      | STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
+      | sort pod
+
+      max:double | std_dev:double | pod:keyword
+      1060.0     | 275.6970067    | one
+      824.0      | 184.1213952    | three
+      1419.0     | 356.9865993    | two
+    ----
+  notable: true
+  title: Improve the supportability of `aggregate_metric_double` by ES|QL.
+issues: []
+pr: 145742
+summary: "Improve the supportability of `aggregate_metric_double` by non-native ES|QL\
+  \ aggregation functions, such as std_dev."
+type: enhancement

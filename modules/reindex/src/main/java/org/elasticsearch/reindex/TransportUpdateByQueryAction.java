@@ -19,12 +19,14 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -46,6 +48,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final UpdateByQueryMetrics updateByQueryMetrics;
+    private final TimeValue taskShutdownGracePeriod;
 
     @Inject
     public TransportUpdateByQueryAction(
@@ -63,6 +66,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.updateByQueryMetrics = updateByQueryMetrics;
+        // todo: if relocations are added to update-by-query and it gets its own timeout setting, this should be updated.
+        // without this safe default, adding relocations to update-by-query without updating this might open it up to race conditions.
+        this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
     }
 
     @Override
@@ -94,7 +100,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                         if (updateByQueryMetrics != null) {
                             updateByQueryMetrics.recordTookTime(elapsedTime);
                         }
-                    })
+                    }),
+                    taskShutdownGracePeriod
                 ).start();
             }
         );
@@ -112,7 +119,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             ThreadPool threadPool,
             ScriptService scriptService,
             UpdateByQueryRequest request,
-            ActionListener<BulkByScrollResponse> listener
+            ActionListener<BulkByScrollResponse> listener,
+            TimeValue maxTaskShutdownGracePeriod
         ) {
             super(
                 task,
@@ -126,7 +134,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 request,
                 listener,
                 scriptService,
-                null
+                null,
+                maxTaskShutdownGracePeriod
             );
         }
 

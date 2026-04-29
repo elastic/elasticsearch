@@ -9,6 +9,10 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
+import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter;
+
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -16,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class OtelSdkExportMeterSupplierTests extends ESTestCase {
@@ -68,5 +73,33 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         supplier.get();
         supplier.close();
         supplier.close();
+    }
+
+    /** attemptFlushMetrics() after close() (resources nulled) must be a no-op and not throw. */
+    public void testAttemptFlushMetricsAfterCloseIsNoop() {
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(testResources(InMemoryMetricExporter.create()));
+        supplier.close();
+        supplier.attemptFlushMetrics(); // must not throw
+    }
+
+    /** attemptFlushMetrics() with initialized resources triggers an export of buffered metric data. */
+    public void testAttemptFlushMetricsTriggersExport() {
+        InMemoryMetricExporter exporter = InMemoryMetricExporter.create();
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(testResources(exporter));
+
+        supplier.get().counterBuilder("test.counter").build().add(1);
+        supplier.attemptFlushMetrics();
+
+        assertThat(
+            "expected at least one metric export after attemptFlushMetrics",
+            exporter.getFinishedMetricItems().size(),
+            greaterThan(0)
+        );
+        supplier.close();
+    }
+
+    private static OtelSdkExportMeterSupplier.OTelMetricsResources testResources(InMemoryMetricExporter exporter) {
+        var provider = SdkMeterProvider.builder().registerMetricReader(PeriodicMetricReader.builder(exporter).build()).build();
+        return new OtelSdkExportMeterSupplier.OTelMetricsResources(provider, provider, null);
     }
 }

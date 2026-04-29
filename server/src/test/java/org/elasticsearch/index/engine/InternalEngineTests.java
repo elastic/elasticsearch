@@ -8069,7 +8069,6 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testGetWithSequenceNumbersDisabled() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         Settings settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)

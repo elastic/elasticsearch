@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -41,6 +42,7 @@ import java.util.Objects;
 public class Score extends Function implements EvaluatorMapper {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "score", Score::readFrom);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Score.class).unary(Score::new).name("score");
 
     public static final String NAME = "score";
 

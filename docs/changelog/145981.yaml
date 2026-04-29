@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 145981
+summary: "[Entity Store] Add permissions for Entity Store datastream"
+type: enhancement

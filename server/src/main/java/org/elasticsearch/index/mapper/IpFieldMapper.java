@@ -34,10 +34,14 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRangeQuery;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -46,6 +50,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
@@ -85,7 +90,7 @@ public class IpFieldMapper extends FieldMapper {
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sortedSet(
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.sortedSetWithCardinality(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -188,6 +193,10 @@ public class IpFieldMapper extends FieldMapper {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return docValuesParameters.get().enabled() ? IndexType.archivedPoints() : IndexType.NONE;
             }
+            if (usesBinaryDocValues()) {
+                // Disable skippers if using binary doc values
+                return IndexType.points(indexed.get(), true);
+            }
             if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                 return IndexType.skippers();
             }
@@ -203,6 +212,11 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public String contentType() {
             return CONTENT_TYPE;
+        }
+
+        private boolean usesBinaryDocValues() {
+            var docValuesParams = docValuesParameters.getValue();
+            return docValuesParams.enabled() && docValuesParams.cardinality() == DocValuesParameter.Values.Cardinality.HIGH;
         }
 
         @Override
@@ -232,7 +246,8 @@ public class IpFieldMapper extends FieldMapper {
                     scriptValues(),
                     meta.getValue(),
                     dimension.getValue(),
-                    context.isSourceSynthetic()
+                    context.isSourceSynthetic(),
+                    usesBinaryDocValues()
                 ),
                 builderParams(this, context),
                 context.isSourceSynthetic(),
@@ -254,6 +269,7 @@ public class IpFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final boolean isSyntheticSource;
         private final boolean hasPoints;
+        private final boolean usesBinaryDocValues;
 
         public IpFieldType(
             String name,
@@ -263,7 +279,8 @@ public class IpFieldMapper extends FieldMapper {
             FieldValues<InetAddress> scriptValues,
             Map<String, String> meta,
             boolean isDimension,
-            boolean isSyntheticSource
+            boolean isSyntheticSource,
+            boolean usesBinaryDocValues
         ) {
             super(name, indexType, stored, meta);
             this.nullValue = nullValue;
@@ -271,6 +288,7 @@ public class IpFieldMapper extends FieldMapper {
             this.isDimension = isDimension;
             this.isSyntheticSource = isSyntheticSource;
             this.hasPoints = indexType.hasPoints();
+            this.usesBinaryDocValues = usesBinaryDocValues;
         }
 
         public IpFieldType(String name) {
@@ -282,7 +300,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         public IpFieldType(String name, boolean isIndexed, boolean hasDocValues) {
-            this(name, IndexType.points(isIndexed, hasDocValues), false, null, null, Collections.emptyMap(), false, false);
+            this(name, IndexType.points(isIndexed, hasDocValues), false, null, null, Collections.emptyMap(), false, false, false);
         }
 
         @Override
@@ -313,6 +331,10 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public boolean hasScriptValues() {
             return scriptValues != null;
+        }
+
+        public boolean usesBinaryDocValues() {
+            return usesBinaryDocValues;
         }
 
         private static InetAddress parse(Object value) {
@@ -369,29 +391,32 @@ public class IpFieldMapper extends FieldMapper {
             }
             if (hasPoints) {
                 if (hasDocValues()) {
-                    return convertToIndexOrDocValuesQuery(query);
+                    return convertToIndexOrDocValuesQuery(query, usesBinaryDocValues, context);
                 }
                 return query;
             } else {
-                return convertToDocValuesQuery(query);
+                return convertToDocValuesQuery(query, usesBinaryDocValues, context);
             }
         }
 
-        static Query convertToIndexOrDocValuesQuery(Query query) {
+        static Query convertToIndexOrDocValuesQuery(Query query, boolean usesBinaryDocValues, SearchExecutionContext context) {
             assert query instanceof PointRangeQuery;
-            return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query));
+            return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query, usesBinaryDocValues, context));
         }
 
-        static Query convertToDocValuesQuery(Query query) {
+        static Query convertToDocValuesQuery(Query query, boolean usesBinaryDocValues, SearchExecutionContext context) {
             assert query instanceof PointRangeQuery;
             PointRangeQuery pointRangeQuery = (PointRangeQuery) query;
-            return SortedSetDocValuesField.newSlowRangeQuery(
-                pointRangeQuery.getField(),
-                new BytesRef(pointRangeQuery.getLowerPoint()),
-                new BytesRef(pointRangeQuery.getUpperPoint()),
-                true,
-                true
-            );
+
+            final String field = pointRangeQuery.getField();
+            final BytesRef lower = new BytesRef(pointRangeQuery.getLowerPoint());
+            final BytesRef upper = new BytesRef(pointRangeQuery.getUpperPoint());
+
+            if (usesBinaryDocValues) {
+                return new SlowCustomBinaryDocValuesRangeQuery(field, lower, upper);
+            } else {
+                return SortedSetDocValuesField.newSlowRangeQuery(field, lower, upper, true, true);
+            }
         }
 
         @Override
@@ -435,12 +460,12 @@ public class IpFieldMapper extends FieldMapper {
                 Query query = InetAddressPoint.newRangeQuery(name(), lower, upper);
                 if (hasPoints) {
                     if (hasDocValues()) {
-                        return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query));
+                        return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query, usesBinaryDocValues, context));
                     } else {
                         return query;
                     }
                 } else {
-                    return convertToDocValuesQuery(query);
+                    return convertToDocValuesQuery(query, usesBinaryDocValues, context);
                 }
             });
         }
@@ -490,11 +515,19 @@ public class IpFieldMapper extends FieldMapper {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
                 if (cfg == null) {
-                    return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
+                    if (usesBinaryDocValues) {
+                        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
+                    } else {
+                        return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
+                    }
                 }
                 return switch (cfg.function()) {
-                    case MV_MAX -> new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
-                    case MV_MIN -> new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
+                    case MV_MAX -> usesBinaryDocValues
+                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name())
+                        : new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
+                    case MV_MIN -> usesBinaryDocValues
+                        ? new MvMinBytesRefsFromBinaryBlockLoader(name())
+                        : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
             }
@@ -599,6 +632,7 @@ public class IpFieldMapper extends FieldMapper {
 
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final boolean stored;
     private final boolean ignoreMalformed;
     private final boolean storeIgnored;
@@ -625,6 +659,11 @@ public class IpFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
         this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            fieldType().indexType.hasDocValuesSkipper(),
+            builder.indexSettings.getIndexVersionCreated()
+        );
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.parseNullValue();
@@ -645,6 +684,11 @@ public class IpFieldMapper extends FieldMapper {
 
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
+    }
+
+    @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue().isSingleValued();
     }
 
     @Override
@@ -699,10 +743,16 @@ public class IpFieldMapper extends FieldMapper {
             doc.add(address);
         }
         if (fieldType().indexType.hasDocValues()) {
-            if (fieldType().indexType.hasDocValuesSkipper()) {
-                doc.add(SortedSetDocValuesField.indexedField(fieldType().name(), address.binaryValue()));
+            if (fieldType().usesBinaryDocValues()) {
+                assert fieldType().indexType.hasDocValuesSkipper() == false : "skippers are not supported for binary doc values";
+                dvFactory.addBinaryField(
+                    doc,
+                    fieldType().name(),
+                    address.binaryValue(),
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
             } else {
-                doc.add(new SortedSetDocValuesField(fieldType().name(), address.binaryValue()));
+                dvFactory.addSortedField(doc, fieldType().name(), address.binaryValue());
             }
         } else if (stored || indexed) {
             context.addToFieldNames(fieldType().name());
@@ -746,23 +796,39 @@ public class IpFieldMapper extends FieldMapper {
         if (docValuesParameters.enabled()) {
             return new SyntheticSourceSupport.Native(() -> {
                 var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
-                if (offsetsFieldName != null) {
-                    layers.add(
-                        new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, IpFieldMapper::convert)
-                    );
-                } else {
-                    layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
-                        @Override
-                        protected BytesRef convert(BytesRef value) {
-                            return IpFieldMapper.convert(value);
-                        }
+                if (fieldType().usesBinaryDocValues() == false) {
+                    if (offsetsFieldName != null) {
+                        layers.add(
+                            new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, IpFieldMapper::convert)
+                        );
+                    } else {
+                        layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                            @Override
+                            protected BytesRef convert(BytesRef value) {
+                                return IpFieldMapper.convert(value);
+                            }
 
-                        @Override
-                        protected BytesRef preserve(BytesRef value) {
-                            // No need to copy because convert has made a deep copy
-                            return value;
-                        }
-                    });
+                            @Override
+                            protected BytesRef preserve(BytesRef value) {
+                                // No need to copy because convert has made a deep copy
+                                return value;
+                            }
+                        });
+                    }
+                } else {
+                    if (offsetsFieldName != null) {
+                        layers.add(
+                            new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, IpFieldMapper::convert)
+                        );
+                    } else {
+                        layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexSettings.getIndexVersionCreated()) {
+                            @Override
+                            protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                                BytesRef converted = IpFieldMapper.convert(value);
+                                b.utf8Value(converted.bytes, converted.offset, converted.length);
+                            }
+                        });
+                    }
                 }
 
                 if (ignoreMalformed) {

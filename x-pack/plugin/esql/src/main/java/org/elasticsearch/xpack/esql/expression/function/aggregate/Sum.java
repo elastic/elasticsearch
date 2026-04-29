@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggre
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -55,6 +57,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
  */
 public class Sum extends NumericAggregate implements SurrogateExpression, TransportVersionAware, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sum.class).unary(Sum::new).name("sum");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeries(Sum::new)
+        .description("Calculates the sum of the values across the input vector.")
+        .example("sum(http_requests_total)")
+        .name("sum");
 
     public static final TransportVersion ESQL_SUM_LONG_OVERFLOW_FIX = TransportVersion.fromName("esql_sum_long_overflow_fix");
 
@@ -95,6 +103,18 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
                     + "`MV_MAX` function to each row and then sum the results",
                 file = "stats",
                 tag = "docsStatsSumNestedExpression"
+            ),
+            @Example(
+                description = "`SUM` can also operate on `exponential_histogram` fields, "
+                    + "computing the sum of the values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "sumExpHistoForDocs"
+            ),
+            @Example(
+                description = "`SUM` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "computing the sum of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "sumTDigestForDocs"
             ) }
     )
     public Sum(

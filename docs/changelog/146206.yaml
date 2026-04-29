@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 146203
+pr: 146206
+summary: Remove hadoop-client-runtime from datasource plugins
+type: enhancement

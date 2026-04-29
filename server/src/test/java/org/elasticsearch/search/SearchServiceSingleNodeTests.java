@@ -2262,7 +2262,12 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index");
         SearchService searchService = getInstanceFromNode(SearchService.class);
         PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
-        searchService.openReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        searchService.openReaderContext(
+            new ShardId(resolveIndex("index"), 0),
+            TimeValue.timeValueMinutes(between(1, 10)),
+            SplitShardCountSummary.IRRELEVANT,
+            future
+        );
         future.actionGet();
         assertThat(searchService.getActiveContexts(), equalTo(1));
         assertTrue(searchService.freeReaderContext(future.actionGet()));
@@ -3010,7 +3015,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testSeqNoAndPrimaryTermReturnsSentinelsWhenSequenceNumbersDisabled() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         final Settings settings = Settings.builder()
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), "doc_values_only")

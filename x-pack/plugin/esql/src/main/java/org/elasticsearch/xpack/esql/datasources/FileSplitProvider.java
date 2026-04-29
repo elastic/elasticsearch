@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -32,6 +33,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -146,9 +149,22 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
 
-            if (projectedDataColumns.isEmpty() == false && schemaInfo != null) {
-                SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(filePath);
-                if (info != null && hasNoProjectedColumns(info.fileSchema(), projectedDataColumns)) {
+            SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo != null ? schemaInfo.get(filePath) : null;
+
+            if (projectedDataColumns.isEmpty() == false && fileSchemaInfo != null) {
+                if (skipIfNoColumnOverlap(fileSchemaInfo.fileSchema(), projectedDataColumns)) {
+                    continue;
+                }
+            }
+
+            if (filterHints.isEmpty() == false && fileSchemaInfo != null) {
+                Set<String> fileColumnNames = new LinkedHashSet<>();
+                for (Attribute attr : fileSchemaInfo.fileSchema()) {
+                    fileColumnNames.add(attr.name());
+                }
+                // Partition columns are always available (values come from paths, not file data)
+                fileColumnNames.addAll(partitionValues.keySet());
+                if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
                     continue;
                 }
             }
@@ -179,7 +195,7 @@ public class FileSplitProvider implements SplitProvider {
                 continue;
             }
 
-            if (tryRangeAwareSplits(filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
+            if (tryRangeAwareSplits(fileList, i, filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
                 continue;
             }
 
@@ -209,16 +225,35 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
+     * Builds a {@link StorageObject} that exposes only the bytes for the given {@link FileSplit}.
+     * Always wraps the provider's base object in {@link RangeStorageObject} so format readers and
+     * splittable decompressors only see the split's compressed byte span (including offset {@code 0}).
+     */
+    public static StorageObject storageObjectForSplit(StorageProvider storageProvider, FileSplit fileSplit) {
+        return new RangeStorageObject(storageProvider.newObject(fileSplit.path()), fileSplit.offset(), fileSplit.length());
+    }
+
+    /**
      * Attempts to create block-aligned splits for files with splittable compression.
      * Returns true if block-aligned splits were created, false if the file should
      * fall through to normal splitting logic.
      *
-     * <p>Records straddling a block boundary are handled by the line-alignment protocol:
-     * the first split reads to end-of-stream, subsequent splits skip the first partial
-     * line. A record whose bytes span two blocks will be dropped without failing the
-     * query (a malformed-line warning is logged). This matches Hadoop/Spark behavior
-     * and is acceptable for line-oriented formats with small records relative to block
-     * size (100k–900k).
+     * <p>Macro-splits are disjoint: split {@code m} ends exactly where split {@code m+1}
+     * begins. Records that straddle a macro-split boundary are handled by the codec's
+     * decompression wrapper, which switches to "finish-current-line" mode once the split
+     * boundary is reached at a block end and emits bytes from the next block up to (and
+     * including) the first {@code '\n'}. The subsequent split drops that same tail via
+     * {@code skipFirstLine}. This yields exact record counts without duplicates or loss.
+     *
+     * <p>Protocol cross-references (kept as prose since the datasource plugins are not compile-
+     * time dependencies of this module):
+     * <ul>
+     *   <li>Codec side — {@code Bzip2DecompressionCodec.BlockBoundedDecompressStream}
+     *       implements finish-current-line on the split boundary.</li>
+     *   <li>Reader side — {@code NdJsonPageIterator.skipToNextLine}, wired through
+     *       {@code NdJsonFormatReader.read}'s {@code skipFirstLine} flag, drops the leading
+     *       partial record on every non-first split.</li>
+     * </ul>
      */
     private boolean tryBlockAlignedSplits(
         StoragePath filePath,
@@ -272,6 +307,13 @@ public class FileSplitProvider implements SplitProvider {
             // compressed bytes. This reduces hundreds of tiny per-block splits into 10-40
             // macro-splits while preserving parallelism.
             int[][] macroSplitRanges = groupBoundaries(boundaries, fileLength, DEFAULT_MACRO_SPLIT_TARGET);
+            LOGGER.debug(
+                "block-aligned splits for [{}]: boundaries={}, macro-splits={}, fileLength={}",
+                filePath,
+                boundaries.length,
+                macroSplitRanges.length,
+                fileLength
+            );
 
             for (int m = 0; m < macroSplitRanges.length; m++) {
                 int firstBlockIdx = macroSplitRanges[m][0];
@@ -283,10 +325,12 @@ public class FileSplitProvider implements SplitProvider {
                 if (isLastMacroSplit) {
                     end = fileLength;
                 } else {
-                    // Overlap by one block beyond the nominal end for record correctness
+                    // Disjoint macro-splits: split m ends exactly where split m+1 begins.
+                    // Records straddling the boundary are completed by the codec's
+                    // decompression wrapper (finish-current-line mode), and the
+                    // subsequent split drops the same tail via skipFirstLine.
                     int nextMacroFirstBlock = macroSplitRanges[m + 1][0];
-                    int overlapBlockIdx = nextMacroFirstBlock;
-                    end = (overlapBlockIdx + 1 < boundaries.length) ? boundaries[overlapBlockIdx + 1] : fileLength;
+                    end = boundaries[nextMacroFirstBlock];
                 }
 
                 Map<String, Object> splitConfig = new HashMap<>(config);
@@ -307,10 +351,18 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Attempts to create range-aware splits for columnar formats (e.g. Parquet row groups).
-     * The format reader reads file metadata (e.g. Parquet footer) to discover independently
-     * readable byte ranges. Returns true if range-aware splits were created.
+     * <p>
+     * Fast path: when the {@link FileList} carries pre-resolved ranges from single-pass file
+     * layout resolution (see {@link RangeAwareFormatReader#resolveFileLayout}), the file is not
+     * re-opened here -- splits are built directly from the cached ranges.
+     * <p>
+     * Slow path: when no pre-resolved ranges are available, the format reader reads file metadata
+     * (e.g. Parquet footer) to discover independently readable byte ranges. Returns true if
+     * range-aware splits were created.
      */
     private boolean tryRangeAwareSplits(
+        FileList fileList,
+        int fileIndex,
         StoragePath filePath,
         long fileLength,
         String format,
@@ -319,6 +371,32 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable SchemaReconciliation.ColumnMapping columnMapping,
         List<ExternalSplit> splits
     ) {
+        // Fast path: pre-resolved ranges captured during metadata resolution. This avoids a
+        // second open of the file (e.g. Parquet footer read) on remote storage.
+        if (fileList != null) {
+            int rc = fileList.rangeCount(fileIndex);
+            if (rc > 0) {
+                LOGGER.trace("Using {} pre-resolved split ranges for [{}]", rc, filePath);
+                buildSplitsFromIndexedRanges(
+                    fileList,
+                    fileIndex,
+                    rc,
+                    filePath,
+                    fileLength,
+                    format,
+                    config,
+                    partitionValues,
+                    columnMapping,
+                    splits
+                );
+                return true;
+            }
+            // rc == 0: resolution ran but produced no ranges — skip range-aware, fall through to single-split
+            if (rc == 0) {
+                return false;
+            }
+        }
+
         if (formatRegistry == null || storageRegistry == null || format == null) {
             return false;
         }
@@ -344,35 +422,82 @@ public class FileSplitProvider implements SplitProvider {
             }
             StorageObject object = provider.newObject(filePath, fileLength);
 
-            List<SplitRange> ranges = rangeReader.discoverSplitRanges(object);
+            List<SplitRange> ranges = rangeReader.resolveFileLayout(object).splitRanges();
             if (ranges.isEmpty()) {
                 return false;
             }
 
-            Map<String, Object> splitConfig = new HashMap<>(config);
-            splitConfig.put(RANGE_SPLIT_KEY, "true");
-            splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
-
-            for (SplitRange range : ranges) {
-                Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
-                splits.add(
-                    new FileSplit(
-                        "file",
-                        filePath,
-                        range.offset(),
-                        range.length(),
-                        format,
-                        splitConfig,
-                        partitionValues,
-                        columnMapping,
-                        rangeStats
-                    )
-                );
-            }
+            buildSplitsFromRanges(ranges, filePath, fileLength, format, config, partitionValues, columnMapping, splits);
             return true;
         } catch (IOException e) {
             LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
             return false;
+        }
+    }
+
+    private static void buildSplitsFromIndexedRanges(
+        FileList fileList,
+        int fileIndex,
+        int rangeCount,
+        StoragePath filePath,
+        long fileLength,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        List<ExternalSplit> splits
+    ) {
+        Map<String, Object> splitConfig = new HashMap<>(config);
+        splitConfig.put(RANGE_SPLIT_KEY, "true");
+        splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
+
+        for (int r = 0; r < rangeCount; r++) {
+            SplitStats stats = fileList.rangeStats(fileIndex, r);
+            splits.add(
+                FileSplit.withSplitStats(
+                    "file",
+                    filePath,
+                    fileList.rangeOffset(fileIndex, r),
+                    fileList.rangeLength(fileIndex, r),
+                    format,
+                    splitConfig,
+                    partitionValues,
+                    columnMapping,
+                    stats
+                )
+            );
+        }
+    }
+
+    private static void buildSplitsFromRanges(
+        List<SplitRange> ranges,
+        StoragePath filePath,
+        long fileLength,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        List<ExternalSplit> splits
+    ) {
+        Map<String, Object> splitConfig = new HashMap<>(config);
+        splitConfig.put(RANGE_SPLIT_KEY, "true");
+        splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
+
+        for (SplitRange range : ranges) {
+            Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
+            splits.add(
+                new FileSplit(
+                    "file",
+                    filePath,
+                    range.offset(),
+                    range.length(),
+                    format,
+                    splitConfig,
+                    partitionValues,
+                    columnMapping,
+                    rangeStats
+                )
+            );
         }
     }
 
@@ -534,13 +659,77 @@ public class FileSplitProvider implements SplitProvider {
      * Returns {@code true} when the file's data columns have zero overlap with the projected set,
      * meaning this file would produce only NULL rows for all needed columns.
      */
-    static boolean hasNoProjectedColumns(List<Attribute> fileSchema, Set<String> projectedDataColumns) {
+    static boolean skipIfNoColumnOverlap(List<Attribute> fileSchema, Set<String> projectedDataColumns) {
         for (Attribute attr : fileSchema) {
             if (projectedDataColumns.contains(attr.name())) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * Returns {@code true} when the file can be skipped because a filter conjunct references a
+     * column absent from the file and evaluates to UNKNOWN (which becomes FALSE in WHERE context).
+     * <p>
+     * Only simple leaf predicates are checked: comparisons ({@code =, !=, <, >, <=, >=}),
+     * {@link In}, and {@link IsNotNull}. These all evaluate to UNKNOWN/FALSE for a missing column.
+     * {@link IsNull} on a missing column evaluates to TRUE (all rows match), so it does NOT
+     * trigger a skip.
+     * <p>
+     * Compound expressions (OR, NOT) and multi-column expressions are conservatively kept.
+     *
+     * @param filterHints AND-separated filter conjuncts from ancestor FilterExec nodes
+     * @param fileColumnNames names of columns present in this file's schema
+     * @return {@code true} if the file can be safely skipped
+     */
+    static boolean skipIfFilterOnMissingColumns(List<Expression> filterHints, Set<String> fileColumnNames) {
+        for (Expression conjunct : filterHints) {
+            String columnName = extractFilterColumnName(conjunct);
+            if (columnName == null) {
+                continue;
+            }
+            if (fileColumnNames.contains(columnName)) {
+                continue;
+            }
+            // Column is missing from this file — determine the skip decision based on predicate type
+            if (conjunct instanceof IsNull) {
+                // IS NULL on missing column → TRUE (all rows match) → do NOT skip
+                continue;
+            }
+            // All other recognized leaf predicates evaluate to UNKNOWN → FALSE in WHERE context → skip
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Extracts the single column name from a simple leaf predicate, or {@code null} for
+     * compound/multi-column expressions that cannot be evaluated for file skipping.
+     */
+    private static String extractFilterColumnName(Expression expr) {
+        if (expr instanceof BinaryComparison bc) {
+            String left = extractColumnName(bc.left());
+            String right = extractColumnName(bc.right());
+            // Only handle single-column leaf predicates (column op literal)
+            if (left != null && bc.right() instanceof Literal) {
+                return left;
+            }
+            if (right != null && bc.left() instanceof Literal) {
+                return right;
+            }
+            return null;
+        }
+        if (expr instanceof In in) {
+            return extractColumnName(in.value());
+        }
+        if (expr instanceof IsNull isNull) {
+            return extractColumnName(isNull.field());
+        }
+        if (expr instanceof IsNotNull isNotNull) {
+            return extractColumnName(isNotNull.field());
+        }
+        return null;
     }
 
     static boolean matchesPartitionFilters(Map<String, Object> partitionValues, List<Expression> filters) {

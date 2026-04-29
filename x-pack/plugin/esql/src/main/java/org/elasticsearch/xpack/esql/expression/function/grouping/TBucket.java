@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -67,6 +68,10 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     private final Expression from;
     @Nullable
     private final Expression to;
+
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TBucket.class)
+        .quaternaryConfig(TBucket::new)
+        .name("tbucket");
 
     @FunctionInfo(
         returnType = { "date", "date_nanos" },

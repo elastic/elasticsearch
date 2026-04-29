@@ -351,6 +351,10 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                 task::isCancelled,
                 onLastRead
             );
+            if (failIfExists) {
+                maybeFailIfBlobExists();
+            }
+
             final AtomicLong throttledNanos = new AtomicLong();
 
             if (logger.isTraceEnabled()) {
@@ -361,7 +365,6 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
             // TODO push some of this writing logic down into the blob container implementation.
             // E.g. for S3 blob containers we would like to choose somewhat more randomly between single-part and multi-part uploads,
             // rather than relying on the usual distinction based on the size of the blob.
-
             if (atomic || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean())) {
                 final RandomBlobContentBytesReference bytesReference = new RandomBlobContentBytesReference(
                     content,
@@ -517,6 +520,60 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
             readOnNodes(readNodes, request.blobName, false);
             if (copySuccess) {
                 readOnNodes(readCopyNodes, request.copyBlobName, false);
+            }
+
+            maybeFailIfBlobDoesNotExist();
+        }
+
+        private void maybeFailIfBlobDoesNotExist() {
+            // We don't want to do this every time because there's a risk that this existence check disturbs some other consistency property
+            boolean shouldPerformCheck = random.nextBoolean() && random.nextBoolean();
+            if (request.getAbortWrite() == false && shouldPerformCheck) {
+                // Verify blob existence via HeadObject: the just-written blob must exist, and a non-existent blob must not.
+                try {
+                    if (blobContainer.blobExists(OperationPurpose.REPOSITORY_ANALYSIS, request.blobName) == false) {
+                        readResponseListeners.acquire()
+                            .onFailure(
+                                new RepositoryVerificationException(
+                                    request.getRepositoryName(),
+                                    "blob [" + request.blobName + "] not found via HEAD after successful write"
+                                )
+                            );
+                    }
+                } catch (IOException e) {
+                    readResponseListeners.acquire()
+                        .onFailure(
+                            new RepositoryVerificationException(
+                                request.getRepositoryName(),
+                                "HEAD request failed for blob [" + request.blobName + "] after successful write",
+                                e
+                            )
+                        );
+                }
+            }
+        }
+
+        private void maybeFailIfBlobExists() {
+            boolean shouldPerformCheck = random.nextBoolean() && random.nextBoolean();
+            try {
+                if (shouldPerformCheck && blobContainer.blobExists(OperationPurpose.REPOSITORY_ANALYSIS, request.blobName)) {
+                    readResponseListeners.acquire()
+                        .onFailure(
+                            new RepositoryVerificationException(
+                                request.getRepositoryName(),
+                                "HEAD request for non-existent blob [" + request.blobName + "] incorrectly reported it exists"
+                            )
+                        );
+                }
+            } catch (IOException e) {
+                readResponseListeners.acquire()
+                    .onFailure(
+                        new RepositoryVerificationException(
+                            request.getRepositoryName(),
+                            "HEAD request failed for non-existent blob [" + request.blobName + "]",
+                            e
+                        )
+                    );
             }
         }
 

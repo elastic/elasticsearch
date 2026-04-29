@@ -19,10 +19,12 @@ import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNat
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,6 +45,14 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
         "AvgOverTime",
         AvgOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(AvgOverTime.class)
+        .binary(AvgOverTime::new)
+        .name("avg_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(AvgOverTime::new)
+        .description("Returns the average value of all points in the specified time range.")
+        .example("avg_over_time(http_requests_total[5m])")
+        .name("avg_over_time");
 
     @FunctionInfo(
         returnType = "double",

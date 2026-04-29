@@ -58,6 +58,9 @@ public class CountApproximateGroupingAggregatorFunction implements GroupingAggre
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         Block valuesBlock = page.getBlock(blockIndex());
         if (countAll == false) {
+            if (valuesBlock.areAllValuesNull()) {
+                return null;
+            }
             Vector valuesVector = valuesBlock.asVector();
             if (valuesVector == null) {
                 return new AddInput() {

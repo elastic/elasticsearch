@@ -638,8 +638,15 @@ public final class IndexSettings {
     );
 
     public static final FeatureFlag TIME_SERIES_TEMPORALITY_FEATURE_FLAG = new FeatureFlag("time_series_temporality");
+
     /**
      * Defines the name of the field storing the metric temporality.
+     * The corresponding field must be a keyword field (or keyword-like, e.g. constant_keyword).
+     * It should only store two values: either {@code delta} or {@code cumulative}.
+     * <br>
+     * The value of this field will then define how counters and histograms in the same document are interpreted.
+     * Note that if the temporality is not provided in an index (or in a document,({@code null} value)),
+     * ES|QL will assume a default, backwards compatible temporality: cumulative for counters and delta for histograms.
      */
     public static final Setting<String> TIME_SERIES_TEMPORALITY_FIELD = Setting.simpleString(
         "index.time_series.temporality_field",
@@ -693,6 +700,43 @@ public final class IndexSettings {
         Property.PrivateIndex,
         Property.Final
     );
+
+    /**
+     * Enables slice semantics for the index. When enabled, APIs accept {@code _slice} and treat it as routing.
+     */
+    public static final Setting<Boolean> SLICE_ENABLED = Setting.boolSetting("index.slice.enabled", false, new Setting.Validator<>() {
+        @Override
+        public void validate(Boolean enabled) {
+            if (enabled && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "unknown setting [%s] please check that any required plugins are installed, "
+                            + "or check the breaking changes documentation for removed settings",
+                        SLICE_ENABLED.getKey()
+                    )
+                );
+            }
+        }
+
+        @Override
+        public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+            if (enabled) {
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (indexMode == IndexMode.TIME_SERIES) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] cannot be used with [%s=%s].",
+                            SLICE_ENABLED.getKey(),
+                            MODE.getKey(),
+                            IndexMode.TIME_SERIES.getName()
+                        )
+                    );
+                }
+            }
+        }
+    }, Property.IndexScope, Property.Final, Property.ServerlessPublic);
 
     /**
     * The {@link IndexMode "mode"} of the index.
@@ -991,15 +1035,11 @@ public final class IndexSettings {
         );
     }
 
-    public static final boolean DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG = new FeatureFlag("disable_sequence_numbers").isEnabled();
-
     public static final Setting<SeqNoFieldMapper.SeqNoIndexOptions> SEQ_NO_INDEX_OPTIONS_SETTING = Setting.enumSetting(
         SeqNoFieldMapper.SeqNoIndexOptions.class,
         settings -> {
             IndexVersion indexVersionCreated = SETTING_INDEX_VERSION_CREATED.get(settings);
-            if ((DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG
-                || indexVersionCreated.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT))
-                && settings.getAsBoolean("index.disable_sequence_numbers", false)) {
+            if (settings.getAsBoolean("index.disable_sequence_numbers", false)) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
             }
             final IndexMode indexMode = IndexSettings.MODE.get(settings);
@@ -1138,6 +1178,7 @@ public final class IndexSettings {
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
+    private final boolean sliceEnabled;
     private volatile long retentionLeaseMillis;
 
     /**
@@ -1273,6 +1314,10 @@ public final class IndexSettings {
         return logsdbRouteOnSortFields;
     }
 
+    public boolean isSliceEnabled() {
+        return sliceEnabled;
+    }
+
     /**
      * Returns <code>true</code> if the index is in logsdb mode and needs a [host.name] keyword field. The default is <code>false</code>
      */
@@ -1366,6 +1411,7 @@ public final class IndexSettings {
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
+        sliceEnabled = scopedSettings.get(SLICE_ENABLED);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
@@ -1437,8 +1483,7 @@ public final class IndexSettings {
                 );
             }
         }
-        disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && DISABLE_SEQUENCE_NUMBERS.get(settings);
-
+        disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold

@@ -37,7 +37,7 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
             service,
             HuggingFaceServiceSettings.fromMap(serviceSettings, context),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

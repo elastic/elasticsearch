@@ -1,0 +1,25 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "time",
+  "name" : "minute",
+  "description" : "returns the minute of the hour for each of those timestamps (in UTC). Returned values are from 0 to 59.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : true,
+          "description" : "Optional instant vector input. If omitted, evaluation timestamp is used."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "minute()"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

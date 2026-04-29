@@ -22,11 +22,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -39,6 +41,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class Irate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Irate", Irate::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Irate.class).ternary(Irate::new).name("irate");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeries(Irate::new)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.REQUIRED)
+        .description("Calculates the per-second instant rate of increase based on the last two data points.")
+        .example("irate(http_requests_total[5m])")
+        .name("irate");
 
     private final Expression timestamp;
 
@@ -122,9 +131,9 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         final DataType tsType = timestamp().dataType();
         final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(false, isDateNanos);
-            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(false, isDateNanos);
-            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false, isDateNanos);
+            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(isDateNanos);
+            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(isDateNanos);
+            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

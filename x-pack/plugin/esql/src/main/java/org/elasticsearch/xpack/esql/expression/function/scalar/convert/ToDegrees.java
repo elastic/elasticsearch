@@ -17,8 +17,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,6 +41,12 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         "ToDegrees",
         ToDegrees::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDegrees.class).unary(ToDegrees::new).name("to_degrees");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation(ToDegrees::new)
+        .description("Converts input values from radians to degrees for all elements in the input vector.")
+        .example("deg(some_metric)")
+        .name("deg");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DOUBLE, ToDegreesEvaluator.Factory::new),

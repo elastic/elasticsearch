@@ -62,7 +62,7 @@ public class NamedSubquery extends Subquery {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return nodeName() + "[" + name + "]";
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(name).append("]");
     }
 }

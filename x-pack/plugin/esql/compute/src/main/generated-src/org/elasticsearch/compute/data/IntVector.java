@@ -21,7 +21,9 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, IntRangeVector,
-    ConstantNullVector, org.elasticsearch.compute.data.arrow.IntArrowBufVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.IntArrowBufVector, org.elasticsearch.compute.data.arrow.UInt8ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.Int8ArrowBufVector, org.elasticsearch.compute.data.arrow.UInt16ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.Int16ArrowBufVector {
     int getInt(int position);
 
     /**

@@ -70,15 +70,16 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                 switch (unparsedModel.taskType()) {
                     case CHAT_COMPLETION -> sendUnifiedCompletionRequest(request, l);
                     case EMBEDDING -> sendEmbeddingRequest(request, l);
-                    case null, default -> sendInferenceActionRequest(request, l);
+                    default -> sendInferenceActionRequest(request, l);
                 }
             });
 
-            switch (request.getTaskType()) {
+            var taskType = request.getTaskType();
+            switch (taskType) {
                 case ANY -> modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
                 case CHAT_COMPLETION -> sendUnifiedCompletionRequest(request, listener);
                 case EMBEDDING -> sendEmbeddingRequest(request, listener);
-                case null, default -> sendInferenceActionRequest(request, listener);
+                default -> sendInferenceActionRequest(request, listener);
             }
         } catch (Exception e) {
             listener.onFailure(e);

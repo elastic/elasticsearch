@@ -45,7 +45,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedBFloat16KnnVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
+public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseQuantizedBFloat16KnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();

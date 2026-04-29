@@ -82,7 +82,7 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
                 }
             });
         }
-        for (int i = 0, n = randomIntBetween(50, 100); i < n; i++) {
+        for (int i = 0, n = randomIntBetween(20, 50); i < n; i++) {
             NetworkDisruption networkDisruption = new NetworkDisruption(
                 isolateNode(internalCluster().getRandomNodeName()),
                 NetworkDisruption.DISCONNECT

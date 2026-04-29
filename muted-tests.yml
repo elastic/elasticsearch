@@ -267,15 +267,6 @@ tests:
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/146106
-- class: org.elasticsearch.xpack.security.authz.SnapshotUserRoleIntegTests
-  method: testSnapshotUserRoleIsReserved
-  issue: https://github.com/elastic/elasticsearch/issues/146972
-- class: org.elasticsearch.xpack.security.authz.SnapshotUserRoleIntegTests
-  method: testSnapshotUserRoleCanSnapshotAndSeeAllIndices
-  issue: https://github.com/elastic/elasticsearch/issues/146973
-- class: org.elasticsearch.xpack.security.authz.SnapshotUserRoleIntegTests
-  method: testSnapshotUserRoleUnathorizedForDestructiveActions
-  issue: https://github.com/elastic/elasticsearch/issues/146974
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/147516

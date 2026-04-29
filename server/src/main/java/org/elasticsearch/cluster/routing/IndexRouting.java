@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
@@ -41,6 +43,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 
@@ -180,6 +183,11 @@ public abstract class IndexRouting {
      */
     public void checkIndexSplitAllowed() {}
 
+    /// Returns a predicate that given the document id and a routing value
+    /// returns `true` if the document routes to the provided shard.
+    /// This API is specifically used by [ShardSplittingQuery].
+    public abstract BiPredicate<String, String> shardMatcherForSplit(int shardId);
+
     /**
      * If this index is in the process of resharding, and the shard to which this request is being routed,
      * is a target shard that is not yet in HANDOFF state, then route it to the source shard.
@@ -207,12 +215,16 @@ public abstract class IndexRouting {
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
         private final IndexMode indexMode;
+        private final boolean sliceEnabled;
+        private final String requiredRoutingParameterName;
 
         IdAndRoutingOnly(IndexMetadata metadata) {
             super(metadata);
             MappingMetadata mapping = metadata.mapping();
             this.routingRequired = mapping == null ? false : mapping.routingRequired();
             this.indexMode = metadata.getIndexMode();
+            this.sliceEnabled = IndexSettings.SLICE_ENABLED.get(metadata.getSettings());
+            this.requiredRoutingParameterName = sliceEnabled ? "_slice" : "routing";
         }
 
         protected abstract int shardId(String id, @Nullable String routing);
@@ -282,8 +294,25 @@ public abstract class IndexRouting {
 
         private void checkRoutingRequired(String id, @Nullable String routing) {
             if (routingRequired && routing == null) {
+                if (sliceEnabled) {
+                    throw new SliceMissingException(indexName, id);
+                }
                 throw new RoutingMissingException(indexName, id);
             }
+        }
+
+        protected String requiredRoutingParameterName() {
+            return requiredRoutingParameterName;
+        }
+
+        @Override
+        public BiPredicate<String, String> shardMatcherForSplit(int shardId) {
+            return (id, routing) -> {
+                // Note that we intentionally do not apply any adjustments for resharding.
+                // These adjustments are introduced for coordinator nodes and `ShardSplittingQuery` does not need them.
+                int routedToShardId = shardId(id, routing);
+                return routedToShardId == shardId;
+            };
         }
     }
 
@@ -320,7 +349,9 @@ public abstract class IndexRouting {
         @Override
         protected int shardId(String id, @Nullable String routing) {
             if (routing == null) {
-                throw new IllegalArgumentException("A routing value is required for gets from a partitioned index");
+                throw new IllegalArgumentException(
+                    "A " + requiredRoutingParameterName() + " value is required for gets from a partitioned index"
+                );
             }
             int offset = Math.floorMod(effectiveRoutingToHash(id), routingPartitionSize);
             return hashToShardId(effectiveRoutingToHash(routing) + offset);
@@ -463,6 +494,12 @@ public abstract class IndexRouting {
         }
 
         @Override
+        public BiPredicate<String, String> shardMatcherForSplit(int shardId) {
+            // Splits of time series indices are not supported, see `checkIndexSplitAllowed()`.
+            throw new UnsupportedOperationException(error("index-split"));
+        }
+
+        @Override
         public void collectSearchShards(String routing, IntConsumer consumer) {
             throw new IllegalArgumentException(error("searching with a specified routing"));
         }
@@ -559,7 +596,7 @@ public abstract class IndexRouting {
                 } catch (IOException | ParsingException e) {
                     throw new IllegalArgumentException("Error extracting tsid: " + e.getMessage(), e);
                 }
-                return b.buildTsid();
+                return b.buildTsid(creationVersion);
             }
         }
     }

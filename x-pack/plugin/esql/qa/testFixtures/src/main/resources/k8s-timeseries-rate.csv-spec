@@ -690,3 +690,22 @@ TS k8s
 row_count:long
 9
 ;
+
+// ---------------------------------------
+// This is a regression test ensuring we handle values falling exactly on bucket boundaries correctly
+
+rateWithSamplesOnBucketBoundaries
+required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v3
+
+TS k8s-downsampled
+| WHERE cluster == "prod" AND pod == "one"
+| STATS increase_bytes_in=sum(increase(network.total_bytes_in)), rate_bytes_in=sum(rate(network.total_bytes_in)) BY time_bucket = TBUCKET(10m)
+| SORT time_bucket ASC
+;
+
+increase_bytes_in:double | rate_bytes_in:double | time_bucket:datetime
+24.0                     | 0.04                 | 2024-05-09T23:30:00.000Z
+27.0                     | 0.045                | 2024-05-09T23:40:00.000Z
+0.0                      | 0.045                | 2024-05-09T23:50:00.000Z
+;

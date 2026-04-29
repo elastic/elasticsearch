@@ -66,7 +66,7 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
         // Streaming lookup processes batches incrementally, keeping memory bounded
         // even with many matches and many fields. Previously threw CircuitBreakerException with the non-streaming path.
         int sensorDataCount = 1500;
-        int lookupEntries = 10000;
+        int lookupEntries = 1000;
         Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 30, lookupEntries, false);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
@@ -140,8 +140,8 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
 
     public void testLookupExplosionBigStringManyMatches() throws IOException {
         // 500, 1 is enough with a single node, but the serverless copy of this test uses many nodes.
-        // So something like 5000, 10 is much more of a sure thing there.
-        assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 5000, 10));
+        // Use a large multiplier so the breaker trips early, avoiding slow scaled attempts (#145710).
+        assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 10000, 10));
     }
 
     private Map<String, Object> lookupExplosion(

@@ -21,7 +21,13 @@ public class EqlLogProducer implements ActivityLogProducer<EqlLogContext> {
         ESLogMessage msg = produceCommon(context, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields);
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
-        msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());
+        msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount());
+        var remotes = context.remoteClusterAliases();
+        if (remotes.isEmpty() == false) {
+            msg.field(QueryLogging.QUERY_FIELD_REMOTE_COUNT, remotes.size());
+            msg.field(QueryLogging.QUERY_FIELD_REMOTES, remotes);
+            // We do not know statuses & shards for EQL
+        }
         return Optional.of(msg);
     }
 }

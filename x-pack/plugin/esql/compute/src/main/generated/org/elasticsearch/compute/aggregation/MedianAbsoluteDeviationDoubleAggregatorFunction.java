@@ -34,16 +34,11 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements Ag
 
   private final List<Integer> channels;
 
-  public MedianAbsoluteDeviationDoubleAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, QuantileStates.SingleState state) {
+  MedianAbsoluteDeviationDoubleAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MedianAbsoluteDeviationDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MedianAbsoluteDeviationDoubleAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationDoubleAggregator.initSingle(driverContext));
+    this.state = MedianAbsoluteDeviationDoubleAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -70,6 +65,18 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements Ag
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, mask);
       return;
     }
@@ -80,6 +87,18 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements Ag
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock);
       return;
     }
@@ -142,6 +161,15 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements Ag
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block quartUncast = page.getBlock(channels.get(0));
     if (quartUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();

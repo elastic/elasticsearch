@@ -15,6 +15,8 @@ import java.util.Set;
 
 public class EnterpriseSearchFeatures implements FeatureSpecification {
 
+    public static final NodeFeature QUERY_RULES_FIX_MULTIPLE_EXCLUDE = new NodeFeature("query_rules_fix_multiple_exclude_rules");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of();
@@ -22,6 +24,6 @@ public class EnterpriseSearchFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(QueryRule.NUMERIC_VALIDATION);
+        return Set.of(QueryRule.NUMERIC_VALIDATION, QUERY_RULES_FIX_MULTIPLE_EXCLUDE);
     }
 }

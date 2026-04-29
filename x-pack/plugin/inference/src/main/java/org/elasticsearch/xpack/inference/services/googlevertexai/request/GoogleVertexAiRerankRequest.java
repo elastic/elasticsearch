@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.RerankRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 
 import java.net.URI;
@@ -22,7 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class GoogleVertexAiRerankRequest implements GoogleVertexAiRequest {
+public class GoogleVertexAiRerankRequest implements RerankRequest {
 
     private final GoogleVertexAiRerankModel model;
 
@@ -49,7 +51,7 @@ public class GoogleVertexAiRerankRequest implements GoogleVertexAiRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.nonStreamingUri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -69,11 +71,11 @@ public class GoogleVertexAiRerankRequest implements GoogleVertexAiRequest {
 
         decorateWithAuth(httpPost);
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     public void decorateWithAuth(HttpPost httpPost) {
-        GoogleVertexAiRequest.decorateWithBearerToken(httpPost, model.getSecretSettings());
+        GoogleVertexAiRequestUtils.decorateWithBearerToken(httpPost, model.getSecretSettings());
     }
 
     public GoogleVertexAiRerankModel model() {

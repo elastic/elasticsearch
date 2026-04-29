@@ -45,7 +45,7 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
-    | {this.isDevVersion()}? externalCommand
+    | {this.isExternalDataSourcesEnabled()}? externalCommand
     ;
 
 processingCommand
@@ -73,10 +73,11 @@ processingCommand
     | metricsInfoCommand
     | registeredDomainCommand
     | tsInfoCommand
+    | userAgentCommand
+    | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? mmrCommand
     ;
 
 whereCommand
@@ -117,7 +118,7 @@ indexPatternAndMetadataFields
 
 indexPatternOrSubquery
     : indexPattern
-    | {this.isDevVersion()}? subquery
+    | subquery
     ;
 
 subquery
@@ -221,7 +222,11 @@ stringOrParameter
     ;
 
 limitCommand
-    : LIMIT constant
+    : LIMIT constant limitByGroupKey?
+    ;
+
+limitByGroupKey:
+    BY booleanExpression (COMMA booleanExpression)*
     ;
 
 sortCommand
@@ -384,6 +389,10 @@ registeredDomainCommand
     : REGISTERED_DOMAIN qualifiedName ASSIGN primaryExpression
     ;
 
+userAgentCommand
+    : USER_AGENT qualifiedName ASSIGN primaryExpression commandNamedParameters
+    ;
+
 setCommand
     : SET setField SEMICOLON
     ;
@@ -393,7 +402,7 @@ setField
     ;
 
 mmrCommand
-    :  DEV_MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    :  MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
 
 mmrQueryVectorParams

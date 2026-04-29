@@ -38,11 +38,17 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
     /**
      * Creates a producer that can be used for downsampling labels.
      */
-    static LastValueFieldDownsampler create(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+    static LastValueFieldDownsampler create(
+        String name,
+        MappedFieldType fieldType,
+        IndexFieldData<?> fieldData,
+        DownsamplerCountPerValueType fieldCounts
+    ) {
         assert AggregateMetricDoubleFieldDownsampler.supportsFieldType(fieldType) == false
             && ExponentialHistogramFieldDownsampler.supportsFieldType(fieldType) == false
             && TDigestHistogramFieldDownsampler.supportsFieldType(fieldType) == false
             : "field '" + name + "' of type '" + fieldType.typeName() + "' should be processed by a dedicated downsampler";
+        fieldCounts.increaseFormattedValueFields();
         if ("flattened".equals(fieldType.typeName())) {
             return new LastValueFieldDownsampler.FlattenedFieldProducer(name, fieldType, fieldData);
         }
@@ -136,7 +142,7 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
                     } else {
                         return null;
                     }
-                });
+                }, FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE);
                 helper.write(builder);
                 builder.endObject();
             }

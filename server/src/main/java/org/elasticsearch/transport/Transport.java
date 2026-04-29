@@ -12,12 +12,14 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 
@@ -30,8 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
-
-import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
 
 public interface Transport extends LifecycleComponent {
 
@@ -88,9 +88,13 @@ public interface Transport extends LifecycleComponent {
 
     RequestHandlers getRequestHandlers();
 
-    default RecyclerBytesStreamOutput newNetworkBytesStream() {
-        return new RecyclerBytesStreamOutput(NON_RECYCLING_INSTANCE);
-    }
+    /**
+     * @return a {@link RecyclerBytesStreamOutput} which allocates its pages with {@code org.elasticsearch.transport.netty4.NettyAllocator},
+     * tracking these allocations using the provided {@link CircuitBreaker} if this is not {@code null}.
+     * <p>
+     * In tests in which Netty is not in use, each page is allocated as a {@code new byte[]}.
+     */
+    RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker);
 
     /**
      * A unidirectional connection to a {@link DiscoveryNode}

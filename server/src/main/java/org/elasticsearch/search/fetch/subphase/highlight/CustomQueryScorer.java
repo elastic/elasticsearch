@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
@@ -59,6 +60,8 @@ public final class CustomQueryScorer extends QueryScorer {
                 super.extract(((ESToParentBlockJoinQuery) query).getChildQuery(), boost, terms);
             } else if (query instanceof ScriptScoreQuery ssq) {
                 super.extract(ssq.getSubQuery(), boost, terms);
+            } else if (query instanceof IndexSortSortedNumericDocValuesRangeQuery isq) {
+                super.extract(isq.getFallbackQuery(), boost, terms);
             } else {
                 super.extract(query, boost, terms);
             }

@@ -16,6 +16,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
@@ -85,8 +86,22 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testSemanticTextOperations() throws Exception {
         switch (CLUSTER_TYPE) {
-            case OLD -> createAndPopulateIndex();
-            case MIXED, UPGRADED -> performIndexQueryHighlightOps();
+            case OLD -> {
+                assumeFalse(
+                    "Legacy format index creation is not supported on clusters with index version ["
+                        + IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN
+                        + "] or later",
+                    useLegacyFormat && minimumIndexVersion().onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+                );
+                createAndPopulateIndex();
+            }
+            case MIXED, UPGRADED -> {
+                assumeTrue(
+                    "Skipping because legacy format index was not created in the old cluster phase",
+                    useLegacyFormat == false || indexExists(getIndexName())
+                );
+                performIndexQueryHighlightOps();
+            }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }

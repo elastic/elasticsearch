@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -36,8 +38,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
-import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.def;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
+import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.constructorWithFunctionInfo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -45,46 +46,51 @@ import static org.mockito.Mockito.mock;
 public class EsqlFunctionRegistryTests extends ESTestCase {
 
     public void testNoArgFunction() {
-        UnresolvedFunction ur = uf(DEFAULT);
-        EsqlFunctionRegistry r = new EsqlFunctionRegistry(def(DummyFunction.class, DummyFunction::new, "dummyFunction"));
+        UnresolvedFunction ur = uf();
+        EsqlFunctionRegistry r = new EsqlFunctionRegistry(
+            FunctionDefinition.def(DummyFunction.class).noArgs(DummyFunction::new).name("dummyFunction")
+        );
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
     }
 
     public void testBinaryFunction() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class), mock(Expression.class));
-        EsqlFunctionRegistry r = new EsqlFunctionRegistry(def(DummyFunction.class, (Source l, Expression lhs, Expression rhs) -> {
-            assertSame(lhs, ur.children().get(0));
-            assertSame(rhs, ur.children().get(1));
-            return new DummyFunction(l);
-        }, "dummyFunction"));
+        UnresolvedFunction ur = uf(mock(Expression.class), mock(Expression.class));
+        EsqlFunctionRegistry r = new EsqlFunctionRegistry(
+            FunctionDefinition.def(DummyFunction.class).binary((Source l, Expression lhs, Expression rhs) -> {
+                assertSame(lhs, ur.children().get(0));
+                assertSame(rhs, ur.children().get(1));
+                return new DummyFunction(l);
+            }).name("dummyFunction")
+        );
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf().buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), containsString("expects exactly two arguments"));
 
         // One child isn't supported
-        e = expectThrows(ParsingException.class, () -> uf(DEFAULT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
+        e = expectThrows(ParsingException.class, () -> uf(mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), containsString("expects exactly two arguments"));
 
         // Many children aren't supported
         e = expectThrows(
             ParsingException.class,
-            () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class), mock(Expression.class)).buildResolved(
-                randomConfiguration(),
-                def
-            )
+            () -> uf(mock(Expression.class), mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
         );
         assertThat(e.getMessage(), containsString("expects exactly two arguments"));
     }
 
     public void testAliasNameIsTheSameAsAFunctionName() {
-        EsqlFunctionRegistry r = new EsqlFunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
+        EsqlFunctionRegistry r = new EsqlFunctionRegistry(
+            FunctionDefinition.def(DummyFunction.class).noArgs(DummyFunction::new).name("DUMMY_FUNCTION", "ALIAS")
+        );
         QlIllegalArgumentException iae = expectThrows(
             QlIllegalArgumentException.class,
-            () -> r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "DUMMY_FUNCTION"))
+            () -> r.register(
+                FunctionDefinition.def(DummyFunction2.class).noArgs(DummyFunction2::new).name("DUMMY_FUNCTION2", "DUMMY_FUNCTION")
+            )
         );
         assertEquals("alias [DUMMY_FUNCTION] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
@@ -93,24 +99,26 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         QlIllegalArgumentException iae = expectThrows(
             QlIllegalArgumentException.class,
             () -> new EsqlFunctionRegistry(
-                def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"),
-                def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")
+                FunctionDefinition.def(DummyFunction.class).noArgs(DummyFunction::new).name("DUMMY_FUNCTION", "ALIAS"),
+                FunctionDefinition.def(DummyFunction2.class).noArgs(DummyFunction2::new).name("DUMMY_FUNCTION2", "ALIAS")
             )
         );
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION(ALIAS)] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
 
     public void testDuplicateAliasInTwoDifferentFunctionsFromTwoDifferentBatches() {
-        EsqlFunctionRegistry r = new EsqlFunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
+        EsqlFunctionRegistry r = new EsqlFunctionRegistry(
+            FunctionDefinition.def(DummyFunction.class).noArgs(DummyFunction::new).name("DUMMY_FUNCTION", "ALIAS")
+        );
         QlIllegalArgumentException iae = expectThrows(
             QlIllegalArgumentException.class,
-            () -> r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS"))
+            () -> r.register(FunctionDefinition.def(DummyFunction2.class).noArgs(DummyFunction2::new).name("DUMMY_FUNCTION2", "ALIAS"))
         );
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
 
     public void testFunctionResolving() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
+        UnresolvedFunction ur = uf(mock(Expression.class));
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(defineDummyFunction(ur, "dummyfunction", "dummyfunc"));
 
         // Resolve by primary name
@@ -140,48 +148,57 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         assertThat(e.getMessage(), is("Cannot find function dummy_function; this should have been caught during analysis"));
     }
 
+    public void testTStepIsSnapshotOnly() {
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        assertThat(EsqlFunctionRegistry.isSnapshotOnly("tstep"), is(true));
+        assertThat(registry.functionExists("tstep"), is(false));
+        assertThat(registry.snapshotRegistry().functionExists("tstep"), is(Build.current().isSnapshot()));
+    }
+
     public void testUnaryFunction() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
+        UnresolvedFunction ur = uf(mock(Expression.class));
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(defineDummyUnaryFunction(ur));
         FunctionDefinition def = r.resolveFunction(ur.name());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf().buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), containsString("expects exactly one argument"));
 
         // Multiple children aren't supported
         e = expectThrows(
             ParsingException.class,
-            () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
+            () -> uf(mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
         );
         assertThat(e.getMessage(), containsString("expects exactly one argument"));
     }
 
     public void testConfigurationOptionalFunction() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
+        UnresolvedFunction ur = uf(mock(Expression.class));
         FunctionDefinition def;
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(
-            def(DummyConfigurationOptionalArgumentFunction.class, (Source l, Expression e, Configuration c) -> {
-                assertSame(e, ur.children().get(0));
-                return new DummyConfigurationOptionalArgumentFunction(l, List.of(ur), c);
-            }, "dummy")
+            FunctionDefinition.def(DummyConfigurationOptionalArgumentFunction.class)
+                .unaryConfig((Source l, Expression e, Configuration c) -> {
+                    assertSame(e, ur.children().get(0));
+                    return new DummyConfigurationOptionalArgumentFunction(l, List.of(ur), c);
+                })
+                .name("dummy")
         );
         def = r.resolveFunction(r.resolveAlias("DUMMY"));
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
-        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf().buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), containsString("expects exactly one argument"));
     }
 
-    private static UnresolvedFunction uf(FunctionResolutionStrategy resolutionStrategy, Expression... children) {
-        return new UnresolvedFunction(SourceTests.randomSource(), "dummyFunction", resolutionStrategy, Arrays.asList(children));
+    private static UnresolvedFunction uf(Expression... children) {
+        return new UnresolvedFunction(SourceTests.randomSource(), "dummyFunction", Arrays.asList(children));
     }
 
-    private static FunctionDefinition defineDummyFunction(UnresolvedFunction ur, String... names) {
-        return def(DummyFunction.class, (Source l, Expression e) -> {
+    private static FunctionDefinition defineDummyFunction(UnresolvedFunction ur, String name, String... aliases) {
+        return FunctionDefinition.def(DummyFunction.class).unary((Source l, Expression e) -> {
             assertSame(e, ur.children().get(0));
             return new DummyFunction(l);
-        }, names);
+        }).name(name, aliases);
     }
 
     private static FunctionDefinition defineDummyUnaryFunction(UnresolvedFunction ur) {
@@ -238,11 +255,17 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
     }
 
     public void testRegisteredFunctionHaveTests() {
+        assumeTrue("""
+            Some functions are missing when outside of snapshot and we really
+            only care about the superset of all functions. Just skip this test
+            on release builds.""", Build.current().isSnapshot());
         EsqlFunctionRegistry registry = new EsqlFunctionRegistry().snapshotRegistry();
         Set<String> errors = new TreeSet<>();
         for (FunctionDefinition def : registry.listFunctions()) {
             checkFunctionTestExists(errors, def, "Tests", AbstractFunctionTestCase.class);
-            checkFunctionTestExists(errors, def, "ErrorTests", ErrorsForCasesWithoutExamplesTestCase.class);
+            if (takesParameters(def)) {
+                checkFunctionTestExists(errors, def, "ErrorTests", ErrorsForCasesWithoutExamplesTestCase.class);
+            }
             boolean isSerializable = false == OnlySurrogateExpression.class.isAssignableFrom(def.clazz())
                 && false == FoldablesConvertFunction.class.isAssignableFrom(def.clazz())
                 && false == InferenceFunction.class.isAssignableFrom(def.clazz());
@@ -264,18 +287,17 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.DerivErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.FirstErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.IdeltaErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.IrateErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.LastErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviationErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.MedianErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.RateErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SparklineErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtentErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.StdDevErrorTests is missing")
@@ -286,10 +308,11 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvgErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhraseErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatchErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.BucketErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.TBucketErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithoutErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithoutTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.ClampErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.ClampTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMaxErrorTests is missing")
@@ -297,38 +320,19 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.conditional.GreatestErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.conditional.LeastErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDoubleErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRangeErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRangeTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVectorErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohexErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersionErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.date.NowErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AcoshErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AsinhErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AtanhErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.EErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.PiErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.ScalbErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.SinhErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.TauErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersectionErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSortErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnionErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.nulls.CoalesceErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPointsErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ChunkErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ContainsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippetsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.util.DelayErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.util.DelayTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarityErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.vector.DotProductErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.vector.HammingErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.vector.KnnErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.vector.L1NormErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.vector.L2NormErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeErrorTests is missing")
         );
     }
@@ -349,6 +353,28 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         } catch (ClassNotFoundException e) {
             errors.add(testClassName + " is missing");
         }
+    }
+
+    /**
+     * Does the function take any parameters?
+     */
+    private static boolean takesParameters(FunctionDefinition def) {
+        for (Parameter p : constructorWithFunctionInfo(def.clazz()).getParameters()) {
+            if (Source.class.isAssignableFrom(p.getType())) {
+                continue;
+            }
+            if (Configuration.class.isAssignableFrom(p.getType())) {
+                continue;
+            }
+            if (Expression.class.isAssignableFrom(p.getType())) {
+                return true;
+            }
+            if (List.class.isAssignableFrom(p.getType())) {
+                return true;
+            }
+            throw new IllegalStateException("unknown argument type " + p);
+        }
+        return false;
     }
 
     public static class DummyConfigurationOptionalArgumentFunction extends EsqlConfigurationFunction implements OptionalArgument {
@@ -383,7 +409,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
             return null;
         }
     }

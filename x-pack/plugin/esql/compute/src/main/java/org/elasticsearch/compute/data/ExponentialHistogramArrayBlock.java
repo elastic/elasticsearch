@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
@@ -136,12 +137,7 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
         ZeroBucket zeroBucket = histogram.zeroBucket();
         BytesStreamOutput encodedBytes = new BytesStreamOutput();
         try {
-            CompressedExponentialHistogram.writeHistogramBytes(
-                encodedBytes,
-                histogram.scale(),
-                histogram.negativeBuckets().iterator(),
-                histogram.positiveBuckets().iterator()
-            );
+            CompressedExponentialHistogram.writeHistogramBytes(encodedBytes, histogram);
         } catch (IOException e) {
             throw new RuntimeException("Failed to encode histogram", e);
         }
@@ -160,6 +156,29 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
             zeroBucket.zeroThreshold(),
             encodedBytes.bytes().toBytesRef()
         );
+    }
+
+    public static EncodedHistogramData encode(
+        int scale,
+        BucketIterator negativeBuckets,
+        BucketIterator positiveBuckets,
+        double zeroThreshold,
+        long zeroCount,
+        long count,
+        double sum,
+        double min,
+        double max
+    ) {
+        if (zeroCount < 0) {
+            throw new IllegalArgumentException("zeroCount must be non-negative but was [" + zeroCount + "]");
+        }
+        BytesStreamOutput encodedBytes = new BytesStreamOutput();
+        try {
+            CompressedExponentialHistogram.writeHistogramBytes(encodedBytes, scale, negativeBuckets, positiveBuckets);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to encode histogram", e);
+        }
+        return new EncodedHistogramData(count, sum, min, max, zeroThreshold, encodedBytes.bytes().toBytesRef());
     }
 
     @Override

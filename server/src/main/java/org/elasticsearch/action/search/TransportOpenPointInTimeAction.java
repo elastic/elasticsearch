@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -42,6 +43,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.SearchPlanningPhaseResolutionResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
@@ -59,6 +61,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -82,7 +85,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportService transportService;
     private final SearchService searchService;
-    private final ClusterService clusterService;
     private final SearchResponseMetrics searchResponseMetrics;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final TimeValue forceConnectTimeoutSecs;
@@ -96,7 +98,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         SearchTransportService searchTransportService,
         NamedWriteableRegistry namedWriteableRegistry,
         ClusterService clusterService,
-        SearchResponseMetrics searchResponseMetrics
+        SearchResponseMetrics searchResponseMetrics,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -104,9 +107,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.searchService = searchService;
         this.searchTransportService = searchTransportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.clusterService = clusterService;
         this.searchResponseMetrics = searchResponseMetrics;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(clusterService.getSettings());
+        this.crossProjectModeDecider = crossProjectModeDecider;
         this.forceConnectTimeoutSecs = clusterService.getSettings()
             .getAsTime("search.ccs.force_connect_timeout", TimeValue.timeValueSeconds(3L));
         transportService.registerRequestHandler(
@@ -167,6 +169,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 originalIndicesOptions,
                 request.getProjectRouting(),
                 localResolvedIndexExpressions,
+                Map.of(),
                 Map.of()
             );
             if (ex != null) {
@@ -179,22 +182,24 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
         // CPS
         final int linkedProjectsToQuery = indicesPerCluster.size();
-        ActionListener<Collection<Map.Entry<String, ResolveIndexAction.Response>>> responsesListener = listener.delegateFailureAndWrap(
-            (l, responses) -> {
-                Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = responses.stream()
-                    .filter(e -> e.getValue().getResolvedIndexExpressions() != null)
-                    .collect(
-                        Collectors.toMap(
-                            Map.Entry::getKey,
-                            e -> e.getValue().getResolvedIndexExpressions()
+        ActionListener<Collection<Map.Entry<String, SearchPlanningPhaseResolutionResult>>> responsesListener = listener
+            .delegateFailureAndWrap((l, responses) -> {
+                Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = new HashMap<>();
+                Map<String, Exception> remoteExceptions = new HashMap<>();
 
-                        )
-                    );
+                for (var entry : responses) {
+                    if (entry.getValue().response() instanceof ResolveIndexAction.Response response) {
+                        resolvedRemoteExpressions.put(entry.getKey(), response.getResolvedIndexExpressions());
+                    } else {
+                        remoteExceptions.put(entry.getKey(), entry.getValue().error());
+                    }
+                }
                 final Exception ex = CrossProjectIndexResolutionValidator.validate(
                     originalIndicesOptions,
                     request.getProjectRouting(),
                     localResolvedIndexExpressions,
-                    resolvedRemoteExpressions
+                    resolvedRemoteExpressions,
+                    remoteExceptions
                 );
                 if (ex != null) {
                     listener.onFailure(ex);
@@ -223,9 +228,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 }
                 request.indices(collectedIndices.toArray(String[]::new));
                 executeOpenPit(task, request, listener);
-            }
-        );
-        ActionListener<Map.Entry<String, ResolveIndexAction.Response>> groupedListener = new GroupedActionListener<>(
+            });
+        ActionListener<Map.Entry<String, SearchPlanningPhaseResolutionResult>> groupedListener = new GroupedActionListener<>(
             linkedProjectsToQuery,
             responsesListener
         );
@@ -242,21 +246,24 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
             connectionListener.addListener(groupedListener.delegateResponse((l, failure) -> {
                 logger.info("failed to resolve indices on remote cluster [" + clusterAlias + "]", failure);
-                l.onFailure(failure);
+                l.onResponse(Map.entry(clusterAlias, new SearchPlanningPhaseResolutionResult(null, failure)));
             })
                 .delegateFailure(
-                    (ignored, connection) -> transportService.sendRequest(
+                    (delegate, connection) -> transportService.sendRequest(
                         connection,
                         ResolveIndexAction.REMOTE_TYPE.name(),
                         remoteRequest,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(groupedListener.delegateResponse((l, failure) -> {
                             logger.info("Error occurred on remote cluster [" + clusterAlias + "]", failure);
-                            l.onFailure(failure);
-                        }).map(resolveIndexResponse -> Map.entry(clusterAlias, resolveIndexResponse)),
-                            ResolveIndexAction.Response::new,
-                            EsExecutors.DIRECT_EXECUTOR_SERVICE
-                        )
+                            delegate.onResponse(Map.entry(clusterAlias, new SearchPlanningPhaseResolutionResult(null, failure)));
+                        })
+                            .map(
+                                resolveIndexResponse -> Map.entry(
+                                    clusterAlias,
+                                    new SearchPlanningPhaseResolutionResult(resolveIndexResponse, null)
+                                )
+                            ), ResolveIndexAction.Response::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
                     )
                 ));
 
@@ -301,6 +308,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             SearchRequest searchRequest,
             Executor executor,
             List<SearchShardIterator> shardIterators,
+            Map<String, Integer> skippedByClusterAlias,
             TransportSearchAction.SearchTimeProvider timeProvider,
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
@@ -329,31 +337,35 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     false,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     searchResponseMetrics,
-                    searchRequestAttributes
-                )
-                    .addListener(
-                        listener.delegateFailureAndWrap(
-                            (searchResponseActionListener, searchShardIterators) -> runOpenPointInTimePhase(
-                                task,
-                                searchRequest,
-                                executor,
-                                searchShardIterators,
-                                timeProvider,
-                                connectionLookup,
-                                clusterState,
-                                aliasFilter,
-                                concreteIndexBoosts,
-                                clusters,
-                                searchRequestAttributes
-                            )
-                        )
+                    searchRequestAttributes,
+                    false
+                ).addListener(listener.delegateFailureAndWrap((searchResponseActionListener, canMatchResult) -> {
+                    skippedByClusterAlias.forEach(
+                        (cluster, count) -> canMatchResult.skippedByClusterAlias().merge(cluster, count, Integer::sum)
                     );
+
+                    runOpenPointInTimePhase(
+                        task,
+                        searchRequest,
+                        executor,
+                        canMatchResult.iterators(),
+                        canMatchResult.skippedByClusterAlias(),
+                        timeProvider,
+                        connectionLookup,
+                        clusterState,
+                        aliasFilter,
+                        concreteIndexBoosts,
+                        clusters,
+                        searchRequestAttributes
+                    );
+                }));
             } else {
                 runOpenPointInTimePhase(
                     task,
                     searchRequest,
                     executor,
                     shardIterators,
+                    skippedByClusterAlias,
                     timeProvider,
                     connectionLookup,
                     clusterState,
@@ -370,6 +382,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             SearchRequest searchRequest,
             Executor executor,
             List<SearchShardIterator> shardIterators,
+            Map<String, Integer> skippedByClusterAlias,
             TransportSearchAction.SearchTimeProvider timeProvider,
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
@@ -394,6 +407,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 searchRequest,
                 listener,
                 shardIterators,
+                skippedByClusterAlias,
                 timeProvider,
                 clusterState,
                 task,
@@ -413,7 +427,12 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     transportService.sendChildRequest(
                         connection,
                         OPEN_SHARD_READER_CONTEXT_NAME,
-                        new ShardOpenReaderRequest(shardIt.shardId(), shardIt.getOriginalIndices(), pitRequest.keepAlive()),
+                        new ShardOpenReaderRequest(
+                            shardIt.shardId(),
+                            shardIt.getOriginalIndices(),
+                            pitRequest.keepAlive(),
+                            shardIt.getSplitShardCountSummary()
+                        ),
                         task,
                         new ActionListenerResponseHandler<>(
                             phaseListener,
@@ -442,14 +461,25 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     }
 
     private static final class ShardOpenReaderRequest extends AbstractTransportRequest implements IndicesRequest {
+        private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName(
+            "open_reader_split_shard_count_summary"
+        );
+
         final ShardId shardId;
         final OriginalIndices originalIndices;
         final TimeValue keepAlive;
+        final SplitShardCountSummary splitShardCountSummary;
 
-        ShardOpenReaderRequest(ShardId shardId, OriginalIndices originalIndices, TimeValue keepAlive) {
+        ShardOpenReaderRequest(
+            ShardId shardId,
+            OriginalIndices originalIndices,
+            TimeValue keepAlive,
+            SplitShardCountSummary splitShardCountSummary
+        ) {
             this.shardId = shardId;
             this.originalIndices = originalIndices;
             this.keepAlive = keepAlive;
+            this.splitShardCountSummary = splitShardCountSummary;
         }
 
         ShardOpenReaderRequest(StreamInput in) throws IOException {
@@ -457,6 +487,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             shardId = new ShardId(in);
             originalIndices = OriginalIndices.readOriginalIndices(in);
             keepAlive = in.readTimeValue();
+            if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+                this.splitShardCountSummary = new SplitShardCountSummary(in);
+            } else {
+                this.splitShardCountSummary = SplitShardCountSummary.UNSET;
+            }
         }
 
         @Override
@@ -465,6 +500,9 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             shardId.writeTo(out);
             OriginalIndices.writeOriginalIndices(originalIndices, out);
             out.writeTimeValue(keepAlive);
+            if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+                splitShardCountSummary.writeTo(out);
+            }
         }
 
         public ShardId getShardId() {
@@ -479,6 +517,10 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         @Override
         public IndicesOptions indicesOptions() {
             return originalIndices.indicesOptions();
+        }
+
+        public SplitShardCountSummary splitShardCountSummary() {
+            return splitShardCountSummary;
         }
     }
 
@@ -503,6 +545,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             searchService.openReaderContext(
                 request.getShardId(),
                 request.keepAlive,
+                request.splitShardCountSummary,
                 new ChannelActionListener<>(channel).map(ShardOpenReaderResponse::new)
             );
         }

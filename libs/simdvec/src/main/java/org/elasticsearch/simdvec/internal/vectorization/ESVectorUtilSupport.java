@@ -10,6 +10,9 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
+import org.elasticsearch.simdvec.MultiByteVectorsSource;
+import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
 public interface ESVectorUtilSupport {
 
@@ -24,11 +27,20 @@ public interface ESVectorUtilSupport {
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(float[] a, float[] b);
 
+    /** Returns the sum of squared differences over {@code [offset, offset + length)}. */
+    float squareDistance(float[] a, float[] b, int offset, int length);
+
     /** Calculates the cosine of the given byte arrays. */
     float cosine(byte[] a, byte[] b);
 
     /** Calculates the dot product of the given byte arrays. */
     float dotProduct(byte[] a, byte[] b);
+
+    float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
+
+    float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch);
+
+    float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch);
 
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(byte[] a, byte[] b);
@@ -67,7 +79,19 @@ public interface ESVectorUtilSupport {
 
     int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
-    void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances);
+    void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
+
+    void squareDistanceBulk(
+        float[] query,
+        int queryOffset,
+        int length,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances
+    );
 
     void soarDistanceBulk(
         float[] v1,
@@ -90,4 +114,16 @@ public interface ESVectorUtilSupport {
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 
     int codePointCount(BytesRef bytesRef);
+
+    boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
+
+    void linearCombination(float scaleOther, float[] other, float[] dest);
+
+    float logSumExpNQT(float[] vector);
+
+    float logSumExpNQTDiff(float[] v1, float[] v2, float eps);
+
+    void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
 }

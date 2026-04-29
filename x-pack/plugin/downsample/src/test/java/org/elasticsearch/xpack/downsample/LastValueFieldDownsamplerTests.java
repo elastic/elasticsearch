@@ -122,9 +122,11 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
     }
 
     public void testFlattenedLastValueFieldDownsampler() throws IOException {
-        var downsampler = LastValueFieldDownsampler.create("dummy", createDummyFlattenedFieldType(), null);
+        AbstractFieldDownsampler.DownsamplerCountPerValueType fieldCounts = new AbstractFieldDownsampler.DownsamplerCountPerValueType();
+        var downsampler = LastValueFieldDownsampler.create("dummy", createDummyFlattenedFieldType(), null, fieldCounts);
         assertTrue(downsampler.isEmpty());
         assertEquals("dummy", downsampler.name());
+        assertEquals(1, fieldCounts.formattedValueFields());
 
         var bytes = List.of("a\0value_a", "b\0value_b", "c\0value_c", "d\0value_d");
         var docValues = new FormattedDocValues() {

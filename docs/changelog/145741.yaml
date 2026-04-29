@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 142616
+pr: 145741
+summary: Fix nested fields loading under NULLIFY
+type: bug

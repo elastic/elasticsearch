@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -44,7 +45,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.monitor.fs.FsProbe;
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1067,44 +1067,43 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         /**
-         * Optimistically try to get a direct ByteBuffer slice from the region.
-         * The returned {@link CloseableByteBuffer} holds a reference to this region,
-         * preventing eviction while the buffer is in use. The caller must close it
-         * when done.
-         * @return a CloseableByteBuffer wrapping a read-only ByteBuffer slice, or null if not available
+         * If a direct byte buffer slice is available for the given range,
+         * passes it to {@code action} within a ref-counted scope (preventing
+         * eviction) and returns {@code true}. Returns {@code false} without
+         * invoking the action when not available (not mmap'd, evicted, etc.).
          */
-        CloseableByteBuffer tryGetByteBufferSlice(long offset, int length) {
+        boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
             SharedBytes.IO ioRef = nonVolatileIO();
             if (ioRef != null && tryIncRef()) {
-                ByteBuffer slice = ioRef.byteBufferSlice(blobCacheService.getRegionRelativePosition(offset), length);
-                if (slice != null && isEvicted() == false) {
-                    return new CloseableByteBuffer() {
-                        @Override
-                        public ByteBuffer buffer() {
-                            return slice;
-                        }
-
-                        @Override
-                        public void close() {
-                            CacheFileRegion.this.decRef();
-                        }
-                    };
+                try {
+                    ByteBuffer slice = ioRef.byteBufferSlice(blobCacheService.getRegionRelativePosition(offset), length);
+                    if (slice != null && isEvicted() == false) {
+                        action.accept(slice);
+                        return true;
+                    }
+                } finally {
+                    decRef();
                 }
-                decRef();
             }
-            return null;
+            return false;
         }
 
         /**
          * Populates a range in cache if the range is not available nor pending to be available in cache.
+         * <p>
+         * {@link SparseFileTracker#waitForRange} and gap filling are run as a single task on {@code executor} so callers can route the
+         * full populate operation (coordination and I/O initiation) to a pool sized for their resource limits (e.g. object-store fetches).
+         * If the range is already present or entirely covered by pending fills, {@link SparseFileTracker#waitForRangeIfPending} handles
+         * coordination without queueing on {@code executor}.
+         * </p>
          *
          * @param rangeToWrite the range of bytes to populate
          * @param writer a writer that handles writing of newly downloaded data to the shared cache
-         * @param executor the executor used to download and to write new dat
+         * @param executor the executor used to coordinate cache filling; also used to run gap-filling work in-thread on that pool
          * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of the
          *                 range, in which case the listener is completed once writing is done. The listener is completed with {@code false}
          *                 if the range to write is already available in cache or if another thread will download and write the range, in
-         *                 which cases the listener is completed immediately.
+         *                 which cases the listener is completed when determined on {@code executor}.
          */
         void populate(
             final ByteRange rangeToWrite,
@@ -1112,66 +1111,80 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final Executor executor,
             final ActionListener<Boolean> listener
         ) {
+            if (rangeToWrite.isEmpty()) {
+                listener.onResponse(false);
+                return;
+            }
             try {
-                incRefEnsureOpen();
-                try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
-                    final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                        rangeToWrite,
-                        rangeToWrite,
-                        Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
-                            assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
-                        }), refs.acquire()) : refs.acquireListener()
+                try {
+                    incRefEnsureOpen();
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                // If the range is already present, or entirely covered by pending fills, coordinate without queueing on executor.
+                try {
+                    final ActionListener<Void> waitIfPendingListener = ActionListener.releaseAfter(
+                        listener.map(unused -> false),
+                        this::decRef
                     );
-                    if (gaps.isEmpty()) {
-                        listener.onResponse(false);
+                    if (tracker.waitForRangeIfPending(rangeToWrite, waitIfPendingListener)) {
                         return;
                     }
-                    final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
-                    logger.trace(
-                        () -> Strings.format(
-                            "fill gaps %s %s shared input stream factory",
-                            gaps,
-                            streamFactory == null ? "without" : "with"
-                        )
-                    );
-                    if (streamFactory == null) {
-                        try (var parallelGapsListener = new RefCountingListener(listener.map(unused -> true))) {
-                            for (SparseFileTracker.Gap gap : gaps) {
-                                executor.execute(
+                } catch (Exception e) {
+                    decRef();
+                    listener.onFailure(e);
+                    return;
+                }
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() {
+                        try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
+                            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                                rangeToWrite,
+                                rangeToWrite,
+                                Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
+                                    assert blobCacheService.regionOwners.get(nonVolatileIO()) == CacheFileRegion.this;
+                                }), refs.acquire()) : refs.acquireListener()
+                            );
+                            if (gaps.isEmpty()) {
+                                listener.onResponse(false);
+                                return;
+                            }
+                            final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                            logger.trace(
+                                () -> Strings.format(
+                                    "fill gaps %s %s shared input stream factory",
+                                    gaps,
+                                    streamFactory == null ? "without" : "with"
+                                )
+                            );
+                            final ActionListener<Void> gapsDoneListener = streamFactory != null
+                                ? ActionListener.releaseBefore(streamFactory, listener.map(unused -> true))
+                                : listener.map(unused -> true);
+                            try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
+                                // Use current thread to fill the gaps in order
+                                for (SparseFileTracker.Gap gap : gaps) {
                                     fillGapRunnable(
                                         gap,
                                         writer,
-                                        null,
-                                        ActionListener.releaseAfter(parallelGapsListener.acquire(), refs.acquire())
-                                    )
-                                );
+                                        streamFactory,
+                                        ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire())
+                                    ).run();
+                                }
                             }
                         }
-                    } else {
-                        try (
-                            var sequentialGapsListener = new RefCountingListener(
-                                ActionListener.runBefore(listener.map(unused -> true), streamFactory::close)
-                            )
-                        ) {
-                            final List<Runnable> gapFillingTasks = gaps.stream()
-                                .map(
-                                    gap -> fillGapRunnable(
-                                        gap,
-                                        writer,
-                                        streamFactory,
-                                        ActionListener.releaseAfter(sequentialGapsListener.acquire(), refs.acquire())
-                                    )
-                                )
-                                .toList();
-                            executor.execute(() -> {
-                                // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
-                                // gap will still be executed.
-                                gapFillingTasks.forEach(Runnable::run);
-                            });
-                        }
                     }
-                }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        decRef();
+                        listener.onFailure(e);
+                    }
+                });
             } catch (Exception e) {
+                assert false;
+                decRef();
                 listener.onFailure(e);
             }
         }
@@ -1393,13 +1406,18 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return res;
         }
 
-        CloseableByteBuffer tryGetByteBufferSlice(long offset, int length) {
+        /**
+         * If a direct byte buffer view is available for the given range, passes it
+         * to {@code action} and returns {@code true}. Otherwise, returns
+         * {@code false} without invoking the action.
+         */
+        public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
             assert assertOffsetsWithinFileLength(offset, length, this.length);
             final int startRegion = getRegion(offset);
             final long end = offset + length;
             final int endRegion = getEndingRegion(end);
             if (startRegion != endRegion) {
-                return null;
+                return false;
             }
             var fileRegion = lastAccessedRegion;
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
@@ -1409,31 +1427,84 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
             final var region = fileRegion.chunk;
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
-                return null;
+                return false;
             }
-            CloseableByteBuffer slice = region.tryGetByteBufferSlice(offset, length);
-            if (slice != null) {
+            boolean result = region.withByteBufferSlice(offset, length, action);
+            if (result) {
                 lastAccessedRegion = fileRegion;
             }
-            return slice;
+            return result;
         }
 
         /**
-         * If a direct byte buffer view is available for the given range, passes it
-         * to {@code action} and returns {@code true}. Otherwise returns
-         * {@code false} without invoking the action.
+         * Bulk variant of {@link #withByteBufferSlice}. Resolves {@code count} byte ranges to
+         * direct byte buffers, holding ref-counts on all distinct regions to prevent eviction,
+         * then invokes the action. Each individual range must fit within a single region.
          */
-        public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
-            CloseableByteBuffer cbb = tryGetByteBufferSlice(offset, length);
-            if (cbb == null) {
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
+            throws IOException {
+            if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
                 return false;
             }
+            final CacheFileRegion<KeyType>[] held = new CacheFileRegion[count];
+            int heldCount = 0;
+            final ByteBuffer[] results = new ByteBuffer[count];
             try {
-                action.accept(cbb.buffer());
+                for (int i = 0; i < count; i++) {
+                    final long offset = offsets[i];
+                    assert assertOffsetsWithinFileLength(offset, length, this.length);
+                    final int regionIdx = getRegion(offset);
+                    if (regionIdx != getEndingRegion(offset + length)) {
+                        return false;
+                    }
+
+                    final var entry = cache.get(cacheKey, this.length, regionIdx);
+                    final var region = entry.chunk;
+
+                    final long regionEnd = offset + length - getRegionStart(regionIdx);
+                    if (region.tracker.checkAvailable(regionEnd) == false) {
+                        return false;
+                    }
+
+                    SharedBytes.IO ioRef = region.nonVolatileIO();
+                    if (ioRef == null) {
+                        return false;
+                    }
+
+                    if (notAlreadyHeld(region, held, heldCount)) {
+                        if (region.tryIncRef() == false) {
+                            return false;
+                        }
+                        held[heldCount++] = region;
+                    }
+
+                    results[i] = ioRef.byteBufferSlice(getRegionRelativePosition(offset), length);
+                    if (results[i] == null) {
+                        return false;
+                    }
+                }
+                for (int i = 0; i < heldCount; i++) {
+                    if (held[i].isEvicted()) {
+                        return false;
+                    }
+                }
+                action.accept(results);
                 return true;
             } finally {
-                cbb.close();
+                for (int i = 0; i < heldCount; i++) {
+                    held[i].decRef();
+                }
             }
+        }
+
+        private static boolean notAlreadyHeld(CacheFileRegion<?> region, CacheFileRegion<?>[] held, int heldCount) {
+            for (int i = 0; i < heldCount; i++) {
+                if (held[i] == region) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         public int populateAndRead(

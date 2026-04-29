@@ -67,6 +67,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -220,7 +221,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.TIME_DURATION
                 || t == DataType.AGGREGATE_METRIC_DOUBLE
                 || t == DataType.TSID_DATA_TYPE
-                || t == DataType.DATE_RANGE,
+                || t == DataType.DATE_RANGE
+                || t == DataType.PARTIAL_AGG,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());
@@ -1179,7 +1181,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             DriverSleeps.empty()
                         )
                     ),
-                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree", null)),
+                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree", null, null)),
                     minimumVersion
                 ),
                 false,
@@ -1540,18 +1542,24 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                                 throw new IllegalArgumentException("Expected START_OBJECT but found: " + parser.currentToken());
                             }
                             parser.nextToken();
-                            TDigestHolder parsed = new TDigestHolder(
-                                TDigestParser.parse(
-                                    "serialized_block",
-                                    parser,
-                                    (a, b) -> new UnsupportedOperationException("failed parsing tdigest"),
-                                    (x, y, z) -> new UnsupportedOperationException("failed parsing tdigest")
-                                )
+                            TDigestParser.ParsedTDigest parsed = TDigestParser.parse(
+                                "serialized_block",
+                                parser,
+                                (a, b) -> new UnsupportedOperationException("failed parsing tdigest"),
+                                (x, y, z) -> new UnsupportedOperationException("failed parsing tdigest")
                             );
                             if (parsed == null) {
                                 tDigestBlockBuilder.appendNull();
                             } else {
-                                tDigestBlockBuilder.appendTDigest(parsed);
+                                TDigestHolder tdigest = new TDigestHolder();
+                                tdigest.reset(
+                                    EncodedTDigest.encodeCentroids(parsed.centroids(), parsed.counts()),
+                                    parsed.min(),
+                                    parsed.max(),
+                                    parsed.sum(),
+                                    parsed.count()
+                                );
+                                tDigestBlockBuilder.appendTDigest(tdigest);
                             }
                         } catch (UnsupportedOperationException | IOException e) {
                             fail("Unable to parse TDigestBlockBuilder: " + e.getMessage());

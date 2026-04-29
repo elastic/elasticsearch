@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.esql.qa.multi_node;
 
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
@@ -26,10 +25,12 @@ public class ExternalDistributedClusters {
 
     static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return Clusters.testCluster(spec -> {
+            spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES);
+            spec.plugin("inference-service-test");
             spec.module("repository-s3");
             spec.module("repository-gcs");
             spec.setting("xpack.ml.enabled", "false");
-            spec.setting("path.repo", fixturesPath());
+            spec.setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(ExternalDistributedClusters.class));
             spec.setting("s3.client.default.endpoint", s3EndpointSupplier);
             spec.keystore("s3.client.default.access_key", ACCESS_KEY);
             spec.keystore("s3.client.default.secret_key", SECRET_KEY);
@@ -39,17 +40,5 @@ public class ExternalDistributedClusters {
             spec.jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED");
             spec.jvmArg("-Darrow.allocation.manager.type=Unsafe");
         });
-    }
-
-    private static String fixturesPath() {
-        URL resourceUrl = ExternalDistributedClusters.class.getResource("/iceberg-fixtures");
-        if (resourceUrl != null && resourceUrl.getProtocol().equals("file")) {
-            try {
-                return PathUtils.get(resourceUrl.toURI()).toAbsolutePath().toString();
-            } catch (URISyntaxException e) {
-                throw new IllegalStateException("Failed to resolve fixtures path", e);
-            }
-        }
-        return System.getProperty("java.io.tmpdir");
     }
 }

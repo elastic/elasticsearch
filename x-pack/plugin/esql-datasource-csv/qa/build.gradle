@@ -33,6 +33,7 @@ dependencies {
   clusterModules project(':modules:repository-gcs')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   // The CSV datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-csv'))
@@ -47,10 +48,27 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-azure'))
 }
 
-// The CSV fixtures (employees.csv and csv-basic.csv-spec) are included
-// directly in this module's javaRestTest/resources directory
+// Standalone CSVs under iceberg-fixtures/ are copied from esql:qa:testFixtures (single source of truth).
+def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+def csvIcebergFixtureRoot = file("${buildDir}/csv-iceberg-fixtures")
+
+tasks.register('syncCsvIcebergFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'employees.csv', 'web_logs.csv', 'books.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
+}
+
+sourceSets.javaRestTest.resources.srcDir csvIcebergFixtureRoot
+
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn 'syncCsvIcebergFixtures'
+}
 
 tasks.named('javaRestTest') {
+  dependsOn 'syncCsvIcebergFixtures'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

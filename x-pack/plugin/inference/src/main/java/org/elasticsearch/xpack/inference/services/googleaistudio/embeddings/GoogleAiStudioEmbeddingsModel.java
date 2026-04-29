@@ -47,7 +47,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
             GoogleAiStudioEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

@@ -13,12 +13,15 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -208,16 +211,11 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         assertTrue("grpc should be in capabilities", capabilities.supportsScheme("grpc"));
     }
 
-    public void testMultiFormatWithExtensionsRejected() {
-        DataSourcePlugin badPlugin = new DataSourcePlugin() {
+    public void testMultiFormatWithExplicitExtensions() {
+        DataSourcePlugin multiPlugin = new DataSourcePlugin() {
             @Override
-            public Set<String> supportedFormats() {
-                return Set.of("fmt1", "fmt2");
-            }
-
-            @Override
-            public Set<String> supportedExtensions() {
-                return Set.of(".ext1");
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("fmt1", ".ext1"), FormatSpec.of("fmt2", ".ext2"));
             }
 
             @Override
@@ -226,19 +224,25 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
                     "fmt1",
                     (s, bf) -> new StubFormatReader("fmt1", List.of(".ext1")),
                     "fmt2",
-                    (s, bf) -> new StubFormatReader("fmt2", List.of(".ext1"))
+                    (s, bf) -> new StubFormatReader("fmt2", List.of(".ext2"))
                 );
             }
         };
 
-        List<DataSourcePlugin> plugins = List.of(badPlugin);
+        List<DataSourcePlugin> plugins = List.of(multiPlugin);
         DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new DataSourceModule(plugins, capabilities, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        assertTrue(e.getMessage().contains("multiple formats"));
+
+        assertTrue("Should have fmt1 format", module.formatReaderRegistry().hasFormat("fmt1"));
+        assertTrue("Should have fmt2 format", module.formatReaderRegistry().hasFormat("fmt2"));
+        assertTrue("Should have .ext1 extension", module.formatReaderRegistry().hasExtension(".ext1"));
+        assertTrue("Should have .ext2 extension", module.formatReaderRegistry().hasExtension(".ext2"));
     }
 
     // ===== Spy plugin implementations =====
@@ -258,13 +262,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
 
     private static class SpyFormatPlugin implements DataSourcePlugin {
         @Override
-        public Set<String> supportedFormats() {
-            return Set.of("spy");
-        }
-
-        @Override
-        public Set<String> supportedExtensions() {
-            return Set.of(".spy");
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("spy", ".spy"));
         }
 
         @Override
@@ -276,13 +275,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
 
     private static class OtherFormatPlugin implements DataSourcePlugin {
         @Override
-        public Set<String> supportedFormats() {
-            return Set.of("other");
-        }
-
-        @Override
-        public Set<String> supportedExtensions() {
-            return Set.of(".other");
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("other", ".other"));
         }
 
         @Override
@@ -344,7 +338,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             throw new UnsupportedOperationException("Stub");
         }
 

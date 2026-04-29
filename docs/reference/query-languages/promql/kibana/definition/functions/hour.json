@@ -1,0 +1,25 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "time",
+  "name" : "hour",
+  "description" : "returns the hour of the day for each of those timestamps (in UTC). Returned values are from 0 to 23.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : true,
+          "description" : "Optional instant vector input. If omitted, evaluation timestamp is used."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "hour()"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

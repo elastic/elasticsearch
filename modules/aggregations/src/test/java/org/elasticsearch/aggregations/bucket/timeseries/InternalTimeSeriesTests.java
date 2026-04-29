@@ -141,7 +141,8 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
             () -> false,
             new TimeSeriesAggregationBuilder("ts"),
             value -> {},
-            PipelineAggregator.PipelineTree.EMPTY
+            PipelineAggregator.PipelineTree.EMPTY,
+            null
         );
 
         InternalTimeSeries result = (InternalTimeSeries) InternalAggregationTestCase.reduce(List.of(first, second, third), context);

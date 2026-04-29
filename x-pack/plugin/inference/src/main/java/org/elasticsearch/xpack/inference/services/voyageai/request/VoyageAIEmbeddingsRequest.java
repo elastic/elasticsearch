@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.inference.services.voyageai.request;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
@@ -21,7 +24,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIRequestUtils.decorateWithHeaders;
+
+public class VoyageAIEmbeddingsRequest implements DenseEmbeddingRequest {
 
     private final List<String> input;
     private final InputType inputType;
@@ -34,7 +39,7 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(embeddingsModel.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -52,12 +57,17 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
 
         decorateWithHeaders(httpPost, embeddingsModel);
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override
     public String getInferenceEntityId() {
         return embeddingsModel.getInferenceEntityId();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return embeddingsModel.getTaskType();
     }
 
     @Override

@@ -1,0 +1,24 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "cluster": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "my_temporality": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "network": {
+      "properties": {
+        "total_bytes_in": {
+          "type": "long",
+          "time_series_metric": "counter",
+          "meta": { "unit": "bytes" }
+        }
+      }
+    }
+  }
+}

@@ -11,6 +11,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -35,10 +36,12 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     private final TimeValue took;
     private final BulkByScrollTask.Status status;
     private final List<Failure> bulkFailures;
-    private final List<PaginatedHitSource.SearchFailure> searchFailures;
+    private final List<PaginatedSearchFailure> searchFailures;
     private boolean timedOut;
     @Nullable
     private final ResumeInfo resumeInfo; // only used on the local node so not serialized in transport
+    @Nullable
+    private final BytesReference pitId; // only used on the local node for PIT close, not serialized in transport
 
     static final String TOOK_FIELD = "took";
     static final String TIMED_OUT_FIELD = "timed_out";
@@ -48,16 +51,17 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         took = in.readTimeValue();
         status = new BulkByScrollTask.Status(in);
         bulkFailures = in.readCollectionAsList(Failure::new);
-        searchFailures = in.readCollectionAsList(PaginatedHitSource.SearchFailure::new);
+        searchFailures = in.readCollectionAsList(PaginatedSearchFailure::new);
         timedOut = in.readBoolean();
         resumeInfo = null;
+        pitId = null;
     }
 
     public BulkByScrollResponse(
         TimeValue took,
         BulkByScrollTask.Status status,
         List<Failure> bulkFailures,
-        List<PaginatedHitSource.SearchFailure> searchFailures,
+        List<PaginatedSearchFailure> searchFailures,
         boolean timedOut
     ) {
         this(took, status, bulkFailures, searchFailures, timedOut, null);
@@ -67,9 +71,21 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         TimeValue took,
         BulkByScrollTask.Status status,
         List<Failure> bulkFailures,
-        List<PaginatedHitSource.SearchFailure> searchFailures,
+        List<PaginatedSearchFailure> searchFailures,
         boolean timedOut,
         @Nullable ResumeInfo resumeInfo
+    ) {
+        this(took, status, bulkFailures, searchFailures, timedOut, resumeInfo, null);
+    }
+
+    public BulkByScrollResponse(
+        TimeValue took,
+        BulkByScrollTask.Status status,
+        List<Failure> bulkFailures,
+        List<PaginatedSearchFailure> searchFailures,
+        boolean timedOut,
+        @Nullable ResumeInfo resumeInfo,
+        @Nullable BytesReference pitId
     ) {
         this.took = took;
         this.status = requireNonNull(status, "Null status not supported");
@@ -77,9 +93,14 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         this.searchFailures = searchFailures;
         this.timedOut = timedOut;
         this.resumeInfo = resumeInfo;
+        this.pitId = pitId;
     }
 
     public BulkByScrollResponse(Iterable<BulkByScrollResponse> toMerge, @Nullable String reasonCancelled) {
+        this(toMerge, reasonCancelled, null);
+    }
+
+    public BulkByScrollResponse(Iterable<BulkByScrollResponse> toMerge, @Nullable String reasonCancelled, @Nullable BytesReference pitId) {
         long mergedTook = 0;
         List<BulkByScrollTask.StatusOrException> statuses = new ArrayList<>();
         bulkFailures = new ArrayList<>();
@@ -94,6 +115,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         took = timeValueMillis(mergedTook);
         status = new BulkByScrollTask.Status(statuses, reasonCancelled);
         resumeInfo = null;
+        this.pitId = pitId;
     }
 
     public TimeValue getTook() {
@@ -163,7 +185,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     /**
      * All search failures.
      */
-    public List<PaginatedHitSource.SearchFailure> getSearchFailures() {
+    public List<PaginatedSearchFailure> getSearchFailures() {
         return searchFailures;
     }
 
@@ -174,9 +196,20 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         return timedOut;
     }
 
-    /** Resume info for relocation or empty if this is a final response. */
+    /**
+     * Resume info for relocation. Only present if the task is not complete and needs to be relocated to a different node
+     * due to the current node being shut down, and a suitable destination node has been found.
+     * */
     public Optional<ResumeInfo> getTaskResumeInfo() {
         return Optional.ofNullable(resumeInfo);
+    }
+
+    /**
+     * The latest PIT ID from search responses. Used when closing the PIT to ensure we close the most recent context.
+     * Only present for PIT-based operations; not serialized in transport.
+     */
+    public Optional<BytesReference> getPitId() {
+        return Optional.ofNullable(pitId);
     }
 
     @Override
@@ -199,7 +232,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
             failure.toXContent(builder, params);
             builder.endObject();
         }
-        for (PaginatedHitSource.SearchFailure failure : searchFailures) {
+        for (PaginatedSearchFailure failure : searchFailures) {
             failure.toXContent(builder, params);
         }
         builder.endArray();

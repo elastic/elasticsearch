@@ -19,7 +19,8 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
  * A time-series aggregation function that collects the first occurrence exponential histogram of a time series in a specified interval.
  */
 @Aggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "timestamps", type = "LONG"),
         @IntermediateState(name = "values", type = "EXPONENTIAL_HISTOGRAM"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }
@@ -35,7 +36,7 @@ public class FirstExponentialHistogramByTimestampAggregator {
     }
 
     public static void combine(ExponentialHistogramStates.WithLongSingleState current, ExponentialHistogram value, long timestamp) {
-        if (timestamp < current.longValue()) {
+        if (current.isSeen() == false || timestamp < current.longValue()) {
             current.set(timestamp, value);
         }
     }

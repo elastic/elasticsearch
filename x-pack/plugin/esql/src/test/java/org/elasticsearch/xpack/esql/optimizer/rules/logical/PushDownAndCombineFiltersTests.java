@@ -90,7 +90,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.rlike;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.wildcardLike;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
-import static org.elasticsearch.xpack.esql.session.EsqlSession.newMainPlan;
+import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.newMainPlan;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -2451,4 +2451,5 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
         as(bottomFilter.child(), EsRelation.class);
     }
+
 }

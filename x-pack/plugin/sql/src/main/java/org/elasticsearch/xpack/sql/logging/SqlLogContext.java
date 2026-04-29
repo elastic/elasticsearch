@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.sql.logging;
 
-import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
+import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 
-public class SqlLogContext extends ActivityLoggerContext {
+public class SqlLogContext extends QueryLoggerContext {
     public static final String TYPE = "sql";
     private final SqlQueryRequest request;
     private final SqlQueryResponse response;
@@ -29,11 +29,19 @@ public class SqlLogContext extends ActivityLoggerContext {
         this.response = null;
     }
 
-    String getQuery() {
+    @Override
+    public String getQuery() {
         return request.query();
     }
 
-    long getRows() {
-        return response == null ? 0 : response.size();
+    @Override
+    public int getResultCount() {
+        return Math.clamp(response == null ? 0 : response.size(), 0, Integer.MAX_VALUE);
+    }
+
+    @Override
+    public String[] getIndices() {
+        // TODO: figure out how to extract indices for SQL
+        return null;
     }
 }

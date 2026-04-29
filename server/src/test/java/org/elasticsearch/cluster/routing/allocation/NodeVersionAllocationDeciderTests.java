@@ -596,7 +596,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final ShardRouting primaryShard = clusterState.routingTable(projectId).shardRoutingTable(shardId).primaryShard();
         final ShardRouting replicaShard = clusterState.routingTable(projectId).shardRoutingTable(shardId).replicaShards().get(0);
 
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         routingAllocation.debugDecision(true);
 
         final NodeVersionAllocationDecider allocationDecider = new NodeVersionAllocationDecider();
@@ -684,7 +684,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             RoutingChangesObserver.NOOP,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
-        routingAllocation = new RoutingAllocation(null, routingNodes, clusterState, null, null, 0);
+        routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).routingNodes(routingNodes).mutable();
         routingAllocation.debugDecision(true);
 
         decision = allocationDecider.canAllocate(replicaShard, oldNode, routingAllocation);
@@ -705,7 +705,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             RoutingChangesObserver.NOOP,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
-        routingAllocation = new RoutingAllocation(null, routingNodes, clusterState, null, null, 0);
+        routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).routingNodes(routingNodes).mutable();
         routingAllocation.debugDecision(true);
 
         decision = allocationDecider.canAllocate(replicaShard, newNode, routingAllocation);

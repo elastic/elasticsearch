@@ -10,7 +10,7 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene103.Lucene103PostingsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -104,7 +104,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         );
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
 
-        Class<? extends PostingsFormat> expectedPostingsFormat = timeSeries ? ES812PostingsFormat.class : Lucene103PostingsFormat.class;
+        Class<? extends PostingsFormat> expectedPostingsFormat = timeSeries ? ES812PostingsFormat.class : Lucene104PostingsFormat.class;
         assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(expectedPostingsFormat));
     }
 
@@ -145,7 +145,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
         // standard index mode
         perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.STANDARD, MAPPING_1);
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(Lucene103PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(Lucene104PostingsFormat.class));
 
         perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.STANDARD, MAPPING_1);
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
@@ -221,8 +221,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (timeSeries) {
             settings.put(IndexSettings.MODE.getKey(), "time_series");
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
-        }
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
             settings.put(IndexSettings.SYNTHETIC_ID.getKey(), syntheticId);
         }
         if (disableBloomFilter) {
@@ -332,7 +330,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (mode == IndexMode.TIME_SERIES) {
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
         }
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && syntheticId != null) {
+        if (syntheticId != null) {
             settings.put(IndexSettings.SYNTHETIC_ID.getKey(), syntheticId);
         }
         if (enableES87TSDBCodec != null) {
@@ -350,6 +348,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     private static boolean syntheticId(boolean timeSeries) {
-        return IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && timeSeries && randomBoolean();
+        return timeSeries && randomBoolean();
     }
 }

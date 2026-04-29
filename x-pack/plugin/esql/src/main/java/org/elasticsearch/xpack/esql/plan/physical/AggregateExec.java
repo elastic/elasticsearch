@@ -145,29 +145,6 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     }
 
     /**
-     * Used only for bwc when de-/serializing.
-     */
-    @Deprecated
-    private enum Mode {
-        SINGLE,
-        PARTIAL, // maps raw inputs to intermediate outputs
-        FINAL; // maps intermediate inputs to final outputs
-
-        static Mode fromAggregatorMode(AggregatorMode aggregatorMode) {
-            return switch (aggregatorMode) {
-                case SINGLE -> SINGLE;
-                case INITIAL -> PARTIAL;
-                case FINAL -> FINAL;
-                // If needed, we could have this return an PARTIAL instead; that's how intermediate aggs were encoded in the past for
-                // data node level reduction.
-                case INTERMEDIATE -> throw new UnsupportedOperationException(
-                    "cannot turn intermediate aggregation into single, partial or final."
-                );
-            };
-        }
-    }
-
-    /**
      * Aggregations are usually performed in two steps, first partial (e.g. locally on a data node) then final (on the coordinator node).
      * These are the intermediate attributes output by a partial aggregation or consumed by a final one.
      * C.f. {@link org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders#intermediateAttributes}.

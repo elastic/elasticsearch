@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -28,7 +28,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.inference.InferenceException;
-import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.ccsM
 import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getInferenceInfo;
 import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getResultFromFuture;
 
-public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
+public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder> {
     public static final String NAME = "semantic";
 
     public static final NodeFeature SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = new NodeFeature("semantic_query.multiple_inference_ids");
@@ -306,15 +306,15 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
         if (fieldType == null) {
             return new MatchNoneQueryBuilder();
-        } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+        } else if (fieldType instanceof SemanticFieldMapper.SemanticFieldType semanticFieldType) {
             if (inferenceResultsMap == null) {
                 // This should never happen, but throw on it in case it ever does
                 throw new IllegalStateException(
-                    "No inference results set for [" + semanticTextFieldType.typeName() + "] field [" + fieldName + "]"
+                    "No inference results set for [" + semanticFieldType.typeName() + "] field [" + fieldName + "]"
                 );
             }
 
-            String inferenceId = semanticTextFieldType.getSearchInferenceId();
+            String inferenceId = semanticFieldType.getSearchInferenceId();
             InferenceResults inferenceResults = getSingleInferenceResult(inferenceResultsMap);
             if (inferenceResults == null) {
                 inferenceResults = inferenceResultsMap.get(
@@ -325,7 +325,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             if (inferenceResults == null) {
                 throw new IllegalStateException(
                     "No inference results set for ["
-                        + semanticTextFieldType.typeName()
+                        + semanticFieldType.typeName()
                         + "] field ["
                         + fieldName
                         + "] with inference ID ["
@@ -334,7 +334,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 );
             }
 
-            return semanticTextFieldType.semanticQuery(inferenceResults, searchExecutionContext.requestSize(), boost(), queryName());
+            return semanticFieldType.semanticQuery(inferenceResults, searchExecutionContext.requestSize(), boost(), queryName());
         } else if (lenient != null && lenient) {
             return new MatchNoneQueryBuilder();
         } else {

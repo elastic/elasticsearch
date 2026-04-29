@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 145625
+summary: Improve error message when TS rejects non-TSDS indices
+type: enhancement

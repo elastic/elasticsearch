@@ -12,7 +12,8 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
-import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 
 final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     private final ESVectorUtilSupport vectorUtilSupport;
@@ -32,19 +33,25 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     }
 
     @Override
-    public ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
+    public ES940OSQVectorsScorer newES940OSQVectorsScorer(
         IndexInput input,
         byte queryBits,
         byte indexBits,
         int dimension,
         int dataLength,
-        int bulkSize
+        int bulkSize,
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) {
-        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
+        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
     }
 
     @Override
     public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) {
         return new ES92Int7VectorsScorer(input, dimension, bulkSize);
+    }
+
+    @Override
+    public ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimension, int vectorLengthInBytes) {
+        return new DefaultES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
     }
 }

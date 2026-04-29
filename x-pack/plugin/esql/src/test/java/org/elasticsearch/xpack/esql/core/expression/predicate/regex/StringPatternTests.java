@@ -107,6 +107,30 @@ public class StringPatternTests extends ESTestCase {
         assertNotNull(exactMatchRLike("foo|#"));
     }
 
+    public void testWildcardExtractPrefix() {
+        assertEquals("foo", like("foo*").extractPrefix());
+        assertNull(like("*bar").extractPrefix());
+        assertEquals("foo", like("foo*bar").extractPrefix());
+        assertEquals("foo*bar", like("foo\\*bar*").extractPrefix());
+        assertNull(like("*").extractPrefix());
+        assertEquals("exact", like("exact").extractPrefix());
+        assertEquals("foo", like("foo?bar*").extractPrefix());
+        assertNull(like("").extractPrefix());
+        assertEquals("*", like("\\*").extractPrefix());
+    }
+
+    public void testWildcardExtractSuffix() {
+        assertNull(like("foo*").extractSuffix());
+        assertEquals("bar", like("*bar").extractSuffix());
+        assertEquals("bar", like("foo*bar").extractSuffix());
+        assertNull(like("foo\\*bar*").extractSuffix());
+        assertNull(like("*").extractSuffix());
+        assertEquals("exact", like("exact").extractSuffix());
+        assertNull(like("foo?bar*").extractSuffix());
+        assertNull(like("").extractSuffix());
+        assertEquals("*", like("\\*").extractSuffix());
+    }
+
     public void testTooComplexPattern() {
         var e = expectThrows(IllegalArgumentException.class, () -> rlike("(a|b)*a(a|b){13}").createAutomaton(false));
         assertEquals("Pattern was too complex to determinize", e.getMessage());

@@ -32,8 +32,8 @@ import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
-import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,17 +70,17 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     private InterceptedInferenceKnnVectorQueryBuilder(
-        InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
+        InterceptedInferenceKnnVectorQueryBuilder other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
         boolean interceptedCcsRequest
     ) {
         super(other, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
-        this.queryVectorSupplier = null;
+        this.queryVectorSupplier = other.queryVectorSupplier;
     }
 
     private InterceptedInferenceKnnVectorQueryBuilder(
-        InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
+        InterceptedInferenceKnnVectorQueryBuilder other,
         KnnVectorQueryBuilder originalQuery,
         SetOnce<float[]> queryVectorSupplier
     ) {
@@ -140,6 +140,18 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
 
         // If present, rewrite a complete & valid query vector builder to generate the query vector
         rewritten = rewriteQueryVectorBuilder(rewritten, queryRewriteContext);
+
+        return rewritten;
+    }
+
+    @Override
+    protected QueryBuilder rewriteToOriginalQuery() {
+        QueryBuilder rewritten = originalQuery;
+        if (queryVectorSupplier != null) {
+            // We are in the process of generating a query vector for the original query. Return the current query builder to allow this to
+            // complete before we rewrite to the original query.
+            rewritten = this;
+        }
 
         return rewritten;
     }
@@ -285,8 +297,8 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         MappedFieldType fieldType = indexMetadataContext.getFieldType(getField());
         if (fieldType == null) {
             rewritten = new MatchNoneQueryBuilder();
-        } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-            rewritten = querySemanticTextField(indexMetadataContext.getLocalClusterAlias(), semanticTextFieldType);
+        } else if (fieldType instanceof SemanticFieldMapper.SemanticFieldType semanticFieldType) {
+            rewritten = querySemanticField(indexMetadataContext.getLocalClusterAlias(), semanticFieldType);
         } else {
             rewritten = queryNonSemanticTextField();
         }
@@ -313,19 +325,25 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         return originalQuery.getFieldName();
     }
 
-    private QueryBuilder querySemanticTextField(String clusterAlias, SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-        MinimalServiceSettings modelSettings = semanticTextFieldType.getModelSettings();
+    private QueryBuilder querySemanticField(String clusterAlias, SemanticFieldMapper.SemanticFieldType semanticFieldType) {
+        MinimalServiceSettings modelSettings = semanticFieldType.getModelSettings();
         if (modelSettings == null) {
             // No inference results have been indexed yet
             return new MatchNoneQueryBuilder();
-        } else if (modelSettings.taskType() != TaskType.TEXT_EMBEDDING) {
-            throw new IllegalArgumentException("Field [" + getField() + "] does not use a [" + TaskType.TEXT_EMBEDDING + "] model");
+        } else if (modelSettings.taskType() != TaskType.TEXT_EMBEDDING && modelSettings.taskType() != TaskType.EMBEDDING) {
+            throw new IllegalArgumentException(
+                "Field ["
+                    + getField()
+                    + "] requires an embedding or text embedding model, but the configured model type is ["
+                    + modelSettings.taskType()
+                    + "] which is not compatible with knn queries"
+            );
         }
 
         VectorData queryVector = originalQuery.queryVector();
         if (queryVector == null) {
             MlDenseEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(
-                new FullyQualifiedInferenceId(clusterAlias, semanticTextFieldType.getSearchInferenceId())
+                new FullyQualifiedInferenceId(clusterAlias, semanticFieldType.getSearchInferenceId())
             );
             queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
         }

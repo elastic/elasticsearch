@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilegeTests;
@@ -748,7 +749,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            mock()
+            mock(),
+            List.of()
         );
 
         assertFalse(compositeRolesStore.shouldForkRoleBuilding(Set.of()));
@@ -824,7 +826,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            effectiveRoleDescriptors::set
+            effectiveRoleDescriptors::set,
+            List.of()
         );
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
 
@@ -1010,11 +1013,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             null,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            future
+            future,
+            List.of(),
+            false
         );
         Role role = future.actionGet();
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(
                 new IndexMetadata.Builder("test").settings(
                     Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
@@ -1023,10 +1028,219 @@ public class CompositeRolesStoreTests extends ESTestCase {
             )
             .build();
         IndicesAccessControl iac = role.indices()
-            .authorize("indices:data/read/search", Collections.singleton("test"), metadata.getProject(), cache);
+            .authorize("indices:data/read/search", Collections.singleton("test"), projectMetadata, cache);
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L2.foo"));
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L3.foo"));
+    }
+
+    public void testImplicitPrivilegeProviderGrantIsApplied() {
+        final RoleDescriptor roleDescriptor = roleWithApplicationPrivilege("r1", "shield", "agent");
+        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
+        final ImplicitPrivilegesProvider provider = (rd, apds) -> List.of(
+            IndicesPrivileges.builder().indices("helicarrier-*").privileges("read").build()
+        );
+
+        final Role role = buildRoleWithImplicitProviders(Set.of(roleDescriptor), Set.of(agent), List.of(provider), true);
+
+        final IndicesAccessControl iac = role.indices()
+            .authorize(TransportSearchAction.TYPE.name(), Set.of("helicarrier-1"), singleIndexProjectMetadata("helicarrier-1"), cache);
+        assertThat(iac.getIndexPermissions("helicarrier-1"), notNullValue());
+        // Without DLS/FLS the IAC entry has no implicit-vs-explicit distinction to make; that
+        // distinction only matters for license-bypass paths. See testImplicitDlsFlsPrivilege*.
+    }
+
+    public void testImplicitPrivilegeProviderReceivesOnlyReferencedAppPrivs() {
+        final RoleDescriptor roleDescriptor = roleWithApplicationPrivilege("r1", "shield", "agent");
+        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
+        // Stored alongside [agent] but never referenced by the role descriptor; must not leak to providers.
+        final ApplicationPrivilegeDescriptor unreferenced = new ApplicationPrivilegeDescriptor(
+            "shield",
+            "director",
+            Set.of("data:admin/*"),
+            Map.of()
+        );
+
+        final List<Collection<ApplicationPrivilegeDescriptor>> seen = new ArrayList<>();
+        final ImplicitPrivilegesProvider provider = (rd, apds) -> {
+            seen.add(List.copyOf(apds));
+            return List.of();
+        };
+
+        buildRoleWithImplicitProviders(Set.of(roleDescriptor), Set.of(agent, unreferenced), List.of(provider), true);
+
+        assertThat(seen, hasSize(1));
+        assertThat(seen.get(0), contains(agent));
+    }
+
+    public void testImplicitPrivilegeProviderInvokedForRoleWithoutApplicationPrivileges() {
+        final RoleDescriptor roleDescriptor = new RoleDescriptor(
+            "r1",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("data-*").privileges("read").build() },
+            null
+        );
+
+        final AtomicInteger invocations = new AtomicInteger();
+        final ImplicitPrivilegesProvider provider = (rd, apds) -> {
+            invocations.incrementAndGet();
+            assertThat("provider should still be called with an empty app-priv collection", apds, empty());
+            return List.of();
+        };
+
+        buildRoleWithImplicitProviders(Set.of(roleDescriptor), Set.of(), List.of(provider), true);
+
+        assertThat(invocations.get(), is(1));
+    }
+
+    public void testImplicitDlsFlsPrivilegeSuppressedWhenDlsFlsDisabled() {
+        final RoleDescriptor roleDescriptor = roleWithApplicationPrivilege("r1", "shield", "agent");
+        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
+        final ImplicitPrivilegesProvider provider = (rd, apds) -> List.of(
+            IndicesPrivileges.builder()
+                .indices("helicarrier-*")
+                .privileges("read")
+                .query(new BytesArray("{\"term\":{\"clearance\":\"public\"}}"))
+                .build()
+        );
+
+        final Role enabled = buildRoleWithImplicitProviders(Set.of(roleDescriptor), Set.of(agent), List.of(provider), true);
+        final Role disabled = buildRoleWithImplicitProviders(Set.of(roleDescriptor), Set.of(agent), List.of(provider), false);
+
+        final IndicesAccessControl enabledIac = enabled.indices()
+            .authorize(TransportSearchAction.TYPE.name(), Set.of("helicarrier-1"), singleIndexProjectMetadata("helicarrier-1"), cache);
+        final IndicesAccessControl.IndexAccessControl enabledAccess = enabledIac.getIndexPermissions("helicarrier-1");
+        assertThat(enabledAccess, notNullValue());
+        assertTrue("implicit DLS grant should be marked implicit", enabledAccess.isDlsFlsImplicit());
+        assertTrue(enabledAccess.getDocumentPermissions().hasDocumentLevelPermissions());
+
+        final IndicesAccessControl disabledIac = disabled.indices()
+            .authorize(TransportSearchAction.TYPE.name(), Set.of("helicarrier-1"), singleIndexProjectMetadata("helicarrier-1"), cache);
+        // The DLS-bearing implicit grant is the only thing the provider returned, so the role
+        // ends up with no implicit access on helicarrier-* at all when DLS/FLS is disabled.
+        assertThat(disabledIac.getIndexPermissions("helicarrier-1"), nullValue());
+    }
+
+    public void testMultipleImplicitPrivilegeProvidersAreAllInvokedAndMerged() {
+        final RoleDescriptor roleDescriptor = roleWithApplicationPrivilege("r1", "shield", "agent");
+        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
+        final ImplicitPrivilegesProvider helicarrier = (rd, apds) -> List.of(
+            IndicesPrivileges.builder().indices("helicarrier-*").privileges("read").build()
+        );
+        final ImplicitPrivilegesProvider triskelion = (rd, apds) -> List.of(
+            IndicesPrivileges.builder().indices("triskelion-*").privileges("read").build()
+        );
+
+        final Role role = buildRoleWithImplicitProviders(Set.of(roleDescriptor), Set.of(agent), List.of(helicarrier, triskelion), true);
+
+        final IndicesAccessControl iac = role.indices()
+            .authorize(
+                TransportSearchAction.TYPE.name(),
+                Set.of("helicarrier-1", "triskelion-1"),
+                ProjectMetadata.builder(randomProjectIdOrDefault())
+                    .put(indexMetadata("helicarrier-1"), true)
+                    .put(indexMetadata("triskelion-1"), true)
+                    .build(),
+                cache
+            );
+        assertThat(iac.getIndexPermissions("helicarrier-1"), notNullValue());
+        assertThat(iac.getIndexPermissions("triskelion-1"), notNullValue());
+    }
+
+    public void testImplicitPrivilegesOverSameIndicesAreCollatedIntoOneGroup() {
+        final RoleDescriptor roleDescriptor = roleWithApplicationPrivilege("r1", "shield", "agent");
+        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
+        // Two providers each emit a privilege over the same indices set but with different
+        // index privileges. Collation should fold them into a single Group whose privilege
+        // is the union of both action sets.
+        final ImplicitPrivilegesProvider readProvider = (rd, apds) -> List.of(
+            IndicesPrivileges.builder().indices("helicarrier-*").privileges("read").build()
+        );
+        final ImplicitPrivilegesProvider metadataProvider = (rd, apds) -> List.of(
+            IndicesPrivileges.builder().indices("helicarrier-*").privileges("view_index_metadata").build()
+        );
+
+        final Role role = buildRoleWithImplicitProviders(
+            Set.of(roleDescriptor),
+            Set.of(agent),
+            List.of(readProvider, metadataProvider),
+            true
+        );
+
+        final List<IndicesPermission.Group> helicarrierGroups = Arrays.stream(role.indices().groups())
+            .filter(g -> Arrays.asList(g.indices()).equals(List.of("helicarrier-*")))
+            .toList();
+        assertThat("collation should produce exactly one group per unique indices set", helicarrierGroups, hasSize(1));
+
+        // The merged group's privilege grants both action sets — proving the collation
+        // unioned privileges instead of dropping one.
+        final ProjectMetadata project = singleIndexProjectMetadata("helicarrier-1");
+        assertThat(
+            role.indices()
+                .authorize(TransportSearchAction.TYPE.name(), Set.of("helicarrier-1"), project, cache)
+                .getIndexPermissions("helicarrier-1"),
+            notNullValue()
+        );
+        assertThat(
+            role.indices().authorize("indices:admin/get", Set.of("helicarrier-1"), project, cache).getIndexPermissions("helicarrier-1"),
+            notNullValue()
+        );
+    }
+
+    private static RoleDescriptor roleWithApplicationPrivilege(String roleName, String application, String privilege) {
+        return new RoleDescriptor(
+            roleName,
+            null,
+            null,
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application(application)
+                    .privileges(privilege)
+                    .resources("*")
+                    .build() },
+            null,
+            null,
+            null,
+            null
+        );
+    }
+
+    private Role buildRoleWithImplicitProviders(
+        Set<RoleDescriptor> roles,
+        Set<ApplicationPrivilegeDescriptor> storedAppPrivs,
+        List<ImplicitPrivilegesProvider> providers,
+        boolean dlsFlsEnabled
+    ) {
+        final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
+        doAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
+                Collection<ApplicationPrivilegeDescriptor>>) inv.getArguments()[3];
+            listener.onResponse(storedAppPrivs);
+            return null;
+        }).when(privilegeStore).getPrivileges(anyCollection(), anyCollection(), eq(false), anyActionListener());
+
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        CompositeRolesStore.buildRoleFromDescriptors(
+            roles,
+            new FieldPermissionsCache(Settings.EMPTY),
+            privilegeStore,
+            TestRestrictedIndices.RESTRICTED_INDICES,
+            future,
+            providers,
+            dlsFlsEnabled
+        );
+        return future.actionGet();
+    }
+
+    private static IndexMetadata indexMetadata(String name) {
+        return new IndexMetadata.Builder(name).settings(
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+        ).numberOfShards(1).numberOfReplicas(0).build();
+    }
+
+    private static ProjectMetadata singleIndexProjectMetadata(String indexName) {
+        return ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata(indexName), true).build();
     }
 
     public void testMergingBasicRoles() {
@@ -1129,7 +1343,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             privilegeStore,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            future
+            future,
+            List.of(),
+            false
         );
         Role role = future.actionGet();
 
@@ -2919,24 +3135,21 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.names()[0], equalTo("cross_cluster"));
 
         // Smoke-test for authorization
-        final Metadata indexMetadata = Metadata.builder()
-            .put(IndexMetadata.builder("index1").settings(indexSettings(IndexVersion.current(), 1, 1)))
-            .put(IndexMetadata.builder("index2").settings(indexSettings(IndexVersion.current(), 1, 1)))
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexMetadata.builder("index1").settings(indexSettings(IndexVersion.current(), 1, 1)).build(), true)
+            .put(IndexMetadata.builder("index2").settings(indexSettings(IndexVersion.current(), 1, 1)).build(), true)
             .build();
         final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
         assertThat(
-            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getProject(), emptyCache)
-                .isGranted(),
+            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index1"), projectMetadata, emptyCache).isGranted(),
             is(false == emptyRemoteRole)
         );
         assertThat(
-            role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getProject(), emptyCache)
-                .isGranted(),
+            role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("index1"), projectMetadata, emptyCache).isGranted(),
             is(false)
         );
         assertThat(
-            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index2"), indexMetadata.getProject(), emptyCache)
-                .isGranted(),
+            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index2"), projectMetadata, emptyCache).isGranted(),
             is(false)
         );
     }
@@ -3023,7 +3236,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            rds -> {}
+            rds -> {},
+            List.of()
         );
 
         final Workflow workflow = randomFrom(WorkflowResolver.allWorkflows());
@@ -3140,7 +3354,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            rds -> {}
+            rds -> {},
+            List.of()
         );
 
         final String apiKeyId = randomAlphaOfLength(20);
@@ -3938,7 +4153,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
             mockRoleBuildingExecutor,
-            roleConsumer
+            roleConsumer,
+            List.of()
         ) {
             @Override
             public void invalidateAll() {
@@ -4098,7 +4314,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             privilegeStore,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            future
+            future,
+            List.of(),
+            false
         );
         return future.actionGet();
     }

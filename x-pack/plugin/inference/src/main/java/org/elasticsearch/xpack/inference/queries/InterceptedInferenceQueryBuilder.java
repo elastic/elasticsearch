@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -211,6 +212,16 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected void postInferenceCoordinatorNodeValidate(InferenceQueryUtils.InferenceInfo inferenceInfo) {}
 
     /**
+     * Method used to rewrite to the original query when the query does not need to be intercepted. Implementations that require custom
+     * logic for this step should override this method.
+     *
+     * @return The rewritten query
+     */
+    protected QueryBuilder rewriteToOriginalQuery() {
+        return originalQuery;
+    }
+
+    /**
      * A hook for subclasses to do additional rewriting and inference result fetching while we are on the coordinator node.
      * An example usage is {@link InterceptedInferenceKnnVectorQueryBuilder} which needs to rewrite the knn queries filters.
      */
@@ -256,7 +267,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) {
+    public Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) {
         throw new UnsupportedOperationException("Query should be rewritten to a different type");
     }
 
@@ -336,7 +347,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             if (inferenceFieldCount == 0 && interceptedCcsRequest == false) {
                 // We aren't querying any inference fields and this query wasn't intercepted in a previous coordinator node rewrite.
                 // Therefore, we don't need to intercept the query.
-                rewritten = originalQuery;
+                rewritten = rewriteToOriginalQuery();
             } else if (Objects.equals(inferenceResultsMap, newInferenceResultsMap) == false) {
                 inferenceResultsErrorCheck(newInferenceResultsMap);
                 boolean newInterceptedCcsRequest = this.interceptedCcsRequest

@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -52,7 +53,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  * treated as {@link #UNSUPPORTED} by ES|QL. Fields of that type are filled with
  * {@code null} values, and no functions support them.
  * In query plans, these fields amount to
- * {@link org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute}s.
+ * {@link UnsupportedAttribute}s.
  * <p>
  * When such a type gets support in ES|QL, query plans cannot contain it
  * unless all nodes in the cluster (and remote clusters participating in the query)
@@ -378,6 +379,11 @@ public enum DataType implements Writeable {
             .estimatedSize(Long.BYTES * 2)
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
+    ),
+    PARTIAL_AGG(
+        builder().esType("partial_agg")
+            .estimatedSize(1024)
+            .supportedSince(DataTypesTransportVersions.ESQL_AGG_FROM_PARTIAL, DataTypesTransportVersions.ESQL_AGG_FROM_PARTIAL)
     ),
     AGGREGATE_METRIC_DOUBLE(
         builder().esType("aggregate_metric_double")
@@ -733,6 +739,7 @@ public enum DataType implements Writeable {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
+            && t != PARTIAL_AGG
             && t.isCounter() == false;
     }
 
@@ -822,6 +829,10 @@ public enum DataType implements Writeable {
      */
     public boolean isNumeric() {
         return isWholeNumber || isRationalNumber;
+    }
+
+    public boolean isNumericOrAmd() {
+        return isNumeric() || this == AGGREGATE_METRIC_DOUBLE;
     }
 
     /**
@@ -1166,5 +1177,10 @@ public enum DataType implements Writeable {
          * Release version for Histogram data type support
          */
         public static final TransportVersion ESQL_HISTOGRAM_DATATYPE_RELEASE = TransportVersion.fromName("esql_histogram_datatype_release");
+
+        /**
+         * Development version for partial_agg type support (used by ToPartial/FromPartial aggregate functions).
+         */
+        public static final TransportVersion ESQL_AGG_FROM_PARTIAL = TransportVersion.fromName("esql_agg_from_partial");
     }
 }

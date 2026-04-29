@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.inference.services.mistral.request.completion;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
@@ -28,7 +31,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * This class is responsible for creating a request to the Mistral chat completion model.
  * It constructs an HTTP POST request with the necessary headers and body content.
  */
-public class MistralChatCompletionRequest implements Request {
+public class MistralChatCompletionRequest implements ChatCompletionRequest {
 
     private final MistralChatCompletionModel model;
     private final UnifiedChatInput chatInput;
@@ -39,7 +42,7 @@ public class MistralChatCompletionRequest implements Request {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -51,7 +54,7 @@ public class MistralChatCompletionRequest implements Request {
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override
@@ -79,5 +82,10 @@ public class MistralChatCompletionRequest implements Request {
     @Override
     public boolean isStreaming() {
         return chatInput.stream();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

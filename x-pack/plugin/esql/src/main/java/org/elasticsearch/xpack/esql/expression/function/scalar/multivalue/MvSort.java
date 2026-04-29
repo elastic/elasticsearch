@@ -23,8 +23,9 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -61,6 +63,7 @@ import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
  */
 public class MvSort extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvSort", MvSort::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvSort.class).binary(MvSort::new).name("mv_sort");
 
     private final Expression field, order;
 
@@ -79,7 +82,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
         @Param(
             name = "field",
             type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
-            description = "Multivalue expression. If `null`, the function returns `null`."
+            description = "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
             name = "order",
@@ -146,7 +149,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         boolean ordering = true;
         if (order != null) {
             if (order.foldable() == false) {
@@ -217,7 +220,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
                 ),
                 ElementType.DOUBLE
             );
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw new IllegalArgumentException("unsupported type [" + field.dataType() + "]");
         };
     }
@@ -278,13 +281,13 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
     }
 
     private record EvaluatorFactory(
-        EvalOperator.ExpressionEvaluator.Factory field,
+        ExpressionEvaluator.Factory field,
         boolean order,
         TriFunction<BlockFactory, Block, Boolean, Block> sort,
         ElementType dataType
-    ) implements EvalOperator.ExpressionEvaluator.Factory {
+    ) implements ExpressionEvaluator.Factory {
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new MvSort.Evaluator(context.blockFactory(), field.get(context), order, sort, dataType);
         }
 
@@ -294,18 +297,18 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
         }
     }
 
-    private static class Evaluator implements EvalOperator.ExpressionEvaluator {
+    private static class Evaluator implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
 
         private final BlockFactory blockFactory;
-        private final EvalOperator.ExpressionEvaluator field;
+        private final ExpressionEvaluator field;
         private final boolean order;
         private final TriFunction<BlockFactory, Block, Boolean, Block> sort;
         private final ElementType dataType;
 
         protected Evaluator(
             BlockFactory blockFactory,
-            EvalOperator.ExpressionEvaluator field,
+            ExpressionEvaluator field,
             boolean order,
             TriFunction<BlockFactory, Block, Boolean, Block> sort,
             ElementType dataType

@@ -116,7 +116,7 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
 
     /**
      * The base class for output fields collectors.
-     * Concrete collectors would implement interfaces that correspond to their corresponding evaluating function, in addition to
+     * Concrete collectors may implement interfaces that correspond to their corresponding evaluating function, in addition to
      * extending this class.
      */
     public abstract static class OutputFieldsCollector {

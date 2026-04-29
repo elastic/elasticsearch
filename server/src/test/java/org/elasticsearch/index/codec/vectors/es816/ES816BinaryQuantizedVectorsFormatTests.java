@@ -50,11 +50,11 @@ import org.apache.lucene.search.join.CheckJoinIndex;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedKnnVectorsFormatTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,11 +68,16 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES816BinaryQuantizedVectorsFormatTests extends BaseQuantizedKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
+
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
     }
 
     static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES816BinaryQuantizedRWVectorsFormat());

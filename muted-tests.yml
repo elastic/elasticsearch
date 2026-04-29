@@ -493,3 +493,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.RefreshNodeCreditManagerTests
   method: testPeriodicWarning
   issue: https://github.com/elastic/elasticsearch-serverless/issues/6518
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testDoExecutePreservesContextIdInFinalResult
+  issue: https://github.com/elastic/elasticsearch/issues/147840

@@ -2647,16 +2647,10 @@ public class EsqlCapabilities {
         FIX_SET_WRONG_LINE_COLUMN,
 
         /**
-         * An empty list passed as a named query parameter is treated as null instead of producing an NPE.
+         * An empty list passed as a query parameter (named or positional) is treated as null
+         * instead of producing an NPE. A defined-but-null param used in an identifier or pattern
+         * position produces a clean parsing error instead of silently yielding an empty column name.
          * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
-         */
-        EMPTY_LIST_NAMED_PARAM_AS_NULL,
-
-        /**
-         * An empty list passed as an unnamed/positional query parameter is also treated as null,
-         * matching the named-param behavior. A defined-but-null param used in an identifier or
-         * pattern position now produces a clean parsing error instead of silently producing an
-         * empty column name.
          */
         EMPTY_LIST_PARAM_AS_NULL,
 

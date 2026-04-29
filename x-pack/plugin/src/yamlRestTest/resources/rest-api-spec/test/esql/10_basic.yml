@@ -892,7 +892,7 @@ version is not allowed:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ empty_list_named_param_as_null ]
+          capabilities: [ empty_list_param_as_null ]
       reason: "empty list named parameter is treated as null"
 
   - do:
@@ -952,7 +952,7 @@ version is not allowed:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ empty_list_named_param_as_null ]
+          capabilities: [ empty_list_param_as_null ]
       reason: "empty list named parameter is treated as null"
 
   - do:

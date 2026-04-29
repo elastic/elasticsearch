@@ -379,6 +379,32 @@ public class FsBlobContainerTests extends ESTestCase {
         }
     }
 
+    public void testConcurrentAtomicWriteOverwriteProtection() throws Exception {
+        restoreFileSystem();
+        final var blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final var path = createTempDir();
+        final var container = new FsBlobContainer(new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false), BlobPath.EMPTY, path);
+        final var threadCount = between(2, 8);
+        final var success = new AtomicBoolean();
+
+        startInParallel(threadCount, ignored -> {
+            final var data = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
+            try {
+                container.writeBlobAtomic(randomNonDataPurpose(), blobName, data, true);
+                assertTrue("there should be exactly one successful writer", success.compareAndSet(false, true));
+            } catch (FileAlreadyExistsException e) {
+                // expected for all but one thread
+            } catch (Exception e) {
+                fail(e, "unexpected exception");
+            }
+        });
+
+        assertTrue("there should be exactly one successful writer", success.get());
+        for (final String blob : container.listBlobs(randomPurpose()).keySet()) {
+            assertFalse("unexpected temp blob [" + blob + "]", FsBlobContainer.isTempBlobName(blob));
+        }
+    }
+
     public void testCopy() throws Exception {
         // without this, on CI the test sometimes fails with
         // java.nio.file.ProviderMismatchException: mismatch, expected: class org.elasticsearch.common.blobstore.fs.FsBlobContainerTests$1,

@@ -742,6 +742,7 @@ public class Reindexer {
             if (task.isLeader()) {
                 // note: treats parent as source-of-truth for RPS, meaning if child was directly rethrottled, its RPS value will be ignored.
                 float capturedRPS = task.getLeaderState().captureRequestsPerSecondForRelocation();
+                request.setRequestsPerSecond(capturedRPS);
                 final long incompleteSlices = resumeInfo.slices().values().stream().filter(s -> s.isCompleted() == false).count();
                 assert incompleteSlices > 0 : "leader shouldn't produce ResumeInfo when all slices are complete";
                 final float perSliceRPS = capturedRPS / incompleteSlices;
@@ -761,6 +762,7 @@ public class Reindexer {
                 patchedResumeInfo = new ResumeInfo(resumeInfo.relocationOrigin(), null, patched, sourceTaskResult);
             } else {
                 final float capturedRPS = task.getWorkerState().captureRequestsPerSecondForRelocation();
+                request.setRequestsPerSecond(capturedRPS);
                 patchedResumeInfo = new ResumeInfo(
                     resumeInfo.relocationOrigin(),
                     resumeInfo.worker().withRequestsPerSecond(capturedRPS),

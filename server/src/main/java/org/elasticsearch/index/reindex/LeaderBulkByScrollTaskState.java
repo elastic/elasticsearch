@@ -149,6 +149,7 @@ public class LeaderBulkByScrollTaskState {
     /// Throws 503 if the RPS has already been captured for relocation, meaning the task is mid-relocation and the
     /// caller should retry after the relocation completes. If we apply RPS then relocated task would resume with old RPS value.
     public synchronized void setRequestsPerSecondWithRelocationGuard(float rps) {
+        assert rps > 0 : "requests per second must be greater than 0 but was [" + rps + "]";
         if (capturedRpsForRelocation) {
             throw new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.SERVICE_UNAVAILABLE);
         }

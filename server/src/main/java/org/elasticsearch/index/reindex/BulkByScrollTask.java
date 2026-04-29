@@ -866,6 +866,7 @@ public class BulkByScrollTask extends CancellableTask {
 
         /** Returns a copy of this status with the given {@code requestsPerSecond}, all other fields unchanged. */
         public Status withRequestsPerSecond(float requestsPerSecond) {
+            assert sliceStatuses.isEmpty() : "withRequestsPerSecond should only be called on leaf (non-merged) Status";
             return new Status(
                 sliceId,
                 total,

@@ -29,10 +29,6 @@ dependencies {
   javaRestTestImplementation "org.elasticsearch.test:framework:${elasticsearchVersion}"
 }
 
-tasks.named("javaRestTest").configure {
-  systemProperty 'tests.security.manager', 'false'
-}
-
 testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'

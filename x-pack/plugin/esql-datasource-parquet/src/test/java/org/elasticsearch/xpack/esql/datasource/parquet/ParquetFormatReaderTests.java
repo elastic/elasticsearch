@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.NanoTime;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -190,6 +191,66 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testReadCompressedSnappy() throws Exception {
+        assertCompressedReadRoundTrip(CompressionCodecName.SNAPPY);
+    }
+
+    public void testReadCompressedGzip() throws Exception {
+        assertCompressedReadRoundTrip(CompressionCodecName.GZIP);
+    }
+
+    public void testReadCompressedZstd() throws Exception {
+        assertCompressedReadRoundTrip(CompressionCodecName.ZSTD);
+    }
+
+    public void testReadCompressedLz4Raw() throws Exception {
+        assertCompressedReadRoundTrip(CompressionCodecName.LZ4_RAW);
+    }
+
+    private void assertCompressedReadRoundTrip(CompressionCodecName codec) throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group group1 = factory.newGroup();
+            group1.add("id", 1L);
+            group1.add("name", "Alice");
+            group1.add("score", 95.5);
+
+            Group group2 = factory.newGroup();
+            group2.add("id", 2L);
+            group2.add("name", "Bob");
+            group2.add("score", 87.3);
+
+            return List.of(group1, group2);
+        }, codec);
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(95.5, ((DoubleBlock) page.getBlock(2)).getDouble(0), 0.001);
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            assertEquals(87.3, ((DoubleBlock) page.getBlock(2)).getDouble(1), 0.001);
+
+            assertFalse(iterator.hasNext());
+        }
+    }
+
     public void testReadWithColumnProjection() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)
@@ -303,6 +364,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // of increasing byte size when it flushes at the 1 KB row-group threshold.
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
                 .withRowGroupSize(1024L)
@@ -1547,6 +1610,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
         String padding = "x".repeat(200);
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
                 .withRowGroupSize(4 * 1024L)
@@ -1564,6 +1629,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     private byte[] createParquetFile(MessageType schema, GroupCreator groupCreator) throws IOException {
+        return createParquetFile(schema, groupCreator, CompressionCodecName.UNCOMPRESSED);
+    }
+
+    private byte[] createParquetFile(MessageType schema, GroupCreator groupCreator, CompressionCodecName codec) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         OutputFile outputFile = createOutputFile(outputStream);
@@ -1573,11 +1642,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withCompressionCodec(codec)
                 .build()
         ) {
-
             for (Group group : groups) {
                 writer.write(group);
             }

@@ -2429,29 +2429,26 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 }
                                 long minVal = skipper.minValue(0);
                                 long maxVal = skipper.maxValue(0);
-                                if (maxVal < lowerValue || minVal > upperValue) {
-                                    iterDoc = skipper.maxDocID(0) + 1;
-                                    continue;
-                                }
                                 int firstDocInBlock = Math.max(iterDoc, skipper.minDocID(0));
                                 int lastDocInBlock = skipper.maxDocID(0);
                                 if (lowerValue <= minVal && maxVal <= upperValue) {
                                     return iterDoc = firstDocInBlock;
-                                }
-                                int firstNBlock = firstDocInBlock >>> numericBlockShift;
-                                int lastNBlock = lastDocInBlock >>> numericBlockShift;
-                                for (int nbId = firstNBlock; nbId <= lastNBlock; nbId++) {
-                                    if (nbId != cachedNBlockId) {
-                                        rangeMatches.clear();
-                                        loadBlock(nbId);
-                                        ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, rangeMatches.getBits());
-                                        cachedNBlockId = nbId;
-                                    }
-                                    int firstInNBlock = nbId == firstNBlock ? firstDocInBlock & numericBlockMask : 0;
-                                    int lastInNBlock = nbId == lastNBlock ? lastDocInBlock & numericBlockMask : numericBlockMask;
-                                    int bit = rangeMatches.nextSetBit(firstInNBlock, lastInNBlock + 1);
-                                    if (bit != NO_MORE_DOCS) {
-                                        return iterDoc = (nbId << numericBlockShift) + bit;
+                                } else if (minVal <= upperValue && lowerValue <= maxVal) {
+                                    int firstNBlock = firstDocInBlock >>> numericBlockShift;
+                                    int lastNBlock = lastDocInBlock >>> numericBlockShift;
+                                    for (int nbId = firstNBlock; nbId <= lastNBlock; nbId++) {
+                                        if (nbId != cachedNBlockId) {
+                                            rangeMatches.clear();
+                                            loadBlock(nbId);
+                                            ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, rangeMatches.getBits());
+                                            cachedNBlockId = nbId;
+                                        }
+                                        int firstInNBlock = nbId == firstNBlock ? firstDocInBlock & numericBlockMask : 0;
+                                        int lastInNBlock = nbId == lastNBlock ? lastDocInBlock & numericBlockMask : numericBlockMask;
+                                        int bit = rangeMatches.nextSetBit(firstInNBlock, lastInNBlock + 1);
+                                        if (bit != NO_MORE_DOCS) {
+                                            return iterDoc = (nbId << numericBlockShift) + bit;
+                                        }
                                     }
                                 }
                                 iterDoc = lastDocInBlock + 1;
@@ -2508,10 +2505,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                         return;
                                     }
                                 }
-                                int blockMinDoc = skipper.minDocID(0);
-                                int blockMaxDoc = skipper.maxDocID(0);
-                                int firstDocInRange = Math.max(iterDoc, blockMinDoc);
-                                int lastDocInRange = Math.min(blockMaxDoc, upTo - 1);
+                                int firstDocInRange = Math.max(iterDoc, skipper.minDocID(0));
+                                int lastDocInRange = Math.min(skipper.maxDocID(0), upTo - 1);
                                 long minVal = skipper.minValue(0);
                                 long maxVal = skipper.maxValue(0);
                                 if (lowerValue <= minVal && maxVal <= upperValue) {
@@ -2520,9 +2515,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                     int firstNBlock = firstDocInRange >>> numericBlockShift;
                                     int lastNBlock = lastDocInRange >>> numericBlockShift;
                                     for (int nbId = firstNBlock; nbId <= lastNBlock; nbId++) {
-                                        rangeMatches.clear();
-                                        loadBlock(nbId);
-                                        ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, rangeMatches.getBits());
+                                        if (nbId != cachedNBlockId) {
+                                            rangeMatches.clear();
+                                            loadBlock(nbId);
+                                            ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, rangeMatches.getBits());
+                                            cachedNBlockId = nbId;
+                                        }
                                         int firstInNBlock = nbId == firstNBlock ? firstDocInRange & numericBlockMask : 0;
                                         int lastInNBlock = nbId == lastNBlock ? lastDocInRange & numericBlockMask : numericBlockMask;
                                         rangeMatches.forEach(

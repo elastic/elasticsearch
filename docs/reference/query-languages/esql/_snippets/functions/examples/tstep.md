@@ -17,8 +17,8 @@ FROM sample_data
 
 
 The returned `bucket` values are the end timestamps of each bucket.
-Boundaries are generated as `range_start + n * step` (UTC), and each bucket
-represents `(bucket_end - step, bucket_end]`.
+Boundaries are generated as `range_start + n * w` (UTC) for bucket width `w`, and each bucket
+represents `(bucket_end - w, bucket_end]`.
 
 The same query with explicit bounds:
 

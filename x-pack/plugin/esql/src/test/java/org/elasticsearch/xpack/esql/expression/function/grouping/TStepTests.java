@@ -108,24 +108,42 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             Instant.parse("2024-01-01T12:04:00Z"),
             Instant.parse("2024-01-01T12:32:00Z")
         );
-        // count=2 over a 1h40m range -> picks 1h step; same result as explicit "1 hour" bounds test
+        // count=2 over a 1h40m range -> derives exact 50 minute step from the requested range
         dateCasesWithBucketCount(
             suppliers,
-            "bucket count 2 over 1h40m range gives 1h step",
+            "bucket count 2 over 1h40m range gives 50 minute step",
             () -> Instant.parse("2024-01-01T12:45:00Z").toEpochMilli(),
             2,
             Instant.parse("2024-01-01T12:15:00Z"),
             Instant.parse("2024-01-01T13:55:00Z"),
-            Instant.parse("2024-01-01T13:15:00Z")
+            Instant.parse("2024-01-01T13:05:00Z")
         );
         dateNanosCasesWithBucketCount(
             suppliers,
-            "date_nanos bucket count 2 over 1h40m range gives 1h step",
+            "date_nanos bucket count 2 over 1h40m range gives 50 minute step",
             () -> DateUtils.toLong(Instant.parse("2024-01-01T12:45:00Z")),
             2,
             Instant.parse("2024-01-01T12:15:00Z"),
             Instant.parse("2024-01-01T13:55:00Z"),
-            Instant.parse("2024-01-01T13:15:00Z")
+            Instant.parse("2024-01-01T13:05:00Z")
+        );
+        dateCasesWithBucketCount(
+            suppliers,
+            "misaligned bucket count 60 over 1h range keeps 1 minute step",
+            () -> Instant.parse("2024-01-01T10:01:10Z").toEpochMilli(),
+            60,
+            Instant.parse("2024-01-01T10:00:30Z"),
+            Instant.parse("2024-01-01T11:00:30Z"),
+            Instant.parse("2024-01-01T10:01:30Z")
+        );
+        dateNanosCasesWithBucketCount(
+            suppliers,
+            "date_nanos misaligned bucket count 60 over 1h range keeps 1 minute step",
+            () -> DateUtils.toLong(Instant.parse("2024-01-01T10:01:10Z")),
+            60,
+            Instant.parse("2024-01-01T10:00:30Z"),
+            Instant.parse("2024-01-01T11:00:30Z"),
+            Instant.parse("2024-01-01T10:01:30Z")
         );
         return parameterSuppliersFromTypedData(suppliers);
     }

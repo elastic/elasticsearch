@@ -165,3 +165,7 @@ org.elasticsearch.cluster.SnapshotDeletionsInProgress$Entry#<init>(org.elasticse
 @defaultMessage Use a Thread constructor with a name, anonymous threads are more difficult to debug
 java.lang.Thread#<init>(java.lang.Runnable)
 java.lang.Thread#<init>(java.lang.ThreadGroup, java.lang.Runnable)
+
+@defaultMessage Use Strings#toTruncatedString(ChunkedToXContent) or its overloads to avoid unbounded memory use when serializing large responses
+org.elasticsearch.common.Strings#toString(org.elasticsearch.common.xcontent.ChunkedToXContent)
+org.elasticsearch.common.Strings#toString(org.elasticsearch.common.xcontent.ChunkedToXContent, boolean, boolean)

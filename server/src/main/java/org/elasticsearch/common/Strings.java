@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -768,6 +769,21 @@ public class Strings {
     }
 
     /**
+     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
+     * up to 1 mebibyte; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out instead.
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     * @param pretty True if the content should be pretty-printed. Also see {@link XContentBuilder#prettyPrint()}.
+     * @param human True if the values should be printed in a human-readable way. Also see {@link XContentBuilder#humanReadable()}}.
+     */
+    public static String toTruncatedString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
+        return toTruncatedString(chunkedToXContent, 1024 * 1024 /* 1 MiB */, pretty, human).appendIfTruncated("[...]");
+    }
+
+    /**
      * Returns a {@link TruncatedString} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will
      * be truncated up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be
      * printed out instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values
@@ -857,6 +873,7 @@ public class Strings {
      * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
      */
     @Deprecated
+    @SuppressForbidden(reason = "overload of a forbidden method")
     public static String toString(ChunkedToXContent chunkedToXContent) {
         return toString(chunkedToXContent, false, false);
     }

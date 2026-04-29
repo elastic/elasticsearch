@@ -545,6 +545,64 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
     }
 
+    /**
+     * Verifies that when a source field carries an array of inputs, each chunk in the new format records the originating
+     * {@code input_index} (0-based) within that source-field input array.
+     */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testInputIndexForMultipleInputs() throws Exception {
+        assumeFalse("input_index is only emitted in the non-legacy format", useLegacyFormat);
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
+        StaticModel model = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        List<String> inputs = List.of("alpha input", "beta input", "gamma input");
+        for (String input : inputs) {
+            model.putResult(input, randomChunkedInferenceEmbedding(model, List.of(input)));
+        }
+
+        ShardBulkInferenceActionFilter filter = createFilter(
+            threadPool,
+            Map.of(model.getInferenceEntityId(), model),
+            NOOP_INDEXING_PRESSURE,
+            useLegacyFormat,
+            inferenceStats
+        );
+
+        CountDownLatch chainExecuted = new CountDownLatch(1);
+        ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
+            try {
+                BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
+                IndexRequest actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[0].request());
+                Map<String, Object> inferenceFields = (Map<String, Object>) XContentMapValues.extractValue(
+                    InferenceMetadataFieldsMapper.NAME,
+                    actualRequest.sourceAsMap()
+                );
+                assertNotNull(inferenceFields);
+                List<Object> chunks = (List<Object>) XContentMapValues.extractValue("field1.inference.chunks.field1", inferenceFields);
+                assertNotNull(chunks);
+                assertThat(chunks.size(), equalTo(inputs.size()));
+                for (int i = 0; i < chunks.size(); i++) {
+                    Map<String, Object> chunkMap = (Map<String, Object>) chunks.get(i);
+                    assertThat("chunk " + i + " input_index", chunkMap.get("input_index"), equalTo(i));
+                }
+            } finally {
+                chainExecuted.countDown();
+            }
+        };
+        ActionListener actionListener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+
+        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
+            "field1",
+            new InferenceFieldMetadata("field1", model.getInferenceEntityId(), new String[] { "field1" }, null)
+        );
+        BulkItemRequest[] items = new BulkItemRequest[1];
+        items[0] = new BulkItemRequest(0, new IndexRequest("index").source(Map.of("field1", inputs)));
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        request.setInferenceFieldMap(inferenceFieldMap);
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+    }
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testManyRandomDocs() throws Exception {
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();

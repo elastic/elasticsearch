@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -16,6 +17,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -61,6 +63,7 @@ class SemanticFieldValueFetcher implements ValueFetcher {
     private Scorer childScorer;
     private SourceLoader.SyntheticFieldLoader.DocValuesLoader dvLoader;
     private OffsetSourceField.OffsetSourceLoader offsetsLoader;
+    private NumericDocValues inputIndexDV;
 
     SemanticFieldValueFetcher(
         SemanticFieldMapper.SemanticFieldType fieldType,
@@ -94,6 +97,10 @@ class SemanticFieldValueFetcher implements ValueFetcher {
 
             var terms = context.reader().terms(getOffsetsFieldName(fieldType.name()));
             offsetsLoader = terms != null ? OffsetSourceField.loader(terms) : null;
+
+            inputIndexDV = fieldType.getInputIndexField() != null
+                ? context.reader().getNumericDocValues(fieldType.getInputIndexField().fullPath())
+                : null;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -123,7 +130,7 @@ class SemanticFieldValueFetcher implements ValueFetcher {
         Map<String, String> originalValueMap = new HashMap<>();
         List<Object> chunks = new ArrayList<>();
 
-        iterateChildDocs(doc, it, offset -> {
+        iterateChildDocs(doc, it, (offset, inputIndex) -> {
             var rawValue = originalValueMap.computeIfAbsent(offset.field(), k -> {
                 var valueObj = XContentMapValues.extractValue(offset.field(), source.source(), null);
                 var values = SemanticTextUtils.nodeStringValues(offset.field(), valueObj).stream().toList();
@@ -139,13 +146,14 @@ class SemanticFieldValueFetcher implements ValueFetcher {
     private List<Object> fetchFullField(Source source, int doc, DocIdSetIterator it) throws IOException {
         Map<String, List<SemanticTextField.Chunk>> chunkMap = new LinkedHashMap<>();
 
-        iterateChildDocs(doc, it, offset -> {
+        iterateChildDocs(doc, it, (offset, inputIndex) -> {
             var fullChunks = chunkMap.computeIfAbsent(offset.field(), k -> new ArrayList<>());
             fullChunks.add(
                 new SemanticTextField.Chunk(
                     null,
                     offset.start(),
                     offset.end(),
+                    inputIndex,
                     rawEmbeddings(embeddingsFieldLoader::write, source.sourceContentType())
                 )
             );
@@ -171,8 +179,11 @@ class SemanticFieldValueFetcher implements ValueFetcher {
         );
     }
 
-    private void iterateChildDocs(int doc, DocIdSetIterator it, CheckedConsumer<OffsetSourceFieldMapper.OffsetSource, IOException> action)
-        throws IOException {
+    private void iterateChildDocs(
+        int doc,
+        DocIdSetIterator it,
+        CheckedBiConsumer<OffsetSourceFieldMapper.OffsetSource, Integer, IOException> action
+    ) throws IOException {
         while (it.docID() < doc) {
             if (mode == Mode.FULL_FIELD) {
                 if (dvLoader == null || dvLoader.advanceToDoc(it.docID()) == false) {
@@ -189,7 +200,12 @@ class SemanticFieldValueFetcher implements ValueFetcher {
                 );
             }
 
-            action.accept(offset);
+            int inputIndex = -1;
+            if (inputIndexDV != null && inputIndexDV.advanceExact(it.docID())) {
+                inputIndex = (int) inputIndexDV.longValue();
+            }
+
+            action.accept(offset, inputIndex);
 
             if (it.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
                 break;

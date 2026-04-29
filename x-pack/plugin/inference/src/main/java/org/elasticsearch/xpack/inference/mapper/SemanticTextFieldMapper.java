@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -54,6 +55,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_CHUNK_INPUT_INDEX;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
@@ -63,6 +65,7 @@ import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_INPUT_INDEX_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
@@ -306,6 +309,15 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 chunksField.add(chunkTextField);
             } else {
                 chunksField.add(new OffsetSourceFieldMapper.Builder(CHUNKED_OFFSET_FIELD));
+                if (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_CHUNK_INPUT_INDEX)) {
+                    chunksField.add(
+                        NumberFieldMapper.Builder.docValuesOnly(
+                            CHUNKED_INPUT_INDEX_FIELD,
+                            NumberFieldMapper.NumberType.INTEGER,
+                            indexSettings
+                        )
+                    );
+                }
             }
             return chunksField;
         }

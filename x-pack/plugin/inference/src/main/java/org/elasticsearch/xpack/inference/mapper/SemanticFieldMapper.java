@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -85,6 +86,7 @@ import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_INPUT_INDEX_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKING_SETTINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
@@ -763,6 +765,12 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 offsetsField.parse(subContext);
             }
         }
+        if (chunk.inputIndex() >= 0) {
+            FieldMapper inputIndexField = fieldType.getInputIndexField();
+            if (inputIndexField != null) {
+                context.doc().add(new NumericDocValuesField(inputIndexField.fullPath(), chunk.inputIndex()));
+            }
+        }
     }
 
     protected SemanticFieldMapper addDynamicUpdate(DocumentParserContext context, SemanticTextField field) {
@@ -856,6 +864,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         public FieldMapper getOffsetsField() {
             return (FieldMapper) getChunksField().getMapper(CHUNKED_OFFSET_FIELD);
+        }
+
+        @Nullable
+        public FieldMapper getInputIndexField() {
+            return (FieldMapper) getChunksField().getMapper(CHUNKED_INPUT_INDEX_FIELD);
         }
 
         @Override

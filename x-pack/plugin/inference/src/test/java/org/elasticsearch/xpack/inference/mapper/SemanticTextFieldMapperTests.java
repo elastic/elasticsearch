@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -1404,10 +1405,22 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             assertThat(textMapper, instanceOf(KeywordFieldMapper.class));
             KeywordFieldMapper textFieldMapper = (KeywordFieldMapper) textMapper;
             assertThat(textFieldMapper.fieldType().indexType(), equalTo(IndexType.NONE));
+            assertNull(semanticTextFieldType.getInputIndexField());
         } else {
             assertNull(textMapper);
             var offsetMapper = semanticTextFieldType.getOffsetsField();
             assertThat(offsetMapper, instanceOf(OffsetSourceFieldMapper.class));
+
+            var inputIndexMapper = semanticTextFieldType.getInputIndexField();
+            if (indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_CHUNK_INPUT_INDEX)) {
+                assertThat(inputIndexMapper, instanceOf(NumberFieldMapper.class));
+                NumberFieldMapper inputIndexFieldMapper = (NumberFieldMapper) inputIndexMapper;
+                assertThat(inputIndexFieldMapper.fieldType().typeName(), equalTo("integer"));
+                assertFalse(inputIndexFieldMapper.fieldType().indexType().hasPoints());
+                assertTrue(inputIndexFieldMapper.fieldType().hasDocValues());
+            } else {
+                assertNull(inputIndexMapper);
+            }
         }
 
         if (expectedModelSettings) {
@@ -1657,6 +1670,66 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     assertEquals(0, topDocs.totalHits.value());
                 }
             });
+        }
+    }
+
+    public void testInputIndexDocValueIsWrittenForNonLegacyChunks() throws IOException {
+        assumeFalse("input_index doc value is only emitted in the non-legacy format", useLegacyFormat);
+
+        final String fieldName = "field1";
+        final TaskType taskType = TaskType.SPARSE_EMBEDDING;
+        final Model model = TestModel.createRandomInstance(taskType);
+        when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenReturn(new MinimalServiceSettings(model));
+
+        final List<String> inputs = List.of("first input", "second input", "third input");
+        final IndexVersion indexVersion = IndexVersion.current();
+
+        XContentBuilder mapping = mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, null, null));
+        MapperService mapperService = createMapperServiceWithIndexVersion(mapping, false, indexVersion);
+
+        SemanticTextField semanticTextField = randomSemanticText(false, fieldName, model, null, inputs, XContentType.JSON);
+
+        ParsedDocument doc = mapperService.documentMapper()
+            .parse(source(b -> addSemanticTextInferenceResults(false, b, List.of(semanticTextField))));
+
+        // Three chunk nested docs followed by the parent doc.
+        List<LuceneDocument> luceneDocs = doc.docs();
+        assertEquals(inputs.size() + 1, luceneDocs.size());
+
+        String inputIndexFieldName = SemanticTextField.getInputIndexFieldName(fieldName);
+        for (int i = 0; i < inputs.size(); i++) {
+            // Nested chunk docs are emitted in source order; randomSemanticText uses sequential inputIndex starting at 0.
+            IndexableField field = luceneDocs.get(i).getField(inputIndexFieldName);
+            assertNotNull("missing input_index doc value on chunk " + i, field);
+            assertEquals("unexpected input_index on chunk " + i, i, field.numericValue().intValue());
+        }
+    }
+
+    public void testInputIndexDocValueIsAbsentForPreGateIndex() throws IOException {
+        assumeFalse("input_index doc value is only emitted in the non-legacy format", useLegacyFormat);
+
+        final String fieldName = "field1";
+        final TaskType taskType = TaskType.SPARSE_EMBEDDING;
+        final Model model = TestModel.createRandomInstance(taskType);
+        when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenReturn(new MinimalServiceSettings(model));
+
+        final List<String> inputs = List.of("first input", "second input");
+        final IndexVersion preGateVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_CHUNK_INPUT_INDEX);
+
+        XContentBuilder mapping = mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, null, null));
+        MapperService mapperService = createMapperServiceWithIndexVersion(mapping, false, preGateVersion);
+
+        SemanticTextField semanticTextField = randomSemanticText(false, fieldName, model, null, inputs, XContentType.JSON);
+
+        ParsedDocument doc = mapperService.documentMapper()
+            .parse(source(b -> addSemanticTextInferenceResults(false, b, List.of(semanticTextField))));
+
+        String inputIndexFieldName = SemanticTextField.getInputIndexFieldName(fieldName);
+        for (int i = 0; i < inputs.size(); i++) {
+            assertNull(
+                "input_index doc value should be absent on pre-gate index for chunk " + i,
+                doc.docs().get(i).getField(inputIndexFieldName)
+            );
         }
     }
 

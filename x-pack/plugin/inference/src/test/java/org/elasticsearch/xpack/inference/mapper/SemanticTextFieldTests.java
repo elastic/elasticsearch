@@ -96,6 +96,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 assertThat(actualChunk.text(), equalTo(expectedChunks.get(i).text()));
                 assertThat(actualChunk.startOffset(), equalTo(expectedChunks.get(i).startOffset()));
                 assertThat(actualChunk.endOffset(), equalTo(expectedChunks.get(i).endOffset()));
+                assertThat(actualChunk.inputIndex(), equalTo(expectedChunks.get(i).inputIndex()));
                 switch (modelSettings.taskType()) {
                     case TEXT_EMBEDDING -> {
                         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(
@@ -225,6 +226,32 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             new SemanticTextField.ParserContext(useLegacyFormat, NAME, parser.contentType())
         );
         assertThat(parsed.inference().modelSettings().endpointMetadata(), equalTo(EndpointMetadata.EMPTY_INSTANCE));
+    }
+
+    /**
+     * Verifies that chunks serialized by older nodes (or older on-disk documents) — i.e. without an {@code input_index} field —
+     * still parse and default to {@code inputIndex == -1}. This is the wire-compat behavior we rely on for mixed clusters.
+     */
+    public void testNonLegacyChunksParseWithoutInputIndex() throws IOException {
+        assumeFalse("Only applies to the non-legacy chunk format", useLegacyFormat);
+        String json = "{"
+            + "\"inference\":{"
+            + "\"inference_id\":\"test-inference-id\","
+            + "\"model_settings\":{\"service\":\"test-service\",\"task_type\":\"sparse_embedding\"},"
+            + "\"chunks\":{"
+            + "\""
+            + NAME
+            + "\":[{\"start_offset\":0,\"end_offset\":5,\"embeddings\":{\"foo\":1.0}}]"
+            + "}"
+            + "}"
+            + "}";
+        XContentParser parser = createParser(XContentType.JSON.xContent(), json);
+        SemanticTextField parsed = SemanticTextField.parse(parser, new SemanticTextField.ParserContext(false, NAME, parser.contentType()));
+        List<SemanticTextField.Chunk> chunks = parsed.inference().chunks().get(NAME);
+        assertThat(chunks.size(), equalTo(1));
+        assertThat(chunks.get(0).inputIndex(), equalTo(-1));
+        assertThat(chunks.get(0).startOffset(), equalTo(0));
+        assertThat(chunks.get(0).endOffset(), equalTo(5));
     }
 
     public void testGetDenseVectorsAsSupplier() throws IOException {
@@ -388,17 +415,24 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         // corresponding chunk.
         final List<SemanticTextField.Chunk> chunks = new ArrayList<>(inputs.size());
         int offsetAdjustment = 0;
+        int inputIndex = 0;
         Iterator<String> inputsIt = inputs.iterator();
         Iterator<ChunkedInference.Chunk> chunkIt = results.chunksAsByteReference(contentType.xContent());
         while (inputsIt.hasNext() && chunkIt.hasNext()) {
             String input = inputsIt.next();
             var chunk = chunkIt.next();
-            chunks.add(useLegacyFormat ? toSemanticTextFieldChunkLegacy(input, chunk) : toSemanticTextFieldChunk(offsetAdjustment, chunk));
+            chunks.add(
+                useLegacyFormat
+                    ? toSemanticTextFieldChunkLegacy(input, chunk)
+                    : toSemanticTextFieldChunk(inputIndex, offsetAdjustment, chunk)
+            );
 
+            inputIndex++;
             // When using the inference metadata fields format, all the input values are concatenated so that the
-            // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
-            // to apply to account for this.
-            offsetAdjustment = input.length() + 1; // Add one for separator char length
+            // chunk text offsets are expressed in the context of a single string. Accumulate the offset adjustment
+            // across all preceding inputs (including their separator chars) so that the next chunk's offsets land at
+            // the correct position in the merged string.
+            offsetAdjustment += input.length() + 1; // Add one for separator char length
         }
 
         if (inputsIt.hasNext() || chunkIt.hasNext()) {

@@ -67,7 +67,9 @@ public final class SequenceNumbersTestUtils {
         boolean expectDocValuesOnDisk,
         int expectedShards
     ) throws Exception {
-        final var index = cluster.clusterService().state().metadata().getProject().index(indexName).getIndex();
+        final var indexMetadata = cluster.clusterService().state().metadata().getProject().index(indexName);
+        assertThat("index [" + indexName + "] not found in cluster state", indexMetadata, notNullValue());
+        final var index = indexMetadata.getIndex();
         final var nbCheckedShards = new AtomicInteger();
         cluster.forEveryIndexShard(index, indexShard -> {
             final var shardId = indexShard.shardId();
@@ -255,8 +257,10 @@ public final class SequenceNumbersTestUtils {
     public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String indexName) throws Exception {
         final var future = new PlainActionFuture<Void>();
         try (var listeners = new RefCountingListener(future)) {
+            final var indexMetadataForNodes = cluster.clusterService().state().metadata().getProject().index(indexName);
+            assertThat("index [" + indexName + "] not found in cluster state", indexMetadataForNodes, notNullValue());
+            final var index = indexMetadataForNodes.getIndex();
             for (String node : cluster.nodesInclude(indexName)) {
-                final var index = cluster.clusterService().state().metadata().getProject().index(indexName).getIndex();
                 IndexService indexService = cluster.getInstance(IndicesService.class, node).indexServiceSafe(index);
                 for (IndexShard indexShard : indexService) {
                     if (indexShard.routingEntry().primary() == false) {

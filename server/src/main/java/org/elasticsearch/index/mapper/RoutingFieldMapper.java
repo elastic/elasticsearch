@@ -191,6 +191,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             SearchExecutionContext context,
             MultiTermQuery.RewriteMethod rewriteMethod
         ) {
+            failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
                 return new FuzzyQuery(
                     new Term(name(), indexedValueForSearch(value)),
@@ -212,6 +213,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
+            failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
                 if (caseInsensitive == false) {
                     Term prefix = new Term(name(), indexedValueForSearch(value));
@@ -236,6 +238,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
+            failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
                 if (getTextSearchInfo().searchAnalyzer() != null) {
                     value = normalizeWildcardPattern(name(), value, getTextSearchInfo().searchAnalyzer());

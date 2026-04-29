@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -20,6 +21,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.unit.Fuzziness;
 
 import java.util.List;
 
@@ -138,8 +140,15 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     public void testPrefixQueryDocValues() {
         Query expected = new PrefixQuery(new Term("_routing", new BytesRef("foo")), MultiTermQuery.DOC_VALUES_REWRITE);
         assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.prefixQuery("foo", null, false, MOCK_CONTEXT));
-        // doc values prefix queries are not blocked by allow_expensive_queries
-        assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.prefixQuery("foo", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
+
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.prefixQuery("foo", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertEquals(
+            "Cannot search on field [_routing] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
+            ee.getMessage()
+        );
     }
 
     public void testWildcardQueryDocValues() {
@@ -149,10 +158,43 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
             MultiTermQuery.DOC_VALUES_REWRITE
         );
         assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.wildcardQuery("foo*", null, false, MOCK_CONTEXT));
-        // doc values wildcard queries are not blocked by allow_expensive_queries
+
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.wildcardQuery("foo*", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
         assertEquals(
-            expected,
-            RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.wildcardQuery("foo*", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            "Cannot search on field [_routing] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
+            ee.getMessage()
+        );
+    }
+
+    public void testFuzzyQueryDocValues() {
+        Query expected = new FuzzyQuery(
+            new Term("_routing", new BytesRef("foo")),
+            Fuzziness.ONE.asDistance("foo"),
+            0,
+            50,
+            true,
+            MultiTermQuery.DOC_VALUES_REWRITE
+        );
+        assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.fuzzyQuery("foo", Fuzziness.ONE, 0, 50, true, MOCK_CONTEXT, null));
+
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.fuzzyQuery(
+                "foo",
+                Fuzziness.ONE,
+                0,
+                50,
+                true,
+                MOCK_CONTEXT_DISALLOW_EXPENSIVE,
+                null
+            )
+        );
+        assertEquals(
+            "Cannot search on field [_routing] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
+            ee.getMessage()
         );
     }
 }

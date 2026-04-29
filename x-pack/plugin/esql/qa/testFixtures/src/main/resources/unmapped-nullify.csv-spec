@@ -552,6 +552,7 @@ x:integer      |does_not_exist:null |language_code:integer |language_name:keywor
 
 // Reproducer for https://github.com/elastic/elasticsearch/issues/141827
 lookupJoinNullifiedMatchField
+required_capability: join_lookup_v12
 required_capability: optional_fields_fix_null_match_field_in_join_and_enrich
 
 SET unmapped_fields="nullify"\;
@@ -570,6 +571,7 @@ emp_no:integer | language_code:null | language_name:keyword
 ;
 
 lookupJoinExpressionNullifiedRight
+required_capability: join_lookup_v12
 required_capability: optional_fields_fix_null_match_field_in_join_and_enrich
 
 SET unmapped_fields="nullify"\;
@@ -604,6 +606,7 @@ language_code:integer | language_name:keyword | foobar:null
 
 enrich
 required_capability: optional_fields_nullify_tech_preview
+required_capability: enrich_load
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -617,6 +620,7 @@ x:integer      |does_not_exist:null |y:keyword | language_name:keyword
 
 // Reproducer for https://github.com/elastic/elasticsearch/issues/141827
 enrichNullifiedMatchField
+required_capability: enrich_load
 required_capability: optional_fields_fix_null_match_field_in_join_and_enrich
 
 SET unmapped_fields="nullify"\;
@@ -630,6 +634,7 @@ x:integer      | does_not_exist:null | y:null | language_name:keyword
 ;
 
 enrichNullifiedMatchFieldWithoutEval
+required_capability: enrich_load
 required_capability: optional_fields_fix_null_match_field_in_join_and_enrich
 
 SET unmapped_fields="nullify"\;

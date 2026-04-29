@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 public class DLMFrozenTransitionPlugin extends Plugin {
 
     private final List<AbstractDLMPeriodicMasterOnlyService> managedServices = new ArrayList<>();
-  
+
     protected Supplier<XPackLicenseState> getLicenseStateSupplier() {
         return XPackPlugin::getSharedLicenseState;
     }

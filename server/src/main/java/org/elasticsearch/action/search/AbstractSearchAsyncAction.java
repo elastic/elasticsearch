@@ -592,7 +592,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             buildTookInMillis(),
             failures,
             clusters,
-            searchContextId
+            searchContextId,
+            request.source(),
+            request.indices()
         );
     }
 

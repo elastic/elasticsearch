@@ -85,6 +85,15 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         return of(filteredReferences);
     }
 
+    /**
+     * Components of this composite (concatenation order), for refcount adoption in {@link ReleasableBytesReference#adopt}.
+     * The returned array is a shallow copy; callers must not replace elements in the returned array (mutating the array would not
+     * affect this composite but could confuse adoption logic).
+     */
+    BytesReference[] componentReferences() {
+        return references.clone();
+    }
+
     private CompositeBytesReference(BytesReference[] references, int[] offsets, int length, long ramBytesUsed) {
         super(length);
         assert references != null && offsets != null;

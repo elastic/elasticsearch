@@ -78,6 +78,7 @@ import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResult;
@@ -119,6 +120,7 @@ public class Reindexer {
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
     private final ClusterService clusterService;
+    private final ReindexSettings reindexSettings;
     private final ProjectResolver projectResolver;
     private final Client client;
     private final ThreadPool threadPool;
@@ -135,6 +137,7 @@ public class Reindexer {
 
     Reindexer(
         ClusterService clusterService,
+        ReindexSettings reindexSettings,
         ProjectResolver projectResolver,
         Client client,
         ThreadPool threadPool,
@@ -147,6 +150,7 @@ public class Reindexer {
         TaskResultsService taskResultsService
     ) {
         this.clusterService = clusterService;
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
         this.projectResolver = projectResolver;
         this.client = client;
         this.threadPool = threadPool;
@@ -310,14 +314,6 @@ public class Reindexer {
     }
 
     /**
-     * Returns the keep-alive duration for PIT. Uses the request's scroll time when set, otherwise defaults to 5 minutes.
-     * TODO - https://github.com/elastic/elasticsearch-team/issues/2334
-     */
-    private static TimeValue pitKeepAlive(ReindexRequest request) {
-        return request.getScrollTime() != null ? request.getScrollTime() : TimeValue.timeValueMinutes(5);
-    }
-
-    /**
      * Opens a PIT on the local cluster, runs the sliced action, and closes the PIT when done.
      */
     private void openPitAndExecute(
@@ -337,7 +333,7 @@ public class Reindexer {
             : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
 
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
-            .keepAlive(pitKeepAlive(request))
+            .keepAlive(reindexSettings.pitKeepAlive())
             .allowPartialSearchResults(false);
         if (searchRequest.getProjectRouting() != null) {
             pitRequest.projectRouting(searchRequest.getProjectRouting());
@@ -353,7 +349,7 @@ public class Reindexer {
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call
         client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, listener.delegateFailureAndWrap((l, pitResponse) -> {
             BytesReference pitId = pitResponse.getPointInTimeId();
-            request.convertSearchRequestToUsePit(pitId, pitKeepAlive(request));
+            request.convertSearchRequestToUsePit(pitId, reindexSettings.pitKeepAlive());
             ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 l,
@@ -373,8 +369,9 @@ public class Reindexer {
      * (relocation handoff to another node) or {@code shouldNotCloseOnResponse} is true (e.g. a sliced worker whose leader
      * owns the shared PIT).
      * <p>
-     * On <strong>failure</strong>: skips closing when the failure is {@link TaskRelocatedException}, or when
-     * {@link BulkByScrollTask#isRelocationRequested()} is true so a relocated task can still adopt the PIT.
+     * On <strong>failure</strong>: skips closing when the failure is {@link TaskRelocatedException}, or when the task
+     * has transitioned into {@link BulkByScrollTask.RelocationProgress.State#HANDOFF_INITIATED} so the destination
+     * can still adopt the PIT.
      * <p>
      * The wrapped listener is notified only after {@code closePit} completes (including any async remote close and
      * {@link RestClient#close()} for remote reindex).
@@ -431,7 +428,7 @@ public class Reindexer {
 
             @Override
             public void onFailure(Exception e) {
-                boolean skipClose = e instanceof TaskRelocatedException || (task != null && task.isRelocationRequested());
+                boolean skipClose = e instanceof TaskRelocatedException || (task != null && task.isRelocationHandoffInitiated());
                 if (skipClose == false) {
                     closePit.accept(pitId, ActionListener.wrap(v -> listener.onFailure(e), listener::onFailure));
                 } else {
@@ -556,8 +553,8 @@ public class Reindexer {
         SearchRequest searchRequest = request.getSearchRequest();
         String[] indices = searchRequest.indices();
         // Sends a REST request to the remote node to open a PIT
-        openPit(searchRequest, indices, pitKeepAlive(request), RejectAwareActionListener.wrap(pitId -> {
-            request.convertSearchRequestToUsePit(pitId, pitKeepAlive(request));
+        openPit(searchRequest, indices, reindexSettings.pitKeepAlive(), remoteVersion, RejectAwareActionListener.wrap(pitId -> {
+            request.convertSearchRequestToUsePit(pitId, reindexSettings.pitKeepAlive());
             ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 listenerWithRelocations,
@@ -593,9 +590,14 @@ public class Reindexer {
     /** Listener to call on a relocation response to record metrics. Visible for testing. */
     static ActionListener<ResumeBulkByScrollResponse> relocationResponseListenerWithMetrics(@Nullable final ReindexMetrics metrics) {
         return ActionListener.assertOnce(
-            metrics == null
-                ? ActionListener.noop()
-                : ActionListener.wrap(resp -> metrics.recordRelocationSuccess(), metrics::recordRelocationFailure)
+            metrics == null ? ActionListener.noop() : ActionListener.wrap(resp -> metrics.recordRelocationSuccess(), e -> {
+                if (e instanceof TaskCancelledException) {
+                    // Failure metrics should represent genuine failures, task cancellation is expected from user operation,
+                    // so skipping emitting metric
+                    return;
+                }
+                metrics.recordRelocationFailure(e);
+            })
         );
     }
 
@@ -738,7 +740,16 @@ public class Reindexer {
                 onRelocationResponseListener.onFailure(e);
                 l.onFailure(e);
             });
-            task.setRelocationHandoffInitiated();
+            // Claim the handoff on the task's RelocationProgress. If a concurrent cancel already won, we must abort
+            // relocation so the task is not resumed on the destination while the source is being cancelled.
+            if (task.tryInitiateRelocationHandoff() == false) {
+                final TaskCancelledException cancelled = new TaskCancelledException(
+                    "task cancelled before relocation handoff could begin [" + task.getReasonCancelled() + "]"
+                );
+                onRelocationResponseListener.onFailure(cancelled);
+                l.onFailure(cancelled);
+                return;
+            }
             transportService.sendRequest(
                 nodeToRelocateToNode,
                 ResumeReindexAction.NAME,

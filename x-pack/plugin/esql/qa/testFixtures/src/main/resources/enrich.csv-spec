@@ -879,3 +879,30 @@ FROM languages_lookup
 a:long  | b:long
 4       | 4
 ;
+
+
+// Tests for ENRICH on a NULL-typed match field without using SET unmapped_fields="nullify".
+// See https://github.com/elastic/elasticsearch/pull/145743#discussion_r3148119074
+enrichOnEvalNull
+required_capability: optional_fields_fix_null_match_field_in_join_and_enrich
+
+ROW x = 1
+| EVAL y = null
+| ENRICH languages_policy ON y
+;
+
+x:integer | y:null | language_name:keyword
+1         | null   | null
+;
+
+
+enrichOnRowNull
+required_capability: optional_fields_fix_null_match_field_in_join_and_enrich
+
+ROW x = 1, y = null
+| ENRICH languages_policy ON y
+;
+
+x:integer | y:null | language_name:keyword
+1         | null   | null
+;

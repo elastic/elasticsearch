@@ -13,21 +13,23 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
+import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 
 import static org.elasticsearch.search.vectors.AbstractIVFKnnVectorQuery.NO_RESULTS;
 
-class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
+class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector implements BulkKnnCollector {
 
     private long minCompetitiveDocScore;
     private float minCompetitiveSimilarity;
-    protected final NeighborQueue queue;
+    protected final BulkNeighborQueue queue;
+    private final int[] docScratch = new int[1];
+    private final float[] scoreScratch = new float[1];
 
     MaxScoreTopKnnCollector(int k, long visitLimit, KnnSearchStrategy searchStrategy) {
         super(k, visitLimit, searchStrategy);
         this.minCompetitiveDocScore = LEAST_COMPETITIVE;
         this.minCompetitiveSimilarity = Float.NEGATIVE_INFINITY;
-        this.queue = new NeighborQueue(k, false);
+        this.queue = new BulkNeighborQueue(k);
     }
 
     @Override
@@ -39,12 +41,14 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
     void updateMinCompetitiveDocScore(long minCompetitiveDocScore) {
         long queueMinCompetitiveDocScore = queue.size() >= k() ? queue.peek() : LEAST_COMPETITIVE;
         this.minCompetitiveDocScore = Math.max(this.minCompetitiveDocScore, Math.max(queueMinCompetitiveDocScore, minCompetitiveDocScore));
-        this.minCompetitiveSimilarity = NeighborQueue.decodeScoreRaw(this.minCompetitiveDocScore);
+        this.minCompetitiveSimilarity = BulkNeighborQueue.decodeScoreRaw(this.minCompetitiveDocScore);
     }
 
     @Override
     public boolean collect(int docId, float similarity) {
-        return queue.insertWithOverflow(docId, similarity);
+        docScratch[0] = docId;
+        scoreScratch[0] = similarity;
+        return bulkCollect(docScratch, scoreScratch, 1, similarity) > 0;
     }
 
     @Override
@@ -54,7 +58,7 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
     @Override
     public float minCompetitiveSimilarity() {
-        return queue.size() < k() ? Float.NEGATIVE_INFINITY : Math.max(minCompetitiveSimilarity, queue.topScore());
+        return queue.size() < k() ? Float.NEGATIVE_INFINITY : Math.max(minCompetitiveSimilarity, queue.decodeScore(queue.peek()));
     }
 
     @Override
@@ -64,10 +68,26 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
         }
         assert queue.size() <= k() : "Tried to collect more results than the maximum number allowed";
         ScoreDoc[] scoreDocs = new ScoreDoc[queue.size()];
-        for (int i = 1; i <= scoreDocs.length; i++) {
-            scoreDocs[scoreDocs.length - i] = new ScoreDoc(queue.topNode(), queue.topScore());
-            queue.pop();
+        int[] index = new int[] { scoreDocs.length - 1 };
+        queue.drain(encoded -> scoreDocs[index[0]--] = new ScoreDoc(queue.decodeNodeId(encoded), queue.decodeScore(encoded)));
+        TotalHits.Relation relation = earlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO;
+        return new TopDocs(new TotalHits(visitedCount(), relation), scoreDocs);
+    }
+
+    @Override
+    public int bulkCollect(int[] docs, float[] scores, int count, float bestScore) {
+        return queue.insertWithOverflowBulk(docs, scores, count, bestScore);
+    }
+
+    @Override
+    public TopDocs unsortedTopK() {
+        if (queue.size() == 0) {
+            return NO_RESULTS;
         }
+        assert queue.size() <= k() : "Tried to collect more results than the maximum number allowed";
+        ScoreDoc[] scoreDocs = new ScoreDoc[queue.size()];
+        int[] index = new int[1];
+        queue.drainUnsorted(encoded -> scoreDocs[index[0]++] = new ScoreDoc(queue.decodeNodeId(encoded), queue.decodeScore(encoded)));
         TotalHits.Relation relation = earlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO;
         return new TopDocs(new TotalHits(visitedCount(), relation), scoreDocs);
     }

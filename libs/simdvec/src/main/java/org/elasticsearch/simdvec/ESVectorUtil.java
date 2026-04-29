@@ -111,6 +111,42 @@ public class ESVectorUtil {
         return IMPL.dotProduct(a, b);
     }
 
+    /**
+     * Computes max-sim dot product for float query vectors against a multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    /**
+     * Computes max-sim dot product for float query vectors against a bfloat16 multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    /**
+     * Computes max-sim dot product for byte query vectors against a multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
+    }
+
     public static float squareDistance(byte[] a, byte[] b) {
         if (a.length != b.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
@@ -220,6 +256,30 @@ public class ESVectorUtil {
             distance += Integer.bitCount((a[i] & b[i]) & 0xFF);
         }
         return distance;
+    }
+
+    public static float max(float[] values, int length) {
+        Objects.checkFromIndexSize(0, length, values.length);
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < length; i++) {
+            max = Math.max(max, values[i]);
+        }
+        return max;
+    }
+
+    public static float sum(float[] values, int length) {
+        Objects.checkFromIndexSize(0, length, values.length);
+        float sum = 0f;
+        for (int i = 0; i < length; i++) {
+            sum += values[i];
+        }
+        return sum;
+    }
+
+    private static void ensureScoresScratchCapacity(MultiVectorsSource<?> source, float[] scoresScratch) {
+        if (scoresScratch.length < source.vectorCount()) {
+            throw new IllegalArgumentException("scores array too small: " + scoresScratch.length + " < " + source.vectorCount());
+        }
     }
 
     /**
@@ -366,11 +426,21 @@ public class ESVectorUtil {
      * @param v1 the second vector
      * @param v2 the third vector
      * @param v3 the fourth vector
-     * @param distances an array to store the computed square distances, must have length 4
+     * @param distancesOffset offset to the location in the distances array where we want to store the 4 results,
+     *                        we require distancesOffset to be between 0 and distances.length - 4
+     * @param distances an array to store the computed square distances, must have length >= 4
      *
      * @throws IllegalArgumentException if the dimensions of the vectors do not match or if the distances array does not have length 4
      */
-    public static void squareDistanceBulk(float[] q, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
+    public static void squareDistanceBulk(
+        float[] q,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances
+    ) {
         if (q.length != v0.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v0.length);
         }
@@ -383,10 +453,13 @@ public class ESVectorUtil {
         if (q.length != v3.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v3.length);
         }
-        if (distances.length != 4) {
-            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 4");
         }
-        IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distances);
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distancesOffset, distances);
     }
 
     public static void squareDistanceBulk(
@@ -415,7 +488,7 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
         }
         Objects.checkFromIndexSize(qOffset, length, q.length);
-        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, distances);
+        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, 0, distances);
     }
 
     /**
@@ -569,6 +642,17 @@ public class ESVectorUtil {
      */
     public static void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
         IMPL.linearCombination(scaleOther, other, scaleDest, dest);
+    }
+
+    /**
+     * Computes dest = scale * other + dest
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param dest the destination vector
+     */
+    public static void linearCombination(float scaleOther, float[] other, float[] dest) {
+        IMPL.linearCombination(scaleOther, other, dest);
     }
 
     /**

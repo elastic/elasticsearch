@@ -93,9 +93,13 @@ public class GroupingAggregatorImplementer {
     private final List<AggregatorImplementer.IntermediateStateDesc> intermediateState;
 
     private final AggregationState aggState;
+    /**
+     * The input arguments to the combine method, excluding the {@link PositionArgument} which is filtered out.
+     * Its original index in the combine signature is stored in {@link #positionParamIndex}.
+     */
     private final List<Argument> aggParams;
-    private final boolean hasOnlyBlockArguments;
-    private final boolean allArgumentsSupportVectors;
+    private final int positionParamIndex;
+    private final boolean anyArgumentSupportsVectors;
     private final boolean processNulls;
 
     public GroupingAggregatorImplementer(
@@ -136,16 +140,24 @@ public class GroupingAggregatorImplementer {
             requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
         );
 
-        this.aggParams = combine.getParameters().stream().skip(aggState.declaredType().isPrimitive() ? 1 : 2).map(v -> {
+        List<Argument> allCombineArgs = combine.getParameters().stream().skip(aggState.declaredType().isPrimitive() ? 1 : 2).map(v -> {
             Argument a = Argument.fromParameter(types, v);
             if ((a instanceof StandardArgument || a instanceof BlockArgument || a instanceof PositionArgument) == false) {
                 throw new IllegalArgumentException("unsupported argument [" + declarationType + "][" + a + "]");
             }
             return a;
-        }).filter(a -> a instanceof PositionArgument == false).toList();
+        }).toList();
+        int posIdx = -1;
+        for (int i = 0; i < allCombineArgs.size(); i++) {
+            if (allCombineArgs.get(i) instanceof PositionArgument) {
+                posIdx = i;
+                break;
+            }
+        }
+        this.positionParamIndex = posIdx;
+        this.aggParams = allCombineArgs.stream().filter(a -> a instanceof PositionArgument == false).toList();
 
-        this.hasOnlyBlockArguments = this.aggParams.stream().allMatch(a -> a instanceof BlockArgument);
-        this.allArgumentsSupportVectors = aggParams.stream().noneMatch(a -> a.supportsVectorReadAccess() == false);
+        this.anyArgumentSupportsVectors = aggParams.stream().anyMatch(a -> a instanceof StandardArgument && a.supportsVectorReadAccess());
         this.processNulls = processNulls;
 
         this.createParameters = init.getParameters()
@@ -222,7 +234,7 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(prepareProcessRawInputPage());
         for (ClassName groupIdClass : GROUP_IDS_CLASSES) {
             builder.addMethod(addRawInputLoop(groupIdClass, false));
-            if (hasOnlyBlockArguments == false && allArgumentsSupportVectors) {
+            if (anyArgumentSupportsVectors) {
                 builder.addMethod(addRawInputLoop(groupIdClass, true));
             }
             builder.addMethod(addIntermediateInput(groupIdClass));
@@ -323,8 +335,9 @@ public class GroupingAggregatorImplementer {
             Argument a = aggParams.get(i);
             builder.addStatement("$T $L = page.getBlock(channels.get($L))", a.dataType(true), a.blockName(), i);
         }
-        if (processNulls == false) {
-            for (Argument a : aggParams) {
+        for (Argument a : aggParams) {
+            // Standard arguments never accept nulls, so we can always skip if they are all-null
+            if (processNulls == false || a instanceof StandardArgument) {
                 builder.beginControlFlow("if ($L.areAllValuesNull())", a.blockName());
                 builder.addCode("""
                     /*
@@ -340,24 +353,21 @@ public class GroupingAggregatorImplementer {
         }
 
         String groupIdTrackingStatement = "maybeEnableGroupIdTracking(seenGroupIds, "
-            + aggParams.stream().map(arg -> arg.blockName()).collect(joining(", "))
+            + aggParams.stream().map(Argument::blockName).collect(joining(", "))
             + ")";
 
-        if (allArgumentsSupportVectors && hasOnlyBlockArguments == false) {
+        if (anyArgumentSupportsVectors) {
 
             for (Argument a : aggParams) {
-                builder.addStatement(
-                    "$T $L = $L.asVector()",
-                    vectorType(a.elementType()),
-                    (a instanceof BlockArgument) ? (a.name() + "Vector") : a.vectorName(),
-                    a.blockName()
-                );
-                builder.beginControlFlow("if ($L == null)", (a instanceof BlockArgument) ? (a.name() + "Vector") : a.vectorName());
-                {
-                    builder.addStatement(groupIdTrackingStatement);
-                    returnAddInput(builder, false);
+                if (a instanceof StandardArgument && a.supportsVectorReadAccess()) {
+                    builder.addStatement("$T $L = $L.asVector()", vectorType(a.elementType()), a.vectorName(), a.blockName());
+                    builder.beginControlFlow("if ($L == null)", a.vectorName());
+                    {
+                        builder.addStatement(groupIdTrackingStatement);
+                        returnAddInput(builder, false);
+                    }
+                    builder.endControlFlow();
                 }
-                builder.endControlFlow();
             }
             returnAddInput(builder, true);
         } else {
@@ -376,7 +386,11 @@ public class GroupingAggregatorImplementer {
             params.add(declarationType);
             for (Argument a : aggParams) {
                 pattern.append(", $L");
-                params.add(valuesAreVector ? a.vectorName() : a.blockName());
+                if (a instanceof BlockArgument) {
+                    params.add(a.blockName());
+                } else {
+                    params.add(valuesAreVector && a.supportsVectorReadAccess() ? a.vectorName() : a.blockName());
+                }
             }
             pattern.append(")");
             builder.addStatement(pattern.toString(), params.toArray());
@@ -420,17 +434,15 @@ public class GroupingAggregatorImplementer {
             MethodSpec.Builder builder = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
             builder.addParameter(TypeName.INT, "positionOffset").addParameter(groupIdsType, "groupIds");
 
-            if (hasOnlyBlockArguments && valuesAreVector) {
-                builder.addComment("This type does not support vectors because all values are multi-valued");
-                typeBuilder.addMethod(builder.build());
-                continue;
-            }
-
             StringBuilder pattern = new StringBuilder("addRawInput(positionOffset, groupIds");
             List<Object> params = new ArrayList<>();
             for (Argument a : aggParams) {
                 pattern.append(", $L");
-                params.add(valuesAreVector ? a.vectorName() : a.blockName());
+                if (a instanceof BlockArgument) {
+                    params.add(a.blockName());
+                } else {
+                    params.add(valuesAreVector && a.supportsVectorReadAccess() ? a.vectorName() : a.blockName());
+                }
             }
             pattern.append(")");
             builder.addStatement(pattern.toString(), params.toArray());
@@ -456,23 +468,19 @@ public class GroupingAggregatorImplementer {
         builder.addParameter(TypeName.INT, "positionOffset").addParameter(groupsType, "groups");
 
         for (Argument a : aggParams) {
-            boolean isBlockArgument = a instanceof BlockArgument;
-            TypeName typeName = isBlockArgument ? Types.elementType(a.type()) : a.type();
-            builder.addParameter(
-                valuesAreVector ? vectorType(typeName) : blockType(typeName),
-                valuesAreVector ? a.vectorName() : a.blockName()
-            );
+            if (a instanceof BlockArgument) {
+                builder.addParameter(a.dataType(true), a.blockName());
+            } else {
+                TypeName typeName = a.type();
+                boolean isVector = valuesAreVector && a.supportsVectorReadAccess();
+                builder.addParameter(isVector ? vectorType(typeName) : blockType(typeName), isVector ? a.vectorName() : a.blockName());
+            }
         }
         for (Argument a : aggParams) {
             if (a.scratchType() != null) {
                 // Add scratch var that will be used for some blocks/vectors, e.g. for bytes_ref
                 builder.addStatement("$T $L = new $T()", a.scratchType(), a.scratchName(), a.scratchType());
             }
-        }
-
-        if (hasOnlyBlockArguments && valuesAreVector) {
-            builder.addComment("This type does not support vectors because all values are multi-valued");
-            return builder.build();
         }
 
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
@@ -483,14 +491,16 @@ public class GroupingAggregatorImplementer {
                 builder.endControlFlow();
             }
             builder.addStatement("int valuesPosition = groupPosition + positionOffset");
-
-            if (valuesAreVector == false && hasOnlyBlockArguments == false) {
+            if (valuesAreVector == false) {
                 for (Argument a : aggParams) {
-                    builder.beginControlFlow("if ($L.isNull(valuesPosition))", a.blockName());
-                    builder.addStatement("continue");
-                    builder.endControlFlow();
+                    if (a instanceof StandardArgument) {
+                        builder.beginControlFlow("if ($L.isNull(valuesPosition))", a.blockName());
+                        builder.addStatement("continue");
+                        builder.endControlFlow();
+                    }
                 }
             }
+
             if (groupsIsBlock) {
                 builder.addStatement("int groupStart = groups.getFirstValueIndex(groupPosition)");
                 builder.addStatement("int groupEnd = groupStart + groups.getValueCount(groupPosition)");
@@ -506,36 +516,32 @@ public class GroupingAggregatorImplementer {
                 builder.endControlFlow();
             }
 
-            if (valuesAreVector) {
-                for (Argument a : aggParams) {
+            // Read all vector arguments first, they don't need to be read in nested loops
+            for (Argument a : aggParams) {
+                if (valuesAreVector && a instanceof StandardArgument && a.supportsVectorReadAccess()) {
                     a.read(builder, a.vectorName(), "valuesPosition");
                 }
-                combineRawInput(builder);
-            } else {
-                if (hasOnlyBlockArguments) {
-                    String params = aggParams.stream().map(Argument::blockName).collect(joining(", "));
-                    warningsBlock(
-                        builder,
-                        () -> builder.addStatement("$T.combine(state, groupId, valuesPosition, $L)", declarationType, params)
+            }
+            // Then read all remaining arguments with nested loops
+            for (Argument a : aggParams) {
+                if (a instanceof StandardArgument && (valuesAreVector == false || a.supportsVectorReadAccess() == false)) {
+                    builder.addStatement("int $L = $L.getFirstValueIndex(valuesPosition)", a.startName(), a.blockName());
+                    builder.addStatement("int $L = $L + $L.getValueCount(valuesPosition)", a.endName(), a.startName(), a.blockName());
+                    builder.beginControlFlow(
+                        "for (int $L = $L; $L < $L; $L++)",
+                        a.offsetName(),
+                        a.startName(),
+                        a.offsetName(),
+                        a.endName(),
+                        a.offsetName()
                     );
-                } else {
-                    for (Argument a : aggParams) {
-                        builder.addStatement("int $L = $L.getFirstValueIndex(valuesPosition)", a.startName(), a.blockName());
-                        builder.addStatement("int $L = $L + $L.getValueCount(valuesPosition)", a.endName(), a.startName(), a.blockName());
-                        builder.beginControlFlow(
-                            "for (int $L = $L; $L < $L; $L++)",
-                            a.offsetName(),
-                            a.startName(),
-                            a.offsetName(),
-                            a.endName(),
-                            a.offsetName()
-                        );
-                        a.read(builder, a.blockName(), a.offsetName());
-                    }
-                    combineRawInput(builder);
-                    for (Argument a : aggParams) {
-                        builder.endControlFlow();
-                    }
+                    a.read(builder, a.blockName(), a.offsetName());
+                }
+            }
+            combineRawInput(builder);
+            for (Argument a : aggParams) {
+                if (a instanceof StandardArgument && (valuesAreVector == false || a.supportsVectorReadAccess() == false)) {
+                    builder.endControlFlow();
                 }
             }
 
@@ -563,12 +569,20 @@ public class GroupingAggregatorImplementer {
             pattern.append("$T.combine(state, groupId");
             params.add(declarationType);
         }
-        if (hasOnlyBlockArguments) {
-            pattern.append(", p");
-        }
-        for (Argument a : aggParams) {
+        for (int i = 0; i < aggParams.size(); i++) {
+            if (positionParamIndex == i) {
+                pattern.append(", valuesPosition");
+            }
+            Argument a = aggParams.get(i);
             pattern.append(", $L");
-            params.add(a.valueName());
+            if (a instanceof BlockArgument) {
+                params.add(a.blockName());
+            } else {
+                params.add(a.valueName());
+            }
+        }
+        if (positionParamIndex >= aggParams.size()) {
+            pattern.append(", valuesPosition");
         }
         if (returnType.isPrimitive()) {
             pattern.append(")");
@@ -586,9 +600,11 @@ public class GroupingAggregatorImplementer {
                 Stream.concat(
                     Stream.of(requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT), requireType(aggState.declaredType())),
                     aggParams.stream().map(a -> {
-                        boolean isBlockArgument = a instanceof BlockArgument;
-                        TypeName typeName = isBlockArgument ? Types.elementType(a.type()) : a.type();
-                        return requireType(valuesAreVector ? vectorType(typeName) : blockType(typeName));
+                        if (a instanceof BlockArgument) {
+                            return requireType(a.type());
+                        }
+                        TypeName typeName = a.type();
+                        return requireType(valuesAreVector && a.supportsVectorReadAccess() ? vectorType(typeName) : blockType(typeName));
                     })
                 ).toArray(Methods.TypeMatcher[]::new)
             )

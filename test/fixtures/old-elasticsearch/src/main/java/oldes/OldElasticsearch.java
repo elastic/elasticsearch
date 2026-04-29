@@ -45,15 +45,12 @@ public class OldElasticsearch {
      * bound-address shape but under {@code org.elasticsearch.transport.*}, so matching generic {@code bound_addresses}
      * text would capture the transport port and HTTP clients would fail.
      */
-    private static final Pattern HTTP_PUBLISH_PORT = Pattern.compile(
-        ".*\\[o\\.e\\.h\\.[^]]+\\].*publish_address \\{[^}]*:(\\d+)\\}"
-    );
+    private static final Pattern HTTP_PUBLISH_PORT = Pattern.compile(".*\\[o\\.e\\.h\\.[^]]+\\].*publish_address \\{[^}]*:(\\d+)\\}");
 
     /** Legacy formats used by older distributions (console layout differs by major version). */
     private static final Pattern[] LEGACY_HTTP_PORT_PATTERNS = new Pattern[] {
         Pattern.compile("(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+127\\.0\\.0\\.1:(\\d+)"),
-        Pattern.compile("(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+\\[::1\\]:(\\d+)"),
-    };
+        Pattern.compile("(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+\\[::1\\]:(\\d+)"), };
 
     /**
      * Reads the install-directory name (for example {@code elasticsearch-8.12.2}) to decide transport settings.
@@ -149,9 +146,7 @@ public class OldElasticsearch {
         int port = 0;
 
         Pattern pidPattern = Pattern.compile("pid\\[(\\d+)\\]");
-        try (
-            BufferedReader stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))
-        ) {
+        try (BufferedReader stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = stdout.readLine()) != null && (pid == 0 || port == 0)) {
                 System.out.println(line);

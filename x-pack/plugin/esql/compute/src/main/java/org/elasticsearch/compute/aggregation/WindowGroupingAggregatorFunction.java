@@ -127,17 +127,12 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                     // expand the window to cover the new range
                     @Override
                     public long rangeStartInMillis(int groupId) {
-                        return ctx.rangeStartInMillis(groupId);
+                        return ctx.rangeEndInMillis(groupId) - window.toMillis();
                     }
 
                     @Override
                     public long rangeEndInMillis(int groupId) {
-                        return rangeStartInMillis(groupId) + window.toMillis();
-                    }
-
-                    @Override
-                    public void forEachGroupInWindow(int startingGroupId, Duration window, IntConsumer action) {
-                        throw new UnsupportedOperationException();
+                        return ctx.rangeEndInMillis(groupId);
                     }
 
                     @Override
@@ -151,8 +146,13 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                     }
 
                     @Override
+                    public void forEachGroupInRange(int startingGroupId, long rangeStartMillis, long rangeEndMillis, IntConsumer action) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
                     public void computeAdjacentGroupIds() {
-                        /* not used by {@link this#nextGroupId} and {@link this##previousGroupId} */
+                        // not used by previousGroupId and nextGroupId
                     }
                 }
             );
@@ -183,11 +183,10 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         TimeSeriesGroupingAggregatorEvaluationContext context
     ) {
         try (var oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
-            context.forEachGroupInWindow(startingGroupId, window, groupId -> {
-                if (groupId == startingGroupId) {
-                    return;
-                }
-                int position = groupIdToPositions[groupId];
+            long end = context.rangeEndInMillis(startingGroupId);
+            context.forEachGroupInRange(startingGroupId, end - window.toMillis(), end, g -> {
+                assert g != startingGroupId && g >= 0 && g < groupIdToPositions.length;
+                int position = groupIdToPositions[g];
                 fn.addIntermediateInput(position, oneGroup, page);
             });
         }

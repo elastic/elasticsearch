@@ -71,6 +71,11 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         Pattern.DOTALL
     );
 
+    // Full-text functions (match, match_phrase, qstr) pushed down to Lucene can fail with
+    // "failed to create query" on random mappings where field types are incompatible (e.g., non-indexed
+    // fields, numeric fields receiving text input). https://github.com/elastic/elasticsearch/issues/147610
+    private static final Pattern FAILED_TO_CREATE_QUERY = Pattern.compile(".*failed to create query.*", Pattern.DOTALL);
+
     @Before
     public void setupRandomIndices() throws IOException {
         synchronized (GenerativeRandomMappingRestTest.class) {
@@ -232,6 +237,12 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         if (query != null && isAllowedError(errorMessage, UNSUPPORTED_TYPE_IN_FUNCTION) && queryContainsFork(query)) {
             return true;
         }
+        // Full-text functions pushed to Lucene can throw QueryShardException("failed to create query: ...")
+        // when the target field has an incompatible type or is not indexed in the random mapping.
+        // https://github.com/elastic/elasticsearch/issues/147610
+        if (query != null && isAllowedError(errorMessage, FAILED_TO_CREATE_QUERY) && queryContainsFullTextFunction(query)) {
+            return true;
+        }
         return false;
     }
 
@@ -252,6 +263,14 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
 
     private static boolean queryContainsFork(String query) {
         return query != null && query.toUpperCase(Locale.ROOT).contains("FORK");
+    }
+
+    private static boolean queryContainsFullTextFunction(String query) {
+        if (query == null) {
+            return false;
+        }
+        String upper = query.toUpperCase(Locale.ROOT);
+        return upper.contains("MATCH(") || upper.contains("MATCH_PHRASE(") || upper.contains("QSTR(") || upper.contains("KQL(");
     }
 
     private static String formatReproductionContext(String query) {

@@ -10,7 +10,6 @@
 package org.elasticsearch.simdvec.internal;
 
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
@@ -20,10 +19,6 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
-import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
-import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
-import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
-
 public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorerSupplier {
 
     final int dims;
@@ -31,17 +26,15 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
     final int maxOrd;
     final IndexInput input;
     final FloatVectorValues values;
-    final VectorSimilarityFunction fallbackScorer;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
 
-    protected BFloat16VectorScorerSupplier(IndexInput input, FloatVectorValues values, VectorSimilarityFunction fallbackScorer) {
+    protected BFloat16VectorScorerSupplier(IndexInput input, FloatVectorValues values) {
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
         this.maxOrd = values.size();
-        this.fallbackScorer = fallbackScorer;
         this.firstScratch = new FixedSizeScratch(vectorByteSize);
         this.secondScratch = new FixedSizeScratch(vectorByteSize);
     }
@@ -74,11 +67,14 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
                 addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, MemorySegment.ofArray(scores), numNodes)
             );
             if (resolved == false) {
-                // fallback to on-heap fallback scorer
-                var queryVector = values.vectorValue(firstOrd).clone();
+                // fallback to per-vector scorer
                 for (int i = 0; i < numNodes; i++) {
-                    scores[i] = fallbackScorer.compare(queryVector, values.vectorValue(ordinals[i]));
-                    maxScore[0] = Math.max(maxScore[0], scores[i]);
+                    input.seek(offsets[i]);
+                    scores[i] = IndexInputUtils.withSlice(input, vectorByteSize, secondScratch::getScratch, vector -> {
+                        var score = scoreFromSegments(query, vector);
+                        maxScore[0] = Math.max(maxScore[0], score);
+                        return score;
+                    });
                 }
             }
             return maxScore[0];
@@ -132,7 +128,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
     public static final class EuclideanSupplier extends BFloat16VectorScorerSupplier {
 
         public EuclideanSupplier(IndexInput input, FloatVectorValues values) {
-            super(input, values, EUCLIDEAN);
+            super(input, values);
         }
 
         @Override
@@ -163,7 +159,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
     public static final class DotProductSupplier extends BFloat16VectorScorerSupplier {
 
         public DotProductSupplier(IndexInput input, FloatVectorValues values) {
-            super(input, values, DOT_PRODUCT);
+            super(input, values);
         }
 
         @Override
@@ -194,7 +190,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
     public static final class MaxInnerProductSupplier extends BFloat16VectorScorerSupplier {
 
         public MaxInnerProductSupplier(IndexInput input, FloatVectorValues values) {
-            super(input, values, MAXIMUM_INNER_PRODUCT);
+            super(input, values);
         }
 
         @Override

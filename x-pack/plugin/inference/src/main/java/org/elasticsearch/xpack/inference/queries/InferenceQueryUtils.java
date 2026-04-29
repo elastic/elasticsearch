@@ -607,7 +607,9 @@ public final class InferenceQueryUtils {
                         return;
                     } else if (input.containsMultipleInferenceStrings()) {
                         gal.onFailure(
-                            new IllegalArgumentException("Multiple text inputs are not supported for [" + taskType + "] inference endpoints")
+                            new IllegalArgumentException(
+                                "Multiple text inputs are not supported for [" + taskType + "] inference endpoints"
+                            )
                         );
                         return;
                     }

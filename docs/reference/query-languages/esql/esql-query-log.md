@@ -8,6 +8,8 @@ navigation_title: "Query log"
 # {{esql}} Query log [esql-query-log]
 
 :::{note}
+:applies_to: {"stack": "preview 9.4", "serverless": "unavailable"}
+
 {{es}} [query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md) supersedes this feature. Query logging provides a unified way to log all query types, including {{esql}}, with richer field coverage and a managed data stream for indexing and analysis. We recommend migrating to query logging. The `esql.querylog` settings described on this page continue to work but are no longer the recommended approach.
 :::
 

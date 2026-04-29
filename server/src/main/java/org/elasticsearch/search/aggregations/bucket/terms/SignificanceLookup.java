@@ -271,6 +271,7 @@ class SignificanceLookup {
      * Build an {@link IndexSearcher} backed by {@code reader} that runs counts on the current
      * thread and wires {@code checkCancelled} into the bulk-scoring loop, so long-running counts
      * (e.g. against a script field that loads synthetic source per doc) can be interrupted.
+     * Visible for testing.
      */
     static IndexSearcher cancellableSearcher(IndexReader reader, Runnable checkCancelled) {
         return new IndexSearcher(reader) {
@@ -283,6 +284,13 @@ class SignificanceLookup {
         };
     }
 
+    /**
+     * Wrap {@code delegate} so the {@link BulkScorer} it produces is itself wrapped in a
+     * {@link CancellableBulkScorer}. {@link IndexSearcher#searchLeaf} reaches the bulk scorer via
+     * {@code weight.scorerSupplier(ctx).bulkScorer()}, so we override {@link Weight#scorerSupplier}
+     * and the resulting supplier's {@link ScorerSupplier#bulkScorer} is where the cancellation
+     * hook is installed.
+     */
     private static Weight cancellableWeight(Weight delegate, Runnable checkCancelled) {
         return new FilterWeight(delegate) {
             @Override

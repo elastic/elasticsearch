@@ -2473,8 +2473,14 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
         var limit = asLimit(plan, 1000, false);
         var postExpandFilter = as(limit.child(), Filter.class);
+        var postExpandEquals = as(postExpandFilter.condition(), Equals.class);
+        assertThat(as(postExpandEquals.left(), Attribute.class).name(), is("languages"));
+        assertThat(as(postExpandEquals.right(), Literal.class).value(), is(1));
         var mvExpand = as(postExpandFilter.child(), MvExpand.class);
         var preExpandFilter = as(mvExpand.child(), Filter.class);
+        var preExpandGreaterThan = as(preExpandFilter.condition(), GreaterThan.class);
+        assertThat(as(preExpandGreaterThan.left(), Attribute.class).name(), is("emp_no"));
+        assertThat(as(preExpandGreaterThan.right(), Literal.class).value(), is(10));
         as(preExpandFilter.child(), EsRelation.class);
     }
 
@@ -2500,10 +2506,19 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
         var limit = asLimit(plan, 1000, false);
         var firstNameFilter = as(limit.child(), Filter.class);
+        var firstNameEquals = as(firstNameFilter.condition(), Equals.class);
+        assertThat(as(firstNameEquals.left(), Attribute.class).name(), is("first_name"));
+        assertThat(as(firstNameEquals.right(), Literal.class).value(), is(new BytesRef("John")));
         var firstNameExpand = as(firstNameFilter.child(), MvExpand.class);
         var languagesFilter = as(firstNameExpand.child(), Filter.class);
+        var languagesEquals = as(languagesFilter.condition(), Equals.class);
+        assertThat(as(languagesEquals.left(), Attribute.class).name(), is("languages"));
+        assertThat(as(languagesEquals.right(), Literal.class).value(), is(1));
         var languagesExpand = as(languagesFilter.child(), MvExpand.class);
         var empNoFilter = as(languagesExpand.child(), Filter.class);
+        var empNoGreaterThan = as(empNoFilter.condition(), GreaterThan.class);
+        assertThat(as(empNoGreaterThan.left(), Attribute.class).name(), is("emp_no"));
+        assertThat(as(empNoGreaterThan.right(), Literal.class).value(), is(10));
         as(empNoFilter.child(), EsRelation.class);
     }
 
@@ -2551,8 +2566,14 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
         var limit = asLimit(plan, 1000, false);
         var languagesFilter = as(limit.child(), Filter.class);
+        var languagesEquals = as(languagesFilter.condition(), Equals.class);
+        assertThat(as(languagesEquals.left(), Attribute.class).name(), is("languages"));
+        assertThat(as(languagesEquals.right(), Literal.class).value(), is(1));
         var mvExpand = as(languagesFilter.child(), MvExpand.class);
         var doubleEmpFilter = as(mvExpand.child(), Filter.class);
+        var doubleEmpGreaterThan = as(doubleEmpFilter.condition(), GreaterThan.class);
+        assertThat(as(doubleEmpGreaterThan.left(), Attribute.class).name(), is("double_emp"));
+        assertThat(as(doubleEmpGreaterThan.right(), Literal.class).value(), is(20));
         var eval = as(doubleEmpFilter.child(), Eval.class);
         as(eval.child(), EsRelation.class);
     }
@@ -2578,9 +2599,19 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
         var limit = asLimit(plan, 1000, false);
         var languagesFilter = as(limit.child(), Filter.class);
+        var languagesEquals = as(languagesFilter.condition(), Equals.class);
+        assertThat(as(languagesEquals.left(), Attribute.class).name(), is("languages"));
+        assertThat(as(languagesEquals.right(), Literal.class).value(), is(1));
         var mvExpand = as(languagesFilter.child(), MvExpand.class);
         var preExpandFilter = as(mvExpand.child(), Filter.class);
         assertThat(preExpandFilter.condition(), instanceOf(And.class));
+        var preExpandAnd = as(preExpandFilter.condition(), And.class);
+        var empNoGreaterThan = as(preExpandAnd.left(), GreaterThan.class);
+        assertThat(as(empNoGreaterThan.left(), Attribute.class).name(), is("emp_no"));
+        assertThat(as(empNoGreaterThan.right(), Literal.class).value(), is(10));
+        var salaryGreaterThan = as(preExpandAnd.right(), GreaterThan.class);
+        assertThat(as(salaryGreaterThan.left(), Attribute.class).name(), is("salary"));
+        assertThat(as(salaryGreaterThan.right(), Literal.class).value(), is(50000));
         as(preExpandFilter.child(), EsRelation.class);
     }
 }

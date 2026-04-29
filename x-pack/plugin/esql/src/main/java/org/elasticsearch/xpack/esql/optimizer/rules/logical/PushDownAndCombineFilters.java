@@ -113,7 +113,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         } else if (child instanceof Join join) {
             return pushDownPastJoin(filter, join, ctx.foldCtx());
         } else if (child instanceof MvExpand mvExpand) {
-            Attribute attribute = mvExpand.expanded().toAttribute();
+            Attribute attribute = mvExpand.expanded();
             return maybePushDownPastUnary(filter, mvExpand, attribute::semanticEquals, NO_OP);
         }
         // cannot push past a Limit, this could change the tailing result set returned

@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.ScriptService;
@@ -80,6 +81,22 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_routing", routing));
         assertEquals(routing, index.routing());
+    }
+
+    public void testSetSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        String slice = randomRealisticUnicodeOfLengthBetween(5, 20);
+        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put(SliceIndexing.PARAM_NAME, slice));
+        assertEquals(slice, index.routing());
+    }
+
+    public void testSetSliceRejectedWhenFeatureFlagDisabled() {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> applyScript((Map<String, Object> ctx) -> ctx.put(SliceIndexing.PARAM_NAME, "slice1"))
+        );
+        assertThat(e.getMessage(), containsString(SliceIndexing.PARAM_NAME + " cannot be updated"));
     }
 
     @Override

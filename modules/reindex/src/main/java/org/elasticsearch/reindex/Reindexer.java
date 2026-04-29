@@ -1098,6 +1098,7 @@ public class Reindexer {
              * here on out operates on the index request rather than the template.
              */
             index.routing(mainRequest.getDestination().routing());
+            index.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
             index.setPipeline(mainRequest.getDestination().getPipeline());
             if (mainRequest.getDestination().opType() == DocWriteRequest.OpType.CREATE) {
                 index.opType(mainRequest.getDestination().opType());

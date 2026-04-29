@@ -28,6 +28,7 @@ public class IndexFeatures implements FeatureSpecification {
     public static final NodeFeature TIME_SERIES_SYNTHETIC_ID_DEFAULT = new NodeFeature("index.time_series_synthetic_id_default");
 
     public static final NodeFeature TIME_SERIES_NO_SEQNO = new NodeFeature("index.time_series_no_seqno");
+    public static final NodeFeature SLICE_INDEXING = new NodeFeature("index.slice_indexing");
 
     private static final NodeFeature SYNONYMS_SET_LENIENT_ON_NON_EXISTING = new NodeFeature("index.synonyms_set_lenient_on_non_existing");
 
@@ -54,6 +55,7 @@ public class IndexFeatures implements FeatureSpecification {
             TIME_SERIES_SYNTHETIC_ID,
             TIME_SERIES_SYNTHETIC_ID_DEFAULT,
             TIME_SERIES_NO_SEQNO,
+            SLICE_INDEXING,
             SYNONYMS_SET_LENIENT_ON_NON_EXISTING,
             THROW_EXCEPTION_FOR_UNKNOWN_TOKEN_IN_REST_INDEX_PUT_ALIAS_ACTION,
             THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS,

@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
@@ -110,7 +111,11 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             return e;
         }
         if (false == routingIsValid()) {
-            e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
+            if (destination.isRoutingFromSlice()) {
+                e = addValidationError("[" + SliceIndexing.PARAM_NAME + "] must be [keep], [discard], [=<some value>] or a valid value", e);
+            } else {
+                e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
+            }
         }
         if (destination.versionType() == INTERNAL) {
             if (destination.version() != Versions.MATCH_ANY && destination.version() != Versions.MATCH_DELETED) {
@@ -141,13 +146,33 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     private boolean routingIsValid() {
-        if (destination.routing() == null || destination.routing().startsWith("=")) {
+        final String routing = destination.routing();
+        if (routing == null) {
             return true;
         }
-        return switch (destination.routing()) {
+        if (destination.isRoutingFromSlice()) {
+            return isValidSliceRoutingOrCommand(routing);
+        }
+        if (routing.startsWith("=")) {
+            return true;
+        }
+        return switch (routing) {
             case "keep", "discard" -> true;
             default -> false;
         };
+    }
+
+    private static boolean isValidSliceRoutingOrCommand(String routing) {
+        if ("keep".equals(routing) || "discard".equals(routing)) {
+            return true;
+        }
+        final String sliceValue = routing.startsWith("=") ? routing.substring(1) : routing;
+        try {
+            SliceIndexing.validateUserSliceValue(sliceValue);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     /**
@@ -337,7 +362,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             builder.startObject("dest");
             builder.field("index", getDestination().index());
             if (getDestination().routing() != null) {
-                builder.field("routing", getDestination().routing());
+                builder.field(getDestination().isRoutingFromSlice() ? SliceIndexing.PARAM_NAME : "routing", getDestination().routing());
             }
             builder.field("op_type", getDestination().opType().getLowercase());
             if (getDestination().getPipeline() != null) {
@@ -389,7 +414,31 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
-        destParser.declareString(IndexRequest::routing, new ParseField("routing"));
+        destParser.declareString((request, routing) -> {
+            if (request.isRoutingFromSlice()) {
+                throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+            }
+            request.routing(routing);
+        }, new ParseField("routing"));
+        destParser.declareString((request, slice) -> {
+            if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException("request does not support [" + SliceIndexing.PARAM_NAME + "]");
+            }
+            if (request.routing() != null) {
+                throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+            }
+            if ("keep".equals(slice) || "discard".equals(slice)) {
+                request.routing(slice);
+            } else if (slice.startsWith("=")) {
+                final String sliceValue = slice.substring(1);
+                SliceIndexing.validateUserSliceValue(sliceValue);
+                request.routing(slice);
+            } else {
+                SliceIndexing.validateUserSliceValue(slice);
+                request.routing(slice);
+            }
+            request.setRoutingFromSlice(true);
+        }, new ParseField(SliceIndexing.PARAM_NAME));
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));

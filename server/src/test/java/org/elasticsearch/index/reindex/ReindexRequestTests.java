@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -703,6 +704,78 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         }
     }
 
+    public void testDestSliceParsesWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, "s1");
+        assertEquals("s1", request.getDestination().routing());
+        assertTrue(request.getDestination().isRoutingFromSlice());
+    }
+
+    public void testDestSliceCommandParsesWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, "=s1");
+        assertEquals("=s1", request.getDestination().routing());
+        assertTrue(request.getDestination().isRoutingFromSlice());
+    }
+
+    public void testDestSliceAndRoutingAreMutuallyExclusive() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                    b.field("routing", "keep");
+                    b.field(SliceIndexing.PARAM_NAME, "s1");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            Exception e = expectThrows(Exception.class, () -> ReindexRequest.fromXContent(p, Predicates.never()));
+            assertThat(e.getMessage(), containsString("[reindex] failed to parse field [dest]"));
+        }
+    }
+
+    public void testDestSliceRejectedWhenFeatureFlagDisabled() throws IOException {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                    b.field(SliceIndexing.PARAM_NAME, "s1");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ReindexRequest.fromXContent(p, Predicates.never())
+            );
+            assertThat(e.getMessage(), containsString("request does not support [" + SliceIndexing.PARAM_NAME + "]"));
+        }
+    }
+
     private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {
         BytesReference request;
         try (XContentBuilder b = JsonXContent.contentBuilder()) {
@@ -716,6 +789,31 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
                 b.startObject("dest");
                 {
                     b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            return ReindexRequest.fromXContent(p, Predicates.never());
+        }
+    }
+
+    private ReindexRequest parseRequestWithDestRoutingField(String field, String value) throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                    b.field(field, value);
                 }
                 b.endObject();
             }

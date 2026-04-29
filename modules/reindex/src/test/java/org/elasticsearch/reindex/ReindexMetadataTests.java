@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
@@ -57,6 +58,15 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
         IndexRequest index = new IndexRequest();
         action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("=]", index.routing());
+    }
+
+    public void testRoutingSetFromSliceIfRequested() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        TestAction action = action();
+        action.mainRequest().getDestination().routing("=cat").setRoutingFromSlice(true);
+        IndexRequest index = new IndexRequest();
+        action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
+        assertEquals("cat", index.routing());
     }
 
     @Override

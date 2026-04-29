@@ -9,7 +9,10 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESTestCase;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class ReindexMetadataTests extends ESTestCase {
     private static final String INDEX = "myIndex";
@@ -74,23 +77,56 @@ public class ReindexMetadataTests extends ESTestCase {
     }
 
     public void testRouting() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertFalse(metadata.routingChanged());
 
         metadata.put("_routing", ROUTING);
         assertFalse(metadata.routingChanged());
+        assertEquals(ROUTING, metadata.get(SliceIndexing.PARAM_NAME));
 
         metadata.remove("_routing");
         assertTrue(metadata.routingChanged());
         assertNull(metadata.getRouting());
+        assertNull(metadata.get(SliceIndexing.PARAM_NAME));
 
         metadata.put("_routing", "myRouting2");
         assertTrue(metadata.routingChanged());
+        assertEquals("myRouting2", metadata.get(SliceIndexing.PARAM_NAME));
 
         metadata.setRouting(ROUTING);
         assertFalse(metadata.routingChanged());
+        assertEquals(ROUTING, metadata.get(SliceIndexing.PARAM_NAME));
 
         metadata.setRouting("myRouting3");
         assertTrue(metadata.routingChanged());
+        assertEquals("myRouting3", metadata.get(SliceIndexing.PARAM_NAME));
+    }
+
+    public void testSliceAlias() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assertFalse(metadata.routingChanged());
+
+        metadata.put(SliceIndexing.PARAM_NAME, ROUTING);
+        assertFalse(metadata.routingChanged());
+        assertEquals(ROUTING, metadata.getRouting());
+
+        metadata.remove(SliceIndexing.PARAM_NAME);
+        assertTrue(metadata.routingChanged());
+        assertNull(metadata.getRouting());
+
+        metadata.put(SliceIndexing.PARAM_NAME, "slice2");
+        assertTrue(metadata.routingChanged());
+        assertEquals("slice2", metadata.getRouting());
+    }
+
+    public void testSliceUnavailableWhenFeatureFlagDisabled() {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assertFalse(metadata.isAvailable(SliceIndexing.PARAM_NAME));
+        assertFalse(metadata.keySet().contains(SliceIndexing.PARAM_NAME));
+        assertNull(metadata.get(SliceIndexing.PARAM_NAME));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> metadata.put(SliceIndexing.PARAM_NAME, "slice1"));
+        assertThat(e.getMessage(), containsString(SliceIndexing.PARAM_NAME + " cannot be updated"));
     }
 
     public void testVersion() {

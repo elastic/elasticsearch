@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -24,6 +25,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -53,11 +57,12 @@ public class ReindexValidatorTests extends ESTestCase {
             indexResolver,
             EmptySystemIndices.INSTANCE
         );
+        ProjectMetadata projectMetadata = projectMetadata("source-index", "dest-index");
         ReindexValidator validator = new ReindexValidator(
             settings,
-            mock(ClusterService.class),
+            clusterService(projectMetadata),
             indexResolver,
-            DefaultProjectResolver.INSTANCE,
+            TestProjectResolvers.singleProject(projectMetadata.id()),
             autoCreateIndex
         );
 
@@ -87,12 +92,9 @@ public class ReindexValidatorTests extends ESTestCase {
             EmptySystemIndices.INSTANCE
         );
 
-        ProjectId projectId = randomUniqueProjectId();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(clusterState);
+        ProjectMetadata projectMetadata = projectMetadata("source-index", "dest-index");
+        ProjectId projectId = projectMetadata.id();
+        ClusterService clusterService = clusterService(projectMetadata);
         ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId);
         ReindexValidator validator = new ReindexValidator(settings, clusterService, indexResolver, projectResolver, autoCreateIndex);
 
@@ -177,6 +179,51 @@ public class ReindexValidatorTests extends ESTestCase {
         assertThat(request.getSearchRequest().source().slice().getMax(), equalTo(4));
     }
 
+    public void testRejectRoutingInSliceEnabledDestination() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+        request.getDestination().routing("keep");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "[routing] is not allowed in [dest] when ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] is true for destination [dest-index]"
+            )
+        );
+    }
+
+    public void testRequireSliceInSliceEnabledDestination() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is required in [dest]"));
+    }
+
+    public void testAllowSliceInSliceEnabledDestination() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+        request.getDestination().routing("keep").setRoutingFromSlice(true);
+
+        validator.initialValidation(request);
+    }
+
+    public void testRejectSliceInSliceDisabledDestination() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(false));
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+        request.getDestination().routing("keep").setRoutingFromSlice(true);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is not allowed in [dest]"));
+    }
+
     /** Minimal {@link ReindexValidator} for tests that only exercise {@link ReindexValidator#normalize}. */
     private static ReindexValidator newValidator() {
         IndexNameExpressionResolver indexResolver = TestIndexNameExpressionResolver.newInstance();
@@ -188,5 +235,69 @@ public class ReindexValidatorTests extends ESTestCase {
             EmptySystemIndices.INSTANCE
         );
         return new ReindexValidator(settings, mock(ClusterService.class), indexResolver, DefaultProjectResolver.INSTANCE, autoCreateIndex);
+    }
+
+    private ReindexValidator validatorWithProject(ProjectMetadata projectMetadata) {
+        IndexNameExpressionResolver indexResolver = TestIndexNameExpressionResolver.newInstance();
+        Settings settings = Settings.EMPTY;
+        AutoCreateIndex autoCreateIndex = new AutoCreateIndex(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            indexResolver,
+            EmptySystemIndices.INSTANCE
+        );
+        return new ReindexValidator(
+            settings,
+            clusterService(projectMetadata),
+            indexResolver,
+            TestProjectResolvers.singleProject(projectMetadata.id()),
+            autoCreateIndex
+        );
+    }
+
+    private static ClusterService clusterService(ProjectMetadata projectMetadata) {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
+        when(clusterService.state()).thenReturn(clusterState);
+        return clusterService;
+    }
+
+    private ProjectMetadata projectMetadata(String... indexNames) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomUniqueProjectId());
+        for (String indexName : indexNames) {
+            builder.put(
+                IndexMetadata.builder(indexName)
+                    .settings(indexSettings(IndexVersion.current(), 1, 0))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(),
+                true
+            );
+        }
+        return builder.build();
+    }
+
+    private ProjectMetadata projectMetadataWithDestinationSliceSetting(boolean destinationSliceEnabled) {
+        return ProjectMetadata.builder(randomUniqueProjectId())
+            .put(
+                IndexMetadata.builder("source-index")
+                    .settings(indexSettings(IndexVersion.current(), 1, 0))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(),
+                true
+            )
+            .put(
+                IndexMetadata.builder("dest-index")
+                    .settings(
+                        indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SLICE_ENABLED.getKey(), destinationSliceEnabled)
+                            .build()
+                    )
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(),
+                true
+            )
+            .build();
     }
 }

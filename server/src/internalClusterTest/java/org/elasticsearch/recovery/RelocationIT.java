@@ -56,6 +56,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.Transport;
@@ -772,6 +773,30 @@ public class RelocationIT extends ESIntegTestCase {
         assertBusy(() -> assertAllShardsOnNodes(indexName, redNodes));
         ensureGreen("test");
         assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();
+    }
+
+    @TestLogging(value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG", reason = "observe relocation")
+    public void testRelocationForClosedIndex() {
+        final var oldNodes = internalCluster().startNodes(2);
+        ensureStableCluster(2);
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        indexRandom(randomBoolean(), indexName, 10);
+        safeGet(indicesAdmin().prepareClose(indexName).execute());
+
+        final var newNodes = internalCluster().startNodes(2);
+        ensureStableCluster(4);
+
+        logger.info("--> force relocation to new nodes");
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", oldNodes)), indexName);
+        ensureGreen(indexName);
+
+        assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.copyOf(newNodes)));
+
+        // Re-open works
+        safeGet(indicesAdmin().prepareOpen(indexName).execute());
     }
 
     private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {

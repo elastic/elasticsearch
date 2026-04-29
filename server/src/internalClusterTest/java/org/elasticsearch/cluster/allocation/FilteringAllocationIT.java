@@ -27,7 +27,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.HashSet;
 import java.util.List;
@@ -271,26 +270,5 @@ public class FilteringAllocationIT extends ESIntegTestCase {
                 includeNodes.contains(node)
             );
         }
-    }
-
-    @TestLogging(value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG", reason = "observe relocation")
-    public void testRelocationForClosedIndex() {
-        final var oldNodes = internalCluster().startNodes(2);
-        ensureStableCluster(2);
-
-        final var indexName = randomIndexName();
-        createIndex(indexName, 1, 1);
-        ensureGreen(indexName);
-        indexRandom(randomBoolean(), indexName, 10);
-        safeGet(indicesAdmin().prepareClose(indexName).execute());
-
-        final var newNodes = internalCluster().startNodes(2);
-        ensureStableCluster(4);
-
-        logger.info("--> force relocation to new nodes");
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", oldNodes)), indexName);
-        ensureGreen(indexName);
-
-        assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.copyOf(newNodes)));
     }
 }

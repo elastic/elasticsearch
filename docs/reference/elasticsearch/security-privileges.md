@@ -240,9 +240,6 @@ When creating roles, refer to this page for a complete list of available privile
 :   All read-only {{ccr}} operations, such as getting information about indices and metadata for leader indices in the cluster. It also includes the authority to check whether users have the appropriate privileges to follow leader indices. This privilege is necessary only on clusters that contain leader indices.
 
 
-`read_connector_secrets` {applies_to}`serverless: unavailable`
-:   Read-only access to connector secrets.
-
 `read_fleet_secrets` {applies_to}`serverless: unavailable`
 :   Read-only access to Fleet secrets.
 

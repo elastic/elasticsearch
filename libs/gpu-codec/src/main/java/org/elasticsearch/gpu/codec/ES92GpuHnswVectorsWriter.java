@@ -605,8 +605,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     if (dataType == CuVSMatrix.DataType.FLOAT || (flatVectorsReader instanceof QuantizedVectorsReader) == false) {
                         RandomVectorScorerSupplier scorerSupplier = flatVectorsReader.getFlatVectorScorer()
                             .getRandomVectorScorerSupplier(fieldInfo.getVectorSimilarityFunction(), vectorValues);
-                        var randomScorerSupplier = VectorsFormatReflectionUtils.getFlatRandomVectorScorerInnerSupplier(scorerSupplier);
-                        mergeFloatVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
+                        mergeFloatVectorField(fieldInfo, mergeState, scorerSupplier, numVectors);
                     } else {
                         // During merging, we use quantized data, so we need to support byte[] too.
                         // That's how our current formats work: use floats during indexing, and quantized data to build a graph

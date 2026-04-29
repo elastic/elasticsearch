@@ -198,7 +198,9 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public CloseableRandomVectorScorerSupplier getRandomVectorScorerSupplierForMerge(
-            FieldInfo fieldInfo, SegmentWriteState segmentWriteState) throws IOException {
+            FieldInfo fieldInfo,
+            SegmentWriteState segmentWriteState
+        ) throws IOException {
             return delegate.getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState);
         }
 

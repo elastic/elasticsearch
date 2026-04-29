@@ -27,7 +27,11 @@ public abstract class HnswKnnVectorsWriter extends KnnVectorsWriter {
     private boolean flatWriterClosed;
     private boolean finished;
 
-    protected HnswKnnVectorsWriter(SegmentWriteState segmentWriteState, FlatVectorsFormat flatVectorsFormat, FlatVectorsWriter flatVectorWriter) {
+    protected HnswKnnVectorsWriter(
+        SegmentWriteState segmentWriteState,
+        FlatVectorsFormat flatVectorsFormat,
+        FlatVectorsWriter flatVectorWriter
+    ) {
         this.segmentWriteState = segmentWriteState;
         this.flatVectorsFormat = flatVectorsFormat;
         this.flatVectorWriter = flatVectorWriter;
@@ -38,13 +42,13 @@ public abstract class HnswKnnVectorsWriter extends KnnVectorsWriter {
             flatVectorWriter.finish();
             flatVectorWriter.close();
             flatWriterClosed = true;
-            SegmentReadState readState =
-                new SegmentReadState(
-                    segmentWriteState.directory,
-                    segmentWriteState.segmentInfo,
-                    segmentWriteState.fieldInfos,
-                    segmentWriteState.context,
-                    segmentWriteState.segmentSuffix);
+            SegmentReadState readState = new SegmentReadState(
+                segmentWriteState.directory,
+                segmentWriteState.segmentInfo,
+                segmentWriteState.fieldInfos,
+                segmentWriteState.context,
+                segmentWriteState.segmentSuffix
+            );
             flatVectorsReader = flatVectorsFormat.fieldsReader(readState);
         }
     }

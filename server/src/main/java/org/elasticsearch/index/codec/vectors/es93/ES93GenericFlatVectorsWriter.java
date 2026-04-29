@@ -18,7 +18,6 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;

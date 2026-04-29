@@ -27,11 +27,15 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FileLayout;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -267,6 +271,68 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(1, fileList.fileCount());
         assertEquals("s3://bucket/data/single.parquet", fileList.path(0).toString());
         assertEquals(0L, fileList.size(0));
+    }
+
+    // ===== Pre-resolved split ranges threading =====
+
+    public void testSingleFileResolutionThreadsSplitRangesWhenRangeAware() throws Exception {
+        String location = "s3://bucket/data/single.parquet";
+        StoragePath storagePath = StoragePath.of(location);
+        List<Attribute> schema = List.of(attr("id", DataType.LONG));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put(location, schema);
+
+        Map<StoragePath, List<SplitRange>> rangesByPath = new HashMap<>();
+        SplitRange r1 = new SplitRange(4, 100, Map.of("_stats.row_count", 50L));
+        SplitRange r2 = new SplitRange(104, 100, Map.of("_stats.row_count", 50L));
+        rangesByPath.put(storagePath, List.of(r1, r2));
+
+        ExternalSourceResolution resolution = resolveSingleFileWithRangeReader(location, schemasByPath, rangesByPath);
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(location);
+        assertNotNull(resolved);
+        FileList fileList = resolved.fileList();
+        assertNotNull("single-file resolution should attach pre-resolved ranges", fileList.fileSplitRanges());
+        assertEquals(1, fileList.fileSplitRanges().size());
+        assertEquals(List.of(r1, r2), fileList.fileSplitRanges().get(storagePath));
+    }
+
+    public void testMultiFileResolutionThreadsSplitRangesForUnionByName() throws Exception {
+        String f1 = "s3://bucket/data/file1.parquet";
+        String f2 = "s3://bucket/data/file2.parquet";
+        StoragePath p1 = StoragePath.of(f1);
+        StoragePath p2 = StoragePath.of(f2);
+
+        List<Attribute> schema1 = List.of(attr("id", DataType.LONG), attr("a", DataType.KEYWORD));
+        List<Attribute> schema2 = List.of(attr("id", DataType.LONG), attr("b", DataType.KEYWORD));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put(f1, schema1);
+        schemasByPath.put(f2, schema2);
+
+        Map<StoragePath, List<SplitRange>> rangesByPath = new HashMap<>();
+        SplitRange r1 = new SplitRange(4, 100, Map.of("_stats.row_count", 50L));
+        SplitRange r2 = new SplitRange(8, 200, Map.of("_stats.row_count", 100L));
+        rangesByPath.put(p1, List.of(r1));
+        rangesByPath.put(p2, List.of(r2));
+
+        ExternalSourceResolution resolution = resolveMultiFileWithRangeReader(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            rangesByPath,
+            List.of(entry(f1, 200), entry(f2, 400)),
+            // Use UNION_BY_NAME so all files are opened during resolution.
+            FormatReader.SchemaResolution.UNION_BY_NAME
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        FileList fileList = resolved.fileList();
+        assertNotNull("multi-file UNION_BY_NAME should attach pre-resolved ranges", fileList.fileSplitRanges());
+        assertEquals(2, fileList.fileSplitRanges().size());
+        assertEquals(List.of(r1), fileList.fileSplitRanges().get(p1));
+        assertEquals(List.of(r2), fileList.fileSplitRanges().get(p2));
     }
 
     // ===== Schema type preservation =====
@@ -834,6 +900,88 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
     }
 
+    private ExternalSourceResolution resolveSingleFileWithRangeReader(
+        String path,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<StoragePath, List<SplitRange>> rangesByPath
+    ) throws Exception {
+        ExternalSourceResolver resolver = createResolverWithRangeReader(schemasByPath, Map.of(), rangesByPath);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(), future);
+        return future.actionGet();
+    }
+
+    private ExternalSourceResolution resolveMultiFileWithRangeReader(
+        String globPattern,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<StoragePath, List<SplitRange>> rangesByPath,
+        List<StorageEntry> listing,
+        FormatReader.SchemaResolution schemaResolution
+    ) throws Exception {
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        StoragePath sp = StoragePath.of(globPattern);
+        listingsByPrefix.put(sp.patternPrefix().toString(), listing);
+
+        ExternalSourceResolver resolver = createResolverWithRangeReader(schemasByPath, listingsByPrefix, rangesByPath);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+
+        Map<String, Map<String, Expression>> pathParams = new HashMap<>();
+        if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+            Map<String, Expression> exprParams = new HashMap<>();
+            exprParams.put(
+                ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION,
+                new Literal(Source.EMPTY, new BytesRef(schemaResolution.name().toLowerCase(java.util.Locale.ROOT)), DataType.KEYWORD)
+            );
+            pathParams.put(globPattern, exprParams);
+        }
+
+        resolver.resolve(List.of(globPattern), pathParams, future);
+        return future.actionGet();
+    }
+
+    private ExternalSourceResolver createResolverWithRangeReader(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        Map<StoragePath, List<SplitRange>> rangesByPath
+    ) {
+        StubRangeAwareFormatReader formatReader = new StubRangeAwareFormatReader(schemasByPath, rangesByPath);
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", s -> storageProvider);
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+    }
+
     private ExternalSourceResolver createResolverWithCache(
         StorageProvider storageProvider,
         Map<String, List<Attribute>> schemasByPath,
@@ -893,6 +1041,58 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 throw new IllegalArgumentException("No schema configured for path: " + path);
             }
             return new StubSourceMetadata(path, schema);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String formatName() {
+            return "parquet";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class StubRangeAwareFormatReader implements RangeAwareFormatReader {
+        private final Map<String, List<Attribute>> schemasByPath;
+        private final Map<StoragePath, List<SplitRange>> rangesByPath;
+
+        StubRangeAwareFormatReader(Map<String, List<Attribute>> schemasByPath, Map<StoragePath, List<SplitRange>> rangesByPath) {
+            this.schemasByPath = schemasByPath;
+            this.rangesByPath = rangesByPath;
+        }
+
+        @Override
+        public FileLayout resolveFileLayout(StorageObject object) {
+            String path = object.path().toString();
+            List<Attribute> schema = schemasByPath.get(path);
+            if (schema == null) {
+                throw new IllegalArgumentException("No schema configured for path: " + path);
+            }
+            List<SplitRange> ranges = rangesByPath.getOrDefault(object.path(), List.of());
+            return new FileLayout(new StubSourceMetadata(path, schema), ranges);
+        }
+
+        @Override
+        public CloseableIterator<Page> readRange(
+            StorageObject object,
+            List<String> projectedColumns,
+            int batchSize,
+            long rangeStart,
+            long rangeEnd,
+            List<Attribute> resolvedAttributes,
+            ErrorPolicy errorPolicy
+        ) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

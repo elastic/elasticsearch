@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -63,6 +64,26 @@ public final class GlobExpander {
     public static FileList withSchemaInfo(FileList fileList, Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
         if (fileList instanceof GenericFileList generic) {
             return generic.withSchemaInfo(schemaInfo);
+        }
+        return fileList;
+    }
+
+    /**
+     * Returns a copy of the file list with pre-resolved per-file split ranges attached.
+     * Captured during single-pass file layout resolution and consumed by split discovery to
+     * avoid re-reading file footers.
+     * <p>
+     * Returns the input unchanged when {@code splitRanges} is null/empty, or when the file list
+     * is a compact representation (e.g. {@code DictionaryFileList}, {@code HiveFileList}) that
+     * does not currently carry per-file ranges. In that case split discovery falls back to
+     * re-opening each file -- a follow-up may extend compact lists to carry ranges as well.
+     */
+    public static FileList withFileSplitRanges(FileList fileList, Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> splitRanges) {
+        if (splitRanges == null || splitRanges.isEmpty()) {
+            return fileList;
+        }
+        if (fileList instanceof GenericFileList generic) {
+            return generic.withFileSplitRanges(splitRanges);
         }
         return fileList;
     }

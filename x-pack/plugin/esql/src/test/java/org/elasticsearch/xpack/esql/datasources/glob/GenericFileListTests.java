@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
@@ -89,6 +90,41 @@ public class GenericFileListTests extends ESTestCase {
     public void testSentinelsHaveNullPartitionMetadata() {
         assertNull(FileList.UNRESOLVED.partitionMetadata());
         assertNull(FileList.EMPTY.partitionMetadata());
+    }
+
+    public void testFileSplitRangesNullByDefault() {
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/file.parquet"), 100, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://bucket/*.parquet");
+        assertNull(fileList.fileSplitRanges());
+    }
+
+    public void testWithFileSplitRangesAttachesAndPreservesFiles() {
+        StoragePath path = StoragePath.of("s3://bucket/file.parquet");
+        StorageEntry entry = new StorageEntry(path, 100, Instant.EPOCH);
+        GenericFileList fileList = (GenericFileList) GlobExpander.fileListOf(List.of(entry), "s3://bucket/*.parquet");
+
+        RangeAwareFormatReader.SplitRange r = new RangeAwareFormatReader.SplitRange(0, 100, Map.of("_stats.row_count", 10L));
+        Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> ranges = Map.of(path, List.of(r));
+
+        GenericFileList withRanges = fileList.withFileSplitRanges(ranges);
+        assertNotNull(withRanges.fileSplitRanges());
+        assertEquals(1, withRanges.fileSplitRanges().size());
+        assertEquals(List.of(r), withRanges.fileSplitRanges().get(path));
+        assertEquals(fileList.files(), withRanges.files());
+        assertEquals(fileList.originalPattern(), withRanges.originalPattern());
+        assertNull(withRanges.partitionMetadata());
+    }
+
+    public void testEqualityDistinguishesFileSplitRanges() {
+        StoragePath path = StoragePath.of("s3://bucket/file.parquet");
+        StorageEntry entry = new StorageEntry(path, 100, Instant.EPOCH);
+        GenericFileList base = (GenericFileList) GlobExpander.fileListOf(List.of(entry), "s3://bucket/*.parquet");
+
+        RangeAwareFormatReader.SplitRange r = new RangeAwareFormatReader.SplitRange(0, 100, Map.of("_stats.row_count", 10L));
+        GenericFileList withRanges = base.withFileSplitRanges(Map.of(path, List.of(r)));
+
+        assertNotEquals(base, withRanges);
+        assertNotEquals(base.hashCode(), withRanges.hashCode());
     }
 
     public void testEqualityWithPartitionMetadata() {

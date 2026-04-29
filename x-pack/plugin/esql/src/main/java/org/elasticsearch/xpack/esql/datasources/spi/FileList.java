@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -158,6 +159,22 @@ public interface FileList {
      */
     @Nullable
     default Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo() {
+        return null;
+    }
+
+    /**
+     * Per-file split ranges captured during single-pass file layout resolution
+     * (see {@link RangeAwareFormatReader#resolveFileLayout(StorageObject)}). Split discovery
+     * uses the ranges associated with a file to skip re-opening it to read row group/stripe
+     * metadata.
+     * <p>
+     * Returns {@code null} when no pre-resolved ranges are available for any file (e.g. cache
+     * hit, non-range-aware format, or compact {@code FileList} implementations that do not
+     * carry ranges). When the returned map is non-null but does not contain an entry for a
+     * given {@link StoragePath}, split discovery falls back to opening that file.
+     */
+    @Nullable
+    default Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> fileSplitRanges() {
         return null;
     }
 }

@@ -182,16 +182,12 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         GroupingAggregatorFunction fn,
         TimeSeriesGroupingAggregatorEvaluationContext context
     ) {
-        int[] singlePosition = new int[1];
         try (var oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
             long end = context.rangeEndInMillis(startingGroupId);
             context.forEachGroupInRange(startingGroupId, end - window.toMillis(), end, g -> {
                 assert g != startingGroupId && g >= 0 && g < groupIdToPositions.length;
                 int position = groupIdToPositions[g];
-                if (hasIntermediateState(page, position)) {
-                    singlePosition[0] = position;
-                    addIntermediateInputWithFilter(fn, page, singlePosition, oneGroup);
-                }
+                fn.addIntermediateInput(position, oneGroup, page);
             });
         }
     }

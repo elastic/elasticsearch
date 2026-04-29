@@ -271,7 +271,9 @@ public class FlattenedFieldSyntheticWriterHelper {
     }
 
     public enum OutputStructure {
+        /** Writes each key using its full dotted path as a single field name with no nested objects. */
         FLATTENED(FlatFlattenedPathXContentWriter::new),
+        /** Reconstructs nested objects by splitting keys on {@code .} and tracking open object scopes. */
         NESTED(NestedFlattenedPathXContentWriter::new);
 
         private final Supplier<FlattenedPathXContentWriter> writerSupplier;
@@ -286,11 +288,15 @@ public class FlattenedFieldSyntheticWriterHelper {
     }
 
     /**
-     * Stateful writer that turns a sorted stream of flattened key paths into nested {@link XContentBuilder} output.
+     * {@link FlattenedPathXContentWriter} implementation for {@link OutputStructure#NESTED} that splits each key on
+     * {@code .} and opens {@link XContentBuilder} object scopes to reconstruct nested structure from sorted path segments.
      * <p>
-     * It tracks which object scopes are currently open and, when a leaf key collides with a prior scalar at the same
-     * path prefix (e.g. {@code foo} then {@code foo.bar}), emits a single dotted field name instead of nesting so the
-     * reconstructed document matches flattened-field semantics.
+     * It keeps track of which object levels are open and how far into the current path each field belongs, and uses
+     * {@code next} to close the right number of objects when the prefix of the following key changes.
+     * <p>
+     * When a leaf already had a scalar value and a later key extends that path (e.g. {@code foo} then {@code foo.bar}),
+     * a nested object under {@code foo} would collide with the scalar. The writer then emits a single dotted field
+     * name in the current object (for example {@code foo.bar}) instead of opening another object under {@code foo}.
      */
     private static class NestedFlattenedPathXContentWriter implements FlattenedPathXContentWriter {
         Prefix openObjects = new Prefix();
@@ -325,6 +331,13 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
+    /**
+     * {@link FlattenedPathXContentWriter} implementation for {@link OutputStructure#FLATTENED} that writes each
+     * key with its full dotted path as a single top-level field name, without opening nested objects.
+     * <p>
+     * Unlike {@link NestedFlattenedPathXContentWriter}, it does not split paths on {@code .} or track open object
+     * scopes; {@code next} is ignored because flattening is stateless.
+     */
     private static class FlatFlattenedPathXContentWriter implements FlattenedPathXContentWriter {
         @Override
         public void writeValue(XContentBuilder b, KeyValueWithOffset value, KeyValueWithOffset next) throws IOException {

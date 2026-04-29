@@ -2616,60 +2616,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    final class BitSetDocIdStream extends DocIdStream {
-
-        private final FixedBitSet bitSet;
-        private final int offset, max;
-        private int upTo;
-
-        BitSetDocIdStream(FixedBitSet bitSet, int offset) {
-            this.bitSet = bitSet;
-            this.offset = offset;
-            upTo = offset;
-            max = MathUtil.unsignedMin(Integer.MAX_VALUE, offset + bitSet.length());
-        }
-
-        @Override
-        public boolean mayHaveRemaining() {
-            return upTo < max;
-        }
-
-        @Override
-        public void forEach(int upTo, CheckedIntConsumer<IOException> consumer) throws IOException {
-            if (upTo > this.upTo) {
-                upTo = Math.min(upTo, max);
-                bitSet.forEach(this.upTo - offset, upTo - offset, offset, consumer);
-                this.upTo = upTo;
-            }
-        }
-
-        @Override
-        public int count(int upTo) throws IOException {
-            if (upTo > this.upTo) {
-                upTo = Math.min(upTo, max);
-                int count = bitSet.cardinality(this.upTo - offset, upTo - offset);
-                this.upTo = upTo;
-                return count;
-            } else {
-                return 0;
-            }
-        }
-
-        @Override
-        public int intoArray(int upTo, int[] array) {
-            if (upTo > this.upTo) {
-                upTo = Math.min(upTo, max);
-                int count = bitSet.intoArray(this.upTo - offset, upTo - offset, offset, array);
-                if (count == array.length) { // The whole range of doc IDs may not have been copied
-                    upTo = array[array.length - 1] + 1;
-                }
-                this.upTo = upTo;
-                return count;
-            }
-            return 0;
-        }
-    }
-
     private static boolean isDense(int firstDocId, int lastDocId, int length) {
         return lastDocId - firstDocId == length - 1;
     }

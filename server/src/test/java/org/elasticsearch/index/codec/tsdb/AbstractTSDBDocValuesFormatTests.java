@@ -34,6 +34,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
+import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -59,6 +61,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ESTestCase.between;
@@ -2312,5 +2315,291 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 }
             }
         }
+    }
+
+    /**
+     * Verifies that {@link BlockLoader.OptionalNumericRangeReader#tryRangeIterator} returns exactly
+     * the same set of matching documents as a brute-force linear scan, for a variety of range
+     * patterns including exact-match (regression for the [v,v] single-value bug), all-docs, and
+     * random ranges spanning multiple numeric blocks.
+     * <p>
+     * Also validates the {@code docIDRunEnd()} contract: every doc in {@code [docID, docIDRunEnd())}
+     * must be a match, and {@code advance()} must land exactly on requested matching docs.
+     */
+    public void testRangeIteratorVsBruteForce() throws IOException {
+        final String field = "dense_value";
+        // Use enough docs to span multiple numeric blocks (block size is 128–512 per codec config).
+        int numDocs = 1024 + randomIntBetween(64, 512);
+        long currentTimestamp = BASE_TIMESTAMP;
+
+        var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
+                d.add(new SortedNumericDocValuesField(field, random().nextLong()));
+                currentTimestamp += 1000L;
+                iw.addDocument(d);
+                if (i % 256 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leafReader = reader.leaves().getFirst().reader();
+                assumeTrue("requires DocValuesSkipper", leafReader.getDocValuesSkipper(field) != null);
+
+                // Sample an existing value for the exact-match regression test.
+                var sample = getBaseDenseNumericValues(leafReader, field);
+                assertNotNull(sample);
+                sample.advance(randomIntBetween(0, numDocs - 1));
+                long existingValue = sample.longValue();
+
+                assertRangeIterator(leafReader, field, numDocs, existingValue, existingValue);  // exact match
+                assertRangeIterator(leafReader, field, numDocs, Long.MIN_VALUE, Long.MAX_VALUE); // all docs
+                assertRangeIterator(leafReader, field, numDocs, Long.MIN_VALUE, Long.MIN_VALUE); // likely empty
+                assertRangeIterator(leafReader, field, numDocs, Long.MAX_VALUE, Long.MAX_VALUE); // likely empty
+
+                for (int i = 0; i < 5; i++) {
+                    long lo = random().nextLong();
+                    long hi = random().nextLong();
+                    if (lo > hi) {
+                        long t = lo;
+                        lo = hi;
+                        hi = t;
+                    }
+                    assertRangeIterator(leafReader, field, numDocs, lo, hi);
+                }
+            }
+        }
+    }
+
+    /**
+     * Verifies that {@link BlockLoader.OptionalNumericRangeReader#tryRangeIterator}'s
+     * {@code intoBitSet()} fills a {@link FixedBitSet} with exactly the same set of matching
+     * documents as a brute-force linear scan.
+     */
+    public void testRangeIteratorIntoBitSet() throws IOException {
+        final String field = "dense_value";
+        int numDocs = 1024 + randomIntBetween(64, 512);
+        long currentTimestamp = BASE_TIMESTAMP;
+
+        var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
+                d.add(new SortedNumericDocValuesField(field, random().nextLong()));
+                currentTimestamp += 1000L;
+                iw.addDocument(d);
+                if (i % 256 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leafReader = reader.leaves().getFirst().reader();
+                assumeTrue("requires DocValuesSkipper", leafReader.getDocValuesSkipper(field) != null);
+
+                var sample = getBaseDenseNumericValues(leafReader, field);
+                assertNotNull(sample);
+                sample.advance(randomIntBetween(0, numDocs - 1));
+                long existingValue = sample.longValue();
+
+                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, existingValue, existingValue);
+                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, Long.MIN_VALUE, Long.MAX_VALUE);
+
+                for (int i = 0; i < 5; i++) {
+                    long lo = random().nextLong();
+                    long hi = random().nextLong();
+                    if (lo > hi) {
+                        long t = lo;
+                        lo = hi;
+                        hi = t;
+                    }
+                    assertRangeIteratorIntoBitSet(leafReader, field, numDocs, lo, hi);
+                }
+            }
+        }
+    }
+
+    /**
+     * End-to-end integration test: runs {@link SortedNumericDocValuesRangeQuery} against a
+     * TSDB-encoded segment via {@link IndexSearcher} and verifies the hit set matches a
+     * brute-force scan. When the range reader is available, the query routes through
+     * {@code tryRangeIterator} instead of the standard two-phase iterator.
+     */
+    public void testRangeQueryViaIndexSearcher() throws IOException {
+        final String field = "dense_value";
+        int numDocs = 1024 + randomIntBetween(64, 512);
+        long currentTimestamp = BASE_TIMESTAMP;
+
+        var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
+                d.add(new SortedNumericDocValuesField(field, random().nextLong()));
+                currentTimestamp += 1000L;
+                iw.addDocument(d);
+                if (i % 256 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leafReader = reader.leaves().getFirst().reader();
+                var searcher = new IndexSearcher(reader);
+
+                var sample = getBaseDenseNumericValues(leafReader, field);
+                assertNotNull(sample);
+                sample.advance(randomIntBetween(0, numDocs - 1));
+                long existingValue = sample.longValue();
+
+                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, existingValue, existingValue);
+                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, Long.MIN_VALUE, Long.MAX_VALUE);
+                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, Long.MIN_VALUE, Long.MIN_VALUE);
+                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, Long.MAX_VALUE, Long.MAX_VALUE);
+
+                for (int i = 0; i < 5; i++) {
+                    long lo = random().nextLong();
+                    long hi = random().nextLong();
+                    if (lo > hi) {
+                        long t = lo;
+                        lo = hi;
+                        hi = t;
+                    }
+                    assertRangeQuerySearcher(leafReader, field, searcher, numDocs, lo, hi);
+                }
+            }
+        }
+    }
+
+    private Set<Integer> bruteForceRange(LeafReader leafReader, String field, long lower, long upper) throws IOException {
+        Set<Integer> expected = new HashSet<>();
+        var brute = getBaseDenseNumericValues(leafReader, field);
+        assertNotNull(brute);
+        for (int doc = brute.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = brute.nextDoc()) {
+            long v = brute.longValue();
+            if (v >= lower && v <= upper) {
+                expected.add(doc);
+            }
+        }
+        return expected;
+    }
+
+    private void assertRangeIterator(LeafReader leafReader, String field, int numDocs, long lower, long upper)
+            throws IOException {
+        Set<Integer> expected = bruteForceRange(leafReader, field, lower, upper);
+
+        // Pass 1: nextDoc() correctness + docIDRunEnd() contract.
+        {
+            var ndv = getBaseDenseNumericValues(leafReader, field);
+            var skipper = leafReader.getDocValuesSkipper(field);
+            var iter = ndv.tryRangeIterator(lower, upper, skipper);
+            if (iter == null) {
+                return;
+            }
+            Set<Integer> actual = new HashSet<>();
+            int doc;
+            while ((doc = iter.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                assertTrue("range [" + lower + "," + upper + "]: unexpected doc " + doc, expected.contains(doc));
+                actual.add(doc);
+
+                int runEnd = iter.docIDRunEnd();
+                assertTrue("docIDRunEnd " + runEnd + " must be > docID " + doc, runEnd > doc);
+                for (int d = doc + 1; d < runEnd; d++) {
+                    assertTrue(
+                        "doc " + d + " in run [" + doc + "," + runEnd + ") must match range [" + lower + "," + upper + "]",
+                        expected.contains(d)
+                    );
+                }
+            }
+            assertEquals("range [" + lower + "," + upper + "]", expected, actual);
+        }
+
+        // Pass 2: advance() to each matching doc in order.
+        if (expected.isEmpty() == false) {
+            var ndv = getBaseDenseNumericValues(leafReader, field);
+            var skipper = leafReader.getDocValuesSkipper(field);
+            var iter = ndv.tryRangeIterator(lower, upper, skipper);
+            assertNotNull(iter);
+            List<Integer> sortedDocs = expected.stream().sorted().collect(Collectors.toList());
+            for (int expectedDoc : sortedDocs) {
+                if (iter.docID() < expectedDoc) {
+                    assertEquals("advance(" + expectedDoc + ") for range [" + lower + "," + upper + "]", expectedDoc, iter.advance(expectedDoc));
+                }
+            }
+        }
+
+        // Pass 3: advance past the segment → NO_MORE_DOCS.
+        {
+            var ndv = getBaseDenseNumericValues(leafReader, field);
+            var skipper = leafReader.getDocValuesSkipper(field);
+            var iter = ndv.tryRangeIterator(lower, upper, skipper);
+            assertNotNull(iter);
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, iter.advance(numDocs));
+        }
+    }
+
+    private void assertRangeIteratorIntoBitSet(LeafReader leafReader, String field, int numDocs, long lower, long upper)
+            throws IOException {
+        Set<Integer> expected = bruteForceRange(leafReader, field, lower, upper);
+
+        var ndv = getBaseDenseNumericValues(leafReader, field);
+        var skipper = leafReader.getDocValuesSkipper(field);
+        var iter = ndv.tryRangeIterator(lower, upper, skipper);
+        if (iter == null) {
+            return;
+        }
+
+        // Advance to first matching doc so intoBitSet has a valid starting position.
+        int firstDoc = iter.nextDoc();
+        if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
+            assertTrue("no matches → expected set must be empty", expected.isEmpty());
+            return;
+        }
+
+        var bitSet = new FixedBitSet(numDocs);
+        bitSet.set(firstDoc);
+        iter.intoBitSet(numDocs, bitSet, 0);
+
+        Set<Integer> actual = new HashSet<>();
+        for (int doc = bitSet.nextSetBit(0); doc != DocIdSetIterator.NO_MORE_DOCS; doc = bitSet.nextSetBit(doc + 1)) {
+            actual.add(doc);
+        }
+        assertEquals("intoBitSet range [" + lower + "," + upper + "]", expected, actual);
+    }
+
+    private void assertRangeQuerySearcher(
+        LeafReader leafReader,
+        String field,
+        IndexSearcher searcher,
+        int numDocs,
+        long lower,
+        long upper
+    ) throws IOException {
+        Set<Integer> expected = bruteForceRange(leafReader, field, lower, upper);
+
+        var query = new SortedNumericDocValuesRangeQuery(field, lower, upper);
+        var topDocs = searcher.search(query, numDocs + 1);
+
+        assertEquals(
+            "hit count for range [" + lower + "," + upper + "]",
+            expected.size(),
+            (int) topDocs.totalHits.value()
+        );
+
+        Set<Integer> actual = new HashSet<>();
+        for (var scoreDoc : topDocs.scoreDocs) {
+            actual.add(scoreDoc.doc);
+        }
+        assertEquals("hit set for range [" + lower + "," + upper + "]", expected, actual);
     }
 }

@@ -140,6 +140,27 @@ public class SearchServiceTests extends IndexShardTestCase {
         );
     }
 
+    // Verify that a range filter nested inside a bool `should` clause does not contribute to
+    // the time_range_filter_from metric — only mandatory (must/filter) clauses should be tracked.
+    public void testCanMatchTimeRangeFilterInsideShouldClauseIsNotTracked() throws IOException {
+        // outer filter: @timestamp >= 2025-12-01 (should match the indexed doc from 2025-12-09)
+        // inner should: @timestamp >= 2020-01-01 (old date in an optional clause — must not be tracked)
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
+            .source(
+                new SearchSourceBuilder().query(
+                    new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").from("2025-12-01"))
+                        .should(new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").from("2020-01-01")))
+                )
+            );
+        SearchService.CanMatchContext canMatchContext = doTestCanMatch(searchRequest, null, true, null, false);
+        // Only the outer filter range should be reported; Math.min must not drag it back to 2020-01-01
+        LocalDateTime expectedFrom = LocalDateTime.of(2025, 12, 1, 0, 0);
+        assertEquals(
+            expectedFrom.atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            canMatchContext.getTimeRangeFilterFromMillis().longValue()
+        );
+    }
+
     public void testCanMatchKeywordSortedQueryMatchNoneWithException() throws IOException {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
             .source(new SearchSourceBuilder().sort("field").query(new MatchNoneQueryBuilder()));

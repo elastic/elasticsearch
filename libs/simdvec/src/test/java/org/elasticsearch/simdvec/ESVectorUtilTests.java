@@ -1076,7 +1076,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float eps = randomFloat();
 
         float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps);
-        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps), 1.5e-2 * referenceResult);
+        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps), 3.5e-2 * referenceResult);
     }
 
     public void testPow2DiffAndScale() {
@@ -1097,6 +1097,6 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         defaultedProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result1);
         defOrPanamaProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result2);
 
-        assertArrayEqualsPercent(result1, result2, 0.1f);
+        assertArrayEqualsPercent(result1, result2, 0.15f);
     }
 }

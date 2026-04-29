@@ -129,3 +129,45 @@ setup:
   - match:  {test_index_2.mappings.t2.full_name: t2 }
   - length: {test_index_2.mappings: 2}
 
+
+---
+"Get field mapping with wildcard for search_as_you_type field":
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: search_as_you_type wildcard fix landed after 8.16
+
+  - do:
+      indices.create:
+        index: search_as_you_type_index
+        body:
+          mappings:
+            properties:
+              field1a:
+                type: search_as_you_type
+              field1b:
+                type: text
+              field2a:
+                type: text
+
+  # Wildcard that matches a search_as_you_type root field must return that field
+  # and must not return its synthetic prefix/shingle subfields (gh-118636).
+  - do:
+      indices.get_field_mapping:
+        index: search_as_you_type_index
+        fields: "field1*"
+
+  - match:    { search_as_you_type_index.mappings.field1a.full_name: field1a }
+  - match:    { search_as_you_type_index.mappings.field1b.full_name: field1b }
+  - length:   { search_as_you_type_index.mappings: 2 }
+
+  # Match-all wildcard must include the search_as_you_type root field but exclude
+  # its synthetic subfields.
+  - do:
+      indices.get_field_mapping:
+        index: search_as_you_type_index
+        fields: "*"
+
+  - match:    { search_as_you_type_index.mappings.field1a.full_name: field1a }
+  - is_false: search_as_you_type_index.mappings.field1a\\._index_prefix
+  - is_false: search_as_you_type_index.mappings.field1a\\._2gram
+  - is_false: search_as_you_type_index.mappings.field1a\\._3gram

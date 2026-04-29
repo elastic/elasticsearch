@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.ShardId;
@@ -162,10 +163,16 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (Mapper fieldMapper : mappingLookup.fieldMappers()) {
+                    if (isInternalFieldMapper(fieldMapper)) {
+                        continue;
+                    }
                     addFieldMapper(fieldPredicate, fieldMapper.fullPath(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
                 for (Mapper fieldMapper : mappingLookup.fieldMappers()) {
+                    if (isInternalFieldMapper(fieldMapper)) {
+                        continue;
+                    }
                     if (Regex.simpleMatch(field, fieldMapper.fullPath())) {
                         addFieldMapper(fieldPredicate, fieldMapper.fullPath(), fieldMapper, fieldMappings, request.includeDefaults());
                     }
@@ -173,12 +180,22 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             } else {
                 // not a pattern
                 Mapper fieldMapper = mappingLookup.getMapper(field);
-                if (fieldMapper != null) {
+                if (fieldMapper != null && isInternalFieldMapper(fieldMapper) == false) {
                     addFieldMapper(fieldPredicate, field, fieldMapper, fieldMappings, request.includeDefaults());
                 }
             }
         }
         return Collections.unmodifiableMap(fieldMappings);
+    }
+
+    /**
+     * Returns {@code true} for synthetic {@link FieldMapper} instances that are managed internally by their parent mapper
+     * (e.g. {@code search_as_you_type} prefix and shingle subfields, or the {@code _id} subfields backing {@code join}).
+     * Such mappers have no public {@link FieldMapper.Builder} and cannot be serialized on their own, so they should not be
+     * exposed through the get field mapping API.
+     */
+    private static boolean isInternalFieldMapper(Mapper mapper) {
+        return mapper instanceof FieldMapper fieldMapper && fieldMapper.getMergeBuilder() == null;
     }
 
     private static void addFieldMapper(

@@ -1,0 +1,53 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+
+versions << [
+  'hadoop' : '3.4.3',
+]
+
+esplugin {
+  name = 'esql-datasource-parquet-rs'
+  description = 'Rust FFI foundation for parquet-rs backed Parquet support in ESQL'
+  classname = 'org.elasticsearch.xpack.esql.datasource.parquet.parquetrs.ParquetRsPlugin'
+}
+
+base {
+  archivesName = 'esql-datasource-parquet-rs'
+}
+
+dependencies {
+  compileOnly project(':server')
+
+  // Parquet-rs library (Rust FFI via libs/native)
+  compileOnly project(':libs:parquet-rs')
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+
+  // Arrow C Data Interface — used in tests to validate schema FFI output.
+  // The PR will promote these to implementation when production code uses them.
+  testImplementation("org.apache.arrow:arrow-c-data:18.3.0") {
+    exclude group: 'org.slf4j'
+  }
+  testImplementation(project(':libs:arrow'))
+
+  // Parquet writing for test fixtures
+  testImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
+  testImplementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
+  testImplementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}")
+  // jts-core is needed at test time: parquet-hadoop-bundle's ColumnChunkPageWriteStore
+  // references GeospatialStatistics which requires JTS. Normally resolved transitively
+  // via esql-core, but this module does not depend on esql-core.
+  testImplementation("org.locationtech.jts:jts-core:1.20.0")
+}
+
+tasks.named("test").configure {
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}

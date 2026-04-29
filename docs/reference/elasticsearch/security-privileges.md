@@ -251,7 +251,7 @@ When creating roles, refer to this page for a complete list of available privile
 :   Read-only access to ingest pipeline (get, simulate).
 
 `read_project_routing` {applies_to}`stack: unavailable` {applies_to}`serverless: preview`
-:   Read-only access to [cross-project search](docs-content://explore-analyze/cross-project-search.md) project routing, including viewing project routing expressions and project metadata.
+:   Read-only access to [cross-project search](docs-content://explore-analyze/cross-project-search.md) project routing, including viewing project routing expressions and project metadata. Include `read_project_routing` for custom roles with the `read` index privilege to ensure users have access to the project picker in {{kib}}.
 
 `read_slm` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 8.15`
 :   All read-only {{slm-init}} actions, such as getting policies and checking the {{slm-init}} status. It also grants the permission to get the {{Ilm}} status, using the [ILM get status API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-get-status).

@@ -28,10 +28,14 @@ public class DLMFrozenTransitionPlugin extends Plugin {
         Set<Object> components = new HashSet<>(super.createComponents(services));
         if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
             XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
+            var transitionSettings = DLMFrozenTransitionSettings.create(services.clusterService());
+            components.add(transitionSettings);
+
             var transitionService = new DLMFrozenTransitionService(
                 services.clusterService(),
                 services.client(),
                 licenseState,
+                transitionSettings,
                 services.dlmErrorStore()
             );
             transitionService.init();
@@ -51,7 +55,8 @@ public class DLMFrozenTransitionPlugin extends Plugin {
                 DLMFrozenTransitionService.POLL_INTERVAL_SETTING,
                 DLMFrozenTransitionService.MAX_CONCURRENCY_SETTING,
                 DLMFrozenTransitionService.MAX_QUEUE_SIZE,
-                DLMFrozenCleanupService.POLL_INTERVAL_SETTING
+                DLMFrozenCleanupService.POLL_INTERVAL_SETTING,
+                DLMConvertToFrozen.DLM_CREATED_SETTING
             );
         } else {
             return List.of();

@@ -19,7 +19,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -116,8 +115,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
             var model = ContextualAiRerankModelTests.createModel(getUrl(webServer), TEST_API_KEY, TEST_MODEL_ID, null, null);
@@ -125,11 +122,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, Map.of());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false), null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationRerank(RERANK_EXPECTATIONS)));
@@ -153,8 +146,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
             var model = ContextualAiRerankModelTests.createModel(
@@ -168,11 +159,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, new HashMap<>());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false), null, listener);
 
             listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(webServer.requests(), hasSize(1));
@@ -192,8 +179,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
             var model = ContextualAiRerankModelTests.createModel(
@@ -208,11 +193,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, taskSettingsOverride);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false), null, listener);
 
             listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(webServer.requests(), hasSize(1));
@@ -232,8 +213,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
             var model = ContextualAiRerankModelTests.createModel(getUrl(webServer), TEST_API_KEY, TEST_MODEL_ID, INITIAL_TEST_TOP_N, null);
@@ -241,11 +220,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, Map.of());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, NEW_TEST_TOP_N, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, NEW_TEST_TOP_N, false), null, listener);
 
             listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(webServer.requests(), hasSize(1));
@@ -264,8 +239,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "not_results": [
@@ -282,11 +255,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             var action = new ContextualAiActionCreator(sender, createWithEmptySettings(threadPool)).create(model, Map.of());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false), null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
 

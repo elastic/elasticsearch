@@ -186,7 +186,19 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     newMetadata -> logger.debug(
                         () -> format("rebalanced model assignments [%s]", Strings.toString(newMetadata, false, true))
                     ),
-                    e -> logger.warn("failed to rebalance models", e)
+                    e -> {
+                        List<String> deploymentIdsBeforeRebalance = TrainedModelAssignmentMetadata.fromState(event.state())
+                            .allAssignments()
+                            .keySet()
+                            .stream()
+                            .toList();
+                        logger.warn(
+                            "failed to rebalance models, cluster state assignments may be stale. "
+                                + "error type: [{}], deployments at start of rebalance: {}",
+                            e.getClass().getSimpleName(),
+                            deploymentIdsBeforeRebalance
+                        );
+                    }
                 )
             );
         }
@@ -664,50 +676,98 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         }
 
         for (TrainedModelAssignment existingAssignment : currentMetadata.allAssignments().values()) {
-            boolean foundShuttingDownNodeForAssignment = false;
-
             String existingDeploymentId = existingAssignment.getDeploymentId();
-            TrainedModelAssignment.Builder assignmentBuilder = builder.hasModelDeployment(existingAssignment.getDeploymentId())
-                ? builder.getAssignment(existingDeploymentId)
-                : TrainedModelAssignment.Builder.fromAssignment(existingAssignment)
-                    /*
-                     * If this code path happens that means that the assignment originally existed prior to the rebalance and then
-                     * disappeared. This would be an anomaly so we'll set the assignment to stopping and attempt to gracefully shut down
-                     * the native process.
-                     */
-                    .stopAssignment(NODES_CHANGED_REASON)
-                    // If there are other routes that are now outdated after the rebalance we don't want to include them, so let's start
-                    // with a fresh table
-                    .clearNodeRoutingTable();
 
-            for (String nodeId : shuttingDownNodeIds) {
-                if (existingAssignment.isRoutedToNode(nodeId)
-                    && existingAssignment.getNodeRoutingTable()
-                        .get(nodeId)
-                        .getState()
-                        .isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
-                    logger.debug(
-                        () -> format(
-                            "Found assignment deployment id: [%s] with route to shutting down node id: [%s], adding stopping route",
-                            existingDeploymentId,
-                            nodeId
-                        )
+            boolean wasDroppedByRebalancer = builder.hasModelDeployment(existingDeploymentId) == false;
+            // Fast path for zero-allocation deployments: nothing to drain, nothing to stop.
+            // If the rebalancer already has the deployment, leave its version untouched.
+            // Otherwise carry the existing assignment forward unchanged so it is never silently lost.
+            if (existingAssignment.getNodeRoutingTable().isEmpty()) {
+                if (wasDroppedByRebalancer) {
+                    errorAssignmentDroppedByRebalancer(existingDeploymentId, existingAssignment, shuttingDownNodeIds, builder);
+                    builder.addOrOverwriteAssignment(
+                        existingDeploymentId,
+                        TrainedModelAssignment.Builder.fromAssignment(existingAssignment)
                     );
-
-                    foundShuttingDownNodeForAssignment = true;
-                    RoutingInfo stoppingRouteInfo = createShuttingDownRoute(existingAssignment.getNodeRoutingTable().get(nodeId));
-
-                    assignmentBuilder.addOrOverwriteRoutingEntry(nodeId, stoppingRouteInfo);
                 }
+                continue;
             }
 
-            // if we didn't find a shutting down routing info then we don't want to add an empty assignment here
-            if (foundShuttingDownNodeForAssignment) {
+            TrainedModelAssignment.Builder assignmentBuilder;
+            if (wasDroppedByRebalancer) {
+                errorAssignmentDroppedByRebalancer(existingDeploymentId, existingAssignment, shuttingDownNodeIds, builder);
+                assignmentBuilder = TrainedModelAssignment.Builder.fromAssignment(existingAssignment)
+                    /*
+                     * The assignment existed before the rebalance but was not emitted by the rebalancer.
+                     * Transition it to STOPPING while preserving routes so the node service can drain them
+                     * on the next reconciliation instead of leaving native processes orphaned.
+                     */
+                    .stopAssignment(NODES_CHANGED_REASON);
+            } else {
+                assignmentBuilder = builder.getAssignment(existingDeploymentId);
+            }
+
+            applyShuttingDownRoutes(existingAssignment, shuttingDownNodeIds, assignmentBuilder);
+
+            // Always write back for assignments dropped by the rebalancer to prevent silent data loss.
+            if (wasDroppedByRebalancer) {
                 builder.addOrOverwriteAssignment(existingDeploymentId, assignmentBuilder);
             }
         }
 
+        assert currentMetadata.allAssignments().keySet().stream().allMatch(builder::hasModelDeployment)
+            : "setShuttingDownNodeRoutesToStopping must not drop any assignment present in currentMetadata";
+
         return builder;
+    }
+
+    private static void errorAssignmentDroppedByRebalancer(
+        String deploymentId,
+        TrainedModelAssignment preRebalanceAssignment,
+        Set<String> shuttingDownNodeIds,
+        TrainedModelAssignmentMetadata.Builder rebalancerOutput
+    ) {
+        logger.error(
+            "Assignment [{}] was present in cluster state before rebalance but is missing from "
+                + "rebalancer output; preserving it to avoid silent loss (this should not happen). "
+                + "Please report this warning. "
+                + "targetAllocations={}, preRebalanceRouting={}, preRebalanceState={}, "
+                + "shuttingDownNodes={}, rebalancerOutputDeployments={}",
+            deploymentId,
+            preRebalanceAssignment.getTaskParams().getNumberOfAllocations(),
+            preRebalanceAssignment.getNodeRoutingTable(),
+            preRebalanceAssignment.getAssignmentState(),
+            shuttingDownNodeIds,
+            rebalancerOutput.deploymentIds()
+        );
+    }
+
+    /**
+     * For each node in {@code shuttingDownNodeIds} that has an active ({@link RoutingState#STARTING} or
+     * {@link RoutingState#STARTED}) route in {@code existingAssignment}, converts that route to a
+     * {@link RoutingState#STOPPING} route and writes it into {@code assignmentBuilder}.
+     */
+    private static void applyShuttingDownRoutes(
+        TrainedModelAssignment existingAssignment,
+        Set<String> shuttingDownNodeIds,
+        TrainedModelAssignment.Builder assignmentBuilder
+    ) {
+        for (String nodeId : shuttingDownNodeIds) {
+            if (existingAssignment.isRoutedToNode(nodeId)
+                && existingAssignment.getNodeRoutingTable().get(nodeId).getState().isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
+                logger.debug(
+                    () -> format(
+                        "Found assignment deployment id: [%s] with route to shutting down node id: [%s], adding stopping route",
+                        existingAssignment.getDeploymentId(),
+                        nodeId
+                    )
+                );
+                assignmentBuilder.addOrOverwriteRoutingEntry(
+                    nodeId,
+                    createShuttingDownRoute(existingAssignment.getNodeRoutingTable().get(nodeId))
+                );
+            }
+        }
     }
 
     private void checkModelIsFullyAllocatedIfScalingIsNotPossible(

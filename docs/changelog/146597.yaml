@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 146597
+summary: Filtered aggregate pushdown for external sources
+type: enhancement

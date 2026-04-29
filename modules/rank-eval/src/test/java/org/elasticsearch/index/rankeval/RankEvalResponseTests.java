@@ -124,21 +124,34 @@ public class RankEvalResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         RankEvalResponse randomResponse = createRandomResponse();
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            randomResponse.writeTo(output);
-            try (StreamInput in = output.bytes().streamInput()) {
-                RankEvalResponse deserializedResponse = new RankEvalResponse(in);
-                assertEquals(randomResponse.getMetricScore(), deserializedResponse.getMetricScore(), 0.0000000001);
-                assertEquals(randomResponse.getPartialResults(), deserializedResponse.getPartialResults());
-                assertEquals(randomResponse.getFailures().keySet(), deserializedResponse.getFailures().keySet());
-                assertNotSame(randomResponse, deserializedResponse);
-                assertEquals(-1, in.read());
+        try {
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                randomResponse.writeTo(output);
+                try (StreamInput in = output.bytes().streamInput()) {
+                    try (RankEvalResponse deserializedResponse = new RankEvalResponse(in)) {
+                        assertEquals(randomResponse.getMetricScore(), deserializedResponse.getMetricScore(), 0.0000000001);
+                        assertEquals(randomResponse.getPartialResults(), deserializedResponse.getPartialResults());
+                        assertEquals(randomResponse.getFailures().keySet(), deserializedResponse.getFailures().keySet());
+                        assertNotSame(randomResponse, deserializedResponse);
+                        assertEquals(-1, in.read());
+                    }
+                }
             }
+        } finally {
+            randomResponse.close();
         }
     }
 
     public void testXContentParsing() throws IOException {
         RankEvalResponse testItem = createRandomResponse();
+        try {
+            doTestXContentParsing(testItem);
+        } finally {
+            testItem.close();
+        }
+    }
+
+    private void doTestXContentParsing(RankEvalResponse testItem) throws IOException {
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -183,53 +196,59 @@ public class RankEvalResponseTests extends ESTestCase {
             Collections.singletonMap("coffee_query", coffeeQueryQuality),
             Collections.singletonMap("beer_query", new ParsingException(new XContentLocation(0, 0), "someMsg"))
         );
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        String xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
-        assertEquals(XContentHelper.stripWhitespace("""
-            {
-              "metric_score": 0.123,
-              "details": {
-                "coffee_query": {
-                  "metric_score": 0.1,
-                  "unrated_docs": [ { "_index": "index", "_id": "456" } ],
-                  "hits": [
-                    {
-                      "hit": {
-                        "_index": "index",
-                        "_id": "123",
-                        "_score": 1.0
-                      },
-                      "rating": 5
-                    },
-                    {
-                      "hit": {
-                        "_index": "index",
-                        "_id": "456",
-                        "_score": 1.0
-                      },
-                      "rating": null
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            String xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "metric_score": 0.123,
+                  "details": {
+                    "coffee_query": {
+                      "metric_score": 0.1,
+                      "unrated_docs": [ { "_index": "index", "_id": "456" } ],
+                      "hits": [
+                        {
+                          "hit": {
+                            "_index": "index",
+                            "_id": "123",
+                            "_score": 1.0
+                          },
+                          "rating": 5
+                        },
+                        {
+                          "hit": {
+                            "_index": "index",
+                            "_id": "456",
+                            "_score": 1.0
+                          },
+                          "rating": null
+                        }
+                      ]
                     }
-                  ]
-                }
-              },
-              "failures": {
-                "beer_query": {
-                  "error": {
-                    "root_cause": [ { "type": "parsing_exception", "reason": "someMsg", "line": 0, "col": 0 } ],
-                    "type": "parsing_exception",
-                    "reason": "someMsg",
-                    "line": 0,
-                    "col": 0
+                  },
+                  "failures": {
+                    "beer_query": {
+                      "error": {
+                        "root_cause": [ { "type": "parsing_exception", "reason": "someMsg", "line": 0, "col": 0 } ],
+                        "type": "parsing_exception",
+                        "reason": "someMsg",
+                        "line": 0,
+                        "col": 0
+                      }
+                    }
                   }
-                }
-              }
-            }"""), xContent);
+                }"""), xContent);
+        } finally {
+            response.close();
+        }
     }
 
     private static RatedSearchHit searchHit(String index, int docId, Integer rating) {
-        SearchHit hit = SearchHit.unpooled(docId, docId + "");
+        SearchHit hit = new SearchHit(docId, docId + "");
         hit.shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         hit.score(1.0f);
-        return new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());
+        RatedSearchHit rsh = new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());
+        hit.decRef();
+        return rsh;
     }
 }

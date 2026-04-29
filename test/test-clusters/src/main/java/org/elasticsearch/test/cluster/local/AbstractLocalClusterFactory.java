@@ -104,6 +104,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     protected abstract H createHandle(Path baseWorkingDir, S spec);
 
     public static class Node {
+        private static final int TOOL_SCRIPT_RETRY_TIMES = OS.current() == WINDOWS ? 15 : 0;
+        private static final int TOOL_SCRIPT_RETRY_DELAY_MS = OS.current() == WINDOWS ? 500 : 0;
+
         private final Path baseWorkingDir;
         private final DistributionResolver distributionResolver;
         private final LocalNodeSpec spec;
@@ -927,22 +930,33 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private void runToolScript(String tool, String input, String... args) {
-            try {
-                int exit = ProcessUtils.exec(
-                    input,
-                    distributionDir,
-                    distributionDir.resolve("bin")
-                        .resolve(OS.<String>conditional(c -> c.onWindows(() -> tool + ".bat").onUnix(() -> tool))),
-                    getEnvironmentVariables(),
-                    false,
-                    args
-                ).waitFor();
+            int attempt = 0;
+            while (true) {
+                try {
+                    int exit = ProcessUtils.exec(
+                        input,
+                        distributionDir,
+                        distributionDir.resolve("bin")
+                            .resolve(OS.<String>conditional(c -> c.onWindows(() -> tool + ".bat").onUnix(() -> tool))),
+                        getEnvironmentVariables(),
+                        false,
+                        args
+                    ).waitFor();
 
-                if (exit != 0) {
-                    throw new RuntimeException("Execution of " + tool + " failed with exit code " + exit);
+                    if (exit == 0) {
+                        return;
+                    }
+
+                    if (attempt >= TOOL_SCRIPT_RETRY_TIMES) {
+                        throw new RuntimeException("Execution of " + tool + " failed with exit code " + exit);
+                    }
+
+                    attempt++;
+                    LOGGER.warn("Execution of {} failed with exit code {}, retrying ({}/{})", tool, exit, attempt, TOOL_SCRIPT_RETRY_TIMES);
+                    Thread.sleep(TOOL_SCRIPT_RETRY_DELAY_MS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
             }
         }
 

@@ -128,7 +128,7 @@ public class FixtureUtils {
                 if (COMPRESSED_EXTENSIONS.stream().anyMatch(name::endsWith)) {
                     return FileVisitResult.CONTINUE;
                 }
-                String relativePath = fixturesPath.relativize(file).toString();
+                String relativePath = fixturesPath.relativize(file).toString().replace('\\', '/');
                 logger.debug("Fixture [{}] from filesystem path [{}]", relativePath, file.toAbsolutePath());
                 byte[] content = Files.readAllBytes(file);
                 consumer.accept(relativePath, content);

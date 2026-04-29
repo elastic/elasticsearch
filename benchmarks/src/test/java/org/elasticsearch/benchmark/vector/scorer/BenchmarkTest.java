@@ -26,6 +26,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public class BenchmarkTest extends ESTestCase {
 
@@ -82,6 +83,11 @@ public class BenchmarkTest extends ESTestCase {
     @BeforeClass
     public static void skipWindows() {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
+    }
+
+    @BeforeClass
+    public static void requiresHeapSegments() {
+        assumeTrue("Native scorers only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
     }
 
     public <V> void testSequential(

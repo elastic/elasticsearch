@@ -89,6 +89,8 @@ EXPORT int vec_caps() {
         int avx512_vnni = (ecx & 0x00000800) != 0;
         // AVX512VPOPCNTDQ (ECX register)
         int avx512_vpopcntdq = (ecx & 0x00004000) != 0;
+        // AVX512VBMI2 (ECX register)
+        int avx512_vbmi2 = (ecx & 0x00000040) != 0;
         // AVX512VL (EBX register)
         int avx512_vl = (ebx & 0x80000000) != 0;
 
@@ -98,10 +100,10 @@ EXPORT int vec_caps() {
         // AVX512BF16 (EAX register)
         int avx512_bf16 = (eax & 0x00000020) != 0;
 
-        if (avx512 && avx512_vnni && avx512_vpopcntdq && avx512_vl && avx512_bf16) {
+        if (avx512 && avx512_vnni && avx512_vpopcntdq && avx512_vbmi2 && avx512_vl && avx512_bf16) {
             return avxEnabledInOS ? 3 : -3;
         }
-        if (avx512 && avx512_vnni && avx512_vpopcntdq) {
+        if (avx512 && avx512_vnni && avx512_vpopcntdq && avx512_vbmi2) {
             return avxEnabledInOS ? 2 : -2;
         }
         if (avx2) {

@@ -33,7 +33,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -65,6 +67,7 @@ public class NdJsonPageDecoder implements Closeable {
     // the number of positions that were added.
     private final BitSet blockTracker;
     private final ErrorPolicy errorPolicy;
+    private final SkipWarnings skipWarnings;
     private long totalRowCount;
     private long errorCount;
 
@@ -87,11 +90,22 @@ public class NdJsonPageDecoder implements Closeable {
         List<String> projectedColumns,
         int batchSize,
         BlockFactory blockFactory,
-        ErrorPolicy errorPolicy
+        ErrorPolicy errorPolicy,
+        String sourceLocation
     ) throws IOException {
         this.input = input;
-        this.errorPolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
+        Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        this.errorPolicy = errorPolicy;
+        this.skipWarnings = SkipWarnings.of(
+            errorPolicy,
+            "NDJSON read from ["
+                + sourceLocation
+                + "] encountered parse errors handled per policy (policy: "
+                + errorPolicy.modeName()
+                + "); affected rows are listed below"
+        );
 
+        List<Attribute> fullSchema = attributes;
         var projectedAttributes = attributes;
         if (projectedColumns != null && projectedColumns.isEmpty() == false) {
             // Keep projected columns in order, adding NULL for missing columns
@@ -105,7 +119,7 @@ public class NdJsonPageDecoder implements Closeable {
                 .toList();
         }
 
-        this.decoder = prepareSchema(projectedAttributes);
+        this.decoder = prepareSchema(projectedAttributes, fullSchema);
         this.batchSize = batchSize;
         this.blockFactory = blockFactory;
         this.projectedAttributes = projectedAttributes;
@@ -128,7 +142,28 @@ public class NdJsonPageDecoder implements Closeable {
             throw new EsqlIllegalArgumentException(e, "Malformed NDJSON [{}]: {}", phaseLabel, e.getOriginalMessage());
         }
         errorCount++;
+        skipWarnings.add(
+            (e instanceof JsonEOFException ? "Truncated" : "Malformed")
+                + " NDJSON at logical row ["
+                + logicalRowIndex
+                + "] ("
+                + phaseLabel
+                + "): "
+                + e.getOriginalMessage()
+        );
         if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
+            // Surface the budget-exceeded condition as a warning so clients see exactly what tripped it.
+            skipWarnings.add(
+                "NDJSON error budget exceeded at row ["
+                    + totalRowCount
+                    + "]: ["
+                    + errorCount
+                    + "] errors, maximum ["
+                    + errorPolicy.maxErrors()
+                    + "] or ratio ["
+                    + errorPolicy.maxErrorRatio()
+                    + "]"
+            );
             throw new EsqlIllegalArgumentException(
                 "NDJSON error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
                 errorCount,
@@ -294,22 +329,47 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     // Prepare the tree of property decoders and return the root decoder.
-    private BlockDecoder prepareSchema(List<Attribute> attributes) {
+    private BlockDecoder prepareSchema(List<Attribute> projected, List<Attribute> fullSchema) {
         BlockDecoder root = new BlockDecoder();
         int idx = 0;
-        for (var attribute : attributes) {
-            var decoder = root;
-            var path = attribute.name().split("\\.");
-            for (var part : path) {
-                if (decoder.children == null) {
-                    decoder.children = new HashMap<>();
+        for (var attribute : projected) {
+            String name = attribute.name();
+            BlockDecoder decoder;
+            if (hasDottedPrefixConflict(name, fullSchema)) {
+                // CSV-style flat keys such as "languages.long" are single JSON field names; they cannot be reached
+                // via a nested "languages" object when "languages" is also a scalar column.
+                if (root.children == null) {
+                    root.children = new HashMap<>();
                 }
-                decoder = decoder.children.computeIfAbsent(part, k -> new BlockDecoder());
+                decoder = root.children.computeIfAbsent(name, k -> new BlockDecoder());
+            } else {
+                decoder = root;
+                var path = name.split("\\.");
+                for (var part : path) {
+                    if (decoder.children == null) {
+                        decoder.children = new HashMap<>();
+                    }
+                    decoder = decoder.children.computeIfAbsent(part, k -> new BlockDecoder());
+                }
             }
             decoder.setAttribute(attribute, idx);
             idx++;
         }
         return root;
+    }
+
+    /**
+     * Whether {@code name} is a dotted field that shares a prefix with another attribute (e.g. {@code languages}
+     * vs {@code languages.long}). In that case the NDJSON uses a single field name equal to the full attribute name.
+     */
+    private static boolean hasDottedPrefixConflict(String name, List<Attribute> attributes) {
+        for (var other : attributes) {
+            String o = other.name();
+            if (name.equals(o) == false && name.startsWith(o + ".")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

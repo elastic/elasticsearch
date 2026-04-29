@@ -86,7 +86,8 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             maxMergingWorkers,
                             doPrecondition,
                             ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                            flatIndexThreshold
+                            flatIndexThreshold,
+                            null
                         );
                     }
                     return new ES940DiskBBQVectorsFormat(

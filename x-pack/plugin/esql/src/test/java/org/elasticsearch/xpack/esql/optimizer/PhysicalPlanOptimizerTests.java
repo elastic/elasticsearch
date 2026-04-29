@@ -215,7 +215,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.stripThrough;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns.ALL_FIELDS_PROJECTED;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
@@ -441,9 +440,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new ResolvedEnrichPolicy(
                 "employee_id",
                 EnrichPolicy.MATCH_TYPE,
-                List.of("department"),
+                List.of("department", "description"),
                 Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+                Map.of(
+                    "department",
+                    new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                    "description",
+                    new EsField("description", DataType.TEXT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                )
             )
         );
         builder.addEnrichPolicy(
@@ -2985,6 +2989,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2 + Long.BYTES));
     }
 
+    public void testEnrichEstimateRowSize() {
+        var plan = physicalPlan("""
+                FROM test
+                | ENRICH departments ON emp_no
+                | KEEP emp_no, department, description
+            """);
+        var optimized = optimizedPlan(plan);
+        var source = (EsQueryExec) optimized.collectFirstChildren(e -> e instanceof EsQueryExec).getFirst();
+        assertThat(source.estimatedRowSize(), equalTo(108));
+    }
+
     /**
      * Expects the filter to transform the source into a local relationship
      * LimitExec[10000[INTEGER]]
@@ -3793,20 +3808,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * {@snippet lang="text":
      * LimitExec[1000[INTEGER],8]
-     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#4],SINGLE,[$$cnt$count{r}#5, $$cnt$seen{r}#6],8]
-     *   \_MergeExec[[&lt;all-fields-projected&gt;{r$}#7]]
-     *     |_ExchangeExec[[&lt;all-fields-projected&gt;{r$}#7],false]
-     *     | \_ProjectExec[[&lt;all-fields-projected&gt;{r$}#7]]
-     *     |   \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;#7]]
-     *     |     \_EsQueryExec[no_fields_index]
-     *     \_ExchangeExec[[&lt;all-fields-projected&gt;{r$}#8],false]
-     *       \_ProjectExec[[&lt;all-fields-projected&gt;{r$}#8]]
-     *         \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;#8]]
-     *           \_EsQueryExec[no_fields_index]
+     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
+     * seen{r}#5],8]
+     *   \_MergeExec[[]]
+     *     |_ExchangeExec[[],false]
+     *     | \_ProjectExec[[]]
+     *     |   \_EsQueryExec[no_fields_index], ...]
+     *     \_ExchangeExec[[],false]
+     *       \_ProjectExec[[]]
+     *         \_EsQueryExec[no_fields_index], ...]
+     * }
      */
     public void testProjectAwayColumnsWithSubqueryCount() {
-        assumeTrue("Prune no-fields in subquery", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS.isEnabled());
         for (String count : List.of("count()", "count(*)", "count(1)")) {
             String query = LoggerMessageFormat.format(null, """
                 FROM no_fields_index, (FROM no_fields_index)
@@ -3817,22 +3832,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             LimitExec limit = as(plan, LimitExec.class);
             AggregateExec agg = as(limit.child(), AggregateExec.class);
             MergeExec merge = as(agg.child(), MergeExec.class);
-            assertEquals(1, merge.output().size());
-            Attribute attribute = merge.output().getFirst();
-            assertEquals(ALL_FIELDS_PROJECTED, attribute.name());
+            assertEquals(0, merge.output().size());
             assertEquals(2, merge.children().size());
 
             for (PhysicalPlan child : merge.children()) {
                 ExchangeExec exchange = as(child, ExchangeExec.class);
-                assertEquals(1, exchange.output().size());
-                Attribute attr = exchange.output().getFirst();
-                assertEquals(ALL_FIELDS_PROJECTED, attr.name());
+                assertEquals(0, exchange.output().size());
                 ProjectExec project = as(exchange.child(), ProjectExec.class);
-                assertEquals(1, project.projections().size());
-                NamedExpression namedExpression = project.projections().get(0);
-                assertEquals(ALL_FIELDS_PROJECTED, namedExpression.name());
-                EvalExec eval = as(project.child(), EvalExec.class);
-                EsQueryExec esQuery = as(eval.child(), EsQueryExec.class);
+                assertEquals(0, project.projections().size());
+                EsQueryExec esQuery = as(project.child(), EsQueryExec.class);
                 assertEquals("no_fields_index", esQuery.indexPattern());
             }
         }

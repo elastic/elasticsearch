@@ -26,11 +26,10 @@ dependencies {
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
 
-  testImplementation("org.apache.commons:commons-compress:${versions.esql_commons_compress}") {
-    exclude group: 'commons-codec', module: 'commons-codec'
-  }
-
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  // Tests use BZip2CompressorOutputStream (encoder) to build fixture bzip2 inputs; production
+  // code does not depend on commons-compress and uses the in-tree CBZip2InputStream instead.
+  testImplementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
 }
 

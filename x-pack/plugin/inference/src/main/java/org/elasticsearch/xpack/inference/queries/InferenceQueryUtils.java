@@ -302,15 +302,12 @@ public final class InferenceQueryUtils {
             createRemoteInferenceInfoGroupedActionListener(remoteIndices.size(), remoteInferenceInfoListener);
 
         InferenceStringGroup input = inferenceInfoRequest.input();
-        // Remote clusters accept only a plain text string; extract it when the input is a single text entry.
-        if (input == null || input.containsNonTextEntry() || input.containsMultipleInferenceStrings()) {
-            gal.onFailure(
-                new IllegalArgumentException(
-                    "Remote inference info requests do not support non-text or multiple inputs. Input must be a single text entry."
-                )
-            );
-            return;
-        }
+        // Remote clusters accept only a plain text string. Extract it when input is a single text entry; use null otherwise
+        // (non-text or multi-entry inputs are not forwarded, and a null query simply skips remote inference generation).
+        String remoteQuery = (input != null
+            && input.containsNonTextEntry() == false
+            && input.containsMultipleInferenceStrings() == false) ? input.textValue() : null;
+
         for (var entry : remoteIndices.entrySet()) {
             String clusterAlias = entry.getKey();
             OriginalIndices originalIndices = entry.getValue();
@@ -320,7 +317,7 @@ public final class InferenceQueryUtils {
                 inferenceInfoRequest.fields(),
                 inferenceInfoRequest.resolveWildcards(),
                 inferenceInfoRequest.useDefaultFields(),
-                input.textValue(),
+                remoteQuery,
                 originalIndices.indicesOptions()
             );
 

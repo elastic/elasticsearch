@@ -113,42 +113,26 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected String getQuery() {
+    @Nullable
+    protected InferenceStringGroup getInput() {
         if (queryVectorSupplier != null) {
             // We are in the process of rewriting a standalone query vector builder to generate a query vector. Return null to prevent
             // InferenceQueryUtils from attempting to generate inference results based on the query text.
             return null;
         }
 
-        String query = null;
         QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
         if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder) {
-            query = textEmbeddingQueryVectorBuilder.getModelText();
+            String modelText = textEmbeddingQueryVectorBuilder.getModelText();
+            return modelText != null ? new InferenceStringGroup(modelText) : null;
         } else if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
-            if (eqvb.getInferenceId() == null) {
-                if (eqvb.getInput().containsNonTextEntry() == false) {
-                    // Otherwise, getQueryInput() will retrieve the data
-                    query = eqvb.getInput().textValue();
-                }
+            if (eqvb.getInferenceId() == null && eqvb.getInput().containsMultipleInferenceStrings() == false) {
+                return eqvb.getInput();
             }
         } else if (queryVectorBuilder != null) {
             throw new IllegalStateException("Query vector builder should have been rewritten to a query vector");
         }
 
-        return query;
-    }
-
-    @Override
-    @Nullable
-    protected InferenceStringGroup getQueryInferenceGroup() {
-        QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
-        if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
-            if (eqvb.getInferenceId() == null
-                && eqvb.getInput().containsNonTextEntry()
-                && eqvb.getInput().containsMultipleInferenceStrings() == false) {
-                return eqvb.getInput();
-            }
-        }
         return null;
     }
 
@@ -236,14 +220,14 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             boolean registerAction = false;
             if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder tevb) {
                 // TextEmbeddingQueryVectorBuilder is a special case. If a model ID is set, we register an action to generate
-                // the query vector. If not, the model text will be returned via getQuery() so that InferenceQueryUtils can
+                // the query vector. If not, the model text will be returned via getInput() so that InferenceQueryUtils can
                 // generate the appropriate inference results for the inferred inference ID(s).
                 if (tevb.getModelId() != null) {
                     registerAction = true;
                 }
             } else if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
                 // If an inference ID is set, we register an action to generate the query vector.
-                // If not, the input text will be returned via getQuery() so that InferenceQueryUtils
+                // If not, the input will be returned via getInput() so that InferenceQueryUtils
                 // can generate the appropriate inference results for the inferred inference ID(s).
                 if (eqvb.getInferenceId() != null) {
                     registerAction = true;

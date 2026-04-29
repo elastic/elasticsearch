@@ -140,36 +140,15 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected abstract Map<String, Float> getFields();
 
     /**
-     * Get the original query's query text. If not available, {@code null} should be returned.
+     * Get the query input. Plain-text queries should be wrapped as {@code new InferenceStringGroup(queryText)}.
+     * Non-text inputs (e.g. images) should be returned as the appropriate {@link InferenceStringGroup}.
+     * Return {@code null} when no inference results should be generated (e.g. when a standalone query vector builder
+     * is already handling the inference).
      *
-     * @return The original query's query text
-     */
-    protected abstract String getQuery();
-
-    /**
-     * Get the query input as an {@link InferenceStringGroup}. Used for non-text inputs (e.g. images) that cannot be represented as a
-     * plain string via {@link #getQuery()}. Returns {@code null} by default; subclasses may override to supply a non-text input group.
-     *
-     * @return The query input, or {@code null} if the query input is a plain text string or not available
+     * @return The query input, or {@code null} if inference results should not be generated
      */
     @Nullable
-    protected InferenceStringGroup getQueryInferenceGroup() {
-        return null;
-    }
-
-    /**
-     * Returns the query input as a single {@link InferenceStringGroup}, combining {@link #getQueryInferenceGroup()} (non-text) and
-     * {@link #getQuery()} (plain text). {@link #getQueryInferenceGroup()} takes precedence; if both are null, returns {@code null}.
-     */
-    @Nullable
-    protected final InferenceStringGroup getInput() {
-        InferenceStringGroup queryInferenceGroup = getQueryInferenceGroup();
-        if (queryInferenceGroup != null) {
-            return queryInferenceGroup;
-        }
-        String query = getQuery();
-        return query != null ? new InferenceStringGroup(query) : null;
-    }
+    protected abstract InferenceStringGroup getInput();
 
     /**
      * Rewrite to a backwards-compatible form of the query builder, depending on the value of

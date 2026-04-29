@@ -33,7 +33,7 @@ buildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ex
   dependencies {
     if (unreleasedVersion) {
       // For unreleased snapshot versions, build them from source
-      def named = proj.project(unreleasedVersion.gradleProjectPath).tasks.named(InternalDistributionBwcSetupPlugin.buildBwcTaskName(project.name))
+      def named = proj.project(unreleasedVersion.gradleProjectPath).tasks.named(InternalDistributionBwcSetupPlugin.buildBwcTaskName(proj.name))
       "oldJar${baseName}"(files(named))
     } else if(bwcVersion.onOrAfter('8.7.0') && proj.name.endsWith("logging")==false) {
       //there was a package rename in 8.7.0, except for es-logging

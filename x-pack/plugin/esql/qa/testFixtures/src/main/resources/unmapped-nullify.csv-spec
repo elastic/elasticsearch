@@ -629,6 +629,42 @@ x:integer      | does_not_exist:null | language_code:integer | language_name:key
 1              | null                | null                  | null
 ;
 
+// Reproducer for https://github.com/elastic/elasticsearch/issues/141827
+lookupJoinNullifiedMatchField
+required_capability: optional_fields_fix_null_match_field_in_join_and_enrich
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| EVAL language_code = does_not_exist
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | language_code:null | language_name:keyword
+10001          | null               | null
+10002          | null               | null
+10003          | null               | null
+;
+
+lookupJoinExpressionNullifiedRight
+required_capability: optional_fields_fix_null_match_field_in_join_and_enrich
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| LOOKUP JOIN languages_lookup ON language_code == does_not_exist
+| KEEP emp_no, language_code, language_name, does_not_exist
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | language_code:integer | language_name:keyword | does_not_exist:null
+10001          | null                  | null                  | null
+10002          | null                  | null                  | null
+10003          | null                  | null                  | null
+;
+
 // https://github.com/elastic/elasticsearch/issues/141978
 lookupJoinWithMissingAttributeInKeep
 required_capability: optional_fields_nullify_skip_group_aliases
@@ -647,7 +683,6 @@ language_code:integer | language_name:keyword | foobar:null
 
 enrich
 required_capability: optional_fields_nullify_tech_preview
-required_capability: enrich_load
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -657,6 +692,32 @@ ROW x = 1
 
 x:integer      | does_not_exist:null | y:keyword | language_name:keyword
 1              | null                | null      | null
+;
+
+// Reproducer for https://github.com/elastic/elasticsearch/issues/141827
+enrichNullifiedMatchField
+required_capability: optional_fields_fix_null_match_field_in_join_and_enrich
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| EVAL y = does_not_exist
+| ENRICH languages_policy ON y
+;
+
+x:integer      | does_not_exist:null | y:null | language_name:keyword
+1              | null                | null   | null
+;
+
+enrichNullifiedMatchFieldWithoutEval
+required_capability: optional_fields_fix_null_match_field_in_join_and_enrich
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| ENRICH languages_policy ON does_not_exist
+;
+
+x:integer      | does_not_exist:null | language_name:keyword
+1              | null                | null
 ;
 
 partiallyUnmappedKeywordMultiIndex

@@ -139,6 +139,20 @@ public final class RestIndexActionTests extends RestActionTestCase {
         }
     }
 
+    public void testSliceParamRejectedWhenCommaDelimited() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        RestRequest indexRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/some_index/_doc/1")
+            .withParams(Map.of("index", "some_index", "id", "1", "_slice", "s1,s2"))
+            .withContent(new BytesArray("{}"), XContentType.JSON)
+            .build();
+        FakeRestChannel channel = dispatchRequestWithChannel(indexRequest);
+        try (var response = channel.capturedResponse()) {
+            assertThat(response.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(RestResponseUtils.getBodyContent(response).utf8ToString(), containsString("invalid [_slice] value"));
+        }
+    }
+
     private FakeRestChannel dispatchRequestWithChannel(RestRequest request) {
         FakeRestChannel channel = new FakeRestChannel(request, true);
         var threadContext = verifyingClient.threadPool().getThreadContext();

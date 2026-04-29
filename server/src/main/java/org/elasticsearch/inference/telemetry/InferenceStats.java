@@ -20,6 +20,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.telemetry.metric.MetricAttributes.ERROR_TYPE;
+
 public record InferenceStats(
     LongCounter requestCount,
     LongHistogram inferenceDuration,
@@ -27,15 +29,20 @@ public record InferenceStats(
     Map<String, Object> constantAttributes
 ) {
 
+    // These attributes predated the "es_" prefix requirement
+    public static final String SERVICE_ATTRIBUTE = "service";
+    public static final String TASK_TYPE_ATTRIBUTE = "task_type";
+    public static final String STATUS_CODE_ATTRIBUTE = "status_code";
+    public static final String INFERENCE_SOURCE_ATTRIBUTE = "inference_source";
+
+    public static final String INFERENCE_REQUEST_COUNT_TOTAL = "es.inference.requests.count.total";
+    public static final String INFERENCE_REQUEST_DURATION = "es.inference.requests.time";
+    public static final String INFERENCE_DEPLOYMENT_DURATION = "es.inference.trained_model.deployment.time";
+
     // Attribute keys must start with "es_" prefix see org.elasticsearch.telemetry.apm.internal.MetricValidator#validateAttributeKey
     static final String STACK_VERSION_ATTRIBUTE = "es_stack_version";
-    static final String PRODUCTION_RELEASE = "es_production_release";
-
-    // These attributes predated the "es_" prefix requirement
-    static final String SERVICE_ATTRIBUTE = "service";
-    static final String TASK_TYPE_ATTRIBUTE = "task_type";
-    static final String STATUS_CODE_ATTRIBUTE = "status_code";
-    static final String ERROR_TYPE_ATTRIBUTE = "error_type";
+    // Indicates whether the node is a production release (i.e. not a snapshot, alpha, etc)
+    static final String PRODUCTION_RELEASE_ATTRIBUTE = "es_production_release";
 
     public InferenceStats {
         Objects.requireNonNull(requestCount);
@@ -48,25 +55,25 @@ public record InferenceStats(
         return new InferenceStats(
             meterRegistry.registerLongCounter(
                 "es.inference.requests.count.total",
-                "Inference API request counts for a particular service, task type, model ID",
+                "Inference API request counts for a particular service and task type",
                 "operations"
             ),
             meterRegistry.registerLongHistogram(
-                "es.inference.requests.time",
-                "Inference API request counts for a particular service, task type, model ID",
+                INFERENCE_REQUEST_DURATION,
+                "Inference API request counts for a particular service and task type",
                 "ms"
             ),
             meterRegistry.registerLongHistogram(
-                "es.inference.trained_model.deployment.time",
+                INFERENCE_DEPLOYMENT_DURATION,
                 "Inference API time spent waiting for Trained Model Deployments",
                 "ms"
             ),
-            Map.of(STACK_VERSION_ATTRIBUTE, stackVersion, PRODUCTION_RELEASE, isProductionRelease)
+            Map.of(STACK_VERSION_ATTRIBUTE, stackVersion, PRODUCTION_RELEASE_ATTRIBUTE, isProductionRelease)
         );
     }
 
     /**
-     * Merges the cluster-level constant attributes (e.g. stack version, production release flag)
+     * Merges the node-level constant attributes (e.g. stack version, production release flag)
      * into the provided per-request attribute map and returns the combined map.
      * Use this only when no {@link Model} is available (e.g. model-not-found errors).
      * Prefer {@link #serviceAttributes} or {@link #serviceAndResponseAttributes} otherwise.
@@ -91,10 +98,10 @@ public record InferenceStats(
         }
 
         if (throwable instanceof ElasticsearchStatusException ese) {
-            return Map.of(STATUS_CODE_ATTRIBUTE, ese.status().getStatus(), ERROR_TYPE_ATTRIBUTE, String.valueOf(ese.status().getStatus()));
+            return Map.of(STATUS_CODE_ATTRIBUTE, ese.status().getStatus(), ERROR_TYPE, String.valueOf(ese.status().getStatus()));
         }
 
-        return Map.of(ERROR_TYPE_ATTRIBUTE, throwable.getClass().getSimpleName());
+        return Map.of(ERROR_TYPE, throwable.getClass().getSimpleName());
     }
 
     public Map<String, Object> serviceAndResponseAttributes(Model model, @Nullable Throwable throwable) {

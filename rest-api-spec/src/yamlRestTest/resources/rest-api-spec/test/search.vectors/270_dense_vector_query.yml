@@ -1,0 +1,200 @@
+setup:
+  - requires:
+      cluster_features: "search.vectors.dense_vector_query"
+      reason: 'dense_vector query introduced in 9.5'
+
+  - do:
+      indices.create:
+        index: dv_flat
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: flat
+
+  - do:
+      indices.create:
+        index: dv_int8_hnsw
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: cosine
+                index_options:
+                  type: int8_hnsw
+
+  - do:
+      index:
+        index: dv_flat
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+
+  - do:
+      index:
+        index: dv_flat
+        id: "2"
+        body:
+          name: moose.jpg
+          vector: [-0.5, 100.0, -13, 14.8, -156.0]
+
+  - do:
+      index:
+        index: dv_flat
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - do:
+      index:
+        index: dv_int8_hnsw
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [0.6, 0.5, 0.4, 0.3, 0.2]
+
+  - do:
+      index:
+        index: dv_int8_hnsw
+        id: "2"
+        body:
+          name: moose.jpg
+          vector: [0.1, 0.2, 0.3, 0.4, 0.6]
+
+  - do:
+      index:
+        index: dv_int8_hnsw
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [0.5, 0.5, 0.5, 0.5, 0.5]
+
+  - do:
+      indices.refresh: {}
+
+---
+"dense_vector exact query against a flat index":
+  - do:
+      search:
+        index: dv_flat
+        body:
+          fields: [ "name" ]
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+  - match: {hits.total.value: 3}
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+
+---
+"dense_vector exact query with similarity threshold":
+  - do:
+      search:
+        index: dv_int8_hnsw
+        body:
+          fields: [ "name" ]
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5]
+              similarity: 0.0
+
+  - match: {hits.total.value: 3}
+
+---
+"dense_vector exact query against quantized index uses raw scoring by default":
+  - do:
+      search:
+        index: dv_int8_hnsw
+        body:
+          fields: [ "name" ]
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5]
+
+  - match: {hits.total.value: 3}
+  - match: {hits.hits.0._id: "3"}
+
+---
+"dense_vector exact query opts in to quantized scoring":
+  - do:
+      search:
+        index: dv_int8_hnsw
+        body:
+          fields: [ "name" ]
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5]
+              quantized: true
+
+  - match: {hits.total.value: 3}
+  - match: {hits.hits.0._id: "3"}
+
+---
+"dense_vector exact query with similarity_function override":
+  - do:
+      search:
+        index: dv_flat
+        body:
+          fields: [ "name" ]
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              similarity_function: max_inner_product
+
+  - match: {hits.total.value: 3}
+
+---
+"dense_vector exact query rejects missing query_vector and query_vector_builder":
+  - do:
+      catch: bad_request
+      search:
+        index: dv_flat
+        body:
+          query:
+            dense_vector:
+              field: vector
+
+---
+"dense_vector exact query rejects unknown field":
+  - do:
+      catch: bad_request
+      search:
+        index: dv_flat
+        body:
+          query:
+            dense_vector:
+              field: not_a_vector_field
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+---
+"dense_vector exact query rejects unknown similarity_function":
+  - do:
+      catch: bad_request
+      search:
+        index: dv_flat
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              similarity_function: unknown_metric

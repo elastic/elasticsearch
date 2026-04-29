@@ -2907,6 +2907,29 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public Query createExactKnnQuery(VectorData queryVector, Float vectorSimilarity) {
+            return createExactKnnQuery(queryVector, vectorSimilarity, null, true);
+        }
+
+        /**
+         * Builds an exact (brute-force) kNN query.
+         *
+         * @param queryVector the query vector
+         * @param vectorSimilarityThreshold optional minimum similarity threshold; results scoring below this
+         *                                  in the user-domain are filtered out
+         * @param similarityOverride optional override of the scoring metric; if {@code null}, the field's
+         *                           configured similarity is used
+         * @param useQuantized when {@code true} and {@code similarityOverride} is {@code null}, scoring uses
+         *                     the codec-bound scorer (which on quantized fields scores against the quantized
+         *                     representation). When {@code false} or an override is set, scoring iterates the
+         *                     raw vectors and applies the resolved {@link VectorSimilarityFunction} directly,
+         *                     producing full-precision scores regardless of index type.
+         */
+        public Query createExactKnnQuery(
+            VectorData queryVector,
+            Float vectorSimilarityThreshold,
+            VectorSimilarity similarityOverride,
+            boolean useQuantized
+        ) {
             if (indexType() == IndexType.NONE) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
@@ -2915,17 +2938,36 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (dims == null) {
                 return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
             }
+            if (similarityOverride != null && element.elementType() == ElementType.BIT && similarityOverride != VectorSimilarity.L2_NORM) {
+                throw new IllegalArgumentException("[" + VectorSimilarity.L2_NORM + "] is the only supported similarity for bit vectors");
+            }
+            VectorSimilarity effectiveSimilarity = similarityOverride != null ? similarityOverride : similarity;
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
-            Query knnQuery = switch (element.elementType()) {
-                case BYTE -> createExactKnnByteQuery(resolvedQueryVector.asByteVector());
-                case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(resolvedQueryVector.asFloatVector());
-                case BIT -> createExactKnnBitQuery(resolvedQueryVector.asByteVector());
-            };
-            if (vectorSimilarity != null) {
+            Query knnQuery;
+            boolean codecPath = useQuantized && similarityOverride == null;
+            if (codecPath) {
+                knnQuery = switch (element.elementType()) {
+                    case BYTE -> createExactKnnByteQuery(resolvedQueryVector.asByteVector());
+                    case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(resolvedQueryVector.asFloatVector());
+                    case BIT -> createExactKnnBitQuery(resolvedQueryVector.asByteVector());
+                };
+            } else {
+                boolean isOverridden = similarityOverride != null;
+                knnQuery = switch (element.elementType()) {
+                    case BYTE -> createRawExactKnnByteQuery(resolvedQueryVector.asByteVector(), effectiveSimilarity, isOverridden);
+                    case FLOAT, BFLOAT16 -> createRawExactKnnFloatQuery(
+                        resolvedQueryVector.asFloatVector(),
+                        effectiveSimilarity,
+                        isOverridden
+                    );
+                    case BIT -> createExactKnnBitQuery(resolvedQueryVector.asByteVector());
+                };
+            }
+            if (vectorSimilarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
-                    vectorSimilarity,
-                    similarity.score(vectorSimilarity, element.elementType(), dims)
+                    vectorSimilarityThreshold,
+                    effectiveSimilarity.score(vectorSimilarityThreshold, element.elementType(), dims)
                 );
             }
             return knnQuery;
@@ -2964,6 +3006,47 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             }
             return new DenseVectorQuery.Floats(queryVector, name());
+        }
+
+        private Query createRawExactKnnByteQuery(byte[] queryVector, VectorSimilarity effectiveSimilarity, boolean isOverridden) {
+            element.checkDimensions(dims, queryVector.length);
+            if (effectiveSimilarity == VectorSimilarity.DOT_PRODUCT || effectiveSimilarity == VectorSimilarity.COSINE) {
+                float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
+                element.checkVectorMagnitude(effectiveSimilarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
+            }
+            VectorSimilarityFunction function = isOverridden
+                ? toLuceneFunction(effectiveSimilarity)
+                : effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType());
+            return new DenseVectorQuery.RawBytes(queryVector, name(), function);
+        }
+
+        private Query createRawExactKnnFloatQuery(float[] queryVector, VectorSimilarity effectiveSimilarity, boolean isOverridden) {
+            element.checkDimensions(dims, queryVector.length);
+            element.checkVectorBounds(queryVector);
+            if (effectiveSimilarity == VectorSimilarity.DOT_PRODUCT || effectiveSimilarity == VectorSimilarity.COSINE) {
+                float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
+                element.checkVectorMagnitude(effectiveSimilarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
+                if (isOverridden == false && isNormalized() && element.isUnitVector(squaredMagnitude) == false) {
+                    float length = (float) Math.sqrt(squaredMagnitude);
+                    queryVector = Arrays.copyOf(queryVector, queryVector.length);
+                    for (int i = 0; i < queryVector.length; i++) {
+                        queryVector[i] /= length;
+                    }
+                }
+            }
+            VectorSimilarityFunction function = isOverridden
+                ? toLuceneFunction(effectiveSimilarity)
+                : effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType());
+            return new DenseVectorQuery.RawFloats(queryVector, name(), function);
+        }
+
+        private static VectorSimilarityFunction toLuceneFunction(VectorSimilarity similarity) {
+            return switch (similarity) {
+                case L2_NORM -> VectorSimilarityFunction.EUCLIDEAN;
+                case COSINE -> VectorSimilarityFunction.COSINE;
+                case DOT_PRODUCT -> VectorSimilarityFunction.DOT_PRODUCT;
+                case MAX_INNER_PRODUCT -> VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+            };
         }
 
         public Query createKnnQuery(

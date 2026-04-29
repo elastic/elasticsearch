@@ -61,6 +61,7 @@ public final class SearchFeatures implements FeatureSpecification {
     );
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE = new NodeFeature("search.exponential_histogram_querydsl_range");
     public static final NodeFeature DEFAULT_DISK_BBQ = new NodeFeature("search.default_disk_bbq");
+    public static final NodeFeature DENSE_VECTOR_QUERY = new NodeFeature("search.vectors.dense_vector_query");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -89,7 +90,8 @@ public final class SearchFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
             EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
-            DEFAULT_DISK_BBQ
+            DEFAULT_DISK_BBQ,
+            DENSE_VECTOR_QUERY
         );
     }
 }

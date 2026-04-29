@@ -70,8 +70,13 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
                     final int targetShard = (int) (counter % shardCount);
                     String id = counter + "";
                     int iteration = 0;
-                    while (Math.floorMod(Murmur3HashFunction.hash(id), shardCount) != targetShard) {
+                    // Give up if we can't find a correct hash. This should happen rarely so should not matter across
+                    // all docs added.
+                    while (Math.floorMod(Murmur3HashFunction.hash(id), shardCount) != targetShard && iteration < 1000) {
                         id = counter + "-" + iteration++;
+                    }
+                    if (iteration == 1000) {
+                        logger.warn("Could not find an _id for the targetShard {} for doc id {}", targetShard, counter);
                     }
                     return id;
                 });

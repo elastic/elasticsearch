@@ -1,0 +1,6 @@
+pr: 147905
+summary: Skip synthetic field mappers in indices.get_field_mapping
+area: Mapping
+type: bug
+issues:
+ - 118636

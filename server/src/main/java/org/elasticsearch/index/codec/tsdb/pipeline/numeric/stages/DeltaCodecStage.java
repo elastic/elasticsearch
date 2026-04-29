@@ -25,18 +25,19 @@ import java.io.IOException;
  * skipped because deltas would not reduce the dynamic range.
  *
  * <h2>Example</h2>
- * <p>Monotonic ascending {@code [100, 200, 350, 500]} produces deltas {@code [100, 150, 150]}
- * with first value {@code 100} stored as metadata.
+ * <p>Monotonic ascending {@code [100, 200, 350, 500]} produces deltas
+ * {@code [100, 150, 150]} with {@code values[0]} set to the first delta
+ * ({@code 100}) and metadata storing {@code first = 100 - 100 = 0}.
  *
  * <h2>Metadata layout</h2>
  * <p>Written to the stage metadata section (see {@link org.elasticsearch.index.codec.tsdb.pipeline.BlockFormat}):
  * <pre>
  *   +---------------------+
- *   | ZLong(first)        |  1-10 bytes, zigzag-encoded first value
+ *   | ZLong(first)        |  1-10 bytes, zigzag-encoded (original first value - first delta)
  *   +---------------------+
  * </pre>
  * <p>Zigzag encoding ensures small absolute values (both positive and negative)
- * use few bytes, which is typical for the starting point of a monotonic sequence.
+ * use few bytes. For constant-interval sequences the metadata value is zero.
  */
 public final class DeltaCodecStage implements NumericCodecStage {
 
@@ -57,11 +58,11 @@ public final class DeltaCodecStage implements NumericCodecStage {
             return;
         }
 
-        final long first = values[0];
         for (int i = valueCount - 1; i > 0; i--) {
             values[i] -= values[i - 1];
         }
-        values[0] = 0;
+        final long first = values[0] - values[1];
+        values[0] = values[1];
 
         context.metadata().writeZLong(first);
     }

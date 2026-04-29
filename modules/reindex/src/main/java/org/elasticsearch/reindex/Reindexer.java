@@ -121,6 +121,7 @@ public class Reindexer {
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
     private final ClusterService clusterService;
+    private final ReindexSettings reindexSettings;
     private final ProjectResolver projectResolver;
     private final Client client;
     private final ThreadPool threadPool;
@@ -137,6 +138,7 @@ public class Reindexer {
 
     Reindexer(
         ClusterService clusterService,
+        ReindexSettings reindexSettings,
         ProjectResolver projectResolver,
         Client client,
         ThreadPool threadPool,
@@ -149,6 +151,7 @@ public class Reindexer {
         TaskResultsService taskResultsService
     ) {
         this.clusterService = clusterService;
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
         this.projectResolver = projectResolver;
         this.client = client;
         this.threadPool = threadPool;
@@ -312,14 +315,6 @@ public class Reindexer {
     }
 
     /**
-     * Returns the keep-alive duration for PIT. Uses the request's scroll time when set, otherwise defaults to 5 minutes.
-     * TODO - https://github.com/elastic/elasticsearch-team/issues/2334
-     */
-    private static TimeValue pitKeepAlive(ReindexRequest request) {
-        return request.getScrollTime() != null ? request.getScrollTime() : TimeValue.timeValueMinutes(5);
-    }
-
-    /**
      * Opens a PIT on the local cluster, runs the sliced action, and closes the PIT when done.
      */
     private void openPitAndExecute(
@@ -339,7 +334,7 @@ public class Reindexer {
             : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
 
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
-            .keepAlive(pitKeepAlive(request))
+            .keepAlive(reindexSettings.pitKeepAlive())
             .allowPartialSearchResults(false);
         if (searchRequest.getProjectRouting() != null) {
             pitRequest.projectRouting(searchRequest.getProjectRouting());
@@ -355,7 +350,7 @@ public class Reindexer {
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call
         client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, listener.delegateFailureAndWrap((l, pitResponse) -> {
             BytesReference pitId = pitResponse.getPointInTimeId();
-            request.convertSearchRequestToUsePit(pitId, pitKeepAlive(request));
+            request.convertSearchRequestToUsePit(pitId, reindexSettings.pitKeepAlive());
             ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 l,
@@ -559,8 +554,8 @@ public class Reindexer {
         SearchRequest searchRequest = request.getSearchRequest();
         String[] indices = searchRequest.indices();
         // Sends a REST request to the remote node to open a PIT
-        openPit(searchRequest, indices, pitKeepAlive(request), remoteVersion, RejectAwareActionListener.wrap(pitId -> {
-            request.convertSearchRequestToUsePit(pitId, pitKeepAlive(request));
+        openPit(searchRequest, indices, reindexSettings.pitKeepAlive(), remoteVersion, RejectAwareActionListener.wrap(pitId -> {
+            request.convertSearchRequestToUsePit(pitId, reindexSettings.pitKeepAlive());
             ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 listenerWithRelocations,

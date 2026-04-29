@@ -309,6 +309,10 @@ class BulkPrimaryExecutionContext {
                     docWriteRequest.opType(),
                     new BulkItemResponse.Failure(index, result.getId(), result.getFailure(), result.getSeqNo(), result.getTerm())
                 );
+                // A FAILURE result can still carry a translog location when InternalEngine converts it into a no-op.
+                if (result.getTranslogLocation() != null) {
+                    locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
+                }
             }
             default -> throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());
         }

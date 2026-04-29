@@ -91,6 +91,11 @@
         "type": "boolean",
         "default": true,
         "description": "Whether to run the overwrite protection check. Defaults to 'true'."
+      },
+      "check_http_response_codes": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to run the http response codes check. Defaults to 'true'."
       }
     }
   }

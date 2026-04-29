@@ -365,9 +365,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
   method: testEvaluateBlockWithNulls
   issue: https://github.com/elastic/elasticsearch/issues/147773
-- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
-  method: testSemanticTextOperations {p0=false}
-  issue: https://github.com/elastic/elasticsearch/issues/147776
 - class: org.elasticsearch.cluster.routing.IndexRoutingTests
   method: testRequiredRoutingUsesSliceMessageWhenSliceEnabled
   issue: https://github.com/elastic/elasticsearch/issues/147777
@@ -523,3 +520,24 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessMergeIT
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/147880
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
+  method: testOldCommitsAreRetainedIfSearchNodesUseThem
+  issue: https://github.com/elastic/elasticsearch/issues/147888
+- class: org.elasticsearch.xpack.security.authc.HttOptionsNoAuthnIntegTests
+  method: testNoAuthnForPreFlightRequest
+  issue: https://github.com/elastic/elasticsearch/issues/147898
+- class: org.elasticsearch.xpack.security.authc.HttOptionsNoAuthnIntegTests
+  method: testNoAuthnForResourceOptionsMethod
+  issue: https://github.com/elastic/elasticsearch/issues/147899
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=synonyms/110_synonyms_invalid/Load index with an invalid synonym rule with lenient set to false}
+  issue: https://github.com/elastic/elasticsearch/issues/147907
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=synonyms/20_synonyms_get/Cursor-based pagination with search_after}
+  issue: https://github.com/elastic/elasticsearch/issues/147908
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/41_knn_search_bbq_hnsw_bfloat16/Test index configured rescore vector score consistency}
+  issue: https://github.com/elastic/elasticsearch/issues/147909
+- class: org.elasticsearch.xpack.ml.integration.MlDistributedFailureIT
+  method: testClusterWithTwoMlNodes_RunsDatafeed_GivenOriginalNodeGoesDown
+  issue: https://github.com/elastic/elasticsearch/issues/147914

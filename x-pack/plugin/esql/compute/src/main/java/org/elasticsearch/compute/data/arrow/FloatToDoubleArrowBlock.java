@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.data.arrow;
 
-import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.elasticsearch.compute.data.Block;
@@ -30,13 +30,14 @@ public final class FloatToDoubleArrowBlock {
         if (vector instanceof ListVector listVector) {
             return ofList(listVector, blockFactory);
         }
-        int rowCount = vector.getValueCount();
+        Float4Vector floatVector = (Float4Vector) vector;
+        int rowCount = floatVector.getValueCount();
         try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
             for (int i = 0; i < rowCount; i++) {
-                if (vector.isNull(i)) {
+                if (floatVector.isNull(i)) {
                     builder.appendNull();
                 } else {
-                    builder.appendDouble(((Number) vector.getObject(i)).doubleValue());
+                    builder.appendDouble(floatVector.get(i));
                 }
             }
             return builder.build();
@@ -45,7 +46,7 @@ public final class FloatToDoubleArrowBlock {
 
     private static Block ofList(ListVector listVector, BlockFactory blockFactory) {
         int rowCount = listVector.getValueCount();
-        FieldVector child = listVector.getDataVector();
+        Float4Vector child = (Float4Vector) listVector.getDataVector();
         try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
             for (int i = 0; i < rowCount; i++) {
                 if (listVector.isNull(i)) {
@@ -60,15 +61,22 @@ public final class FloatToDoubleArrowBlock {
                 } else if (nonNullCount == 1) {
                     for (int j = start; j < end; j++) {
                         if (child.isNull(j) == false) {
-                            builder.appendDouble(((Number) child.getObject(j)).doubleValue());
+                            builder.appendDouble(child.get(j));
                             break;
                         }
                     }
                 } else {
+                    boolean hasNulls = nonNullCount != (end - start);
                     builder.beginPositionEntry();
-                    for (int j = start; j < end; j++) {
-                        if (child.isNull(j) == false) {
-                            builder.appendDouble(((Number) child.getObject(j)).doubleValue());
+                    if (hasNulls) {
+                        for (int j = start; j < end; j++) {
+                            if (child.isNull(j) == false) {
+                                builder.appendDouble(child.get(j));
+                            }
+                        }
+                    } else {
+                        for (int j = start; j < end; j++) {
+                            builder.appendDouble(child.get(j));
                         }
                     }
                     builder.endPositionEntry();

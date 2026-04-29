@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.data.arrow;
 
-import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.lucene.util.BytesRef;
@@ -39,7 +39,7 @@ public final class BytesRefArrowBlock {
 
     private static Block ofList(ListVector listVector, BlockFactory blockFactory) {
         int rowCount = listVector.getValueCount();
-        FieldVector child = listVector.getDataVector();
+        BaseVariableWidthVector child = (BaseVariableWidthVector) listVector.getDataVector();
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
             for (int i = 0; i < rowCount; i++) {
                 if (listVector.isNull(i)) {
@@ -54,30 +54,28 @@ public final class BytesRefArrowBlock {
                 } else if (nonNullCount == 1) {
                     for (int j = start; j < end; j++) {
                         if (child.isNull(j) == false) {
-                            appendChild(builder, child, j);
+                            builder.appendBytesRef(new BytesRef(child.get(j)));
                             break;
                         }
                     }
                 } else {
+                    boolean hasNulls = nonNullCount != (end - start);
                     builder.beginPositionEntry();
-                    for (int j = start; j < end; j++) {
-                        if (child.isNull(j) == false) {
-                            appendChild(builder, child, j);
+                    if (hasNulls) {
+                        for (int j = start; j < end; j++) {
+                            if (child.isNull(j) == false) {
+                                builder.appendBytesRef(new BytesRef(child.get(j)));
+                            }
+                        }
+                    } else {
+                        for (int j = start; j < end; j++) {
+                            builder.appendBytesRef(new BytesRef(child.get(j)));
                         }
                     }
                     builder.endPositionEntry();
                 }
             }
             return builder.build();
-        }
-    }
-
-    private static void appendChild(BytesRefBlock.Builder builder, FieldVector child, int j) {
-        Object val = child.getObject(j);
-        if (val instanceof byte[] bytes) {
-            builder.appendBytesRef(new BytesRef(bytes));
-        } else {
-            builder.appendBytesRef(new BytesRef(val.toString()));
         }
     }
 }

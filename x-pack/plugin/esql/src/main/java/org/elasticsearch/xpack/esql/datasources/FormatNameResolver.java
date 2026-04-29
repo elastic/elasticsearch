@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.Locale;
 import java.util.Map;
@@ -34,9 +33,18 @@ public final class FormatNameResolver {
     static final String CONFIG_FORMAT = "format";
     static final String CONFIG_READER = "reader";
 
+    /** Reader alias accepted in {@code WITH (reader = "...")} for the parquet-rs native reader. */
+    public static final String READER_PARQUET_RS = "parquet-rs";
+    /** Reader alias accepted in {@code WITH (reader = "...")} for the Java parquet reader. */
+    public static final String READER_JAVA = "java";
+    /** Format name registered by the Java parquet reader. */
+    public static final String FORMAT_PARQUET = "parquet";
+    /** Format name registered by the parquet-rs native reader. */
+    public static final String FORMAT_PARQUET_RS = "parquet-rs";
+
     private static final Map<String, String> READER_ALIAS_TO_FORMAT = Build.current().isSnapshot()
-        ? Map.of(EsqlPlugin.READER_PARQUET_RS, EsqlPlugin.FORMAT_PARQUET_RS, EsqlPlugin.READER_JAVA, EsqlPlugin.FORMAT_PARQUET)
-        : Map.of(EsqlPlugin.READER_JAVA, EsqlPlugin.FORMAT_PARQUET);
+        ? Map.of(READER_PARQUET_RS, FORMAT_PARQUET_RS, READER_JAVA, FORMAT_PARQUET)
+        : Map.of(READER_JAVA, FORMAT_PARQUET);
 
     private FormatNameResolver() {}
 

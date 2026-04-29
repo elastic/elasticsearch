@@ -231,11 +231,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
-    public static final String READER_PARQUET_RS = "parquet-rs";
-    public static final String READER_JAVA = "java";
-    public static final String FORMAT_PARQUET = "parquet";
-    public static final String FORMAT_PARQUET_RS = "parquet-rs";
-
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
 

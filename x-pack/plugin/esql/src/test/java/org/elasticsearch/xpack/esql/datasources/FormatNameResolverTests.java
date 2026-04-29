@@ -7,24 +7,25 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.Map;
 
 public class FormatNameResolverTests extends ESTestCase {
 
     public void testReaderJavaOverridesExtension() {
-        assertEquals(EsqlPlugin.FORMAT_PARQUET, FormatNameResolver.resolve(Map.of("reader", "java"), "file.parquet"));
+        assertEquals(FormatNameResolver.FORMAT_PARQUET, FormatNameResolver.resolve(Map.of("reader", "java"), "file.parquet"));
     }
 
     public void testReaderParquetRsOverridesExtension() {
-        assertEquals(EsqlPlugin.FORMAT_PARQUET_RS, FormatNameResolver.resolve(Map.of("reader", "parquet-rs"), "file.parquet"));
+        assumeTrue("parquet-rs reader alias is only registered in snapshot builds", Build.current().isSnapshot());
+        assertEquals(FormatNameResolver.FORMAT_PARQUET_RS, FormatNameResolver.resolve(Map.of("reader", "parquet-rs"), "file.parquet"));
     }
 
     public void testReaderOverridesFormat() {
         assertEquals(
-            EsqlPlugin.FORMAT_PARQUET,
+            FormatNameResolver.FORMAT_PARQUET,
             FormatNameResolver.resolve(Map.of("reader", "java", "format", "parquet-rs"), "file.parquet")
         );
     }
@@ -70,8 +71,9 @@ public class FormatNameResolverTests extends ESTestCase {
     }
 
     public void testReaderAliasToFormat() {
-        assertEquals(EsqlPlugin.FORMAT_PARQUET, FormatNameResolver.readerAliasToFormat(EsqlPlugin.READER_JAVA));
-        assertEquals(EsqlPlugin.FORMAT_PARQUET_RS, FormatNameResolver.readerAliasToFormat(EsqlPlugin.READER_PARQUET_RS));
+        assumeTrue("parquet-rs reader alias is only registered in snapshot builds", Build.current().isSnapshot());
+        assertEquals(FormatNameResolver.FORMAT_PARQUET, FormatNameResolver.readerAliasToFormat(FormatNameResolver.READER_JAVA));
+        assertEquals(FormatNameResolver.FORMAT_PARQUET_RS, FormatNameResolver.readerAliasToFormat(FormatNameResolver.READER_PARQUET_RS));
         assertNull(FormatNameResolver.readerAliasToFormat("unknown"));
     }
 }

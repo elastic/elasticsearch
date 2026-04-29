@@ -352,6 +352,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /**
      * Finds the closing brace matching the opening brace at {@code openIndex},
      * skipping over quoted strings so braces inside string values are ignored.
+     * <p>
+     * Assumes ES|QL string-literal syntax: only {@code "..."} (with backslash escapes) is recognised.
+     * Single-quoted strings are not part of the ES|QL grammar so they are not handled here. Triple-quoted
+     * strings ({@code """..."""}) are not specifically parsed either; they happen to work in the current
+     * state machine because consecutive quotes toggle the {@code inQuotes} flag, but adding
+     * {@code """}-aware handling would be required if a spec ever embeds {@code }} inside a triple-quoted
+     * value. No EXTERNAL csv-spec uses that form today.
      */
     private static int findClosingBrace(String query, int openIndex) {
         int depth = 0;

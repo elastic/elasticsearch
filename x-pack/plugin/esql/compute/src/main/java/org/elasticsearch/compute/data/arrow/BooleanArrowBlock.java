@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data.arrow;
 
 import org.apache.arrow.vector.BitVector;
-import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.elasticsearch.compute.data.Block;
@@ -37,7 +36,7 @@ public final class BooleanArrowBlock {
 
     private static Block ofList(ListVector listVector, BlockFactory blockFactory) {
         int rowCount = listVector.getValueCount();
-        FieldVector child = listVector.getDataVector();
+        BitVector child = (BitVector) listVector.getDataVector();
         try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(rowCount)) {
             for (int i = 0; i < rowCount; i++) {
                 if (listVector.isNull(i)) {
@@ -52,15 +51,22 @@ public final class BooleanArrowBlock {
                 } else if (nonNullCount == 1) {
                     for (int j = start; j < end; j++) {
                         if (child.isNull(j) == false) {
-                            builder.appendBoolean((Boolean) child.getObject(j));
+                            builder.appendBoolean(child.get(j) != 0);
                             break;
                         }
                     }
                 } else {
+                    boolean hasNulls = nonNullCount != (end - start);
                     builder.beginPositionEntry();
-                    for (int j = start; j < end; j++) {
-                        if (child.isNull(j) == false) {
-                            builder.appendBoolean((Boolean) child.getObject(j));
+                    if (hasNulls) {
+                        for (int j = start; j < end; j++) {
+                            if (child.isNull(j) == false) {
+                                builder.appendBoolean(child.get(j) != 0);
+                            }
+                        }
+                    } else {
+                        for (int j = start; j < end; j++) {
+                            builder.appendBoolean(child.get(j) != 0);
                         }
                     }
                     builder.endPositionEntry();

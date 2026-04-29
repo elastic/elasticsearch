@@ -41,8 +41,13 @@ pub enum FilterExpr {
     IsNull(Box<FilterExpr>),
     IsNotNull(Box<FilterExpr>),
     InList(Box<FilterExpr>, Vec<FilterExpr>),
-    Like(Box<FilterExpr>, String),
-    NotLike(Box<FilterExpr>, String),
+    /// SQL LIKE. The `bool` is `case_insensitive`: when true, the pattern is matched
+    /// using arrow's `ilike` kernel (Unicode-aware case folding) instead of `like`.
+    /// Set by the Java side from `WildcardLike.caseInsensitive()`, which is produced
+    /// by the optimizer rule `ReplaceStringCasingWithInsensitiveRegexMatch` for
+    /// `TO_UPPER(field) LIKE "..."` / `TO_LOWER(field) LIKE "..."` patterns.
+    Like(Box<FilterExpr>, String, bool),
+    NotLike(Box<FilterExpr>, String, bool),
     StartsWith(Box<FilterExpr>, String, Option<String>),
 }
 
@@ -75,8 +80,14 @@ impl std::fmt::Display for FilterExpr {
                 }
                 write!(f, ")")
             }
-            FilterExpr::Like(expr, pattern) => write!(f, "{expr} LIKE '{pattern}'"),
-            FilterExpr::NotLike(expr, pattern) => write!(f, "{expr} NOT LIKE '{pattern}'"),
+            FilterExpr::Like(expr, pattern, ci) => {
+                let op = if *ci { "ILIKE" } else { "LIKE" };
+                write!(f, "{expr} {op} '{pattern}'")
+            }
+            FilterExpr::NotLike(expr, pattern, ci) => {
+                let op = if *ci { "NOT ILIKE" } else { "NOT LIKE" };
+                write!(f, "{expr} {op} '{pattern}'")
+            }
             FilterExpr::StartsWith(expr, prefix, _) => write!(f, "{expr} STARTS WITH '{prefix}'"),
         }
     }
@@ -334,7 +345,7 @@ fn collect_columns_inner(expr: &FilterExpr, cols: &mut Vec<String>) {
                 collect_columns_inner(item, cols);
             }
         }
-        FilterExpr::Like(e, _) | FilterExpr::NotLike(e, _) => collect_columns_inner(e, cols),
+        FilterExpr::Like(e, _, _) | FilterExpr::NotLike(e, _, _) => collect_columns_inner(e, cols),
         FilterExpr::StartsWith(e, _, _) => collect_columns_inner(e, cols),
         _ => {}
     }
@@ -409,8 +420,8 @@ fn evaluate_filter(expr: &FilterExpr, batch: &RecordBatch) -> arrow::error::Resu
             }
             Ok(BooleanArray::from(vec![true; num_rows]))
         }
-        FilterExpr::Like(col_expr, pattern) => eval_like(col_expr, pattern, batch, num_rows, false),
-        FilterExpr::NotLike(col_expr, pattern) => eval_like(col_expr, pattern, batch, num_rows, true),
+        FilterExpr::Like(col_expr, pattern, ci) => eval_like(col_expr, pattern, batch, num_rows, false, *ci),
+        FilterExpr::NotLike(col_expr, pattern, ci) => eval_like(col_expr, pattern, batch, num_rows, true, *ci),
         FilterExpr::StartsWith(col_expr, prefix, upper) => {
             eval_starts_with(col_expr, prefix, upper.as_deref(), batch, num_rows)
         }
@@ -525,16 +536,23 @@ fn eval_like(
     batch: &RecordBatch,
     num_rows: usize,
     negate: bool,
+    case_insensitive: bool,
 ) -> arrow::error::Result<BooleanArray> {
     if let FilterExpr::Column(name) = col_expr {
         if let Some(col) = find_column(batch, name) {
             let str_col = as_string_array(&col);
             if let Some(str_arr) = str_col.as_ref().or_else(|| col.as_any().downcast_ref::<StringArray>()) {
                 let pattern_scalar = StringArray::new_scalar(pattern);
-                let result = if negate {
-                    arrow::compute::kernels::comparison::nlike(str_arr, &pattern_scalar)?
-                } else {
-                    arrow::compute::kernels::comparison::like(str_arr, &pattern_scalar)?
+                // ESQL's case-insensitive WildcardLike (built via Lucene's RegExp.CASE_INSENSITIVE)
+                // is ASCII-only, while arrow's ilike/nilike apply Unicode case folding. The two
+                // agree on every common upper/lower pair (including extended Latin like 'ü'/'Ü');
+                // they only diverge on a handful of Unicode ligatures (e.g. 'ﬀ' vs "FF", 'ß' vs "SS").
+                // For the supported text in ESQL this difference is not user-visible.
+                let result = match (negate, case_insensitive) {
+                    (false, false) => arrow::compute::kernels::comparison::like(str_arr, &pattern_scalar)?,
+                    (false, true) => arrow::compute::kernels::comparison::ilike(str_arr, &pattern_scalar)?,
+                    (true, false) => arrow::compute::kernels::comparison::nlike(str_arr, &pattern_scalar)?,
+                    (true, true) => arrow::compute::kernels::comparison::nilike(str_arr, &pattern_scalar)?,
                 };
                 return Ok(result);
             }
@@ -819,30 +837,32 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createLike(
-    mut env: EnvUnowned, _class: JClass, col_handle: jlong, pattern: JString,
+    mut env: EnvUnowned, _class: JClass, col_handle: jlong, pattern: JString, case_insensitive: jni::sys::jboolean,
 ) -> jlong {
     env.with_env(|env| -> JniResult<jlong> {
         if col_handle == 0 {
             return Err(jni_err("null col_handle to createLike"));
         }
         let pat = pattern.try_to_string(env)?;
+        let ci = case_insensitive != jni::sys::JNI_FALSE as jni::sys::jboolean;
         let c = unsafe { *unbox_expr(col_handle) };
-        Ok(box_expr(FilterExpr::Like(Box::new(c), pat)))
+        Ok(box_expr(FilterExpr::Like(Box::new(c), pat, ci)))
     })
     .resolve::<ThrowRuntimeExAndDefault>()
 }
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createNotLike(
-    mut env: EnvUnowned, _class: JClass, col_handle: jlong, pattern: JString,
+    mut env: EnvUnowned, _class: JClass, col_handle: jlong, pattern: JString, case_insensitive: jni::sys::jboolean,
 ) -> jlong {
     env.with_env(|env| -> JniResult<jlong> {
         if col_handle == 0 {
             return Err(jni_err("null col_handle to createNotLike"));
         }
         let pat = pattern.try_to_string(env)?;
+        let ci = case_insensitive != jni::sys::JNI_FALSE as jni::sys::jboolean;
         let c = unsafe { *unbox_expr(col_handle) };
-        Ok(box_expr(FilterExpr::NotLike(Box::new(c), pat)))
+        Ok(box_expr(FilterExpr::NotLike(Box::new(c), pat, ci)))
     })
     .resolve::<ThrowRuntimeExAndDefault>()
 }

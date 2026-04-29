@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.Map;
 import java.util.Set;
@@ -41,11 +41,11 @@ public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin 
 
     @Override
     public Set<FormatSpec> formatSpecs() {
-        return Set.of(FormatSpec.of(EsqlPlugin.FORMAT_PARQUET, ".parquet"));
+        return Set.of(FormatSpec.of(FormatNameResolver.FORMAT_PARQUET, ".parquet"));
     }
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-        return Map.of(EsqlPlugin.FORMAT_PARQUET, (s, blockFactory) -> new ParquetFormatReader(blockFactory));
+        return Map.of(FormatNameResolver.FORMAT_PARQUET, (s, blockFactory) -> new ParquetFormatReader(blockFactory));
     }
 }

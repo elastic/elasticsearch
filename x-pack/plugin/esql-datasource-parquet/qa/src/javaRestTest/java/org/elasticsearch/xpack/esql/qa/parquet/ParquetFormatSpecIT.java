@@ -14,7 +14,7 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
@@ -44,7 +44,7 @@ public class ParquetFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     @Override
     protected String readerName() {
-        return EsqlPlugin.READER_JAVA;
+        return FormatNameResolver.READER_JAVA;
     }
 
     @Override

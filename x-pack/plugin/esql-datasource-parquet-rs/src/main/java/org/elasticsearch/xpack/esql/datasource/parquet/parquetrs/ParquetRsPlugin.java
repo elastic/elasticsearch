@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.datasource.parquet.parquetrs;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.Map;
 import java.util.Set;
@@ -33,7 +33,7 @@ public class ParquetRsPlugin extends Plugin implements DataSourcePlugin {
         if (Build.current().isSnapshot() == false) {
             return Set.of();
         }
-        return Set.of(new FormatSpec(EsqlPlugin.FORMAT_PARQUET_RS, Set.of()));
+        return Set.of(new FormatSpec(FormatNameResolver.FORMAT_PARQUET_RS, Set.of()));
     }
 
     @Override
@@ -42,6 +42,6 @@ public class ParquetRsPlugin extends Plugin implements DataSourcePlugin {
             return Map.of();
         }
         FormatReaderFactory factory = (s, blockFactory) -> new ParquetRsFormatReader(blockFactory);
-        return Map.of(EsqlPlugin.FORMAT_PARQUET_RS, factory);
+        return Map.of(FormatNameResolver.FORMAT_PARQUET_RS, factory);
     }
 }

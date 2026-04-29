@@ -85,15 +85,19 @@ public record ArrowToEsql(DataType dataType, ElementType elementType, ArrowToBlo
         return wideDataType(type);
     }
 
+    /**
+     * Must only advertise types that the runtime converter registry
+     * ({@link org.elasticsearch.xpack.esql.arrow.ArrowToBlockConverter#forType}) can actually convert,
+     * otherwise schema inference would accept a column that batch conversion rejects at runtime with
+     * {@code Unsupported Arrow type}.
+     */
     private static DataType wideDataType(Types.MinorType type) {
         return switch (type) {
             case TINYINT, SMALLINT, INT, UINT1, UINT2 -> DataType.INTEGER;
             case BIGINT, UINT4 -> DataType.LONG;
-            case UINT8 -> DataType.UNSIGNED_LONG;
-            case FLOAT2, FLOAT4, FLOAT8, DECIMAL, DECIMAL256 -> DataType.DOUBLE;
+            case FLOAT2, FLOAT4, FLOAT8 -> DataType.DOUBLE;
             case BIT -> DataType.BOOLEAN;
-            case VARCHAR, LARGEVARCHAR, VIEWVARCHAR, VARBINARY, VIEWVARBINARY, LARGEVARBINARY, FIXEDSIZEBINARY -> DataType.KEYWORD;
-            case DATEDAY, DATEMILLI -> DataType.DATETIME;
+            case VARCHAR, VARBINARY -> DataType.KEYWORD;
             case TIMESTAMPSEC, TIMESTAMPMILLI, TIMESTAMPSECTZ, TIMESTAMPMILLITZ -> DataType.DATETIME;
             case TIMESTAMPMICRO, TIMESTAMPNANO, TIMESTAMPMICROTZ, TIMESTAMPNANOTZ -> DataType.DATE_NANOS;
             default -> DataType.UNSUPPORTED;

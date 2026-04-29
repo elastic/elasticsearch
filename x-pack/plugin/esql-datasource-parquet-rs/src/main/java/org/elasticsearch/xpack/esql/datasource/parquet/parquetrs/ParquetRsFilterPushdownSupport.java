@@ -95,16 +95,36 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
             if (PushdownPredicates.isComparison(bc, TYPE_SUPPORTED) == false) {
                 return false;
             }
-            if (bc.right() instanceof Literal lit && lit.value() == null) {
-                return false;
+            // PushdownPredicates.isComparison accepts any foldable RHS, but translateExpression
+            // only handles Literal RHS. ConstantFolding reduces every foldable to a Literal before
+            // pushdown, but require Literal explicitly here to keep canConvert and translateExpression
+            // in sync, mirroring the same tightening applied to In below.
+            if (bc.right() instanceof Literal lit) {
+                if (lit.value() == null) {
+                    return false;
+                }
+                if (bc.left() instanceof NamedExpression ne && ne.dataType() == DataType.BOOLEAN) {
+                    return bc instanceof Equals || bc instanceof NotEquals;
+                }
+                return true;
             }
-            if (bc.left() instanceof NamedExpression ne && ne.dataType() == DataType.BOOLEAN) {
-                return bc instanceof Equals || bc instanceof NotEquals;
-            }
-            return true;
+            return false;
         }
         if (expr instanceof In inExpr) {
-            return PushdownPredicates.isIn(inExpr, TYPE_SUPPORTED);
+            // PushdownPredicates.isIn accepts any foldable item, but translateIn only handles
+            // Literal instances (and would silently drop other foldables). In current ESQL the
+            // optimizer's ConstantFolding reduces every foldable to a Literal before pushdown, so
+            // this is currently unreachable, but require Literal explicitly to keep canConvert
+            // and translateIn in sync and prevent silent data loss if that invariant ever breaks.
+            if (PushdownPredicates.isIn(inExpr, TYPE_SUPPORTED) == false) {
+                return false;
+            }
+            for (Expression item : inExpr.list()) {
+                if (item instanceof Literal == false) {
+                    return false;
+                }
+            }
+            return true;
         }
         if (expr instanceof IsNull isNull) {
             return PushdownPredicates.isIsNull(isNull, TYPE_SUPPORTED);
@@ -251,7 +271,7 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
         if (expr instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
             try (ExprHandle col = ExprHandle.of(ParquetRsBridge.createColumn(ne.name()))) {
                 String sqlPattern = esqlWildcardToSqlLike(wl.pattern().pattern());
-                return ParquetRsBridge.createLike(col.release(), sqlPattern);
+                return ParquetRsBridge.createLike(col.release(), sqlPattern, wl.caseInsensitive());
             }
         }
         if (expr instanceof StartsWith sw

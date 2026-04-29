@@ -126,9 +126,9 @@ final class ParquetRsBridge {
 
     static native long createStartsWith(long colHandle, String prefix, String upperBound);
 
-    static native long createLike(long colHandle, String pattern);
+    static native long createLike(long colHandle, String pattern, boolean caseInsensitive);
 
-    static native long createNotLike(long colHandle, String pattern);
+    static native long createNotLike(long colHandle, String pattern, boolean caseInsensitive);
 
     static native void freeExpr(long handle);
 

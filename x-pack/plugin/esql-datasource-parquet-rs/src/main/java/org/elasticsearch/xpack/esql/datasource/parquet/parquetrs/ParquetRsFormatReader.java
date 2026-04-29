@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -42,10 +43,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +54,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * FormatReader backed by a Rust parquet-rs native library via JNI.
@@ -101,7 +103,10 @@ public class ParquetRsFormatReader implements FormatReader {
         if (pushedFilter == null) {
             return pushedExpressions.isEmpty() ? this : new ParquetRsFormatReader(blockFactory, List.of(), configJson);
         }
-        return this;
+        // ParquetRsFilterPushdownSupport.pushFilters() only ever produces ParquetRsPushedFilter or null;
+        // anything else is a planner/optimizer bug. Fail fast rather than silently dropping the filter,
+        // which would return more rows than the user's query asked for.
+        throw new IllegalArgumentException("Unexpected pushedFilter type [" + pushedFilter.getClass().getName() + "]");
     }
 
     @Override
@@ -116,6 +121,11 @@ public class ParquetRsFormatReader implements FormatReader {
      * Serializes the config map as JSON for consumption by the native side. Values keep their
      * natural JSON types (string, number, boolean, ...) — the Rust {@code StorageConfig} decides
      * how to interpret them rather than having Java silently coerce everything to strings.
+     * <p>
+     * Entries with null values are dropped: the native side has no representation distinct from
+     * "key absent", so an explicit {@code null} cannot mean "reset to default". If a future option
+     * needs that semantic it must be encoded out-of-band (e.g. a sentinel value) rather than relying
+     * on JSON {@code null}.
      */
     private static String serializeConfig(Map<String, Object> config) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -180,36 +190,43 @@ public class ParquetRsFormatReader implements FormatReader {
 
         Map<String, SourceStatistics.ColumnStatistics> result = new HashMap<>();
         for (int i = 0; i + 3 < raw.length; i += 4) {
-            String name = raw[i];
-            long nullCount = Long.parseLong(raw[i + 1]);
-            String minStr = raw[i + 2];
-            String maxStr = raw[i + 3];
-            DataType dt = typeMap.get(name);
+            // Per-tuple defensive parsing: a single malformed stat from the native side must not fail
+            // the whole metadata() call, since these statistics are best-effort planner hints.
+            try {
+                String name = raw[i];
+                long nullCount = Long.parseLong(raw[i + 1]);
+                String minStr = raw[i + 2];
+                String maxStr = raw[i + 3];
+                DataType dt = typeMap.get(name);
 
-            Object minVal = parseStatValue(minStr, dt);
-            Object maxVal = parseStatValue(maxStr, dt);
+                Object minVal = parseStatValue(minStr, dt);
+                Object maxVal = parseStatValue(maxStr, dt);
 
-            result.put(name, new SourceStatistics.ColumnStatistics() {
-                @Override
-                public OptionalLong nullCount() {
-                    return OptionalLong.of(nullCount);
-                }
+                result.put(name, new SourceStatistics.ColumnStatistics() {
+                    @Override
+                    public OptionalLong nullCount() {
+                        return OptionalLong.of(nullCount);
+                    }
 
-                @Override
-                public OptionalLong distinctCount() {
-                    return OptionalLong.empty();
-                }
+                    @Override
+                    public OptionalLong distinctCount() {
+                        return OptionalLong.empty();
+                    }
 
-                @Override
-                public Optional<Object> minValue() {
-                    return Optional.ofNullable(minVal);
-                }
+                    @Override
+                    public Optional<Object> minValue() {
+                        return Optional.ofNullable(minVal);
+                    }
 
-                @Override
-                public Optional<Object> maxValue() {
-                    return Optional.ofNullable(maxVal);
-                }
-            });
+                    @Override
+                    public Optional<Object> maxValue() {
+                        return Optional.ofNullable(maxVal);
+                    }
+                });
+            } catch (RuntimeException e) {
+                final int tupleIdx = i;
+                logger.debug(() -> Strings.format("Skipping malformed parquet-rs column statistics tuple at index [%d]", tupleIdx), e);
+            }
         }
         return result;
     }
@@ -223,11 +240,13 @@ public class ParquetRsFormatReader implements FormatReader {
                 case INTEGER -> Integer.parseInt(str);
                 case LONG, DATETIME -> Long.parseLong(str);
                 case DOUBLE -> Double.parseDouble(str);
+                // Booleans.parseBoolean throws IllegalArgumentException (not NumberFormatException) for
+                // anything other than "true"/"false", so widen the catch below to IllegalArgumentException.
                 case BOOLEAN -> Booleans.parseBoolean(str);
                 case KEYWORD -> str;
                 default -> null;
             };
-        } catch (NumberFormatException e) {
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }
@@ -270,7 +289,7 @@ public class ParquetRsFormatReader implements FormatReader {
 
     @Override
     public String formatName() {
-        return EsqlPlugin.FORMAT_PARQUET_RS;
+        return FormatNameResolver.FORMAT_PARQUET_RS;
     }
 
     @Override
@@ -288,7 +307,7 @@ public class ParquetRsFormatReader implements FormatReader {
     private static String resolveReadPath(StorageObject object) {
         String uri = object.path().toString();
         if (uri.startsWith("file://")) {
-            return uri.substring(7);
+            return URI.create(uri).getPath();
         }
         return uri;
     }
@@ -314,9 +333,12 @@ public class ParquetRsFormatReader implements FormatReader {
         private final long handle;
         private final BlockFactory blockFactory;
         private final BufferAllocator allocator;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
         private boolean exhausted = false;
         private Page nextPage;
-        private String cachedPlan;
+        // describe() can be called from a different thread than iteration (driver/profiler vs compute);
+        // volatile gives us safe publication of the cached plan string.
+        private volatile String cachedPlan;
 
         ParquetRsBatchIterator(long handle, BlockFactory blockFactory) {
             this.handle = handle;
@@ -326,10 +348,12 @@ public class ParquetRsFormatReader implements FormatReader {
 
         @Override
         public String describe() {
-            if (cachedPlan == null) {
-                cachedPlan = ParquetRsBridge.getReaderPlan(handle);
+            String plan = cachedPlan;
+            if (plan == null) {
+                plan = ParquetRsBridge.getReaderPlan(handle);
+                cachedPlan = plan;
             }
-            return cachedPlan;
+            return plan;
         }
 
         @Override
@@ -373,9 +397,9 @@ public class ParquetRsFormatReader implements FormatReader {
                         for (int col = 0; col < vectors.size(); col++) {
                             blocks[col] = convertVector(vectors.get(col));
                         }
-                    } catch (Exception e) {
+                    } catch (RuntimeException e) {
                         Releasables.closeExpectNoException(blocks);
-                        throw new RuntimeException("Failed to wrap Arrow batch as ESQL blocks", e);
+                        throw e;
                     }
                     return new Page(rowCount, blocks);
                 }
@@ -392,7 +416,12 @@ public class ParquetRsFormatReader implements FormatReader {
 
         @Override
         public void close() {
-            ParquetRsBridge.closeReader(handle);
+            // Idempotent: the native side guards on handle != 0 but does not clear it for the caller,
+            // so a double-call would double-free the ParquetReaderState. Use an AtomicBoolean so the
+            // first close() wins regardless of which thread initiates it.
+            if (closed.compareAndSet(false, true)) {
+                ParquetRsBridge.closeReader(handle);
+            }
         }
     }
 }

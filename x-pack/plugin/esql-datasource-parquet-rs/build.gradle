@@ -127,10 +127,6 @@ tasks.named("processResources").configure {
 }
 
 tasks.named("test").configure {
-  def nativeLib = "${project.projectDir}/native/target/release/libesql_parquet_rs.dylib"
-  if (new File(nativeLib).exists()) {
-    systemProperty 'tests.native.lib.path', nativeLib
-  }
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 

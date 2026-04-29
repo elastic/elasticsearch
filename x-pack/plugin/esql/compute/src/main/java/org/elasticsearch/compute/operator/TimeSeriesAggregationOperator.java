@@ -212,8 +212,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             if (success == false) {
                 if (blocks != null) {
                     Releasables.closeExpectNoException(blocks);
-                }
-                if (keysFiltered) {
+                } else if (keysFiltered) {
                     Releasables.closeExpectNoException(outputKeys);
                 }
             }

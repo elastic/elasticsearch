@@ -27,12 +27,21 @@ import java.util.Map;
  * <p>
  * The split discovery flow:
  * <ol>
- *   <li>{@link #discoverSplitRanges} reads file metadata (e.g. Parquet footer) and
- *       returns byte ranges for each independently readable unit (e.g. row group).</li>
+ *   <li>{@link #resolveFileLayout} opens the file's footer/metadata once and returns both
+ *       schema/statistics and byte ranges for each independently readable unit
+ *       (e.g. row group / stripe).</li>
  *   <li>The framework creates one split per range, distributed across drivers/nodes.</li>
  *   <li>At read time, {@link #readRange} receives the full-file object and the assigned
  *       byte range, reading only the relevant row groups.</li>
  * </ol>
+ * <p>
+ * {@link #resolveFileLayout} is the single primitive for this SPI: implementations must
+ * perform exactly one format reader open (i.e. one footer/metadata read) per invocation
+ * and emit both pieces of information together. {@link #metadata(StorageObject)} is a
+ * derived view that delegates to {@code resolveFileLayout} and discards the split ranges;
+ * metadata-only callers therefore still pay exactly one footer read per call. The CPU cost
+ * of building the discarded {@link FileLayout} is negligible compared to the remote I/O
+ * the contract avoids.
  */
 public interface RangeAwareFormatReader extends FormatReader {
 
@@ -54,16 +63,27 @@ public interface RangeAwareFormatReader extends FormatReader {
     }
 
     /**
-     * Discovers independently readable byte ranges within a file by reading its metadata.
-     * Each range typically corresponds to one row group (Parquet) or stripe (ORC).
-     * <p>
-     * Returns a list of {@link SplitRange} objects. An empty list means the
-     * file cannot be split (e.g. single row group) and should be read as a whole.
+     * Resolves both schema/statistics and split ranges from a single open of the file's
+     * footer/metadata. This is the single SPI primitive for columnar formats: callers that
+     * only need metadata go through {@link #metadata(StorageObject)}, which is a derived
+     * view over this same method. Implementations must perform exactly one format reader
+     * open (one footer/metadata read) per invocation; multiple internal CPU passes over
+     * the already-loaded footer are allowed.
      *
      * @param object the storage object representing the full file
-     * @return list of split ranges with optional per-range statistics
+     * @return the file's {@link FileLayout}: metadata and split ranges
      */
-    List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException;
+    FileLayout resolveFileLayout(StorageObject object) throws IOException;
+
+    /**
+     * Returns the metadata for the given file. Derived from {@link #resolveFileLayout};
+     * range information from that single footer read is discarded for metadata-only
+     * callers, preserving the "exactly one footer read per call" guarantee.
+     */
+    @Override
+    default SourceMetadata metadata(StorageObject object) throws IOException {
+        return resolveFileLayout(object).metadata();
+    }
 
     /**
      * Reads only the row groups / stripes that fall within the given byte range.

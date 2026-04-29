@@ -1350,7 +1350,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     public abstract static class BaseDenseNumericValues extends NumericDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            BlockLoader.NumericRangeReader {
+            BlockLoader.NumericRangeReader,
+            BlockLoader.OptionalNumericRangeReader {
         private final int maxDoc;
         protected int doc = -1;
 
@@ -1407,13 +1408,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public void collectMatches(
-            LeafCollector collector,
-            int firstDoc,
-            int lastDoc,
-            long lowerValue,
-            long upperValue
-        ) throws IOException {
+        public void collectMatches(LeafCollector collector, int firstDoc, int lastDoc, long lowerValue, long upperValue)
+            throws IOException {
             for (int d = firstDoc; d <= lastDoc; d++) {
                 advanceExact(d);
                 long v = longValue();
@@ -2399,6 +2395,110 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         var docIdMatches = new BitSetDocIdStream(matches, blockId << numericBlockShift);
                         collector.collect(docIdMatches);
                     }
+                }
+
+                @Override
+                public DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper) {
+                    return new DocIdSetIterator() {
+                        private final FixedBitSet rangeMatches = new FixedBitSet(
+                            new long[(numericBlockMask + 1) >>> 6],
+                            numericBlockMask + 1
+                        );
+                        private int iterDoc = -1;
+
+                        @Override
+                        public int docID() {
+                            return iterDoc;
+                        }
+
+                        @Override
+                        public int nextDoc() throws IOException {
+                            return advance(iterDoc + 1);
+                        }
+
+                        @Override
+                        public int advance(int target) throws IOException {
+                            iterDoc = target;
+                            while (iterDoc < maxDoc) {
+                                if (skipper.maxDocID(0) < iterDoc) {
+                                    skipper.advance(iterDoc);
+                                    if (skipper.maxDocID(0) == NO_MORE_DOCS) {
+                                        return iterDoc = NO_MORE_DOCS;
+                                    }
+                                }
+                                long minVal = skipper.minValue(0);
+                                long maxVal = skipper.maxValue(0);
+                                if (maxVal < lowerValue || minVal > upperValue) {
+                                    iterDoc = skipper.maxDocID(0) + 1;
+                                    continue;
+                                }
+                                int firstDocInBlock = Math.max(iterDoc, skipper.minDocID(0));
+                                int lastDocInBlock = skipper.maxDocID(0);
+                                if (lowerValue <= minVal && maxVal <= upperValue) {
+                                    return iterDoc = firstDocInBlock;
+                                }
+                                int firstNBlock = firstDocInBlock >>> numericBlockShift;
+                                int lastNBlock = lastDocInBlock >>> numericBlockShift;
+                                for (int nbId = firstNBlock; nbId <= lastNBlock; nbId++) {
+                                    rangeMatches.clear();
+                                    loadBlock(nbId);
+                                    ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, rangeMatches.getBits());
+                                    int firstInNBlock = nbId == firstNBlock ? firstDocInBlock & numericBlockMask : 0;
+                                    int lastInNBlock = nbId == lastNBlock ? lastDocInBlock & numericBlockMask : numericBlockMask;
+                                    int bit = rangeMatches.nextSetBit(firstInNBlock, lastInNBlock + 1);
+                                    if (bit != NO_MORE_DOCS) {
+                                        return iterDoc = (nbId << numericBlockShift) + bit;
+                                    }
+                                }
+                                iterDoc = lastDocInBlock + 1;
+                            }
+                            return iterDoc = NO_MORE_DOCS;
+                        }
+
+                        @Override
+                        public long cost() {
+                            return maxDoc;
+                        }
+
+                        @Override
+                        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                            while (iterDoc < upTo) {
+                                if (skipper.maxDocID(0) < iterDoc) {
+                                    skipper.advance(iterDoc);
+                                    if (skipper.maxDocID(0) == NO_MORE_DOCS) {
+                                        iterDoc = NO_MORE_DOCS;
+                                        return;
+                                    }
+                                }
+                                int blockMinDoc = skipper.minDocID(0);
+                                int blockMaxDoc = skipper.maxDocID(0);
+                                int firstDocInRange = Math.max(iterDoc, blockMinDoc);
+                                int lastDocInRange = Math.min(blockMaxDoc, upTo - 1);
+                                long minVal = skipper.minValue(0);
+                                long maxVal = skipper.maxValue(0);
+                                if (lowerValue <= minVal && maxVal <= upperValue) {
+                                    bitSet.set(firstDocInRange - offset, lastDocInRange + 1 - offset);
+                                } else if (minVal <= upperValue && lowerValue <= maxVal) {
+                                    int firstNBlock = firstDocInRange >>> numericBlockShift;
+                                    int lastNBlock = lastDocInRange >>> numericBlockShift;
+                                    for (int nbId = firstNBlock; nbId <= lastNBlock; nbId++) {
+                                        rangeMatches.clear();
+                                        loadBlock(nbId);
+                                        ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, rangeMatches.getBits());
+                                        int firstInNBlock = nbId == firstNBlock ? firstDocInRange & numericBlockMask : 0;
+                                        int lastInNBlock = nbId == lastNBlock ? lastDocInRange & numericBlockMask : numericBlockMask;
+                                        rangeMatches.forEach(
+                                            firstInNBlock,
+                                            lastInNBlock + 1,
+                                            (nbId << numericBlockShift) - offset,
+                                            bitSet::set
+                                        );
+                                    }
+                                }
+                                iterDoc = lastDocInRange + 1;
+                            }
+                        }
+                    };
                 }
 
                 @Override

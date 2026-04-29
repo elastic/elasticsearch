@@ -329,7 +329,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             r -> fail(),
             ExceptionsHelper::reThrowIfNotNull,
             new ParentTaskAssigningClient(client, localNode, testTask),
-            testRequest.getSearchRequest()
+            testRequest.getSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
         paginatedHitSource.setScrollId(scrollId());
         paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
@@ -357,7 +358,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             r -> fail(),
             ExceptionsHelper::reThrowIfNotNull,
             new ParentTaskAssigningClient(client, localNode, testTask),
-            testRequest.getSearchRequest()
+            testRequest.getSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
         paginatedHitSource.setSearchAfterValues(new Object[] { "search_after" });
         paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
@@ -389,7 +391,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 r -> fail(),
                 validingOnFail,
                 new ParentTaskAssigningClient(client, localNode, testTask),
-                testRequest.getSearchRequest()
+                testRequest.getSearchRequest(),
+                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
             );
             paginatedHitSource.setScrollId(scrollId());
             paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
@@ -418,7 +421,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 r -> fail(),
                 validingOnFail,
                 new ParentTaskAssigningClient(client, localNode, testTask),
-                testRequest.getSearchRequest()
+                testRequest.getSearchRequest(),
+                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
             );
             paginatedHitSource.setSearchAfterValues(new Object[] { "search_after" });
             paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
@@ -1544,7 +1548,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     this::onScrollResponse,
                     this::finishHim,
                     new ParentTaskAssigningClient(client, localNode, testTask),
-                    searchRequest
+                    searchRequest,
+                    new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
                 ) {
                     @Override
                     protected void cleanup(Runnable onCompletion) {
@@ -1605,7 +1610,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     this::onScrollResponse,
                     this::finishHim,
                     new ParentTaskAssigningClient(client, localNode, testTask),
-                    searchRequest
+                    searchRequest,
+                    new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
                 ) {
                     @Override
                     protected void cleanup(Runnable onCompletion) {
@@ -2025,6 +2031,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 listener,
                 null,
                 null,
+                null,
+                randomFrom(BulkByScrollSearchContextMetrics.TaskKind.values()),
+                false,
                 maxTaskShutdownGracePeriod
             );
         }

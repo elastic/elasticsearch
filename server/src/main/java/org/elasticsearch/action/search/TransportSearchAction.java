@@ -1055,7 +1055,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static SearchProfileResults getSearchProfileResults(SearchResponse searchResponse, SearchCoordinatorContext searchCoordinatorContext) {
-        Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = searchResponse.getSearchProfileShardResults();
         SearchProfileResults profile = profileResults == null || profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
 
         if (profile != null) {

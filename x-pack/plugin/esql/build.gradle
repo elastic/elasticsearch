@@ -510,6 +510,8 @@ tasks.named("test").configure {
     systemProperty "golden.overwrite", "true"
   }
 
+  // Needed for Arrow tests; same pattern as esql/arrow, esql/compute, esql-datasource-grpc.
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
 tasks.register("analyzePromqlQueries", JavaExec) {

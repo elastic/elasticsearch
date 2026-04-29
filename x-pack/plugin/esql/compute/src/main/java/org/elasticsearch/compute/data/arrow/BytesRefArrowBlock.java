@@ -18,9 +18,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 /**
  * Converts Arrow VARCHAR/VARBINARY vectors to ESQL BytesRefBlocks.
  * Flat vectors delegate to zero-copy {@link BytesRefArrowBufBlock}.
- * {@link ListVector} (multi-valued) inputs are converted by copying values into block builders,
- * because {@link BytesRefArrowBufBlock#expand()} does not handle the variable-width value offsets
- * needed by downstream operators like MvExpand.
+ * {@link ListVector} (multi-valued) inputs are converted by copying values into block builders.
  *
  * See {@link ArrowListSupport} for the Arrow list -> ESQL multi-value mapping rules
  * (null lists, empty lists, and null children are all collapsed to an ESQL null

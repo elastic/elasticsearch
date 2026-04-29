@@ -11,7 +11,7 @@ import org.apache.arrow.vector.FieldVector;
 
 /**
  * Helpers shared by the copy-based Arrow list -> ESQL block converters
- * ({@link BooleanArrowBlock}, {@link BytesRefArrowBlock}, {@link FloatToDoubleArrowBlock}).
+ * ({@link BooleanArrowBlock}, {@link BytesRefArrowBlock}).
  *
  * <h2>Arrow list vs. ESQL multi-value semantics</h2>
  * Arrow's {@code ListVector} permits two things that ESQL multi-values cannot represent:

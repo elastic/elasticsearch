@@ -22,7 +22,7 @@ import java.io.IOException;
  */
 public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, DoubleArrayVector, DoubleBigArrayVector,
     ConstantNullVector, org.elasticsearch.compute.data.arrow.DoubleArrowBufVector,
-    org.elasticsearch.compute.data.arrow.Float16ArrowBufVector {
+    org.elasticsearch.compute.data.arrow.Float16ArrowBufVector, org.elasticsearch.compute.data.arrow.Float32ArrowBufVector {
     double getDouble(int position);
 
     /**

@@ -3,7 +3,7 @@
 ## Parameters
 
 `step`
-:   Fixed bucket width on a UTC grid, or a target bucket count. When a bucket count is provided, the actual step width is derived from `from` and `to` by dividing the range into equal-width fixed intervals at millisecond precision. Explicit `from` and `to` bounds are required when a bucket count is provided.
+:   Fixed bucket width on a UTC grid, or a target bucket count. When a bucket count is provided, the actual step width is derived from `from` and `to` by dividing the range into equal-width fixed intervals at millisecond precision. When `from` and `to` are omitted, the range is derived from the request `@timestamp` filter.
 
 `from`
 :   Start of the time range that anchors the step grid. Required together with `to`.

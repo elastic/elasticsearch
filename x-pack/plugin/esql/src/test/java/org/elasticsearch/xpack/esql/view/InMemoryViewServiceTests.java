@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -1964,11 +1965,135 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertFalse("Plan consistency failures for " + context + ": " + failures, failures.hasFailures());
     }
 
+    // -------------------------------------------------------------------------------------------
+    // Uncompacted ViewResolver output contract tests.
+    //
+    // These assert on the raw output of ViewResolver.replaceViews(), before {@link ViewCompaction}
+    // runs. They lock in the new ViewResolver contract so the upcoming CPS work
+    // (esql-planning #543) can rely on a known, stable nested shape per resolution level. The bulk
+    // of this file's coverage is on the post-compaction shape (what users observe via
+    // {@link #replaceViews(LogicalPlan)}).
+    // -------------------------------------------------------------------------------------------
+
+    /**
+     * Single-view query: the resolver returns the view's body directly with no enclosing wrapper,
+     * since there's only one branch at this level.
+     */
+    public void testUncompactedSingleView() {
+        addView("v", "FROM emp");
+        assertThat(replaceViewsWithoutCompaction(query("FROM v")), matchesPlan(query("FROM emp")));
+    }
+
+    /**
+     * Two-view query: the resolver builds a {@link ViewUnionAll} with one entry per resolved view.
+     * Sibling-UR merging happens at construction (to keep branch counts in check), so the entries
+     * here come from the per-level merge in {@code buildPlanFromBranches} — but no further
+     * post-pass compaction has run yet.
+     */
+    public void testUncompactedTwoSiblingViews() {
+        addView("v_a", "FROM emp1");
+        addView("v_b", "FROM emp2");
+        // Per-level merge in buildPlanFromBranches collapses these mergeable URs into one. The
+        // outer ViewUnionAll therefore has a single bare-UR entry; without compaction it would be
+        // unwrapped only by the analyzer's ViewCompaction rule.
+        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_a, v_b"));
+        // The resolver returns the merged UR directly when there's only one entry left.
+        assertThat(resolved, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) resolved).indexPattern().indexPattern(), equalTo("emp1,emp2"));
+    }
+
+    /**
+     * Nested views collapse at each level into bare URs, then nest. Because per-level merging runs
+     * in the resolver, the result here is already a single bare UR; no ViewUnionAll needed.
+     */
+    public void testUncompactedNestedViews() {
+        addView("inner", "FROM emp1, emp2");
+        addView("outer", "FROM inner");
+        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM outer"));
+        assertThat(resolved, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) resolved).indexPattern().indexPattern(), equalTo("emp1,emp2"));
+    }
+
+    /**
+     * View body containing an exclusion is wrapped in a {@link NamedSubquery} by the resolver to
+     * defeat sibling-merge — this is the scoping mechanism that prevents the exclusion from
+     * leaking onto sibling URs. {@link ViewCompaction} unwraps the NamedSubquery only at the very
+     * end (after all merging passes have decided to leave it alone).
+     */
+    public void testUncompactedViewBodyWithExclusionStaysWrapped() {
+        addIndex("idx-a1");
+        addIndex("idx-a2");
+        addIndex("idx-b1");
+        addIndex("idx-b2");
+        addView("data-view", "FROM idx-b*,-*2");
+        // The outer query has two sibling URs. The view body's exclusion-bearing UR must stay
+        // scoped — represented as a NamedSubquery in the uncompacted output.
+        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM idx-a*, data-view"));
+        assertThat(resolved, instanceOf(ViewUnionAll.class));
+        ViewUnionAll vua = (ViewUnionAll) resolved;
+        // One entry is the bare outer UR; the other is the data-view body wrapped in a NamedSubquery.
+        assertThat(
+            "Expected one entry to be a NamedSubquery wrapping the exclusion-bearing view body. Found: " + vua.namedSubqueries(),
+            vua.namedSubqueries().values().stream().anyMatch(p -> p instanceof NamedSubquery),
+            equalTo(true)
+        );
+    }
+
+    /**
+     * Wildcard-matched siblings of the same view body shape are merged at the resolver level (per
+     * the per-level merge), then collapse to a single UR. The order in the merged pattern follows
+     * the order returned by the view metadata service, which is not guaranteed to be alphabetical
+     * — we just check the final set of patterns matches.
+     */
+    public void testUncompactedWildcardMatchedSiblingsMerge() {
+        addView("v_a", "FROM emp1");
+        addView("v_b", "FROM emp2");
+        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_*"));
+        assertThat(resolved, instanceOf(UnresolvedRelation.class));
+        String[] patterns = ((UnresolvedRelation) resolved).indexPattern().indexPattern().split(",");
+        assertThat(List.of(patterns), containsInAnyOrder("emp1", "emp2"));
+    }
+
+    /**
+     * Subquery inside a view body produces a nested {@link ViewUnionAll}/Fork structure that the
+     * resolver does <em>not</em> flatten — that's the analyzer's job. This verifies the nested
+     * structure survives the resolver, which is the property #543's lenient-call work depends on.
+     * The outer view body shows up as a {@link NamedSubquery} wrapping a {@link UnionAll}, since
+     * the user-written subquery prevents collapsing to a bare UR.
+     */
+    public void testUncompactedSubqueryInViewBodyKeepsNestedStructure() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addView("inner_a", "FROM emp1");
+        addView("inner_b", "FROM emp2 | WHERE emp.age > 30");
+        addView("outer", "FROM inner_a, (FROM inner_b)");
+        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM outer"));
+        // Outer is a NamedSubquery wrapping a UnionAll containing inner_a's UR and inner_b's
+        // resolved Filter. Compaction would later flatten this; we just check the resolver kept it
+        // structured.
+        assertThat(resolved, instanceOf(NamedSubquery.class));
+        LogicalPlan inner = ((NamedSubquery) resolved).child();
+        assertThat(inner, anyOf(instanceOf(ViewUnionAll.class), instanceOf(UnionAll.class)));
+    }
+
+    /**
+     * Replace views and apply the compaction step that the analyzer runs in production. Most of
+     * this file's assertions are on the compacted shape, since that's what users observe; tests
+     * that need to assert on the raw uncompacted resolver output should use
+     * {@link #replaceViewsWithoutCompaction(LogicalPlan)}.
+     */
     private LogicalPlan replaceViews(LogicalPlan plan) {
         return replaceViews(plan, viewResolver);
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan, ViewResolver resolver) {
+        return COMPACTION.apply(replaceViewsWithoutCompaction(plan, resolver));
+    }
+
+    private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan) {
+        return replaceViewsWithoutCompaction(plan, viewResolver);
+    }
+
+    private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan, ViewResolver resolver) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
         resolver.replaceViews(plan, this::parse, future);
         return future.actionGet().plan();
@@ -1977,10 +2102,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     private LogicalPlan replaceViewsWithCPS(LogicalPlan plan) {
         var cpsDecider = new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build());
         InMemoryViewResolver cpsResolver = viewService.getViewResolver(cpsDecider);
-        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        cpsResolver.replaceViews(plan, this::parse, future);
-        return future.actionGet().plan();
+        return COMPACTION.apply(replaceViewsWithoutCompaction(plan, cpsResolver));
     }
+
+    private static final ViewCompaction COMPACTION = new ViewCompaction();
 
     private void addIndex(String name) {
         viewService.addIndex(projectId, name);

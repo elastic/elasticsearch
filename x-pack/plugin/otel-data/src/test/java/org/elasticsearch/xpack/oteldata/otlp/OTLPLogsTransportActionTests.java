@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
+import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
 import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
@@ -18,7 +19,9 @@ import io.opentelemetry.proto.logs.v1.SeverityNumber;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -146,19 +149,51 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
         assertThat(indexRequest.sourceAsMap().get("body"), equalTo(Map.of("text", "not a bodymap")));
     }
 
-    public void testUnknownScopeMappingModeIsRejected() {
+    public void testUnknownScopeMappingModeSkipsScopeAndIsReported() throws Exception {
         OTLPLogsTransportAction logsAction = (OTLPLogsTransportAction) createAction();
-        LogRecord logRecord = LogRecord.newBuilder().setBody(AnyValue.newBuilder().setStringValue("hi").build()).build();
+        LogRecord invalidScopeLogRecord = LogRecord.newBuilder().setBody(AnyValue.newBuilder().setStringValue("skip me").build()).build();
+        LogRecord validScopeLogRecord = LogRecord.newBuilder().setBody(AnyValue.newBuilder().setStringValue("index me").build()).build();
         BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> logsAction.prepareBulkRequest(createBodyMapRequest(List.of(logRecord), "ecs", MappingMode.OTEL), bulkRequestBuilder)
+        ProcessingContext context = logsAction.prepareBulkRequest(
+            createLogsRequest(
+                MappingMode.OTEL,
+                createScopeLogs(List.of(invalidScopeLogRecord), "ecs"),
+                createScopeLogs(List.of(validScopeLogRecord), "otel")
+            ),
+            bulkRequestBuilder
         );
-        assertThat(e.getMessage(), containsString("Unsupported mapping mode [ecs]"));
+
+        assertThat(context.totalDataPoints(), equalTo(2));
+        assertThat(context.getIgnoredDataPoints(), equalTo(1));
+        assertThat(context.getIgnoredDataPointsMessage(10), containsString("Unsupported mapping mode [ecs]"));
+        assertThat(bulkRequestBuilder.numberOfActions(), equalTo(1));
+        IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
+        assertThat(indexRequest.index(), equalTo("logs-generic.otel-default"));
+        assertThat(indexRequest.sourceAsMap().get("body"), equalTo(Map.of("text", "index me")));
     }
 
-    public void testBodyMapModeAllowsDataStreamTypeOverride() throws Exception {
+    public void testUnknownScopeMappingModeReturnsPartialSuccessForMixedRequest() throws Exception {
+        LogRecord invalidScopeLogRecord1 = LogRecord.newBuilder().setBody(AnyValue.newBuilder().setStringValue("skip me").build()).build();
+        LogRecord invalidScopeLogRecord2 = LogRecord.newBuilder()
+            .setBody(AnyValue.newBuilder().setStringValue("skip me too").build())
+            .build();
+        LogRecord validScopeLogRecord = LogRecord.newBuilder().setBody(AnyValue.newBuilder().setStringValue("index me").build()).build();
+        OTLPActionRequest request = createLogsRequest(
+            MappingMode.OTEL,
+            createScopeLogs(List.of(invalidScopeLogRecord1, invalidScopeLogRecord2), "ecs"),
+            createScopeLogs(List.of(validScopeLogRecord), "otel")
+        );
+
+        OTLPActionResponse response = executeRequest(request, new BulkResponse(new BulkItemResponse[] { successResponse() }, 0));
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseHasPartialSuccess(responseBytes), equalTo(true));
+        assertThat(parseRejectedCount(responseBytes), equalTo(2L));
+        assertThat(parseErrorMessage(responseBytes), containsString("Unsupported mapping mode [ecs]"));
+    }
+
+    public void testBodyMapModeDoesNotRouteFromBodyDataStreamType() throws Exception {
         OTLPLogsTransportAction logsAction = (OTLPLogsTransportAction) createAction();
         LogRecord logRecord = LogRecord.newBuilder()
             .setBody(
@@ -168,8 +203,31 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
                     )
                     .build()
             )
+            .build();
+        BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
+
+        ProcessingContext context = logsAction.prepareBulkRequest(
+            createBodyMapRequest(List.of(logRecord), null, MappingMode.BODYMAP),
+            bulkRequestBuilder
+        );
+
+        assertThat(context.totalDataPoints(), equalTo(1));
+        assertThat(bulkRequestBuilder.numberOfActions(), equalTo(1));
+        IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
+        assertThat(indexRequest.index(), equalTo("logs-generic-default"));
+    }
+
+    public void testBodyMapModeAllowsDataStreamTypeOverrideFromAttributesOnly() throws Exception {
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setBody(AnyValue.newBuilder().setKvlistValue(KeyValueList.newBuilder().addValues(keyValue("a", 42L))).build())
             .addAttributes(keyValue("data_stream.type", "metrics"))
             .build();
+
+        assertBodyMapModeRoutesDataStreamTypeOverride(logRecord);
+    }
+
+    private void assertBodyMapModeRoutesDataStreamTypeOverride(LogRecord logRecord) throws Exception {
+        OTLPLogsTransportAction logsAction = (OTLPLogsTransportAction) createAction();
         BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
 
         ProcessingContext context = logsAction.prepareBulkRequest(
@@ -217,20 +275,29 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
 
     public void testBodyMapMappingModeIgnoresInvalidBodyTypes() throws Exception {
         OTLPLogsTransportAction logsAction = (OTLPLogsTransportAction) createAction();
-        LogRecord invalidLogRecord = LogRecord.newBuilder().setBody(AnyValue.newBuilder().setStringValue("not a map").build()).build();
+        LogRecord invalidLogRecord1 = LogRecord.newBuilder().setBody(AnyValue.newBuilder().setStringValue("not a map").build()).build();
+        LogRecord invalidLogRecord2 = LogRecord.newBuilder()
+            .setBody(AnyValue.newBuilder().setStringValue("also not a map").build())
+            .build();
         LogRecord validLogRecord = LogRecord.newBuilder()
             .setBody(AnyValue.newBuilder().setKvlistValue(KeyValueList.newBuilder().addValues(keyValue("a", 42L))).build())
             .build();
         BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
 
         ProcessingContext context = logsAction.prepareBulkRequest(
-            createBodyMapRequest(List.of(invalidLogRecord, validLogRecord)),
+            createBodyMapRequest(List.of(invalidLogRecord1, invalidLogRecord2, validLogRecord)),
             bulkRequestBuilder
         );
 
-        assertThat(context.totalDataPoints(), equalTo(2));
-        assertThat(context.getIgnoredDataPoints(), equalTo(1));
-        assertThat(context.getIgnoredDataPointsMessage(10), containsString("Invalid log record body type for 'bodymap' mapping mode"));
+        assertThat(context.totalDataPoints(), equalTo(3));
+        assertThat(context.getIgnoredDataPoints(), equalTo(2));
+        String ignoredDataPointsMessage = context.getIgnoredDataPointsMessage(10);
+        String invalidBodyTypeMessage = "Invalid log record body type for 'bodymap' mapping mode";
+        assertThat(ignoredDataPointsMessage, containsString(invalidBodyTypeMessage));
+        assertThat(
+            ignoredDataPointsMessage.indexOf(invalidBodyTypeMessage),
+            equalTo(ignoredDataPointsMessage.lastIndexOf(invalidBodyTypeMessage))
+        );
         assertThat(bulkRequestBuilder.numberOfActions(), equalTo(1));
         IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
         assertThat(((Number) indexRequest.sourceAsMap().get("a")).longValue(), equalTo(42L));
@@ -245,20 +312,26 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
         String scopeMappingMode,
         MappingMode requestMappingMode
     ) {
-        InstrumentationScope.Builder scope = InstrumentationScope.newBuilder().setName("test");
-        if (scopeMappingMode != null) {
-            scope.addAttributes(keyValue("elastic.mapping.mode", scopeMappingMode));
-        }
+        return createLogsRequest(requestMappingMode, createScopeLogs(logRecords, scopeMappingMode));
+    }
+
+    private static OTLPActionRequest createLogsRequest(MappingMode requestMappingMode, ScopeLogs... scopeLogs) {
         return new OTLPActionRequest(
             new BytesArray(
-                io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.newBuilder()
-                    .addResourceLogs(
-                        ResourceLogs.newBuilder().addScopeLogs(ScopeLogs.newBuilder().setScope(scope).addAllLogRecords(logRecords))
-                    )
+                ExportLogsServiceRequest.newBuilder()
+                    .addResourceLogs(ResourceLogs.newBuilder().addAllScopeLogs(List.of(scopeLogs)))
                     .build()
                     .toByteArray()
             ),
             requestMappingMode
         );
+    }
+
+    private static ScopeLogs createScopeLogs(List<LogRecord> logRecords, String scopeMappingMode) {
+        InstrumentationScope.Builder scope = InstrumentationScope.newBuilder().setName("test");
+        if (scopeMappingMode != null) {
+            scope.addAttributes(keyValue("elastic.mapping.mode", scopeMappingMode));
+        }
+        return ScopeLogs.newBuilder().setScope(scope).addAllLogRecords(logRecords).build();
     }
 }

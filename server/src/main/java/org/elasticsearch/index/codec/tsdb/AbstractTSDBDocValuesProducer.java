@@ -2400,7 +2400,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper) {
                     return new DocIdSetIterator() {
-                        private final FixedBitSet rangeMatches = new FixedBitSet(
+                        private final FixedBitSet matches = new FixedBitSet(
                             new long[(numericBlockMask + 1) >>> 6],
                             numericBlockMask + 1
                         );
@@ -2440,7 +2440,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                         ensureFilterBlockCached(blockId);
                                         int firstInBlock = blockId == firstBlock ? firstDocInSkipper & numericBlockMask : 0;
                                         int lastInBlock = blockId == lastBlock ? lastDocInSkipper & numericBlockMask : numericBlockMask;
-                                        int bit = rangeMatches.nextSetBit(firstInBlock, lastInBlock + 1);
+                                        int bit = matches.nextSetBit(firstInBlock, lastInBlock + 1);
                                         if (bit != NO_MORE_DOCS) {
                                             return iterDoc = (blockId << numericBlockShift) + bit;
                                         }
@@ -2449,54 +2449,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 iterDoc = lastDocInSkipper + 1;
                             }
                             return iterDoc = NO_MORE_DOCS;
-                        }
-
-                        @Override
-                        public int docIDRunEnd() throws IOException {
-                            int blockId = iterDoc >>> numericBlockShift;
-                            if (cachedBlockId == blockId) {
-                                int firstClearBit = nextClearBit(iterDoc & numericBlockMask);
-                                return Math.min((blockId << numericBlockShift) + firstClearBit, skipper.maxDocID(0) + 1);
-                            }
-                            if (lowerValue <= skipper.minValue(0) && skipper.maxValue(0) <= upperValue) {
-                                return skipper.maxDocID(0) + 1;
-                            }
-                            return iterDoc + 1;
-                        }
-
-                        private void ensureFilterBlockCached(int blockId) throws IOException {
-                            if (blockId != cachedBlockId) {
-                                rangeMatches.clear();
-                                loadBlock(blockId);
-                                ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, rangeMatches.getBits());
-                                cachedBlockId = blockId;
-                            }
-                        }
-
-                        private int nextClearBit(int from) {
-                            // Find the first bit position >= from that is NOT set in rangeMatches.
-                            // The bits beyond rangeMatches.length() are outside the block.
-                            long[] bits = rangeMatches.getBits();
-                            int wordIdx = from >>> 6;
-                            if (wordIdx >= bits.length) {
-                                return rangeMatches.length();
-                            }
-                            long word = ~bits[wordIdx] >>> (from & 63);
-                            if (word != 0) {
-                                return from + Long.numberOfTrailingZeros(word);
-                            }
-                            for (int i = wordIdx + 1; i < bits.length; i++) {
-                                word = ~bits[i];
-                                if (word != 0) {
-                                    return (i << 6) + Long.numberOfTrailingZeros(word);
-                                }
-                            }
-                            return rangeMatches.length();
-                        }
-
-                        @Override
-                        public long cost() {
-                            return maxDoc;
                         }
 
                         @Override
@@ -2522,7 +2474,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                         ensureFilterBlockCached(blockId);
                                         int firstInBlock = blockId == firstBlock ? firstDocInSkipper & numericBlockMask : 0;
                                         int lastInBlock = blockId == lastBlock ? lastDocInSkipper & numericBlockMask : numericBlockMask;
-                                        rangeMatches.forEach(
+                                        matches.forEach(
                                             firstInBlock,
                                             lastInBlock + 1,
                                             (blockId << numericBlockShift) - offset,
@@ -2532,6 +2484,54 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 }
                                 iterDoc = lastDocInSkipper + 1;
                             }
+                        }
+
+                        @Override
+                        public int docIDRunEnd() throws IOException {
+                            int blockId = iterDoc >>> numericBlockShift;
+                            if (cachedBlockId == blockId) {
+                                int firstClearBit = nextClearBit(iterDoc & numericBlockMask);
+                                return Math.min((blockId << numericBlockShift) + firstClearBit, skipper.maxDocID(0) + 1);
+                            }
+                            if (lowerValue <= skipper.minValue(0) && skipper.maxValue(0) <= upperValue) {
+                                return skipper.maxDocID(0) + 1;
+                            }
+                            return iterDoc + 1;
+                        }
+
+                        private void ensureFilterBlockCached(int blockId) throws IOException {
+                            if (blockId != cachedBlockId) {
+                                matches.clear();
+                                loadBlock(blockId);
+                                ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, matches.getBits());
+                                cachedBlockId = blockId;
+                            }
+                        }
+
+                        private int nextClearBit(int from) {
+                            // Find the first bit position >= from that is NOT set in rangeMatches.
+                            // The bits beyond rangeMatches.length() are outside the block.
+                            long[] bits = matches.getBits();
+                            int wordIdx = from >>> 6;
+                            if (wordIdx >= bits.length) {
+                                return matches.length();
+                            }
+                            long word = ~bits[wordIdx] >>> (from & 63);
+                            if (word != 0) {
+                                return from + Long.numberOfTrailingZeros(word);
+                            }
+                            for (int i = wordIdx + 1; i < bits.length; i++) {
+                                word = ~bits[i];
+                                if (word != 0) {
+                                    return (i << 6) + Long.numberOfTrailingZeros(word);
+                                }
+                            }
+                            return matches.length();
+                        }
+
+                        @Override
+                        public long cost() {
+                            return maxDoc;
                         }
                     };
                 }

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.mockito.Mockito;
@@ -185,6 +186,8 @@ public class APMAgentSettingsTests extends ESTestCase {
                 TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,
                 TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
                 TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
+                OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_SPANS,
+                OtelSdkSettings.TELEMETRY_OTEL_TRACES_STACK_TRACE_LIMIT,
                 APM_AGENT_SETTINGS
             )
         );

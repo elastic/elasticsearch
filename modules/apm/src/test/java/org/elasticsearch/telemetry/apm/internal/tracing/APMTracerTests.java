@@ -9,12 +9,14 @@
 
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
@@ -26,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.test.ESTestCase;
@@ -336,12 +339,96 @@ public class APMTracerTests extends ESTestCase {
         return tracer;
     }
 
+    private APMTracer buildSdkPathTracer(Settings settings, int maxChildSpans, int stackTraceLimit) {
+        APMTracer tracer = new SpyAPMTracerOnSdkPath(settings, maxChildSpans, stackTraceLimit);
+        tracer.doStart();
+        return tracer;
+    }
+
+    // TODO can we name this more descriptively for a human? e.g.: span with a PARENT_APM_TRACE_CONTEXT is dropped
+    public void test_onTraceStarted_onSdkPath_withMaxChildSpansZero_skipsChildSpan() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 0, 0);
+
+        ThreadContext threadContext = new ThreadContext(settings);
+        threadContext.putTransient(Task.PARENT_APM_TRACE_CONTEXT, Context.root());
+
+        tracer.startTrace(threadContext, TRACEABLE1, "child-span", Map.of());
+
+        assertThat(tracer.getSpans(), anEmptyMap());
+    }
+
+    // TODO can we name/document this more descriptively for a human? e.g.:span without a local parent is recorded.
+    public void test_onTraceStarted_onSdkPath_withMaxChildSpansZero_keepsRootSpan() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 0, 0);
+
+        // No PARENT_APM_TRACE_CONTEXT transient => no local parent => this is a root span.
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "root-span", Map.of());
+
+        assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+    }
+
+    // TODO can we name/document this more descriptively for a human? e.g.: verifies setStatus(ERROR) + the two attributes, and that
+    // recordException is not called.
+    public void test_addError_onSdkPath_withStackTraceLimitZero_setsStatusInsteadOfRecordException() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 0, 0);
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
+        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
+
+        Exception failure = new IllegalStateException("boom");
+        tracer.addError(TRACEABLE1, failure);
+
+        Mockito.verify(recordedSpan, Mockito.never()).recordException(Mockito.any(Throwable.class));
+        Mockito.verify(recordedSpan).setStatus(StatusCode.ERROR);
+        Mockito.verify(recordedSpan).setAttribute("exception.type", IllegalStateException.class.getName());
+        Mockito.verify(recordedSpan).setAttribute("exception.message", "boom");
+    }
+
+    public void test_addError_onAgentPath_callsRecordException() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildTracer(settings);
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
+        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
+
+        Exception failure = new IllegalStateException("boom");
+        tracer.addError(TRACEABLE1, failure);
+
+        Mockito.verify(recordedSpan).recordException(failure);
+        Mockito.verify(recordedSpan, Mockito.never()).setStatus(Mockito.any(StatusCode.class));
+    }
+
+    public void test_addError_onSdkPath_withStackTraceLimitNonZero_callsRecordException() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 0, 5);
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
+        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
+
+        Exception failure = new IllegalStateException("boom");
+        tracer.addError(TRACEABLE1, failure);
+
+        Mockito.verify(recordedSpan).recordException(failure);
+        Mockito.verify(recordedSpan, Mockito.never()).setStatus(Mockito.any(StatusCode.class));
+    }
+
     static class SpyAPMTracer extends APMTracer {
 
         Map<String, Instant> spanStartTimeMap;
 
         SpyAPMTracer(Settings settings) {
             super(settings);
+            this.spanStartTimeMap = new HashMap<>();
+        }
+
+        SpyAPMTracer(
+            Settings settings,
+            TraceSupplier traceSupplier,
+            boolean useOtelSdkTracesExport,
+            int maxChildSpans,
+            int stackTraceLimit
+        ) {
+            super(settings, traceSupplier, useOtelSdkTracesExport, maxChildSpans, stackTraceLimit);
             this.spanStartTimeMap = new HashMap<>();
         }
 
@@ -466,6 +553,21 @@ public class APMTracerTests extends ESTestCase {
                 .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
                 .build();
             return new APMServices(base.tracer(), openTelemetry);
+        }
+    }
+
+    /**
+     * Extension of {@link SpyAPMTracer} that flips {@code useOtelSdkTracesExport=true} via the test
+     * constructor, exercising the SDK-path branches in {@link APMTracer#startTrace} and
+     * {@link APMTracer#addError}. The {@link TraceSupplier} reference is irrelevant because
+     * {@link SpyAPMTracer#createApmServices} substitutes a mock {@link Tracer}.
+     */
+    static class SpyAPMTracerOnSdkPath extends SpyAPMTracer {
+
+        private static final TraceSupplier NO_OP_SUPPLIER = OpenTelemetry::noop;
+
+        SpyAPMTracerOnSdkPath(Settings settings, int maxChildSpans, int stackTraceLimit) {
+            super(settings, NO_OP_SUPPLIER, true, maxChildSpans, stackTraceLimit);
         }
     }
 

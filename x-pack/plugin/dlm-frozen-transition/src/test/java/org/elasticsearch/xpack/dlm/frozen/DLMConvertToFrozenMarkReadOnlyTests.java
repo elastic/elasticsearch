@@ -158,7 +158,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
         converter.maybeMarkIndexReadOnly();
@@ -176,7 +176,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
         // Acknowledged response - should not throw
@@ -197,7 +197,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -215,7 +215,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -240,7 +240,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -257,7 +257,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -298,7 +298,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
         converter.maybeMarkIndexReadOnly();
@@ -334,7 +334,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -357,7 +357,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -374,7 +374,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
         converter.maybeMarkIndexReadOnly();
@@ -394,7 +394,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -411,7 +411,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -434,7 +434,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> basicLicenseState,
+            basicLicenseState,
             Clock.systemUTC()
         );
 
@@ -455,7 +455,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 

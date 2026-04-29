@@ -144,14 +144,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
         buildAndSetProjectState(dataStreamName, indexName, cloneIndexName);
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            () -> licenseState,
-            Clock.systemUTC()
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         convert.maybeCleanup(cloneIndexName);
 
         ModifyDataStreamsAction.Request modifyRequest = capturedModifyDataStreamsRequest.get();
@@ -181,14 +174,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
         buildAndSetProjectState(null, indexName, cloneIndexName);
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            () -> licenseState,
-            Clock.systemUTC()
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         convert.maybeCleanup(cloneIndexName);
 
         // Should NOT have issued a modify data streams request
@@ -210,14 +196,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
 
         mockModifyDataStreamsFailure.set(new ElasticsearchException("swap failed"));
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            () -> licenseState,
-            Clock.systemUTC()
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
 
         expectThrows(ElasticsearchException.class, () -> convert.maybeCleanup(cloneIndexName));
 
@@ -238,14 +217,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
 
         mockModifyDataStreamsResponse.set(AcknowledgedResponse.FALSE);
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            () -> licenseState,
-            Clock.systemUTC()
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
 
         expectThrows(ElasticsearchException.class, () -> convert.maybeCleanup(cloneIndexName));
 
@@ -268,14 +240,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         // Build a state where original and clone are gone, and the frozen index is in the data stream
         buildAndSetProjectState(dataStreamName, frozenIndexName);
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            () -> licenseState,
-            Clock.systemUTC()
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         convert.maybeCleanup(cloneIndexName);
 
         // No swap or delete should have been attempted

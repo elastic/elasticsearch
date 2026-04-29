@@ -18,7 +18,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * Plugin that registers the {@link DLMFrozenTransitionService} for converting data stream backing indices to the frozen tier as part of
@@ -27,10 +26,6 @@ import java.util.function.Supplier;
 public class DLMFrozenTransitionPlugin extends Plugin {
 
     private final List<AbstractDLMPeriodicMasterOnlyService> managedServices = new ArrayList<>();
-
-    protected Supplier<XPackLicenseState> getLicenseStateSupplier() {
-        return XPackPlugin::getSharedLicenseState;
-    }
 
     public DLMFrozenTransitionPlugin() {}
 
@@ -44,13 +39,14 @@ public class DLMFrozenTransitionPlugin extends Plugin {
     public Collection<?> createComponents(PluginServices services) {
         Set<Object> components = new HashSet<>(super.createComponents(services));
         if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
+            XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
             var transitionSettings = DLMFrozenTransitionSettings.create(services.clusterService());
             components.add(transitionSettings);
 
             var transitionService = new DLMFrozenTransitionService(
                 services.clusterService(),
                 services.client(),
-                getLicenseStateSupplier(),
+                licenseState,
                 transitionSettings,
                 services.dlmErrorStore()
             );

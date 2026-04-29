@@ -14,14 +14,14 @@ import org.apache.lucene.util.Constants;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.ConnectException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.net.ConnectException;
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -46,9 +46,16 @@ public class OldElasticsearch {
 
     /**
      * Match {@code publish_address {host:port}} from HTTP bind logs. Exclude transport lines (logger {@code [o.e.t.*]})
-     * which log the same {@code BoundTransportAddress} shape but for the transport port.
+     * which log the same bound-address shape but for the transport port.
      */
-    private static final Pattern HTTP_PUBLISH_PORT = Pattern.compile(".*\\[o\\.e\\.h\\.[^]]+\\].*publish_address \\{[^}]*:(\\d+)\\}");
+    private static final Pattern HTTP_PUBLISH_PORT_EXCLUDING_TRANSPORT = Pattern.compile(
+        "^(?!.*\\[o\\.e\\.t\\.[^]]+\\]).*publish_address \\{[^}]*:(\\d+)\\}"
+    );
+
+    /** Prefer HTTP logger prefix when present (structured layouts vary by minor version). */
+    private static final Pattern HTTP_LOGGER_PUBLISH_PORT = Pattern.compile(
+        ".*\\[o\\.e\\.h\\.[^]]+\\].*publish_address \\{[^}]*:(\\d+)\\}"
+    );
 
     /** Legacy formats used by older distributions (console layout differs by major version). */
     private static final Pattern[] LEGACY_HTTP_PORT_PATTERNS = new Pattern[] {

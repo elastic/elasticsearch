@@ -51,7 +51,9 @@ public class TransportVersionUtils {
      * "before" the given version.
      */
     public static TransportVersion randomVersionNotSupporting(Random random, TransportVersion version) {
-        List<TransportVersion> notSupportingVersions = ALL_VERSIONS.stream().filter(v -> v.supports(version) == false).collect(Collectors.toList());
+        List<TransportVersion> notSupportingVersions = ALL_VERSIONS.stream()
+            .filter(v -> v.supports(version) == false)
+            .collect(Collectors.toList());
         if (notSupportingVersions.isEmpty()) {
             throw new IllegalArgumentException("couldn't find any released versions not supporting [" + version + "]");
         }

@@ -20,7 +20,7 @@ import java.util.List;
 /**
  * {@link CentroidIterator} that hints posting reads in two phases. The first {@code initialCentroidBatchSize} posting lists from
  * the delegate are pulled immediately and {@link IndexInput#prefetch(long, long)} is invoked for each before any posting is
- * returned. The remaining posting lists use a fixed-depth ring buffer (same idea as {@link org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator})
+ * returned. The remaining posting lists use a fixed-depth ring buffer (same idea as {@code PrefetchingCentroidIterator})
  * so additional centroids are prefetched incrementally as the search explores more clusters.
  * This iterator is not thread-safe.
  */

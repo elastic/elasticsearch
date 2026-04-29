@@ -12,6 +12,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
@@ -25,6 +26,8 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     private volatile AnalyzerComponents components;
 
+    private CloseableThreadLocal<AnalyzerComponents> storedComponents = new CloseableThreadLocal<>();
+
     // external resources that this analyzer is based on
     private final Set<String> resources;
 
@@ -34,31 +37,32 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     /**
      * Reuse strategy used when this analyzer is invoked directly (not through an
-     * {@link org.apache.lucene.analysis.AnalyzerWrapper}). The bundle {@code Object[] {components, tokenStream}}
-     * stored in the per-strategy slot lets us detect reloads by comparing the cached
-     * components reference against the current one. Wrapped use is handled by
-     * {@link #createWrapperReuseStrategy()} — same logic, but the delegate reference
-     * is captured via closure rather than via the cast below.
+     * {@link org.apache.lucene.analysis.AnalyzerWrapper}).
+     * <p>Wrapped use is handled by {@link #createWrapperReuseStrategy()}
      */
-    private static final ReuseStrategy REUSE_STRATEGY = new ReuseStrategy() {
+    private static final ReuseStrategy UPDATE_STRATEGY = new ReuseStrategy() {
         @Override
         public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
-            AnalyzerComponents current = ((ReloadableCustomAnalyzer) analyzer).getComponents();
-            Object[] stored = (Object[]) getStoredValue(analyzer);
-            if (stored == null || stored[0] != current) {
+            ReloadableCustomAnalyzer custom = (ReloadableCustomAnalyzer) analyzer;
+            AnalyzerComponents components = custom.getComponents();
+            AnalyzerComponents storedComponents = custom.getStoredComponents();
+            if (storedComponents == null || components != storedComponents) {
+                custom.setStoredComponents(components);
                 return null;
             }
-            return (TokenStreamComponents) stored[1];
+            TokenStreamComponents tokenStream = (TokenStreamComponents) getStoredValue(analyzer);
+            assert tokenStream != null;
+            return tokenStream;
         }
 
         @Override
         public void setReusableComponents(Analyzer analyzer, String fieldName, TokenStreamComponents tokenStream) {
-            setStoredValue(analyzer, new Object[] { ((ReloadableCustomAnalyzer) analyzer).getComponents(), tokenStream });
+            setStoredValue(analyzer, tokenStream);
         }
     };
 
     public ReloadableCustomAnalyzer(AnalyzerComponents components, int positionIncrementGap, int offsetGap) {
-        super(REUSE_STRATEGY);
+        super(UPDATE_STRATEGY);
         if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME) == false) {
             throw new IllegalArgumentException(
                 "ReloadableCustomAnalyzer must only be initialized with analysis components in AnalysisMode.SEARCH_TIME mode"
@@ -146,38 +150,49 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         this.components = components;
     }
 
+    @Override
+    public void close() {
+        super.close();
+        storedComponents.close();
+    }
+
     /**
-     * Reuse strategy for {@link org.apache.lucene.analysis.AnalyzerWrapper} subclasses that delegate to this
-     * {@link ReloadableCustomAnalyzer}. Mirrors {@link #REUSE_STRATEGY} body, but captures
-     * the delegate via closure instead of casting the {@code analyzer} parameter — that
-     * parameter is the wrapper, not this instance, so the cast in {@link #REUSE_STRATEGY}
-     * would fail. The bundled {@code {components, tokenStream}} per-strategy state keeps
-     * each wrapper isolated, which matters when several wrappers share one delegate
-     * (e.g. {@code SearchAsYouTypeFieldMapper} wraps the same analyzer with different
-     * shingle sizes).
+     * Reuse strategy for {@link org.apache.lucene.analysis.AnalyzerWrapper} subclasses that delegate
+     * to this {@link ReloadableCustomAnalyzer}.
+     *
+     * <p>The closure captures {@code this} instead of casting the {@code analyzer} parameter
      */
     public ReuseStrategy createWrapperReuseStrategy() {
         return new ReuseStrategy() {
             @Override
             public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
-                AnalyzerComponents current = ReloadableCustomAnalyzer.this.getComponents();
-                Object[] stored = (Object[]) getStoredValue(analyzer);
-                if (stored == null || stored[0] != current) {
+                AnalyzerComponents components = ReloadableCustomAnalyzer.this.getComponents();
+                AnalyzerComponents stored = ReloadableCustomAnalyzer.this.getStoredComponents();
+                if (stored == null || components != stored) {
+                    ReloadableCustomAnalyzer.this.setStoredComponents(components);
                     return null;
                 }
-                return (TokenStreamComponents) stored[1];
+                return (TokenStreamComponents) getStoredValue(analyzer); // wrapper's storedValue
             }
 
             @Override
-            public void setReusableComponents(Analyzer analyzer, String fieldName, TokenStreamComponents tokenStream) {
-                setStoredValue(analyzer, new Object[] { ReloadableCustomAnalyzer.this.getComponents(), tokenStream });
+            public void setReusableComponents(Analyzer analyzer, String fieldName, TokenStreamComponents tsc) {
+                setStoredValue(analyzer, tsc); // wrapper's storedValue
             }
         };
     }
 
+    private void setStoredComponents(AnalyzerComponents components) {
+        storedComponents.set(components);
+    }
+
+    private AnalyzerComponents getStoredComponents() {
+        return storedComponents.get();
+    }
+
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        final AnalyzerComponents components = getComponents();
+        final AnalyzerComponents components = getStoredComponents();
         Tokenizer tokenizer = components.getTokenizerFactory().create();
         TokenStream tokenStream = tokenizer;
         for (TokenFilterFactory tokenFilter : components.getTokenFilters()) {
@@ -188,7 +203,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
-        final AnalyzerComponents components = getComponents();
+        final AnalyzerComponents components = getStoredComponents();
         if (CollectionUtils.isEmpty(components.getCharFilters()) == false) {
             for (CharFilterFactory charFilter : components.getCharFilters()) {
                 reader = charFilter.create(reader);

@@ -7,8 +7,10 @@
 package org.elasticsearch.xpack.security.crypto;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
+import org.elasticsearch.xpack.core.crypto.EncryptionKeyNotYetAvailableException;
 
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
@@ -32,8 +34,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
 
     private static AesGcmEncryptionService.KeyProvider mockKeyProvider(String keyId, SecretKey key) {
         AesGcmEncryptionService.KeyProvider keyProvider = mock(AesGcmEncryptionService.KeyProvider.class);
-        when(keyProvider.getActiveKeyId()).thenReturn(keyId);
-        when(keyProvider.getActiveKey()).thenReturn(key);
+        when(keyProvider.getActiveKey()).thenReturn(new AesGcmEncryptionService.KeyProvider.ActiveKey(keyId, key));
         when(keyProvider.getKey(keyId)).thenReturn(key);
         return keyProvider;
     }
@@ -77,8 +78,12 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         when(keyProvider2.getKey("key-1")).thenReturn(null);
         AesGcmEncryptionService service2 = new AesGcmEncryptionService(keyProvider2);
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> service2.decrypt(encrypted));
-        assertThat(e.getMessage(), containsString("not available"));
+        EncryptionKeyNotYetAvailableException e = expectThrows(
+            EncryptionKeyNotYetAvailableException.class,
+            () -> service2.decrypt(encrypted)
+        );
+        assertThat(e.getMessage(), containsString("not yet available"));
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
     }
 
     public void testDecryptWithWrongKeyFails() {
@@ -143,12 +148,15 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
 
     public void testEncryptFailsWhenKeyNotAvailable() {
         AesGcmEncryptionService.KeyProvider keyProvider = mock(AesGcmEncryptionService.KeyProvider.class);
-        when(keyProvider.getActiveKeyId()).thenReturn(null);
         when(keyProvider.getActiveKey()).thenReturn(null);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> service.encrypt(new byte[] { 1 }));
-        assertThat(e.getMessage(), containsString("not available"));
+        EncryptionKeyNotYetAvailableException e = expectThrows(
+            EncryptionKeyNotYetAvailableException.class,
+            () -> service.encrypt(new byte[] { 1 })
+        );
+        assertThat(e.getMessage(), containsString("not yet available"));
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
     }
 
     public void testEncryptEmptyPlaintext() {
@@ -200,8 +208,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         SecretKey key1 = randomAesKey();
         SecretKey key2 = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mock(AesGcmEncryptionService.KeyProvider.class);
-        when(keyProvider.getActiveKeyId()).thenReturn("key-1");
-        when(keyProvider.getActiveKey()).thenReturn(key1);
+        when(keyProvider.getActiveKey()).thenReturn(new AesGcmEncryptionService.KeyProvider.ActiveKey("key-1", key1));
         when(keyProvider.getKey("key-1")).thenReturn(key1);
         when(keyProvider.getKey("key-2")).thenReturn(key2);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);

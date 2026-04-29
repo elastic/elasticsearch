@@ -123,14 +123,15 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
 
     @Override
     @Nullable
-    public SecretKey getActiveKey() {
-        return cache.activeKey();
-    }
-
-    @Override
-    @Nullable
-    public String getActiveKeyId() {
-        return cache.activeKeyId();
+    public AesGcmEncryptionService.KeyProvider.ActiveKey getActiveKey() {
+        KeyCache snapshot = cache;
+        if (snapshot.activeKeyId() == null) {
+            return null;
+        }
+        return new AesGcmEncryptionService.KeyProvider.ActiveKey(
+            snapshot.activeKeyId(),
+            snapshot.keysByKeyId().get(snapshot.activeKeyId())
+        );
     }
 
     @Override

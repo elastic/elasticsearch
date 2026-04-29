@@ -17,12 +17,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TestRule;
-import org.junit.runners.model.Statement;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -39,23 +34,14 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Abstract base for integration tests that verify trace/span export behaviour.
- * Concrete subclasses provide the cluster (APM agent path or OTel SDK path) and
- * the {@code @ClassRule} that starts both the recording server and the cluster.
- *
- * Both paths should produce the same observable behaviour:
- * <ol>
+ * Tests in this class are applied to all subclasses, ensuring all tracing implementations satisfy our requirements:
+ * <ul>
  *   <li>Root spans are exported with correct W3C traceparent propagation.</li>
  *   <li>Only root (entry-point) spans are exported; child spans are dropped.</li>
- * </ol>
+ * </ul>
  */
-public abstract class AbstractTracesIT extends ESRestTestCase {
+public abstract class AbstractTracesIT extends AbstractTelemetryIT {
     private static final Logger logger = LogManager.getLogger(AbstractTracesIT.class);
-
-    /**
-     * The APM agent is reconfigured dynamically after booting and only reloads its configuration
-     * every 30 seconds. Give telemetry a good long time before giving up.
-     */
-    static final int TELEMETRY_TIMEOUT = 40;
 
     /**
      * After the root-span latch fires, wait briefly before asserting the span count.
@@ -65,8 +51,6 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
      * exporter has had a chance to send them.
      */
     static final long CHILD_SPAN_GRACE_PERIOD_MS = 500;
-
-    protected static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     /**
      * Returns a cluster builder with settings common to all traces integration tests:
@@ -80,27 +64,6 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
             .module("apm")
             .setting("telemetry.tracing.enabled", "true")
             .setting("telemetry.metrics.enabled", "false");
-    }
-
-    /**
-     * Builds the {@code @ClassRule} rule chain for a subclass:
-     * recording server starts first, then cluster, then {@code closeClients()} in finally.
-     */
-    protected static TestRule buildTracesRuleChain(RecordingApmServer server, ElasticsearchCluster cluster) {
-        return RuleChain.outerRule(server).around(cluster).around((base, description) -> new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                try {
-                    base.evaluate();
-                } finally {
-                    try {
-                        closeClients();
-                    } catch (IOException e) {
-                        logger.error("failed to close REST clients after test", e);
-                    }
-                }
-            }
-        });
     }
 
     /**
@@ -131,7 +94,7 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
             }
         };
 
-        recordingApmServer.addMessageConsumer(messageConsumer);
+        apmServer().addMessageConsumer(messageConsumer);
 
         Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
         nodeStatsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build());
@@ -203,7 +166,7 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
             }
         };
 
-        recordingApmServer.addMessageConsumer(messageConsumer);
+        apmServer().addMessageConsumer(messageConsumer);
 
         Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
         nodeStatsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build());

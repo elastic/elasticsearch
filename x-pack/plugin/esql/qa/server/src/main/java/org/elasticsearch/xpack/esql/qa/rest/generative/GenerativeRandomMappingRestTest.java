@@ -24,9 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Generative test that creates random Elasticsearch indices with varied mappings
@@ -60,18 +58,6 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
 
     private static volatile List<GeneratedIndex> generatedIndices;
 
-    private static final Set<String> ADDITIONAL_ALLOWED_ERRORS = Set.of(
-        // DateRangeDocValuesReader produces blocks with incorrect position counts when reading date_range
-        // fields with multi-value documents. The mismatch causes an IllegalStateException at the compute layer,
-        // surfaced as partial results. https://github.com/elastic/elasticsearch/issues/146380
-        "RangeArrayBlock.*has \\[\\d+\\] positions instead of"
-    );
-
-    private static final Set<Pattern> ADDITIONAL_ALLOWED_PATTERNS = ADDITIONAL_ALLOWED_ERRORS.stream()
-        .map(x -> ".*" + x + ".*")
-        .map(x -> Pattern.compile(x, Pattern.DOTALL))
-        .collect(Collectors.toSet());
-
     private static final Pattern CANNOT_LOAD_BLOCKS_WITHOUT_DOC_VALUES = Pattern.compile(
         ".*Cannot load blocks without doc values.*",
         Pattern.DOTALL
@@ -84,6 +70,11 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         ".*argument of \\[.*\\] must be \\[.*\\], found value \\[.*\\] type \\[unsupported\\].*",
         Pattern.DOTALL
     );
+
+    // Full-text functions (match, match_phrase, qstr) pushed down to Lucene can fail with
+    // "failed to create query" on random mappings where field types are incompatible (e.g., non-indexed
+    // fields, numeric fields receiving text input). https://github.com/elastic/elasticsearch/issues/147610
+    private static final Pattern FAILED_TO_CREATE_QUERY = Pattern.compile(".*failed to create query.*", Pattern.DOTALL);
 
     @Before
     public void setupRandomIndices() throws IOException {
@@ -235,11 +226,6 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
 
     private static boolean isAdditionalAllowedError(String errorMessage, String query) {
         if (errorMessage == null) return false;
-        for (Pattern p : ADDITIONAL_ALLOWED_PATTERNS) {
-            if (isAllowedError(errorMessage, p)) {
-                return true;
-            }
-        }
         // RangeFieldMapper throws "Cannot load blocks without doc values" for *_range fields
         // with doc_values:false. https://github.com/elastic/elasticsearch/issues/146527
         if (isAllowedError(errorMessage, CANNOT_LOAD_BLOCKS_WITHOUT_DOC_VALUES) && hasRangeFieldType()) {
@@ -249,6 +235,12 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         // to reject the field with a generic "type [unsupported]" error.
         // https://github.com/elastic/elasticsearch/issues/147094
         if (query != null && isAllowedError(errorMessage, UNSUPPORTED_TYPE_IN_FUNCTION) && queryContainsFork(query)) {
+            return true;
+        }
+        // Full-text functions pushed to Lucene can throw QueryShardException("failed to create query: ...")
+        // when the target field has an incompatible type or is not indexed in the random mapping.
+        // https://github.com/elastic/elasticsearch/issues/147610
+        if (query != null && isAllowedError(errorMessage, FAILED_TO_CREATE_QUERY) && queryContainsFullTextFunction(query)) {
             return true;
         }
         return false;
@@ -271,6 +263,14 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
 
     private static boolean queryContainsFork(String query) {
         return query != null && query.toUpperCase(Locale.ROOT).contains("FORK");
+    }
+
+    private static boolean queryContainsFullTextFunction(String query) {
+        if (query == null) {
+            return false;
+        }
+        String upper = query.toUpperCase(Locale.ROOT);
+        return upper.contains("MATCH(") || upper.contains("MATCH_PHRASE(") || upper.contains("QSTR(") || upper.contains("KQL(");
     }
 
     private static String formatReproductionContext(String query) {

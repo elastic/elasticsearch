@@ -39,15 +39,19 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.NavigableMap;
 import java.util.Random;
-import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ParquetStorageObjectAdapterTests extends ESTestCase {
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+    }
 
     public void testNullStorageObjectThrowsException() {
         QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> new ParquetStorageObjectAdapter(null));
@@ -577,7 +581,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(tailStart);
             stream.readFully(second);
         }
-        assertEquals(2, rangeReadCount[0]);
+        // Second tail read is served from the JVM-wide FooterByteCache — no additional range read
+        assertEquals(1, rangeReadCount[0]);
         assertArrayEquals(first, second);
     }
 
@@ -833,136 +838,6 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
                 return StoragePath.of("memory://test.parquet");
             }
         };
-    }
-
-    public void testPrefetchedDataServedFromMemory() throws IOException {
-        byte[] data = new byte[2048];
-        randomBytes(data);
-        AtomicInteger rangeStreamOpens = new AtomicInteger();
-        StorageObject tracked = new StorageObject() {
-            @Override
-            public InputStream newStream() {
-                return new ByteArrayInputStream(data);
-            }
-
-            @Override
-            public InputStream newStream(long position, long length) {
-                rangeStreamOpens.incrementAndGet();
-                return new ByteArrayInputStream(data, (int) position, (int) length);
-            }
-
-            @Override
-            public long length() {
-                return data.length;
-            }
-
-            @Override
-            public Instant lastModified() {
-                return Instant.now();
-            }
-
-            @Override
-            public boolean exists() {
-                return true;
-            }
-
-            @Override
-            public StoragePath path() {
-                return StoragePath.of("memory://prefetch-test.parquet");
-            }
-        };
-
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(tracked);
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
-        int chunkLen = data.length - 100;
-        ByteBuffer prefetchedBuf = ByteBuffer.wrap(data, 100, chunkLen);
-        chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, chunkLen, prefetchedBuf.slice()));
-        adapter.installPrefetchedData(chunks);
-
-        rangeStreamOpens.set(0);
-        try (SeekableInputStream stream = adapter.newStream()) {
-            stream.seek(100);
-            byte[] result = new byte[100];
-            stream.readFully(result);
-            for (int i = 0; i < result.length; i++) {
-                assertEquals(data[100 + i], result[i]);
-            }
-        }
-        assertEquals(0, rangeStreamOpens.get());
-    }
-
-    public void testPrefetchedDataFallbackOnMiss() throws IOException {
-        byte[] data = new byte[2048];
-        randomBytes(data);
-        StorageObject storage = createRangeReadStorageObject(data);
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage);
-
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
-        ByteBuffer prefetchedBuf = ByteBuffer.wrap(data, 100, 200);
-        chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, 200, prefetchedBuf.slice()));
-        adapter.installPrefetchedData(chunks);
-
-        try (SeekableInputStream stream = adapter.newStream()) {
-            stream.seek(500);
-            byte[] result = new byte[100];
-            stream.readFully(result);
-            for (int i = 0; i < result.length; i++) {
-                assertEquals(data[500 + i], result[i]);
-            }
-        }
-    }
-
-    public void testClearPrefetchedData() throws IOException {
-        byte[] data = new byte[2048];
-        randomBytes(data);
-        AtomicInteger rangeStreamOpens = new AtomicInteger();
-        StorageObject tracked = new StorageObject() {
-            @Override
-            public InputStream newStream() {
-                return new ByteArrayInputStream(data);
-            }
-
-            @Override
-            public InputStream newStream(long position, long length) {
-                rangeStreamOpens.incrementAndGet();
-                return new ByteArrayInputStream(data, (int) position, (int) length);
-            }
-
-            @Override
-            public long length() {
-                return data.length;
-            }
-
-            @Override
-            public Instant lastModified() {
-                return Instant.now();
-            }
-
-            @Override
-            public boolean exists() {
-                return true;
-            }
-
-            @Override
-            public StoragePath path() {
-                return StoragePath.of("memory://clear-test.parquet");
-            }
-        };
-
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(tracked);
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
-        ByteBuffer buf = ByteBuffer.wrap(data, 100, 500);
-        chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, 500, buf.slice()));
-        adapter.installPrefetchedData(chunks);
-        adapter.clearPrefetchedData();
-
-        rangeStreamOpens.set(0);
-        try (SeekableInputStream stream = adapter.newStream()) {
-            stream.seek(100);
-            byte[] result = new byte[100];
-            stream.readFully(result);
-        }
-        assertTrue(rangeStreamOpens.get() > 0);
     }
 
     public void testNoPrefetchedDataDoesNotAffectBaseline() throws IOException {
@@ -1250,7 +1125,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             s.readFully(w);
             assertArrayEquals(expected, w);
         }
-        assertEquals("Second adapter should issue its own tail range read", 2, rangeReadCount[0]);
+        // Both adapters share the same (path, length) cache key, so the second read is a cache hit
+        assertEquals("FooterByteCache coalesces reads for same path+length", 1, rangeReadCount[0]);
     }
 
     /**
@@ -1337,7 +1213,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         if (failure != null) {
             throw failure;
         }
-        assertEquals("Each of 8 concurrent tail reads should open its own range stream", 8, rangeReadCount.get());
+        // FooterByteCache provides thundering-herd protection: concurrent tail reads for the same
+        // (path, length) coalesce into a single I/O via Cache.computeIfAbsent
+        assertEquals("FooterByteCache should coalesce concurrent tail reads into one range read", 1, rangeReadCount.get());
     }
 
     /**

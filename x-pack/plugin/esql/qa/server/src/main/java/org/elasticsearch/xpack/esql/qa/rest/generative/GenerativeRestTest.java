@@ -115,9 +115,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // https://github.com/elastic/elasticsearch/issues/145570
         "function cannot operate on \\[.*\\], which is not a field from an index mapping",
         "\\[:\\] operator cannot operate on \\[.*\\], which is not a field from an index mapping",
-        "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
-        // https://github.com/elastic/elasticsearch/issues/141827
-        "JOIN left field \\[.*\\] of type \\[.*\\] is incompatible with right field \\[.*\\] of type \\[NULL\\]",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -141,6 +138,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
         // TopNOperator type mismatch in ValueExtractor
         "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor" // https://github.com/elastic/elasticsearch/issues/146850
+    );
+
+    /**
+     * FORK converts UnsupportedAttribute to a plain ReferenceAttribute(UNSUPPORTED), stripping the
+     * Unresolvable marker. Functions then reject the argument with a generic "type [unsupported]" error
+     * instead of the proper "Cannot use field [X] with unsupported type [Y]" message.
+     * <a href="https://github.com/elastic/elasticsearch/issues/147603">github issue</a>
+     */
+    private static final Pattern UNSUPPORTED_TYPE_AFTER_FORK_PATTERN = Pattern.compile(
+        ".*argument of \\[.*] must be \\[.*], found value \\[.*] type \\[unsupported].*",
+        Pattern.DOTALL
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -362,7 +370,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
@@ -763,6 +772,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         }
         String trimmed = query.trim().toUpperCase(Locale.ROOT);
         return trimmed.startsWith("TS ");
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/147603
+    static boolean isUnsupportedTypeAfterForkError(String errorMessage, String query) {
+        if (query == null || UNSUPPORTED_TYPE_AFTER_FORK_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return query.toUpperCase(Locale.ROOT).contains("FORK");
     }
 
     @Override

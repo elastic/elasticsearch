@@ -178,11 +178,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     private final License.OperationMode operationMode;
 
+    private final IndexVersion testIndexVersion;
+
     private TestThreadPool threadPool;
 
     public SemanticTextFieldMapperTests(boolean useLegacyFormat, License.OperationMode operationMode) {
         this.useLegacyFormat = useLegacyFormat;
         this.operationMode = operationMode;
+        this.testIndexVersion = useLegacyFormat
+            ? SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(true)
+            : super.getVersion();
     }
 
     ModelRegistry globalModelRegistry;
@@ -296,16 +301,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IndexVersion getVersion() {
-        if (useLegacyFormat) {
-            return SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(true);
-        }
-        return super.getVersion();
+        return testIndexVersion;
     }
 
     @Override
     protected Settings getIndexSettings() {
         if (useLegacyFormat) {
-            return SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(true);
+            return Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), testIndexVersion)
+                .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
+                .build();
         }
         return super.getIndexSettings();
     }

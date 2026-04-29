@@ -1012,7 +1012,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // Warm the cache and verify the range is fetched with minimization as expected
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             node.warmingService.warmCache(
-                randomValueOtherThanMany(t -> t.skipsWarmingForRegion0Locations, () -> randomFrom(Type.values())),
+                randomFrom(Type.values()),
                 indexShard,
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),

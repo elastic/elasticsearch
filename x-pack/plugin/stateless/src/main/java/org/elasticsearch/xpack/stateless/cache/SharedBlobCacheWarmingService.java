@@ -94,18 +94,12 @@ import static org.elasticsearch.core.Strings.format;
 public class SharedBlobCacheWarmingService {
 
     public enum Type {
-        INDEXING_EARLY(true),
-        INDEXING(true),
-        INDEXING_MERGE(false),
-        SEARCH(true),
-        HOLLOWING(true),
-        UNHOLLOWING(true);
-
-        final boolean skipsWarmingForRegion0Locations;
-
-        Type(boolean skipsWarmingForRegion0Locations) {
-            this.skipsWarmingForRegion0Locations = skipsWarmingForRegion0Locations;
-        }
+        INDEXING_EARLY,
+        INDEXING,
+        INDEXING_MERGE,
+        SEARCH,
+        HOLLOWING,
+        UNHOLLOWING;
     }
 
     public static final String BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC = "es.blob_cache_warming.page_aligned_bytes.total";
@@ -849,9 +843,6 @@ public class SharedBlobCacheWarmingService {
     protected void warmBlobOffsets(IndexShard indexShard, Map<BlobFile, Long> offsetsToWarmPerBlobFile, ActionListener<Void> listener) {
         try (RefCountingListener listeners = new RefCountingListener(listener)) {
             for (var offsetsToWarm : offsetsToWarmPerBlobFile.entrySet()) {
-                // Warm from the start of the blob through the computed end. We used to skip the first cache region, assuming
-                // readReferencedCompoundCommitsUsingCache had fully populated it; header-sized reads can leave gaps in that region,
-                // so searches can miss until the full range is forced into cache (see RecoveryWarmer#shouldSkipLocationWarming for SEARCH).
                 if (offsetsToWarm.getValue() > 0) {
                     warmBlobByteRange(
                         Type.SEARCH,
@@ -921,7 +912,6 @@ public class SharedBlobCacheWarmingService {
         private final IndexShard indexShard;
         private final Map<String, BlobLocation> filesToWarm;
         private final int segmentCount;
-        protected final AtomicLong skippedTasksCount = new AtomicLong(0L);
         private final boolean preWarmForIdLookup;
 
         ShardWarmer(
@@ -959,14 +949,13 @@ public class SharedBlobCacheWarmingService {
         protected void onWarmingSuccess(long duration) {
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
-                "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} skipped tasks, {} bytes)",
+                "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
                 warmingRun.shardId(),
                 warmingRun.type(),
                 duration,
                 segmentCount,
                 filesToWarm.size(),
                 tasksCount.get(),
-                skippedTasksCount.get(),
                 totalBytesCopied.get()
             );
         }
@@ -996,13 +985,13 @@ public class SharedBlobCacheWarmingService {
             } else if (fileExtension == LuceneFilesExtensions.CFE) {
                 SubscribableListener
                     // warm entire CFE file
-                    .<Void>newForked(listener -> addLocation(blobLocation, fileName, listener))
+                    .<Void>newForked(listener -> addLocation(blobLocation, listener))
                     // parse it and schedule warming of corresponding parts of CFS file
                     .andThenAccept(ignored -> addCfe(fileName))
                     .addListener(listeners.acquire());
             } else if (shouldFullyWarmUp(fileName, fileExtension, preWarmForIdLookup) || blobLocation.fileLength() <= BUFFER_SIZE) {
                 // warm entire file when it is small or required for id lookup
-                addLocation(blobLocation, fileName, listeners.acquire());
+                addLocation(blobLocation, listeners.acquire());
             } else {
                 // header
                 final var length = getHeaderPreWarmSize(
@@ -1010,11 +999,10 @@ public class SharedBlobCacheWarmingService {
                     blobLocation.fileLength(),
                     preWarmForIdLookup ? idLookupPrewarmRatio : 0.0
                 );
-                addLocation(blobLocation, fileName, blobLocation.offset(), length, listeners.acquire());
+                addLocation(blobLocation, blobLocation.offset(), length, listeners.acquire());
                 // footer
                 addLocation(
                     blobLocation,
-                    fileName,
                     blobLocation.offset() + blobLocation.fileLength() - CodecUtil.footerLength(),
                     CodecUtil.footerLength(),
                     listeners.acquire()
@@ -1030,11 +1018,11 @@ public class SharedBlobCacheWarmingService {
             return value;
         }
 
-        private void addLocation(BlobLocation location, String fileName, ActionListener<Void> listener) {
-            addLocation(location, fileName, location.offset(), location.fileLength(), listener);
+        private void addLocation(BlobLocation location, ActionListener<Void> listener) {
+            addLocation(location, location.offset(), location.fileLength(), listener);
         }
 
-        private void addLocation(BlobLocation location, String fileName, long position, long length, ActionListener<Void> listener) {
+        private void addLocation(BlobLocation location, long position, long length, ActionListener<Void> listener) {
             final long start = position;
             final long end = position + length;
             final int regionSize = cacheService.getRegionSize();
@@ -1043,14 +1031,14 @@ public class SharedBlobCacheWarmingService {
 
             if (startRegion == endRegion) {
                 BlobRegion blobRegion = new BlobRegion(location.blobFile(), startRegion);
-                enqueueLocation(blobRegion, fileName, location, position, length, listener);
+                enqueueLocation(blobRegion, location, position, length, listener);
             } else {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {
                         // adjust the position & length to the region
                         var range = ByteRange.of(Math.max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
                         BlobRegion blobRegion = new BlobRegion(location.blobFile(), r);
-                        enqueueLocation(blobRegion, fileName, location, range.start(), range.length(), listeners.acquire());
+                        enqueueLocation(blobRegion, location, range.start(), range.length(), listeners.acquire());
                     }
                 }
             }
@@ -1098,34 +1086,13 @@ public class SharedBlobCacheWarmingService {
             }));
         }
 
-        private boolean shouldSkipLocationWarming(String fileName, long position, long length) {
-            if (warmingRun.type.skipsWarmingForRegion0Locations == false) {
-                return false;
-            }
-            if (length > Short.MAX_VALUE) {
-                // length is too long to be contained in replicated section
-                return false;
-            }
-            int region = (int) (directory.getPosition(fileName, position, (int) length) / cacheService.getRegionSize());
-            // region 0 is already loaded by this point while resolving full set of commit files and safe to skip.
-            // See org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService#readIndexingShardState
-            return region == 0;
-        }
-
         private void enqueueLocation(
             BlobRegion blobRegion,
-            String fileName,
             BlobLocation blobLocation,
             long position,
             long length,
             ActionListener<Void> listener
         ) {
-            if (shouldSkipLocationWarming(fileName, position, length)) {
-                skippedTasksCount.incrementAndGet();
-                listener.onResponse(null);
-                return;
-            }
-
             var blobRanges = queues.computeIfAbsent(blobRegion, BlobRangesQueue::new);
             if (blobRanges.add(blobLocation, position, length, listener)) {
                 scheduleWarmingTask(new WarmingTask(blobRanges));

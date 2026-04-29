@@ -470,6 +470,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             searchRequest,
             new String[] { index },
             TimeValue.timeValueMillis(between(1, 60000)),
+            Version.CURRENT,
             RejectAwareActionListener.wrap(pitId -> {
                 capturedPitId[0] = pitId;
                 success.set(true);
@@ -501,6 +502,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             searchRequest,
             new String[] { index },
             TimeValue.timeValueMillis(between(1, 60000)),
+            Version.CURRENT,
             RejectAwareActionListener.wrap(pitId -> {
                 capturedPitId[0] = pitId;
                 success.set(true);
@@ -535,6 +537,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             searchRequest,
             new String[] { index },
             randomPositiveTimeValue(),
+            Version.CURRENT,
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> fail("unexpected failure"), e -> rejected.set(true)),
             threadPool,
             client
@@ -564,6 +567,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             searchRequest,
             new String[] { index },
             randomPositiveTimeValue(),
+            Version.CURRENT,
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
                 assertTrue(e instanceof ElasticsearchStatusException);
                 assertEquals(statusCode, ((ElasticsearchStatusException) e).status().getStatus());
@@ -591,6 +595,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             searchRequest,
             new String[] { index },
             randomPositiveTimeValue(),
+            Version.CURRENT,
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
                 assertTrue(e instanceof ElasticsearchException);
                 assertThat(e.getMessage(), containsString("remote is likely not an Elasticsearch instance"));
@@ -618,6 +623,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             searchRequest,
             new String[] { index },
             randomPositiveTimeValue(),
+            Version.CURRENT,
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
                 assertTrue(e instanceof ElasticsearchException);
                 assertThat(getAllExceptionMessages(e), containsString("open point-in-time response must contain [id] field"));
@@ -641,6 +647,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 searchRequest,
                 new String[] { "index" },
                 randomPositiveTimeValue(),
+                Version.CURRENT,
                 RejectAwareActionListener.wrap(
                     v -> fail("unexpected success"),
                     err -> fail("unexpected failure"),
@@ -665,6 +672,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 searchRequest,
                 new String[] { "index" },
                 randomPositiveTimeValue(),
+                Version.CURRENT,
                 RejectAwareActionListener.wrap(
                     v -> fail("unexpected success"),
                     err -> fail("unexpected failure"),
@@ -690,6 +698,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 searchRequest,
                 new String[] { "index" },
                 randomPositiveTimeValue(),
+                Version.CURRENT,
                 RejectAwareActionListener.wrap(
                     v -> fail("unexpected success"),
                     err -> fail("unexpected failure"),

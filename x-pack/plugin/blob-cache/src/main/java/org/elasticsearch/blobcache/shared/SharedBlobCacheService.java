@@ -1990,22 +1990,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     key -> new LFUCacheEntry(new CacheFileRegion<KeyType>(SharedBlobCacheService.this, key, effectiveRegionSize), now)
                 );
             }
-            // checks using volatile, double locking is fine, as long as we assign io last.
-            if (entry.chunk.volatileIO() == null) {
-                synchronized (entry.chunk) {
-                    if (entry.chunk.volatileIO() == null && entry.chunk.isEvicted() == false) {
-                        return initChunk(entry);
-                    }
-                }
-            }
-            assert assertChunkActiveOrEvicted(entry);
-
-            // existing item, check if we need to promote item
-            if (now > entry.lastAccessedEpoch) {
-                maybePromote(now, entry);
-            }
-
-            return entry;
+            return initOrMaybePromote(entry, now);
         }
 
         @Override
@@ -2017,6 +2002,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (entry == null) {
                 return null;
             }
+            return initOrMaybePromote(entry, now);
+        }
+
+        private LFUCacheEntry initOrMaybePromote(LFUCacheEntry entry, long now) {
             // checks using volatile, double locking is fine, as long as we assign io last.
             if (entry.chunk.volatileIO() == null) {
                 synchronized (entry.chunk) {

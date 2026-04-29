@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.arrow;
 
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.Float2Vector;
+import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.SmallIntVector;
@@ -24,7 +27,9 @@ import org.apache.arrow.vector.UInt2Vector;
 import org.apache.arrow.vector.UInt4Vector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.Types;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -462,8 +467,76 @@ public class ArrowToBlockConverterTests extends ESTestCase {
         assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPMICROTZ));
         assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPNANO));
         assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPNANOTZ));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.LIST));
         assertNull(ArrowToBlockConverter.forType(Types.MinorType.NULL));
         assertNull(ArrowToBlockConverter.forType(Types.MinorType.STRUCT));
+    }
+
+    public void testFromFloat32() {
+        try (Float4Vector vector = new Float4Vector("test", allocator)) {
+            vector.allocateNew(4);
+            vector.set(0, 1.5f);
+            vector.set(1, -3.0f);
+            vector.setNull(2);
+            vector.set(3, 0.125f);
+            vector.setValueCount(4);
+
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
+            try (Block block = converter.convert(vector, blockFactory)) {
+                assertTrue(block instanceof DoubleBlock);
+                DoubleBlock db = (DoubleBlock) block;
+                assertEquals(4, db.getPositionCount());
+                assertEquals(1.5, db.getDouble(0), 0.0);
+                assertEquals(-3.0, db.getDouble(1), 0.0);
+                assertTrue(db.isNull(2));
+                assertEquals(0.125, db.getDouble(3), 0.0);
+            }
+        }
+    }
+
+    public void testFromListOfFloat32() {
+        ListVector listVector = ListVector.empty("test", allocator);
+        listVector.addOrGetVector(FieldType.nullable(Types.MinorType.FLOAT4.getType()));
+        listVector.allocateNew();
+        Float4Vector child = (Float4Vector) listVector.getDataVector();
+        child.allocateNew(4);
+        child.set(0, 1.0f);
+        child.set(1, 2.0f);
+        child.set(2, 3.0f);
+        child.setNull(3);
+        child.setValueCount(4);
+
+        // pos 0: [1.0, 2.0], pos 1: [3.0], pos 2: null list
+        ArrowBuf offsetBuf = listVector.getOffsetBuffer();
+        offsetBuf.setInt(0, 0);
+        offsetBuf.setInt(4, 2);
+        offsetBuf.setInt(8, 3);
+        offsetBuf.setInt(12, 4);
+
+        ArrowBuf validityBuf = listVector.getValidityBuffer();
+        validityBuf.setZero(0, validityBuf.capacity());
+        BitVectorHelper.setBit(validityBuf, 0);
+        BitVectorHelper.setBit(validityBuf, 1);
+
+        listVector.setLastSet(2);
+        listVector.setValueCount(3);
+
+        try (listVector) {
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(Types.MinorType.LIST);
+            try (Block block = converter.convert(listVector, blockFactory)) {
+                assertTrue(block instanceof DoubleBlock);
+                DoubleBlock db = (DoubleBlock) block;
+                assertEquals(3, db.getPositionCount());
+                assertEquals(2, db.getValueCount(0));
+                int p0 = db.getFirstValueIndex(0);
+                assertEquals(1.0, db.getDouble(p0), 0.0);
+                assertEquals(2.0, db.getDouble(p0 + 1), 0.0);
+                assertFalse(db.isNull(1));
+                assertEquals(1, db.getValueCount(1));
+                assertEquals(3.0, db.getDouble(db.getFirstValueIndex(1)), 0.0);
+                assertTrue(db.isNull(2));
+            }
+        }
     }
 
     public void testFromFloat64EmptyVector() {

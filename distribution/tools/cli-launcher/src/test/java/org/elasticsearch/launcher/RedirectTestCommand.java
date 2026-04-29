@@ -13,7 +13,7 @@ import joptsimple.OptionSet;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

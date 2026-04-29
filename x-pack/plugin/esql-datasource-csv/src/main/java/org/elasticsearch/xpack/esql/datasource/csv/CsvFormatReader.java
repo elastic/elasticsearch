@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -51,6 +52,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -78,7 +80,8 @@ import java.util.regex.Pattern;
  * {@code integer} ({@code int}, {@code i}), {@code long} ({@code l}),
  * {@code double} ({@code d}), {@code keyword} ({@code k}, {@code string}, {@code s}),
  * {@code text} ({@code txt}), {@code boolean} ({@code bool}),
- * {@code datetime} ({@code date}, {@code dt}), {@code ip}, {@code null} ({@code n}).
+ * {@code datetime} ({@code date}, {@code dt}), {@code date_nanos} ({@code dn}),
+ * {@code ip}, {@code version} ({@code v}), {@code null} ({@code n}).
  *
  * <h2>Configurable options</h2>
  * All options are set via the {@code WITH} clause and parsed by {@link #withConfig(java.util.Map)}.
@@ -581,7 +584,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "KEYWORD", "K", "STRING", "S", "TEXT", "TXT" -> DataType.KEYWORD;
             case "BOOLEAN", "BOOL" -> DataType.BOOLEAN;
             case "DATETIME", "DATE", "DT" -> DataType.DATETIME;
+            case "DATE_NANOS", "DN" -> DataType.DATE_NANOS;
             case "IP" -> DataType.IP;
+            case "VERSION", "V" -> DataType.VERSION;
             case "NULL", "N" -> DataType.NULL;
             default -> throw EsqlIllegalArgumentException.illegalDataType(typeName);
         };
@@ -1030,7 +1035,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
                 case DATETIME -> tryParseDatetime(value);
+                case DATE_NANOS -> tryParseDateNanos(value);
                 case IP -> tryParseIp(value);
+                case VERSION -> tryParseVersion(value);
                 case NULL -> null;
                 default -> {
                     lastFieldError = "Unsupported data type: " + dataType;
@@ -1113,7 +1120,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
                 case DATETIME -> tryParseDatetime(value);
+                case DATE_NANOS -> tryParseDateNanos(value);
                 case IP -> tryParseIp(value);
+                case VERSION -> tryParseVersion(value);
                 case NULL -> null;
                 default -> {
                     lastFieldError = "Unsupported data type: " + dataType;
@@ -1203,6 +1212,38 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
 
+        private Object tryParseDateNanos(String value) {
+            if (looksNumeric(value)) {
+                try {
+                    return Long.parseLong(value);
+                } catch (NumberFormatException e) {}
+            }
+            if (datetimeFormatter != null) {
+                try {
+                    Instant instant = LocalDateTime.parse(value, datetimeFormatter).toInstant(ZoneOffset.UTC);
+                    return org.elasticsearch.common.time.DateUtils.toLong(instant);
+                } catch (DateTimeParseException | ArithmeticException e) {
+                    lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                    return null;
+                }
+            }
+            try {
+                return EsqlDataTypeConverter.dateNanosToLong(value);
+            } catch (IllegalArgumentException e) {
+                lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                return null;
+            }
+        }
+
+        private Object tryParseVersion(String value) {
+            try {
+                return EsqlDataTypeConverter.stringToVersion(value);
+            } catch (IllegalArgumentException e) {
+                lastFieldError = "Failed to parse CSV value [" + value + "] as [VERSION]";
+                return null;
+            }
+        }
+
         private void onRowError(String message, Exception cause, String[] row) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                 throw new EsqlIllegalArgumentException(cause, message);
@@ -1267,9 +1308,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Class<?> javaClassForDataType(DataType dataType) {
             return switch (dataType) {
                 case INTEGER -> Integer.class;
-                case LONG, DATETIME -> Long.class;
+                case LONG, DATETIME, DATE_NANOS -> Long.class;
                 case DOUBLE -> Double.class;
-                case KEYWORD, TEXT, IP -> BytesRef.class;
+                case KEYWORD, TEXT, IP, VERSION -> BytesRef.class;
                 case BOOLEAN -> Boolean.class;
                 case NULL -> Void.class;
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);

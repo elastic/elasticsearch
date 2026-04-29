@@ -768,6 +768,48 @@ SUM(sv):long   | sv:integer | language_code:integer | language_name:keyword | _a
 ;
 
 
+Exact inline stats by multivalued field
+required_capability: approximation_v7
+required_capability: approximation_inline_stats
+request_stored: skip
+
+SET approximation=true\;
+ROW x=[1,2,3]
+    | MV_EXPAND x
+    | EVAL y=CASE(x==1, 42, [1,2])
+    | INLINE STATS sum=y*SUM(x) BY y
+    | SORT x
+;
+
+x:integer | sum:long | y:integer | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
+1         | 42       | 42        | [42, 42]                                     | true
+2         | [5, 10]  | [1, 2]    | null                                         | null
+3         | [5, 10]  | [1, 2]    | null                                         | null
+;
+
+
+Approximate inline stats by multivalued field
+required_capability: approximation_v7
+required_capability: approximation_inline_stats
+request_stored: skip
+
+SET approximation={"rows": 10000}\;
+FROM many_numbers
+    | KEEP mv
+    | EVAL key = MV_SLICE(mv, 5, 7)
+    | INLINE STATS sum=SUM(mv) BY key
+    | DROP mv
+    | SORT MV_SLICE(key,0) DESC, MV_SLICE(key,1) DESC, MV_SLICE(key,2) DESC
+    | LIMIT 3
+;
+
+sum:long                                                  | key:integer        | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
+[5000000..40000000, 5000000..40000000, 5000000..40000000] | [1716, 1853, 1944] | null                                         | null
+[5000000..40000000, 5000000..40000000, 5000000..40000000] | [1716, 1853, 1937] | null                                         | null
+[5000000..40000000, 5000000..40000000, 5000000..40000000] | [1716, 1852, 1979] | null                                         | null
+;
+
+
 Warn on no stats
 required_capability: approximation_v7
 request_stored: skip

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -771,14 +772,25 @@ public class ApproximationPlan {
                 SampledAggregate.class,
                 agg -> new Aggregate(agg.source(), agg.child(), agg.groupings(), agg.originalAggregates())
             );
-            logicalPlan = logicalPlan.transformExpressionsDown(
-                ConfidenceInterval.class,
-                ci -> new MvAppend(
+            logicalPlan = logicalPlan.transformExpressionsDown(ConfidenceInterval.class, ci -> {
+                // For multivalued aggs (that occur in the case of INLINE STATS ... BY mv_field),
+                // set result of the CONFIDENCE_INTERVAL function to NULL. Otherwise, set it to
+                // [single_value, single_value, 1.0], which represents the zero-width confidence
+                // interval around single_value, with certified=true.
+                Expression value = new Case(
                     Source.EMPTY,
-                    new MvAppend(Source.EMPTY, ci.arguments().getFirst(), ci.arguments().getFirst()),
-                    Literal.fromDouble(Source.EMPTY, 1.0)
-                )
-            );
+                    new Equals(Source.EMPTY, new MvCount(Source.EMPTY, ci.arguments().getFirst()), Literal.integer(Source.EMPTY, 1)),
+                    List.of(ci.arguments().getFirst(), Literal.NULL)
+                );
+                return new Case(
+                    Source.EMPTY,
+                    new IsNotNull(Source.EMPTY, value),
+                    List.of(
+                        new MvAppend(Source.EMPTY, new MvAppend(Source.EMPTY, value, value), Literal.fromDouble(Source.EMPTY, 1.0)),
+                        Literal.NULL
+                    )
+                );
+            });
             logicalPlan = new PruneColumns().apply(logicalPlan);
         }
         logicalPlan.setOptimized();

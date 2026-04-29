@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,7 +23,6 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -46,12 +44,12 @@ public class IrateTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.longCases(1, 1000, 0, 1000_000_000, true),
             MultiRowTestCaseSupplier.intCases(1, 1000, 0, 1000_000_000, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, 0, 1000_000_000, true)
-
         );
         for (List<TestCaseSupplier.TypedDataSupplier> valuesSupplier : valuesSuppliers) {
             for (TestCaseSupplier.TypedDataSupplier fieldSupplier : valuesSupplier) {
-                TestCaseSupplier testCaseSupplier = makeSupplier(fieldSupplier);
-                suppliers.add(testCaseSupplier);
+                for (RateTests.TemporalityParameter temporality : RateTests.TemporalityParameter.values()) {
+                    suppliers.add(makeSupplier(fieldSupplier, temporality));
+                }
             }
         }
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
@@ -86,11 +84,13 @@ public class IrateTests extends AbstractAggregationTestCase {
         };
     }
 
-    @SuppressWarnings("unchecked")
-    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+    private static TestCaseSupplier makeSupplier(
+        TestCaseSupplier.TypedDataSupplier fieldSupplier,
+        RateTests.TemporalityParameter temporality
+    ) {
         DataType type = counterType(fieldSupplier.type());
         return new TestCaseSupplier(
-            fieldSupplier.name(),
+            fieldSupplier.name() + " temporality=" + temporality,
             List.of(type, DataType.DATETIME, DataType.KEYWORD, DataType.INTEGER, DataType.LONG),
             () -> {
                 TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
@@ -108,12 +108,15 @@ public class IrateTests extends AbstractAggregationTestCase {
                 }
                 fieldTypedData = TestCaseSupplier.TypedData.multiRow(dataRows, type, fieldTypedData.name());
                 List<Long> timestamps = new ArrayList<>();
+                List<Object> temporalities = new ArrayList<>();
                 List<Integer> slices = new ArrayList<>();
                 List<Long> maxTimestamps = new ArrayList<>();
                 long lastTimestamp = randomLongBetween(0, 1_000_000);
+                Object temporalityValue = temporality.byteValue();
                 for (int row = 0; row < dataRows.size(); row++) {
                     lastTimestamp += randomLongBetween(1, 10_000);
                     timestamps.add(lastTimestamp);
+                    temporalities.add(temporalityValue);
                     slices.add(0);
                     maxTimestamps.add(Long.MAX_VALUE);
                 }
@@ -122,11 +125,10 @@ public class IrateTests extends AbstractAggregationTestCase {
                     DataType.DATETIME,
                     "timestamps"
                 );
-                List<BytesRef> temporalities = new ArrayList<>(Collections.nCopies(dataRows.size(), null));
                 TestCaseSupplier.TypedData temporalityField = TestCaseSupplier.TypedData.multiRow(
                     temporalities,
                     DataType.KEYWORD,
-                    "temporality"
+                    "_temporality"
                 );
                 TestCaseSupplier.TypedData sliceIndexType = TestCaseSupplier.TypedData.multiRow(slices, DataType.INTEGER, "_slice_index");
                 TestCaseSupplier.TypedData nextTimestampType = TestCaseSupplier.TypedData.multiRow(
@@ -136,31 +138,41 @@ public class IrateTests extends AbstractAggregationTestCase {
                 );
 
                 List<Object> nonNullDataRows = dataRows.stream().filter(Objects::nonNull).toList();
-                Matcher<?> matcher;
-                if (nonNullDataRows.size() < 2) {
-                    matcher = Matchers.nullValue();
-                } else {
-                    var lastValue = ((Number) nonNullDataRows.getFirst()).doubleValue();
-                    var secondLastValue = ((Number) nonNullDataRows.get(1)).doubleValue();
-                    var increase = lastValue >= secondLastValue ? lastValue - secondLastValue : lastValue;
-                    var largestTimestamp = timestamps.get(0);
-                    var secondLargestTimestamp = timestamps.get(1);
-                    var smallestTimestamp = timestamps.getLast();
-                    matcher = Matchers.allOf(
-                        Matchers.greaterThanOrEqualTo(increase / (largestTimestamp - smallestTimestamp) * 1000 * 0.9),
-                        Matchers.lessThanOrEqualTo(
-                            increase / (largestTimestamp - secondLargestTimestamp) * (largestTimestamp - smallestTimestamp) * 1000
-                        )
-                    );
-                }
-
-                return new TestCaseSupplier.TestCase(
+                final Matcher<?> matcher = irateMatcher(nonNullDataRows, timestamps, temporality);
+                TestCaseSupplier.TestCase result = new TestCaseSupplier.TestCase(
                     List.of(fieldTypedData, timestampsField, temporalityField, sliceIndexType, nextTimestampType),
                     standardAggregatorName("Irate", fieldTypedData.type()),
                     DataType.DOUBLE,
                     matcher
                 );
+                // TODO: once warnings are emitted for invalid temporality, add withWarning assertions here like RateTests
+                return result;
             }
+        );
+    }
+
+    private static Matcher<?> irateMatcher(
+        List<Object> nonNullDataRows,
+        List<Long> timestamps,
+        RateTests.TemporalityParameter temporality
+    ) {
+        // TODO: implement delta temporality support for irate; for now it returns null
+        if (nonNullDataRows.size() < 2
+            || temporality == RateTests.TemporalityParameter.DELTA
+            || temporality == RateTests.TemporalityParameter.INVALID) {
+            return Matchers.nullValue();
+        }
+        var lastValue = ((Number) nonNullDataRows.getFirst()).doubleValue();
+        var secondLastValue = ((Number) nonNullDataRows.get(1)).doubleValue();
+        var increase = lastValue >= secondLastValue ? lastValue - secondLastValue : lastValue;
+        var largestTimestamp = timestamps.get(0);
+        var secondLargestTimestamp = timestamps.get(1);
+        var smallestTimestamp = timestamps.getLast();
+        return Matchers.allOf(
+            Matchers.greaterThanOrEqualTo(increase / (largestTimestamp - smallestTimestamp) * 1000 * 0.9),
+            Matchers.lessThanOrEqualTo(
+                increase / (largestTimestamp - secondLargestTimestamp) * (largestTimestamp - smallestTimestamp) * 1000
+            )
         );
     }
 

@@ -48,26 +48,25 @@ public class IrateDoubleAggregator {
     public static void combine(
         DoubleIrateGroupingState current,
         int groupId,
+        double value,
+        long timestamp,
         @Position int position,
-        DoubleBlock values,
-        LongBlock timestamps,
         BytesRefBlock temporality
     ) {
-        if (values.isNull(position) || timestamps.isNull(position)) {
-            return;
+        if (current.cachedTemporalityAccessor == null || current.cachedTemporalityAccessor.block() != temporality) {
+            current.cachedTemporalityAccessor = TemporalityAccessor.create(temporality, Temporality.CUMULATIVE);
+            assert current.cachedTemporalityAccessor.block() == temporality;
         }
-        if (temporality.isNull(position) == false) {
-            BytesRef bytes = temporality.getBytesRef(temporality.getFirstValueIndex(position), current.scratch);
-            Temporality resolved = Temporality.fromBytesRef(bytes);
-            if (resolved != Temporality.CUMULATIVE) {
-                // TODO: emit a warning for delta or unknown temporality
-                return; // skip this data point
+        try {
+            if (current.cachedTemporalityAccessor.get(position) == Temporality.CUMULATIVE) {
+                current.ensureCapacity(groupId);
+                current.append(groupId, timestamp, value);
+            } else {
+                //TODO: emit warning that delta is unsupported on this cluster version
             }
+        } catch (InvalidTemporalityException e) {
+            // TODO: emit a warning
         }
-        double value = values.getDouble(values.getFirstValueIndex(position));
-        long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(position));
-        current.ensureCapacity(groupId);
-        current.append(groupId, timestamp, value);
     }
 
     public static String describe() {
@@ -108,6 +107,7 @@ public class IrateDoubleAggregator {
     }
 
     public static final class DoubleIrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
+        private TemporalityAccessor cachedTemporalityAccessor;
         private ObjectArray<DoubleIrateState> states;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;

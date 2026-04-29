@@ -211,7 +211,7 @@ public class VoyageAIService extends SenderService<VoyageAIModel> implements Rer
             var dimensionSetByUser = serviceSettings.dimensionsSetByUser();
 
             var updatedServiceSettings = new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(
+                new VoyageAICommonServiceSettings(
                     serviceSettings.getCommonSettings().modelId(),
                     serviceSettings.getCommonSettings().rateLimitSettings()
                 ),

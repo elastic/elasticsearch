@@ -260,8 +260,8 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_NULLIFY_FLATTENED_SUBFIELD,
 
         /**
-<<<<<<< HEAD
-=======
+        <<<<<<< HEAD
+        =======
          * Fix for 500 return code when loading from {@code _source} (hence {@code KEYWORD}) and passing to a convert function that doesn't
          * take {@code KEYWORD}s.
          * See https://github.com/elastic/elasticsearch/issues/145998.
@@ -275,7 +275,7 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_NULL_MATCH_FIELD_IN_JOIN_AND_ENRICH,
 
         /**
->>>>>>> fffe3774503 (ESQL: Fix nullify under join and enrich (#145743))
+        >>>>>>> fffe3774503 (ESQL: Fix nullify under join and enrich (#145743))
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
          * V2: Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          * V3: Fix synthetic _source numeric load bug (#143916)

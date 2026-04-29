@@ -34,16 +34,20 @@ import javax.crypto.spec.GCMParameterSpec;
 public class AesGcmEncryptionService implements EncryptionService {
 
     /**
+     * The currently active encryption key paired with its identifier. Bundled so callers
+     * can read both atomically and avoid races against key rotation.
+     */
+    public record ActiveKey(String keyId, SecretKey key) {
+        public ActiveKey {
+            Objects.requireNonNull(keyId);
+            Objects.requireNonNull(key);
+        }
+    }
+
+    /**
      * Provides encryption keys to {@link AesGcmEncryptionService}.
      */
     public interface KeyProvider {
-        record ActiveKey(String keyId, SecretKey key) {
-            public ActiveKey {
-                Objects.requireNonNull(keyId);
-                Objects.requireNonNull(key);
-            }
-        }
-
         @Nullable
         ActiveKey getActiveKey();
 
@@ -69,7 +73,7 @@ public class AesGcmEncryptionService implements EncryptionService {
 
     @Override
     public EncryptedData encrypt(byte[] bytes) {
-        KeyProvider.ActiveKey activeKey = keyProvider.getActiveKey();
+        ActiveKey activeKey = keyProvider.getActiveKey();
         if (activeKey == null) {
             throw new EncryptionKeyNotYetAvailableException("primary encryption key is not yet available");
         }

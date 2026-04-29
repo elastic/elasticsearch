@@ -118,7 +118,7 @@ public class PrimaryEncryptionKeyServiceTests extends ESTestCase {
 
         listener.clusterChanged(new ClusterChangedEvent("test", newState, prevState));
 
-        AesGcmEncryptionService.KeyProvider.ActiveKey activeKey = service.getActiveKey();
+        AesGcmEncryptionService.ActiveKey activeKey = service.getActiveKey();
         assertNotNull(activeKey);
         assertEquals(pek.getActiveKeyId(), activeKey.keyId());
         assertEquals("AES", activeKey.key().getAlgorithm());

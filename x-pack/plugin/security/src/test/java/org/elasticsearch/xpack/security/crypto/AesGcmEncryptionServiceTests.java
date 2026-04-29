@@ -34,7 +34,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
 
     private static AesGcmEncryptionService.KeyProvider mockKeyProvider(String keyId, SecretKey key) {
         AesGcmEncryptionService.KeyProvider keyProvider = mock(AesGcmEncryptionService.KeyProvider.class);
-        when(keyProvider.getActiveKey()).thenReturn(new AesGcmEncryptionService.KeyProvider.ActiveKey(keyId, key));
+        when(keyProvider.getActiveKey()).thenReturn(new AesGcmEncryptionService.ActiveKey(keyId, key));
         when(keyProvider.getKey(keyId)).thenReturn(key);
         return keyProvider;
     }
@@ -208,7 +208,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         SecretKey key1 = randomAesKey();
         SecretKey key2 = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mock(AesGcmEncryptionService.KeyProvider.class);
-        when(keyProvider.getActiveKey()).thenReturn(new AesGcmEncryptionService.KeyProvider.ActiveKey("key-1", key1));
+        when(keyProvider.getActiveKey()).thenReturn(new AesGcmEncryptionService.ActiveKey("key-1", key1));
         when(keyProvider.getKey("key-1")).thenReturn(key1);
         when(keyProvider.getKey("key-2")).thenReturn(key2);
         AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);

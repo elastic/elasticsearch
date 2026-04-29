@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.function.Supplier;
 
 /**
  * Local-state wrapper for the searchable snapshots plugin, used in integration tests.
@@ -24,6 +25,7 @@ import java.util.Collection;
 public class LocalStateSearchableSnapshots extends LocalStateCompositeXPackPlugin implements SystemIndexPlugin {
 
     private final SearchableSnapshots plugin;
+    private final DLMFrozenTransitionPlugin dlmFrozenTransitionPlugin;
 
     public LocalStateSearchableSnapshots(final Settings settings, final Path configPath) {
         super(settings, configPath);
@@ -36,6 +38,14 @@ public class LocalStateSearchableSnapshots extends LocalStateCompositeXPackPlugi
 
         };
         plugins.add(plugin);
+
+        this.dlmFrozenTransitionPlugin = new DLMFrozenTransitionPlugin() {
+            @Override
+            protected Supplier<XPackLicenseState> getLicenseStateSupplier() {
+                return LocalStateSearchableSnapshots.this::getLicenseState;
+            }
+        };
+        plugins.add(dlmFrozenTransitionPlugin);
     }
 
     @Override

@@ -104,7 +104,6 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         plugins.add(DataStreamsPlugin.class);
         plugins.add(BlobCachePlugin.class);
         plugins.add(LocalStateSearchableSnapshots.class);
-        plugins.add(DLMFrozenTransitionPlugin.class);
         return Collections.unmodifiableList(plugins);
     }
 

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
-import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -64,33 +63,6 @@ public final class GlobExpander {
     public static FileList withSchemaInfo(FileList fileList, Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
         if (fileList instanceof GenericFileList generic) {
             return generic.withSchemaInfo(schemaInfo);
-        }
-        return fileList;
-    }
-
-    /**
-     * Returns a copy of the file list with pre-resolved per-file split ranges attached.
-     * Captured during single-pass file layout resolution and consumed by split discovery to
-     * avoid re-reading file footers.
-     * <p>
-     * For compact representations ({@code DictionaryFileList}, {@code HiveFileList}), the ranges
-     * are stored in a {@link CompactRangeStore} that uses CSR indexing and dictionary encoding.
-     * Returns the input unchanged when {@code splitRanges} is null/empty.
-     */
-    public static FileList withFileSplitRanges(FileList fileList, Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> splitRanges) {
-        if (splitRanges == null || splitRanges.isEmpty()) {
-            return fileList;
-        }
-        if (fileList instanceof GenericFileList generic) {
-            return generic.withFileSplitRanges(splitRanges);
-        }
-        if (fileList instanceof DictionaryFileList dict) {
-            CompactRangeStore store = CompactRangeStore.build(dict.fileCount(), dict::path, splitRanges);
-            return store != null ? dict.withRanges(store) : fileList;
-        }
-        if (fileList instanceof HiveFileList hive) {
-            CompactRangeStore store = CompactRangeStore.build(hive.fileCount(), hive::path, splitRanges);
-            return store != null ? hive.withRanges(store) : fileList;
         }
         return fileList;
     }

@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
@@ -23,19 +22,6 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 
 public final class ExponentialHistogramStates {
-
-    /**
-     * When the used memory of the circuit breaker reaches this threshold,
-     * we emit a warning and reduce the precision of the histograms to free up memory.
-     */
-    public static final double MEMORY_PRESSURE_THRESHOLD = 0.90;
-
-    /**
-     * The minimum bucket limit we will reduce to. This is the minimum value that still provides
-     * meaningful histogram accuracy. If this limit is reached and we still run out of memory,
-     * a {@link org.elasticsearch.common.breaker.CircuitBreakingException} will be thrown.
-     */
-    static final int MINIMUM_BUCKET_LIMIT = 20;
 
     private record HistoBreaker(CircuitBreaker delegate) implements ExponentialHistogramCircuitBreaker {
         @Override
@@ -102,12 +88,10 @@ public final class ExponentialHistogramStates {
 
     static final class GroupingState implements GroupingAggregatorState {
 
-        private ExponentialHistogramMerger.Factory mergerFactory;
+        private final ExponentialHistogramMerger.Factory mergerFactory;
         private ObjectArray<ExponentialHistogramMerger> states;
         private final HistoBreaker breaker;
         private final BigArrays bigArrays;
-        private int currentBucketLimit;
-        private boolean reducedPrecisionWarningEmitted;
 
         GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             ObjectArray<ExponentialHistogramMerger> states = null;
@@ -127,8 +111,6 @@ public final class ExponentialHistogramStates {
             this.mergerFactory = mergerFactory;
             this.bigArrays = bigArrays;
             this.breaker = new HistoBreaker(breaker);
-            this.currentBucketLimit = ExponentialHistogramMerger.DEFAULT_MAX_HISTOGRAM_BUCKETS;
-            this.reducedPrecisionWarningEmitted = false;
         }
 
         ExponentialHistogramMerger getOrNull(int position) {
@@ -143,7 +125,6 @@ public final class ExponentialHistogramStates {
             if (histogram == null) {
                 return;
             }
-            checkMemoryPressureAndReduceAccuracyIfNeeded();
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
@@ -151,72 +132,6 @@ public final class ExponentialHistogramStates {
                 states.set(groupId, state);
             }
             state.add(histogram);
-        }
-
-        /**
-         * Checks if memory pressure is high and reduces the histogram precision if needed.
-         * Keeps reducing accuracy until pressure falls below 90% or minimum bucket limit is reached.
-         */
-        private void checkMemoryPressureAndReduceAccuracyIfNeeded() {
-            while (currentBucketLimit > MINIMUM_BUCKET_LIMIT) {
-                long limit = breaker.delegate().getLimit();
-                if (limit <= 0) {
-                    // Noop circuit breaker
-                    return;
-                }
-                long used = breaker.delegate().getUsed();
-                double pressure = (double) used / limit;
-                if (pressure < MEMORY_PRESSURE_THRESHOLD) {
-                    break;
-                }
-                reduceAccuracy();
-            }
-        }
-
-        /**
-         * Reduces the bucket limit by half and re-merges all existing histograms with the new limit.
-         * Extracts histogram data, closes old merger to free memory, then creates new merger.
-         */
-        private void reduceAccuracy() {
-            int newBucketLimit = Math.max(MINIMUM_BUCKET_LIMIT, currentBucketLimit / 2);
-            if (newBucketLimit == currentBucketLimit) {
-                return;
-            }
-
-            ExponentialHistogramMerger.Factory newFactory = ExponentialHistogramMerger.createFactory(newBucketLimit, breaker);
-            try {
-
-                for (long i = 0; i < states.size(); i++) {
-                    ExponentialHistogramMerger oldMerger = states.get(i);
-                    if (oldMerger != null) {
-                        ExponentialHistogramMerger newMerger = newFactory.createMerger();
-                        try {
-                            newMerger.add(oldMerger.get());
-                            states.set(i, newMerger);
-                            // release the old merger while iterating to immediately free memory
-                            newMerger = oldMerger;
-                        } finally {
-                            Releasables.close(newMerger);
-                        }
-                    }
-                }
-
-                currentBucketLimit = newBucketLimit;
-                var oldFactory = mergerFactory;
-                mergerFactory = newFactory;
-                // close old factory in finally block
-                newFactory = oldFactory;
-            } finally {
-                newFactory.close();
-            }
-
-            if (reducedPrecisionWarningEmitted == false) {
-                HeaderWarning.addWarning(
-                    "Using reduced precision for histograms due to high memory pressure. "
-                        + "Reduce data cardinality or increase available memory to improve accuracy."
-                );
-                reducedPrecisionWarningEmitted = true;
-            }
         }
 
         private void ensureCapacity(int groupId) {

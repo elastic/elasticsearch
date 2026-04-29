@@ -46,6 +46,11 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
          */
         ExponentialHistogramMerger createMerger();
 
+        /**
+         * Returns the maximum number of buckets that mergers created by this factory will use.
+         */
+        int bucketLimit();
+
     }
 
     /**

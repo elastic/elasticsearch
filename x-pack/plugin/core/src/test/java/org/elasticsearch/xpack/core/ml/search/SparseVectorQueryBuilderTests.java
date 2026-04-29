@@ -353,6 +353,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         SparseVectorQueryBuilder queryBuilder = new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, WEIGHTED_TOKENS, null, null, null, null);
 
         TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(
+            random(),
             TransportVersion.fromName(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)
         );
 

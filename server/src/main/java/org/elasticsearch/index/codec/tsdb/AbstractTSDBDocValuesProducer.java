@@ -2405,7 +2405,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             numericBlockMask + 1
                         );
                         private int iterDoc = -1;
-                        private int cachedNBlockId = -1;
+                        private int cachedBlockId = -1;
 
                         @Override
                         public int docID() {
@@ -2434,20 +2434,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 if (lowerValue <= minVal && maxVal <= upperValue) {
                                     return iterDoc = firstDocInBlock;
                                 } else if (minVal <= upperValue && lowerValue <= maxVal) {
-                                    int firstNBlock = firstDocInBlock >>> numericBlockShift;
-                                    int lastNBlock = lastDocInBlock >>> numericBlockShift;
-                                    for (int nbId = firstNBlock; nbId <= lastNBlock; nbId++) {
-                                        if (nbId != cachedNBlockId) {
-                                            rangeMatches.clear();
-                                            loadBlock(nbId);
-                                            ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, rangeMatches.getBits());
-                                            cachedNBlockId = nbId;
-                                        }
-                                        int firstInNBlock = nbId == firstNBlock ? firstDocInBlock & numericBlockMask : 0;
-                                        int lastInNBlock = nbId == lastNBlock ? lastDocInBlock & numericBlockMask : numericBlockMask;
-                                        int bit = rangeMatches.nextSetBit(firstInNBlock, lastInNBlock + 1);
+                                    int firstBlock = firstDocInBlock >>> numericBlockShift;
+                                    int lastBlock = lastDocInBlock >>> numericBlockShift;
+                                    for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
+                                        ensureFilterBlockCached(blockId);
+                                        int firstInBlock = blockId == firstBlock ? firstDocInBlock & numericBlockMask : 0;
+                                        int lastInBlock = blockId == lastBlock ? lastDocInBlock & numericBlockMask : numericBlockMask;
+                                        int bit = rangeMatches.nextSetBit(firstInBlock, lastInBlock + 1);
                                         if (bit != NO_MORE_DOCS) {
-                                            return iterDoc = (nbId << numericBlockShift) + bit;
+                                            return iterDoc = (blockId << numericBlockShift) + bit;
                                         }
                                     }
                                 }
@@ -2458,15 +2453,24 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
                         @Override
                         public int docIDRunEnd() throws IOException {
-                            int nbId = iterDoc >>> numericBlockShift;
-                            if (cachedNBlockId == nbId) {
+                            int blockId = iterDoc >>> numericBlockShift;
+                            if (cachedBlockId == blockId) {
                                 int firstClearBit = nextClearBit(iterDoc & numericBlockMask);
-                                return Math.min((nbId << numericBlockShift) + firstClearBit, skipper.maxDocID(0) + 1);
+                                return Math.min((blockId << numericBlockShift) + firstClearBit, skipper.maxDocID(0) + 1);
                             }
                             if (lowerValue <= skipper.minValue(0) && skipper.maxValue(0) <= upperValue) {
                                 return skipper.maxDocID(0) + 1;
                             }
                             return iterDoc + 1;
+                        }
+
+                        private void ensureFilterBlockCached(int blockId) throws IOException {
+                            if (blockId != cachedBlockId) {
+                                rangeMatches.clear();
+                                loadBlock(blockId);
+                                ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, rangeMatches.getBits());
+                                cachedBlockId = blockId;
+                            }
                         }
 
                         private int nextClearBit(int from) {
@@ -2512,21 +2516,16 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 if (lowerValue <= minVal && maxVal <= upperValue) {
                                     bitSet.set(firstDocInRange - offset, lastDocInRange + 1 - offset);
                                 } else if (minVal <= upperValue && lowerValue <= maxVal) {
-                                    int firstNBlock = firstDocInRange >>> numericBlockShift;
-                                    int lastNBlock = lastDocInRange >>> numericBlockShift;
-                                    for (int nbId = firstNBlock; nbId <= lastNBlock; nbId++) {
-                                        if (nbId != cachedNBlockId) {
-                                            rangeMatches.clear();
-                                            loadBlock(nbId);
-                                            ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, rangeMatches.getBits());
-                                            cachedNBlockId = nbId;
-                                        }
-                                        int firstInNBlock = nbId == firstNBlock ? firstDocInRange & numericBlockMask : 0;
-                                        int lastInNBlock = nbId == lastNBlock ? lastDocInRange & numericBlockMask : numericBlockMask;
+                                    int firstBlock = firstDocInRange >>> numericBlockShift;
+                                    int lastBlock = lastDocInRange >>> numericBlockShift;
+                                    for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
+                                        ensureFilterBlockCached(blockId);
+                                        int firstInBlock = blockId == firstBlock ? firstDocInRange & numericBlockMask : 0;
+                                        int lastInBlock = blockId == lastBlock ? lastDocInRange & numericBlockMask : numericBlockMask;
                                         rangeMatches.forEach(
-                                            firstInNBlock,
-                                            lastInNBlock + 1,
-                                            (nbId << numericBlockShift) - offset,
+                                            firstInBlock,
+                                            lastInBlock + 1,
+                                            (blockId << numericBlockShift) - offset,
                                             bitSet::set
                                         );
                                     }

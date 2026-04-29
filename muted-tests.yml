@@ -517,3 +517,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexCancelIT
   method: testCancellingChildTaskRejected
   issue: https://github.com/elastic/elasticsearch/issues/147925
+- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
+  method: testWithByteBufferSliceReturnsFalseAfterEviction
+  issue: https://github.com/elastic/elasticsearch/issues/147929

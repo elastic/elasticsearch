@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FileLayout;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -222,18 +223,29 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         return new IOException("Could not read [" + uri + "] as a Parquet file: " + detail, e);
     }
 
+    /**
+     * Resolves both schema/statistics and split ranges in a single pass over the Parquet file's
+     * footer. This avoids the double footer read that would otherwise happen when {@code metadata}
+     * and split discovery are invoked separately during planning.
+     */
     @Override
-    public SourceMetadata metadata(StorageObject object) throws IOException {
+    public FileLayout resolveFileLayout(StorageObject object) throws IOException {
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
         ParquetReadOptions options = readOptionsBuilder().build();
 
         try (ParquetFileReader reader = openParquetFile(object, parquetInputFile, options)) {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
-            List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
-            SourceStatistics statistics = extractStatistics(reader, parquetSchema);
-            return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
+            SourceMetadata metadata = buildSourceMetadata(reader, parquetSchema, object);
+            List<SplitRange> ranges = buildSplitRangesFromRowGroups(reader);
+            return new FileLayout(metadata, ranges);
         }
+    }
+
+    private SourceMetadata buildSourceMetadata(ParquetFileReader reader, MessageType parquetSchema, StorageObject object) {
+        List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
+        SourceStatistics statistics = extractStatistics(reader, parquetSchema);
+        return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
     }
 
     @SuppressWarnings("rawtypes")
@@ -473,36 +485,31 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         // No resources to close at the reader level
     }
 
-    @Override
-    public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
-        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
-        ParquetReadOptions options = readOptionsBuilder().build();
-        try (ParquetFileReader reader = openParquetFile(object, parquetInputFile, options)) {
-            List<BlockMetaData> rowGroups = reader.getRowGroups();
-            if (rowGroups.isEmpty()) {
-                return List.of();
-            }
-            if (rowGroups.size() == 1) {
-                BlockMetaData block = rowGroups.getFirst();
-                Map<String, Object> stats = buildRowGroupStats(block);
-                return List.of(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
-            }
-            List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
-            for (BlockMetaData block : rowGroups) {
-                Map<String, Object> stats = buildRowGroupStats(block);
-                // Use the compressed on-disk size for the SplitRange length: this value is fed to
-                // readRange() which builds a byte range end = startingPos + length for Parquet's
-                // withRange(rangeStart, rangeEnd) filter. That filter includes a row group when its
-                // starting position lies in the range, so the end must land at or before the next
-                // row group's starting position. getTotalByteSize() returns the uncompressed size
-                // (much larger than what is actually on disk), which would make adjacent ranges
-                // overlap in byte space and cause Parquet to select each row group from multiple
-                // splits, producing duplicate rows.
-                ranges.add(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
-            }
-            List<SplitRange> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
-            return coalesced.size() < 2 ? ranges : coalesced;
+    private static List<SplitRange> buildSplitRangesFromRowGroups(ParquetFileReader reader) {
+        List<BlockMetaData> rowGroups = reader.getRowGroups();
+        if (rowGroups.isEmpty()) {
+            return List.of();
         }
+        if (rowGroups.size() == 1) {
+            BlockMetaData block = rowGroups.getFirst();
+            Map<String, Object> stats = buildRowGroupStats(block);
+            return List.of(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
+        }
+        List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
+        for (BlockMetaData block : rowGroups) {
+            Map<String, Object> stats = buildRowGroupStats(block);
+            // Use the compressed on-disk size for the SplitRange length: this value is fed to
+            // readRange() which builds a byte range end = startingPos + length for Parquet's
+            // withRange(rangeStart, rangeEnd) filter. That filter includes a row group when its
+            // starting position lies in the range, so the end must land at or before the next
+            // row group's starting position. getTotalByteSize() returns the uncompressed size
+            // (much larger than what is actually on disk), which would make adjacent ranges
+            // overlap in byte space and cause Parquet to select each row group from multiple
+            // splits, producing duplicate rows.
+            ranges.add(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
+        }
+        List<SplitRange> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
+        return coalesced.size() < 2 ? ranges : coalesced;
     }
 
     @SuppressWarnings("rawtypes")

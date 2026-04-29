@@ -143,7 +143,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
         List<Attribute> attributes = metadata.schema();
 
         assertEquals(4, attributes.size());
@@ -351,7 +351,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             var reader = new ParquetFormatReader(limitedFactory);
 
             // Read the schema without creating any ESQL block. This is enough to trip the breaker.
-            assertThrows(CircuitBreakingException.class, () -> reader.metadata(storageObject));
+            assertThrows(CircuitBreakingException.class, () -> reader.resolveFileLayout(storageObject));
 
             // Sanity check
             assertEquals(0, limitedFactory.breaker().getUsed());
@@ -362,7 +362,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             var reader = new ParquetFormatReader(limitedFactory);
 
             // Read the schema is now ok
-            var metadata = reader.metadata(storageObject);
+            var metadata = reader.resolveFileLayout(storageObject).metadata();
             assertEquals(0, limitedFactory.breaker().getUsed());
 
             // Reading a page trips the breaker
@@ -873,7 +873,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
         assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
@@ -906,7 +906,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
         assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
@@ -997,7 +997,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
         assertEquals(DataType.DATETIME, metadata.schema().get(0).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
@@ -1082,7 +1082,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
         assertEquals(DataType.DATETIME, metadata.schema().get(0).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
@@ -1120,7 +1120,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
         assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
@@ -1158,7 +1158,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
         assertEquals(DataType.KEYWORD, metadata.schema().get(0).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
@@ -1196,7 +1196,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
         assertEquals(DataType.INTEGER, metadata.schema().get(0).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
@@ -1241,7 +1241,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
         assertEquals(DataType.KEYWORD, metadata.schema().get(0).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
@@ -1331,7 +1331,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
         assertEquals("parquet", metadata.sourceType());
     }
 
@@ -1357,7 +1357,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
         assertTrue("statistics() should be present", metadata.statistics().isPresent());
 
         var stats = metadata.statistics().get();
@@ -1400,7 +1400,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
 
         var stats = metadata.statistics().orElseThrow();
         var enriched = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.embedStatistics(
@@ -1418,7 +1418,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals("delta", maxCity);
 
         // Also verify per-split stats if we can force multi-row-group
-        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
         for (RangeAwareFormatReader.SplitRange range : ranges) {
             for (Map.Entry<String, Object> entry : range.statistics().entrySet()) {
                 assertFalse("Split stat value must not be a Parquet Binary: " + entry.getKey(), entry.getValue() instanceof Binary);
@@ -1432,7 +1432,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
         assertTrue("Expected multiple ranges for multi-row-group file, got " + ranges.size(), ranges.size() > 1);
 
         for (RangeAwareFormatReader.SplitRange range : ranges) {
@@ -1455,7 +1455,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
         assertEquals("Single row group file should return one range with stats", 1, ranges.size());
         RangeAwareFormatReader.SplitRange range = ranges.getFirst();
         assertTrue("Range offset must be non-negative", range.offset() >= 0);
@@ -1472,7 +1472,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
         assertTrue("Empty file (no row groups) should return empty ranges", ranges.isEmpty());
     }
 
@@ -1498,7 +1498,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
         assertEquals(1, ranges.size());
         Map<String, Object> stats = ranges.getFirst().statistics();
         assertEquals(100L, stats.get("_stats.row_count"));
@@ -1518,7 +1518,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         Arrays.fill(garbage, (byte) 0x5a);
         StorageObject storageObject = createStorageObject(garbage, "s3://bucket/path/file.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        IOException ex = expectThrows(IOException.class, () -> reader.resolveFileLayout(storageObject));
         assertThat(
             ex.getMessage(),
             allOf(
@@ -1531,7 +1531,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testInvalidParquetOpenEmptyFile() throws Exception {
         StorageObject storageObject = createStorageObject(new byte[0], "memory://empty.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        IOException ex = expectThrows(IOException.class, () -> reader.resolveFileLayout(storageObject));
         assertThat(
             ex.getMessage(),
             allOf(
@@ -1551,7 +1551,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         byte[] truncated = Arrays.copyOf(full, Math.max(1, full.length / 8));
         StorageObject storageObject = createStorageObject(truncated, "https://host/obj.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        IOException ex = expectThrows(IOException.class, () -> reader.resolveFileLayout(storageObject));
         assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
     }
 
@@ -1560,7 +1560,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         byte[] parquetData = createParquetFile(schema, factory -> List.of());
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
         assertEquals("id", metadata.schema().get(0).name());
     }
 
@@ -1771,7 +1771,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
         assertTrue("Need at least 2 ranges for this test, got " + ranges.size(), ranges.size() >= 2);
 
         int totalRowsFromRanges = 0;
@@ -1824,7 +1824,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
         assertTrue("Need at least 3 ranges for this regression test, got " + ranges.size(), ranges.size() >= 3);
 
         // Byte ranges must be sorted and non-overlapping (end_i <= start_{i+1}).
@@ -1957,7 +1957,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
         }
 
-        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
         assertTrue("Need at least 2 ranges for this test, got " + ranges.size(), ranges.size() >= 2);
 
         List<String> rangeRows = new ArrayList<>();

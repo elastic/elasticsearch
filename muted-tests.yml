@@ -520,3 +520,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
   method: testWithByteBufferSliceReturnsFalseAfterEviction
   issue: https://github.com/elastic/elasticsearch/issues/147929
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testRecoverHollowShardReadsSingleRegionAndEvictsCache
+  issue: https://github.com/elastic/elasticsearch/issues/147937

@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import java.util.BitSet;
-
 /**
- * Reusable scratch buffers for {@link PageColumnReader} batch decoding. Eliminates per-batch
- * allocation of primitive arrays by keeping warm arrays that are reused across batches within
- * a single column reader.
+ * Reusable scratch buffers for {@link PageColumnReader} batch decoding. Provides a scratch
+ * {@code int[]} for type-widening conversions, plus {@link WordMask} instances for null and
+ * value-selection bit masks.
  *
  * <p>Buffers are pure scratch space: {@link PageColumnReader} decodes into them, then copies the
  * decoded slice into a freshly allocated, tightly sized array before handing it to
@@ -20,11 +18,7 @@ import java.util.BitSet;
  * reader is free to overwrite the scratch arrays on the next batch. See the {@code Block
  * construction helpers} section in {@link PageColumnReader} for the full ownership rationale.
  *
- * <p>Each buffer type is lazily allocated and grown as needed. Longs and doubles still rotate
- * between two slots (see {@link #takeLongs()} / {@link #takeDoubles()}); after the copy-on-emit
- * fix this is no longer required for correctness - one slot would be sufficient - and is kept
- * only to avoid changing the buffer-growth profile in the same patch. Collapsing to a single
- * slot is left as a follow-up.
+ * <p>Each buffer is lazily allocated and grown as needed.
  *
  * <p>Each {@link PageColumnReader} owns its own instance. Sharing across columns is unnecessary
  * and would only complicate ownership without buying anything.
@@ -32,14 +26,6 @@ import java.util.BitSet;
 final class DecodeBuffers {
 
     private int[] intBuf;
-    private long[] longBufA;
-    private long[] longBufB;
-    private boolean longSlotA = true;
-    private double[] doubleBufA;
-    private double[] doubleBufB;
-    private boolean doubleSlotA = true;
-    private boolean[] boolBuf;
-    private BitSet nullsBuf;
 
     DecodeBuffers() {}
 
@@ -48,89 +34,6 @@ final class DecodeBuffers {
             intBuf = new int[minSize];
         }
         return intBuf;
-    }
-
-    long[] longs(int minSize) {
-        if (longSlotA) {
-            if (longBufA == null || longBufA.length < minSize) {
-                longBufA = new long[minSize];
-            }
-            return longBufA;
-        } else {
-            if (longBufB == null || longBufB.length < minSize) {
-                longBufB = new long[minSize];
-            }
-            return longBufB;
-        }
-    }
-
-    /**
-     * Returns the current long scratch buffer and swaps to the alternate slot for the next
-     * call to {@link #longs(int)}. The returned array is still owned by this {@code DecodeBuffers}
-     * - callers must not retain it past the next {@code takeLongs()} or {@code longs(int)}
-     * call. {@link PageColumnReader} reads the decoded slice and copies it into a fresh,
-     * Block-owned array before emit, so this is safe by construction.
-     *
-     * <p>The slot flip is a historical artifact: with copy-on-emit a single slot would be
-     * enough. Kept for now to leave allocation behavior unchanged in this patch.
-     */
-    long[] takeLongs() {
-        if (longSlotA) {
-            longSlotA = false;
-            return longBufA;
-        } else {
-            longSlotA = true;
-            return longBufB;
-        }
-    }
-
-    double[] doubles(int minSize) {
-        if (doubleSlotA) {
-            if (doubleBufA == null || doubleBufA.length < minSize) {
-                doubleBufA = new double[minSize];
-            }
-            return doubleBufA;
-        } else {
-            if (doubleBufB == null || doubleBufB.length < minSize) {
-                doubleBufB = new double[minSize];
-            }
-            return doubleBufB;
-        }
-    }
-
-    /**
-     * Returns the current double scratch buffer and swaps to the alternate slot. Same ownership
-     * rules as {@link #takeLongs()}: the array stays owned by this {@code DecodeBuffers} and
-     * must not be retained past the next call. {@link PageColumnReader} copies the decoded
-     * slice into a Block-owned array before emit.
-     */
-    double[] takeDoubles() {
-        if (doubleSlotA) {
-            doubleSlotA = false;
-            return doubleBufA;
-        } else {
-            doubleSlotA = true;
-            return doubleBufB;
-        }
-    }
-
-    boolean[] booleans(int minSize) {
-        if (boolBuf == null || boolBuf.length < minSize) {
-            boolBuf = new boolean[minSize];
-        }
-        return boolBuf;
-    }
-
-    /**
-     * Returns a reusable {@link BitSet} cleared to all-false.
-     */
-    BitSet nulls(int minSize) {
-        if (nullsBuf == null) {
-            nullsBuf = new BitSet(minSize);
-        } else {
-            nullsBuf.clear();
-        }
-        return nullsBuf;
     }
 
     private WordMask nullsMask;

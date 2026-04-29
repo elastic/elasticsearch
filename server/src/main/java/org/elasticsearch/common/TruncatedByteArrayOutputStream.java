@@ -10,11 +10,11 @@
 package org.elasticsearch.common;
 
 import java.io.ByteArrayOutputStream;
-import java.nio.charset.Charset;
 
 final class TruncatedByteArrayOutputStream extends ByteArrayOutputStream {
 
     private final int maxBytes;
+    boolean truncated = false;
 
     TruncatedByteArrayOutputStream(int maxBytes) {
         this.maxBytes = maxBytes;
@@ -22,7 +22,8 @@ final class TruncatedByteArrayOutputStream extends ByteArrayOutputStream {
 
     @Override
     public void write(int b) {
-        if (!hasCapacity()) {
+        if (isOverCapacity()) {
+            truncated = true;
             return;
         }
         super.write(b);
@@ -30,19 +31,28 @@ final class TruncatedByteArrayOutputStream extends ByteArrayOutputStream {
 
     @Override
     public void write(byte[] b, int off, int len) {
-        if (!hasCapacity()) {
+        if (isOverCapacity()) {
+            truncated = true;
             return;
         }
+
         int remainingSpace = maxBytes - count;
-        super.write(b, off, Math.min(len, remainingSpace));
+        if (remainingSpace < len) {
+            truncated = true;
+            len = remainingSpace;
+        }
+
+        super.write(b, off, len);
     }
 
-    boolean hasCapacity() {
-        return count < maxBytes;
+    private boolean isOverCapacity() {
+        return count >= maxBytes;
     }
 
-    @Override
-    public String toString(Charset charset) {
-        return new String(buf, 0, Math.min(count, maxBytes), charset);
+    /**
+     * Returns {@code true} if this stream has actually truncated its contents.
+     */
+    boolean isTruncated() {
+        return truncated;
     }
 }

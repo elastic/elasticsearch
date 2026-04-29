@@ -758,7 +758,7 @@ public class Strings {
      * instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values printed in a
      * human-readable way (see {@link XContentBuilder#humanReadable()}).
      * <p>
-     * This method is intended to be used for logging/debuging purposes, since it might return an invalid JSON value if the limit happens
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
      * to be enforced.
      *
      * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
@@ -773,7 +773,7 @@ public class Strings {
      * printed out instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values
      * printed in a human-readable way (see {@link XContentBuilder#humanReadable()}).
      * <p>
-     * This method is intended to be used for logging/debuging purposes, since it might return an invalid JSON value if the limit happens
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
      * to be enforced.
      *
      * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
@@ -788,7 +788,7 @@ public class Strings {
      * be truncated up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be
      * printed out instead.
      * <p>
-     * This method is intended to be used for logging/debuging purposes, since it might return an invalid JSON value if the limit happens
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
      * to be enforced.
      *
      * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
@@ -808,7 +808,7 @@ public class Strings {
             while (chunks.hasNext()) {
                 chunks.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.flush();
-                if (!truncatedStream.hasCapacity()) {
+                if (truncatedStream.isTruncated()) {
                     break;
                 }
             }
@@ -816,9 +816,28 @@ public class Strings {
                 builder.endObject();
             }
 
-            return new TruncatedString(toString(builder), !truncatedStream.hasCapacity());
+            return new TruncatedString(toString(builder), truncatedStream.isTruncated());
         } catch (IOException e) {
             return new TruncatedString(exceptionToJsonString(e, pretty, human), false);
+        }
+    }
+
+    /**
+     * A small value class that represents a {@link String} that might be truncated.
+     *
+     * @param string The string value.
+     * @param truncated {@code true} if the string was truncated, {@code false} otherwise.
+     */
+    public record TruncatedString(String string, boolean truncated) {
+
+        /**
+         * Appends a given {@code suffix} and returns the result if the value if {@link #string} was truncated; or the unchanged
+         * {@link #string} otherwise.
+         *
+         * @param suffix Suffix to append.
+         */
+        public String appendIfTruncated(String suffix) {
+            return truncated ? string + suffix : string;
         }
     }
 

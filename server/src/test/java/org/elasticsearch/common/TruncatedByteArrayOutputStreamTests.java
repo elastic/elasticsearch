@@ -13,8 +13,19 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.stream.IntStream;
 
 public class TruncatedByteArrayOutputStreamTests extends ESTestCase {
+
+    public void testLimitZero() {
+        var out = new TruncatedByteArrayOutputStream(0);
+
+        out.write('a');
+
+        assertTrue(out.isTruncated());
+        assertEquals("", out.toString(StandardCharsets.UTF_8));
+    }
 
     public void testUnderLimit() throws IOException {
         var out = new TruncatedByteArrayOutputStream(1024);
@@ -23,8 +34,29 @@ public class TruncatedByteArrayOutputStreamTests extends ESTestCase {
         out.write(new byte[] { 'b', 'c', 'd' });
         out.write(new byte[] { 'd', 'e', 'f', 'g', 'h' }, 1, 3);
 
-        assertTrue(out.hasCapacity());
+        assertFalse(out.isTruncated());
         assertEquals("abcdefg", out.toString(StandardCharsets.UTF_8));
+    }
+
+    public void testExactlyLimitBytesNotTruncatedWritingIndividualBytes() {
+        var out = new TruncatedByteArrayOutputStream(10);
+
+        IntStream.range(0, 10).forEach(i -> out.write('a' + i));
+
+        assertFalse(out.isTruncated());
+        assertEquals("abcdefghij", out.toString(StandardCharsets.UTF_8));
+    }
+
+    public void testExactlyLimitBytesNotTruncatedWritingByteArray() throws IOException {
+        var out = new TruncatedByteArrayOutputStream(10);
+
+        var bytes = new byte[10];
+        Arrays.fill(bytes, (byte) 'a');
+
+        out.write(bytes);
+
+        assertFalse(out.isTruncated());
+        assertEquals("aaaaaaaaaa", out.toString(StandardCharsets.UTF_8));
     }
 
     public void testOverLimit() throws IOException {
@@ -35,7 +67,16 @@ public class TruncatedByteArrayOutputStreamTests extends ESTestCase {
         out.write(new byte[] { 'b', 'c', 'd' });
         out.write(new byte[] { 'd', 'e', 'f', 'g', 'h' }, 1, 3);
 
-        assertFalse(out.hasCapacity());
+        assertTrue(out.isTruncated());
+        assertEquals("1234567890", out.toString(StandardCharsets.UTF_8));
+    }
+
+    public void testOverLimitOneHugeWrite() throws IOException {
+        var out = new TruncatedByteArrayOutputStream(10);
+
+        out.write("1234567890abcdefghijklmnopqrstuvwxyz".getBytes(StandardCharsets.UTF_8));
+
+        assertTrue(out.isTruncated());
         assertEquals("1234567890", out.toString(StandardCharsets.UTF_8));
     }
 
@@ -44,6 +85,7 @@ public class TruncatedByteArrayOutputStreamTests extends ESTestCase {
 
         out.write("\uD83C\uDF4E".getBytes(StandardCharsets.UTF_8)); // red apple emoji🍎
 
+        assertTrue(out.isTruncated());
         // UTF-8 CharsetDecoder replaces invalid UTF-8 codepoints with \uFFFD
         assertEquals("\uFFFD", out.toString(StandardCharsets.UTF_8));
     }

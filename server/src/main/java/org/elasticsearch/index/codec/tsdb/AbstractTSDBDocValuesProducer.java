@@ -2405,6 +2405,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             numericBlockMask + 1
                         );
                         private int iterDoc = -1;
+                        private int cachedNBlockId = -1;
 
                         @Override
                         public int docID() {
@@ -2440,9 +2441,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 int firstNBlock = firstDocInBlock >>> numericBlockShift;
                                 int lastNBlock = lastDocInBlock >>> numericBlockShift;
                                 for (int nbId = firstNBlock; nbId <= lastNBlock; nbId++) {
-                                    rangeMatches.clear();
-                                    loadBlock(nbId);
-                                    ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, rangeMatches.getBits());
+                                    if (nbId != cachedNBlockId) {
+                                        rangeMatches.clear();
+                                        loadBlock(nbId);
+                                        ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, rangeMatches.getBits());
+                                        cachedNBlockId = nbId;
+                                    }
                                     int firstInNBlock = nbId == firstNBlock ? firstDocInBlock & numericBlockMask : 0;
                                     int lastInNBlock = nbId == lastNBlock ? lastDocInBlock & numericBlockMask : numericBlockMask;
                                     int bit = rangeMatches.nextSetBit(firstInNBlock, lastInNBlock + 1);

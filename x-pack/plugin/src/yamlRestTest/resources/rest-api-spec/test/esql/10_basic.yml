@@ -981,12 +981,29 @@ version is not allowed:
           capabilities: [ empty_list_param_as_null ]
       reason: "empty list positional parameter is treated as null"
 
+  # Anonymous params (`?`): empty list and explicit null are both treated as null.
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'row a = ?, b = ?1, c = ?'
+          query: 'row a = ?, b = ?, c = ?'
+          params: [[], null, []]
+
+  - length: {columns: 3}
+  - match: {columns.0.type: "null"}
+  - match: {columns.1.type: "null"}
+  - match: {columns.2.type: "null"}
+  - length: {values: 1}
+  - match: {values.0: [null, null, null]}
+
+  # Positional params (`?N`): same behavior as anonymous.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row a = ?1, b = ?2, c = ?3'
           params: [[], null, []]
 
   - length: {columns: 3}

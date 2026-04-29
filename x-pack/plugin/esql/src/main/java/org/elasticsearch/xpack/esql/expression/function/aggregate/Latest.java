@@ -38,7 +38,6 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
 
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        preview = true,
         returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
         description = """
             An alias for [`LAST`](/reference/query-languages/esql/functions-operators/aggregation-functions/last.md) where

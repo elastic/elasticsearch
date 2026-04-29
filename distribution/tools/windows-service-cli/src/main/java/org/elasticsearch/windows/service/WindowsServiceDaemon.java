@@ -13,7 +13,7 @@ import joptsimple.OptionSet;
 
 import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -107,6 +109,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
+            if (storageObject.exists() == false) {
+                throw new IOException("File does not exist: " + location);
+            }
             FormatReader reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             return reader.metadata(storageObject);
         } catch (IOException e) {
@@ -147,25 +152,35 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 ? format.filterPushdownSupport()
                 : null;
 
+            Closeable onClose = null;
+            ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
+            if (allocator != null) {
+                QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
+                storage = budgeted;
+                onClose = budgeted;
+            }
+
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
-            return new AsyncExternalSourceOperatorFactory(
+            return AsyncExternalSourceOperatorFactory.builder(
                 storage,
                 format,
                 path,
                 context.attributes(),
                 context.batchSize(),
                 context.maxBufferSize(),
-                context.rowLimit(),
-                readExecutor,
-                context.fileList(),
-                context.partitionColumnNames(),
-                partitionValues,
-                context.sliceQueue(),
-                errorPolicy,
-                context.parsingParallelism(),
-                pushedExpressions,
-                pushdownSupport
-            );
+                readExecutor
+            )
+                .rowLimit(context.rowLimit())
+                .fileList(context.fileList())
+                .partitionColumnNames(context.partitionColumnNames())
+                .partitionValues(partitionValues)
+                .sliceQueue(context.sliceQueue())
+                .errorPolicy(errorPolicy)
+                .parsingParallelism(context.parsingParallelism())
+                .pushedExpressions(pushedExpressions)
+                .pushdownSupport(pushdownSupport)
+                .onClose(onClose)
+                .build();
         };
     }
 

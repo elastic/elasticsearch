@@ -1,0 +1,97 @@
+ExchangeSinkExec[[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#2, $$LASTOVERTIME_$0$values{r}#3, $$_timeseries$values{r}#4],false]
+\_ProjectExec[[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#5, $$LASTOVERTIME_$0$values{r}#6, $$_timeseries$values{r}#7]]
+  \_EvalExec[[_timeseries{f$}#8 AS _timeseries#7]]
+    \_FieldExtractExec[_timeseries{f$}#8]<[],[],[]>
+      \_TimeSeriesAggregateExec[[_tsid{m}#0, step{r}#1],[LASTOVERTIME(network.bytes_in{f}#9,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#10) AS LASTOVERTIME_$1#11, step{r}#1, FIRSTDOCID(_doc{f}#12,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#13],INITIAL,[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#5, $$LASTOVERTIME_$0$values{r}#6, _doc{r}#14],136,BUCKET(@timestamp{f}#10,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#10,PT1H[TIME_DURATION]),false]
+        \_FieldExtractExec[_tsid{m}#0, network.bytes_in{f}#9]<[],[],[]>
+          \_EvalExec[[BUCKET(@timestamp{f}#10,PT1H[TIME_DURATION]) AS step#1]]
+            \_FieldExtractExec[@timestamp{f}#10]<[],[],[]>
+              \_EsQueryExec[k8s-downsampled], indexMode[standard], [_doc{f}#12], limit[], sort[] estimatedRowSize[44] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "bool" : {
+    "must" : [
+      {
+        "bool" : {
+          "should" : [
+            {
+              "bool" : {
+                "must_not" : [
+                  {
+                    "exists" : {
+                      "field" : "cluster",
+                      "boost" : 0.0
+                    }
+                  }
+                ],
+                "boost" : 0.0
+              }
+            },
+            {
+              "esql_single_value" : {
+                "field" : "cluster",
+                "next" : {
+                  "bool" : {
+                    "must_not" : [
+                      {
+                        "terms" : {
+                          "cluster" : [
+                            "qa"
+                          ],
+                          "boost" : 0.0
+                        }
+                      }
+                    ],
+                    "boost" : 0.0
+                  }
+                },
+                "source" : "network.bytes_in{cluster!=\"qa\",pod!=\"two\"}@1:48"
+              }
+            }
+          ],
+          "boost" : 1.0
+        }
+      },
+      {
+        "bool" : {
+          "should" : [
+            {
+              "bool" : {
+                "must_not" : [
+                  {
+                    "exists" : {
+                      "field" : "pod",
+                      "boost" : 0.0
+                    }
+                  }
+                ],
+                "boost" : 0.0
+              }
+            },
+            {
+              "esql_single_value" : {
+                "field" : "pod",
+                "next" : {
+                  "bool" : {
+                    "must_not" : [
+                      {
+                        "terms" : {
+                          "pod" : [
+                            "two"
+                          ],
+                          "boost" : 0.0
+                        }
+                      }
+                    ],
+                    "boost" : 0.0
+                  }
+                },
+                "source" : "network.bytes_in{cluster!=\"qa\",pod!=\"two\"}@1:48"
+              }
+            }
+          ],
+          "boost" : 1.0
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[]]]]

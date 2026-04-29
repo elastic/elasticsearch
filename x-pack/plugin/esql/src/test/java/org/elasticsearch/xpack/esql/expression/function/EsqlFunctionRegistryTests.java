@@ -148,6 +148,13 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         assertThat(e.getMessage(), is("Cannot find function dummy_function; this should have been caught during analysis"));
     }
 
+    public void testTStepIsSnapshotOnly() {
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        assertThat(EsqlFunctionRegistry.isSnapshotOnly("tstep"), is(true));
+        assertThat(registry.functionExists("tstep"), is(false));
+        assertThat(registry.snapshotRegistry().functionExists("tstep"), is(Build.current().isSnapshot()));
+    }
+
     public void testUnaryFunction() {
         UnresolvedFunction ur = uf(mock(Expression.class));
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(defineDummyUnaryFunction(ur));
@@ -325,12 +332,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippetsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.util.DelayErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.util.DelayTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarityErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.vector.DotProductErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.vector.HammingErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.vector.KnnErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.vector.L1NormErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.vector.L2NormErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeErrorTests is missing")
         );
     }

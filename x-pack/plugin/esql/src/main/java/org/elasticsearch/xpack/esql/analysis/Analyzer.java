@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -553,8 +552,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private String extractTablePath(Expression tablePath) {
             if (tablePath instanceof Literal literal && literal.value() != null) {
                 Object value = literal.value();
-                if (value instanceof BytesRef) {
-                    return BytesRefs.toString((BytesRef) value);
+                if (value instanceof org.apache.lucene.util.BytesRef) {
+                    return BytesRefs.toString((org.apache.lucene.util.BytesRef) value);
                 }
                 return value.toString();
             }
@@ -1338,7 +1337,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator, fuse.fuseType(), fuse.options());
 
             // create aggregations
-            Expression aggFilter = new Literal(source, true, BOOLEAN);
+            Expression aggFilter = new Literal(source, true, DataType.BOOLEAN);
 
             List<NamedExpression> aggregates = new ArrayList<>();
             aggregates.add(
@@ -1379,7 +1378,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
                 // Wrap in an explicit LIMIT 0 so that AddImplicitLimit skips the "No limit defined" warning,
                 // which would otherwise fire because the LocalRelation contains no PromqlCommand marker.
-                return new Limit(source, new Literal(source, 0, INTEGER), localRelation);
+                return new Limit(source, new Literal(source, 0, DataType.INTEGER), localRelation);
             }
             LogicalPlan promqlPlan = promql.promqlPlan();
             Function<UnresolvedAttribute, Expression> lambda = ua -> maybeResolveAttribute(ua, childrenOutput);
@@ -1734,7 +1733,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         UnresolvedAttribute ua,
         List<Attribute> matches,
         Collection<Attribute> attrList,
-        Function<List<String>, String> messageProducer
+        java.util.function.Function<List<String>, String> messageProducer
     ) {
         if (ua.customMessage()) {
             return List.of();
@@ -1929,7 +1928,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // entries to the max
             }
             var source = logicalPlan.source();
-            return new Limit(source, new Literal(source, limit, INTEGER), logicalPlan);
+            return new Limit(source, new Literal(source, limit, DataType.INTEGER), logicalPlan);
         }
     }
 
@@ -2425,7 +2424,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         + Expressions.name(fa)
                         + "]";
                     Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), unresolvedMessage);
-                    return fcf.replaceChildren(singletonList(ua));
+                    return fcf.replaceChildren(Collections.singletonList(ua));
                 }
                 imf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {
@@ -3101,7 +3100,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             Alias newAlias = new Alias(
                                 oldAttr.source(),
                                 newAliasName, // oldAttrName$$converted_to$$targetType
-                                convert.replaceChildren(singletonList(oldAttr)),
+                                convert.replaceChildren(Collections.singletonList(oldAttr)),
                                 null, // generate a new id
                                 true // this'll be used to Project the synthetic attributes out when finishing analysis
                             );

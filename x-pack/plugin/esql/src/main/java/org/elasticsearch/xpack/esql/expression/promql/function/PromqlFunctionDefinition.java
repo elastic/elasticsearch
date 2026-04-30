@@ -204,6 +204,11 @@ public final class PromqlFunctionDefinition {
         return counterSupport;
     }
 
+    @Override
+    public String toString() {
+        return name;
+    }
+
     public static final PromqlParamInfo RANGE_VECTOR = PromqlParamInfo.child("v", PromqlDataType.RANGE_VECTOR, "Range vector input.");
     public static final PromqlParamInfo INSTANT_VECTOR = PromqlParamInfo.child("v", PromqlDataType.INSTANT_VECTOR, "Instant vector input.");
     public static final PromqlParamInfo INSTANT_VECTOR_OPTIONAL = PromqlParamInfo.optionalChild(

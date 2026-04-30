@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.ElasticsearchDistribution
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.transform.UnzipTransform
+import org.gradle.api.tasks.TaskProvider
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
@@ -233,7 +234,7 @@ if (OS.current() == OS.WINDOWS) {
   boolean macOsAarch64 = OS.current() == OS.MAC && Architecture.current() == Architecture.AARCH64
 
   def registerRemoteReindexDistFixture = { String taskName, ElasticsearchDistribution dist ->
-    tasks.register(taskName, AntFixture) {
+    TaskProvider<AntFixture> fxProvider = tasks.register(taskName, AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy, dist
       executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
       env 'CLASSPATH', "${-> oldesFixtureConfiguration.asPath}"
@@ -256,6 +257,7 @@ if (OS.current() == OS.WINDOWS) {
       }
     }
     tasks.named(taskName).configure { setFinalizedBy([]) }
+    return fxProvider
   }
 
   def registerDownloadedRemote = { String version, String distributionName, String taskName, String portPrefix, String enableProperty ->
@@ -288,22 +290,39 @@ if (OS.current() == OS.WINDOWS) {
   registerDownloadedRemote('8.16.4', 'remote_reindex_es816', 'remoteEs816Fixture', 'es816', 'tests.fromRemoteEs816')
   registerDownloadedRemote('9.3.0', 'remote_reindex_es93', 'remoteEs93Fixture', 'es93', 'tests.fromRemoteEs93')
 
-  /* AntFixture defaults to finalizedBy(stop): that runs stop immediately after each fixture task completes,
-   * before javaRestTest -- killing every remote/old ES node before tests run. Reference stop tasks by path
-   * string so Gradle wires finalizedBy after those tasks exist; run stops after javaRestTest finishes. */
-  def oldElasticsearchFixtureStopPaths = new ArrayList<>(versions.collect { "oldEs${it}Fixture#stop" })
-  oldElasticsearchFixtureStopPaths.addAll([
-    'remoteEs812Fixture#stop',
-    'remoteEs816Fixture#stop',
-    'remoteEs93Fixture#stop'
+  /* AntFixture registers a *#stop task in its constructor. Passing string paths to finalizedBy(...) breaks Gradle 9
+   * configuration: # is interpreted as part of task-path syntax, and stop tasks are absent until the fixture task is
+   * realized. Realize each fixture so *#stop exists, then use TaskProvider-based finalizedBy. */
+  versions.each { version ->
+    tasks.named("oldEs${version}Fixture").get()
+  }
+  ['remoteEs812Fixture', 'remoteEs816Fixture', 'remoteEs93Fixture'].each { name ->
+    tasks.named(name).get()
+  }
+  if (macOsAarch64 == false) {
+    tasks.named('remoteEs79Fixture').get()
+    tasks.named('remoteEs710Fixture').get()
+  }
+
+  def oldElasticsearchFixtureStopTaskProviders = []
+  versions.each { version ->
+    oldElasticsearchFixtureStopTaskProviders.add(tasks.named("oldEs${version}Fixture#stop"))
+  }
+  oldElasticsearchFixtureStopTaskProviders.addAll([
+    tasks.named('remoteEs812Fixture#stop'),
+    tasks.named('remoteEs816Fixture#stop'),
+    tasks.named('remoteEs93Fixture#stop')
   ])
   if (macOsAarch64 == false) {
-    oldElasticsearchFixtureStopPaths.addAll(['remoteEs79Fixture#stop', 'remoteEs710Fixture#stop'])
+    oldElasticsearchFixtureStopTaskProviders.addAll([
+      tasks.named('remoteEs79Fixture#stop'),
+      tasks.named('remoteEs710Fixture#stop')
+    ])
   }
 
   tasks.named("javaRestTest").configure { task ->
-    oldElasticsearchFixtureStopPaths.each { path ->
-      task.finalizedBy(path)
+    oldElasticsearchFixtureStopTaskProviders.each { stopProvider ->
+      task.finalizedBy(stopProvider)
     }
     task.systemProperty "tests.fromRemote7x", "true"
   }

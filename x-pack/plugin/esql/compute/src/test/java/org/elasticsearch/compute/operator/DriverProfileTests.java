@@ -43,7 +43,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
                 List.of(new DriverSleeps.Sleep("driver time", 1, 1))
             )
         );
-        assertThat(Strings.toString(status, true, true), equalTo("""
+        assertThat(Strings.toTruncatedString(status, true, true), equalTo("""
             {
               "task_description" : "test",
               "start" : "1973-11-29T09:27:00.000Z",

@@ -160,7 +160,7 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toTruncatedString(this, true, true);
     }
 
     public static class LifecycleOperationMetadataDiff implements NamedDiff<Metadata.Custom> {

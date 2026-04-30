@@ -1457,7 +1457,7 @@ public class DataStreamIT extends ESIntegTestCase {
         bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barfoo").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        assertThat("bulk failures: " + Strings.toTruncatedString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
         bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
@@ -1465,7 +1465,7 @@ public class DataStreamIT extends ESIntegTestCase {
         bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barfoo2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        assertThat("bulk failures: " + Strings.toTruncatedString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
         bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
@@ -1475,7 +1475,7 @@ public class DataStreamIT extends ESIntegTestCase {
         bulkRequest.add(new IndexRequest("logs-barfoo2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barfoo3").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        assertThat("bulk failures: " + Strings.toTruncatedString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         GetDataStreamAction.Response getDataStreamsResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -1513,7 +1513,7 @@ public class DataStreamIT extends ESIntegTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        assertThat("bulk failures: " + Strings.toTruncatedString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         GetDataStreamAction.Response getDataStreamsResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)

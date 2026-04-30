@@ -56,6 +56,18 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
+    protected CacheBlobReader getCacheBlobReaderForAsyncPrefetch(String fileName, BlobFile blobFile) {
+        return createCacheBlobReader(
+            fileName,
+            getBlobContainer(blobFile.primaryTerm()),
+            blobFile.blobName(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            totalBytesReadFromObjectStore,
+            BlobCacheMetrics.CachePopulationReason.OnlinePrewarming
+        );
+    }
+
+    @Override
     public CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile) {
         return createCacheBlobReader(
             blobFile.blobName(),

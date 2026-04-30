@@ -294,12 +294,15 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         BlobCacheMetrics blobCacheMetrics,
         @Nullable Releasable releasable
     ) {
+        var blobFile = blobFileRanges.blobLocation().blobFile();
         var reader = new CacheFileReader(
             getCacheFile(blobFileRanges),
-            getCacheBlobReader(name, blobFileRanges.blobLocation().blobFile()),
+            getCacheBlobReader(name, blobFile),
+            getCacheBlobReaderForAsyncPrefetch(name, blobFile),
             blobFileRanges,
             blobCacheMetrics,
-            cacheService.getThreadPool().relativeTimeInMillisSupplier()
+            cacheService.getThreadPool().relativeTimeInMillisSupplier(),
+            cacheService
         );
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
     }
@@ -326,6 +329,16 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * @return a CacheBlobReader for reading the specified file
      */
     protected abstract CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile);
+
+    /**
+     * Returns a CacheBlobReader for reading a specific file from the blob store for async prefetch,
+     * when a Lucene IndexInput is trying to prefetch
+     *
+     * @param fileName the name of the file to be read
+     * @param blobFile the blob file
+     * @return a CacheBlobReader for reading the specified file for async prefetch purposes
+     */
+    protected abstract CacheBlobReader getCacheBlobReaderForAsyncPrefetch(String fileName, BlobFile blobFile);
 
     /**
      * Returns a CacheBlobReader for reading a specific file from the blob store

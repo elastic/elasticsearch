@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -17,6 +18,7 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -54,47 +56,85 @@ public class CacheFileReader {
 
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
     private final CacheBlobReader cacheBlobReader;
+    private final CacheBlobReader prefetchCacheBlobReader;
     private final BlobFileRanges blobFileRanges;
     private final BlobCacheMetrics blobCacheMetrics;
     private final LongSupplier relativeTimeInMillisSupplier;
+    @Nullable
+    private final StatelessSharedBlobCacheService cacheService;
+
+    public CacheFileReader(
+        StatelessSharedBlobCacheService.CacheFile cacheFile,
+        CacheBlobReader cacheBlobReader,
+        CacheBlobReader prefetchCacheBlobReader,
+        BlobFileRanges blobFileRanges,
+        BlobCacheMetrics blobCacheMetrics,
+        LongSupplier relativeTimeInMillisSupplier,
+        @Nullable StatelessSharedBlobCacheService cacheService
+    ) {
+        this.cacheFile = Objects.requireNonNull(cacheFile);
+        this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
+        this.prefetchCacheBlobReader = Objects.requireNonNull(prefetchCacheBlobReader);
+        this.blobFileRanges = Objects.requireNonNull(blobFileRanges);
+        this.blobCacheMetrics = blobCacheMetrics;
+        this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
+        this.cacheService = cacheService;
+    }
 
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
         CacheBlobReader cacheBlobReader,
         BlobFileRanges blobFileRanges,
         BlobCacheMetrics blobCacheMetrics,
-        LongSupplier relativeTimeInMillisSupplier
+        LongSupplier relativeTimeInMillisSupplier,
+        @Nullable StatelessSharedBlobCacheService cacheService
     ) {
-        this.cacheFile = Objects.requireNonNull(cacheFile);
-        this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
-        this.blobFileRanges = Objects.requireNonNull(blobFileRanges);
-        this.blobCacheMetrics = blobCacheMetrics;
-        this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
+        this(cacheFile, cacheBlobReader, cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier, cacheService);
     }
 
     /**
      * @return a new instance that is a copy of the current instance
      */
     public CacheFileReader copy() {
-        return new CacheFileReader(cacheFile.copy(), cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier);
+        return new CacheFileReader(
+            cacheFile.copy(),
+            cacheBlobReader,
+            prefetchCacheBlobReader,
+            blobFileRanges,
+            blobCacheMetrics,
+            relativeTimeInMillisSupplier,
+            cacheService
+        );
     }
 
     /**
      * Attempts to prefetch byte(s) from the local cache using the fast path.
      *
-     * <p>This method is best-effort and non-blocking. It only attempts to
-     * prefetch data that is already present in the local cache and may
-     * bring it into memory. If the fast path cannot be used, this method
-     * returns {@code false} and no prefetching is performed.</p>
+     * <p>If the data is not in the cache, schedules an asynchronous download
+     * from the object store so that subsequent reads may find the data already
+     * cached.</p>
      *
      * @param offset the starting offset to prefetch from
      * @param length the number of bytes to prefetch
      * @return {@code true} if the fast-path prefetch succeeded,
-     *         {@code false} otherwise
+     *         {@code false} otherwise (async download may have been scheduled)
      * @throws IOException if an I/O error occurs
      */
     public final boolean tryPrefetch(long offset, long length) throws IOException {
-        return cacheFile.tryPrefetch(offset, length);
+        if (cacheFile.tryPrefetch(offset, length)) {
+            return true;
+        }
+        if (cacheService != null) {
+            cacheService.asyncPrefetch(
+                cacheFile.getCacheKey(),
+                cacheFile.getLength(),
+                offset,
+                length,
+                prefetchCacheBlobReader,
+                ActionListener.wrap(v -> {}, e -> logger.debug("async prefetch failed for [{}]", cacheFile.getCacheKey(), e))
+            );
+        }
+        return false;
     }
 
     /**

@@ -12,6 +12,8 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
@@ -30,14 +32,23 @@ import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
+
 public class StatelessSharedBlobCacheService extends SharedBlobCacheService<FileCacheKey> {
 
     // Stateless shared blob cache service populates-and-reads in-thread. And it relies on the cache service to fetch gap bytes
     // asynchronously using a CacheBlobReader.
     private static final Executor IO_EXECUTOR = EsExecutors.DIRECT_EXECUTOR_SERVICE;
 
+    // TODO can we reuse another one
+    private static final ThreadLocal<ByteBuffer> asyncPrefetchWriteBuffer = ThreadLocal.withInitial(
+        () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
+    );
+
     private final Executor shardReadThreadPoolExecutor;
+    private final Executor preWarmThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
+    private final boolean hasSearchRole;
 
     public StatelessSharedBlobCacheService(
         NodeEnvironment environment,
@@ -48,7 +59,9 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics);
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
+        this.preWarmThreadPoolExecutor = threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL);
         this.metricsHolder = metricsHolder;
+        this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
     }
 
     // for tests
@@ -62,7 +75,9 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier);
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
+        this.preWarmThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
+        this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
     }
 
     /**
@@ -114,6 +129,40 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                 );
             }
         }
+    }
+
+    /**
+     * Asynchronously prefetches a byte range into the shared cache, triggered by Lucene's prefetch hint.
+     * Non-blocking, sets force=false, so that existing entries are not evicted, no need for the caller to wait
+     */
+    public void asyncPrefetch(
+        FileCacheKey cacheKey,
+        long blobLength,
+        long offset,
+        long length,
+        CacheBlobReader cacheBlobReader,
+        ActionListener<Void> listener
+    ) {
+        if (hasSearchRole == false) {
+            listener.onResponse(null);
+            return;
+        }
+
+        long remainingFileLength = blobLength - offset;
+        int intLength = length < Integer.MAX_VALUE ? Math.toIntExact(length) : Integer.MAX_VALUE;
+        var adjustedByteRange = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
+
+        fetchRange(
+            cacheKey,
+            adjustedByteRange,
+            cacheBlobReader,
+            "lucene-prefetch",
+            () -> asyncPrefetchWriteBuffer.get().clear(),
+            bytesCopied -> {},
+            this.preWarmThreadPoolExecutor,
+            false,
+            listener
+        );
     }
 
     public void assertInvariants() {

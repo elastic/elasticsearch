@@ -171,7 +171,8 @@ public class BlobCacheIndexInputStressTests extends ESIndexInputTestCase {
                         ),
                         createBlobFileRanges(primaryTerm, primaryTerm, offset, checksumAndLength.length),
                         BlobCacheMetrics.NOOP,
-                        System::currentTimeMillis
+                        System::currentTimeMillis,
+                        null
                     ),
                     null,
                     checksumAndLength.length,

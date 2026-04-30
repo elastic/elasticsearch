@@ -237,6 +237,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
+    protected CacheBlobReader getCacheBlobReaderForAsyncPrefetch(String fileName, BlobFile blobFile) {
+        return getCacheBlobReader(
+            fileName,
+            blobFile,
+            BlobCacheMetrics.CachePopulationReason.OnlinePrewarming,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+    }
+
+    @Override
     public CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         return getCacheBlobReader(
@@ -327,6 +337,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                     BlobCacheMetrics.CachePopulationReason.Warming,
                     getCacheService().getShardReadThreadPoolExecutor()
                 );
+            }
+
+            @Override
+            protected CacheBlobReader getCacheBlobReaderForAsyncPrefetch(String fileName, BlobFile blobFile) {
+                return SearchDirectory.this.getCacheBlobReaderForAsyncPrefetch(fileName, blobFile);
             }
 
             @Override

@@ -76,7 +76,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
             responses.add(new BulkByScrollResponse(thisTook, status, bulkFailures, searchFailures, thisTimedOut));
         }
 
-        BulkByScrollResponse merged = new BulkByScrollResponse(responses, reasonCancelled);
+        BulkByScrollResponse merged = new BulkByScrollResponse(responses, reasonCancelled, null, 0f);
 
         assertEquals(timeValueMillis(took), merged.getTook());
         assertEquals(allBulkFailures, merged.getBulkFailures());
@@ -109,7 +109,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
             responses.add(new BulkByScrollResponse(timeValueMillis(100), status, emptyList(), emptyList(), false));
         }
 
-        BulkByScrollResponse merged = new BulkByScrollResponse(responses, null, pitId);
+        BulkByScrollResponse merged = new BulkByScrollResponse(responses, null, pitId, 0f);
 
         assertTrue(merged.getPitId().isPresent());
         assertThat(merged.getPitId().get(), equalTo(pitId));

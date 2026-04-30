@@ -126,7 +126,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         bulkRetries.set(status.getBulkRetries());
         searchRetries.set(status.getSearchRetries());
         throttledNanos.set(status.getThrottled().nanos());
-        rethrottle(status.getRequestsPerSecond());
+        // RPS is set via constructor from task init from the request, not restored from status
     }
 
     public void handleCancel() {

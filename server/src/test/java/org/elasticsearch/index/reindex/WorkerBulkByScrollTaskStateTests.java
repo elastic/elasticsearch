@@ -33,6 +33,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.closeTo;
@@ -328,6 +329,42 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
         } finally {
             terminate(executor);
         }
+    }
+
+    public void testRestoreStateDoesNotOverrideRequestRps() {
+        final float requestRps = randomFloatBetween(0.1f, 1000f, true);
+        final BulkByScrollTask restoreTask = new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false,
+            null
+        );
+        restoreTask.setWorker(requestRps, null);
+        final WorkerBulkByScrollTaskState state = restoreTask.getWorkerState();
+
+        final BulkByScrollTask.Status statusWithDifferentRps = new BulkByScrollTask.Status(
+            null,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomIntBetween(0, 100),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            timeValueMillis(randomNonNegativeLong()),
+            999f,
+            null,
+            timeValueMillis(0)
+        );
+        state.restoreState(statusWithDifferentRps);
+
+        assertThat(restoreTask.getStatus().getRequestsPerSecond(), equalTo(requestRps));
     }
 
     public void testPerfectlyThrottledBatchTime() {

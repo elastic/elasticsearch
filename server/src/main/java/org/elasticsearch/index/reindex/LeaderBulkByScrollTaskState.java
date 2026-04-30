@@ -56,7 +56,7 @@ public class LeaderBulkByScrollTaskState {
     /// Updated by rethrottle, read during relocation to patch per-slice RPS in ResumeInfo.
     /// Used to prevent race condition to ensure customer doesn't get success on rethrottling, and then we relocate with old RPS.
     /// Guarded by {@code synchronized(this)}.
-    private float relocationRequestsPerSecond;
+    private volatile float relocationRequestsPerSecond;
     private boolean capturedRpsForRelocation = false;
 
     public LeaderBulkByScrollTaskState(BulkByScrollTask task, int slices, float requestsPerSecond) {
@@ -76,7 +76,9 @@ public class LeaderBulkByScrollTaskState {
     }
 
     /**
-     * Get the combined statuses of slice subtasks, merged with the given list of statuses
+     * Get the combined statuses of slice subtasks, merged with the given list of statuses.
+     * Uses the leader's stored source-of-truth RPS rather than summing children, which can be stale after rethrottle
+     * with completed slices.
      */
     public BulkByScrollTask.Status getStatus(List<BulkByScrollTask.StatusOrException> statuses) {
         // We only have access to the statuses of requests that have finished so we return them
@@ -84,7 +86,7 @@ public class LeaderBulkByScrollTaskState {
             throw new IllegalArgumentException("Given number of statuses does not match amount of expected results");
         }
         addResultsToList(statuses);
-        return new BulkByScrollTask.Status(unmodifiableList(statuses), task.getReasonCancelled());
+        return new BulkByScrollTask.Status(unmodifiableList(statuses), task.getReasonCancelled(), relocationRequestsPerSecond);
     }
 
     /**
@@ -192,7 +194,9 @@ public class LeaderBulkByScrollTaskState {
             }
         }
         if (exception == null) {
-            listener.onResponse(new BulkByScrollResponse(responses, task.getReasonCancelled(), latestPitId.get()));
+            listener.onResponse(
+                new BulkByScrollResponse(responses, task.getReasonCancelled(), latestPitId.get(), relocationRequestsPerSecond)
+            );
         } else {
             listener.onFailure(exception);
         }
@@ -217,7 +221,7 @@ public class LeaderBulkByScrollTaskState {
         return Optional.of(
             new BulkByScrollResponse(
                 TimeValue.MINUS_ONE,
-                new BulkByScrollTask.Status(List.of(), null),
+                new BulkByScrollTask.Status(List.of(), null, 0f),
                 List.of(),
                 List.of(),
                 false,

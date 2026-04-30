@@ -118,7 +118,7 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     private BulkByScrollTask.Status emptyStatus() {
-        return new Status(Collections.emptyList(), getReasonCancelled());
+        return new Status(Collections.emptyList(), getReasonCancelled(), 0f);
     }
 
     /**
@@ -469,7 +469,7 @@ public class BulkByScrollTask extends CancellableTask {
                     throw new IllegalArgumentException("a required field is null when building Status");
                 }
             } else {
-                return new Status(sliceStatuses, reasonCancelled);
+                return new Status(sliceStatuses, reasonCancelled, requestsPerSecond);
             }
         }
     }
@@ -593,7 +593,11 @@ public class BulkByScrollTask extends CancellableTask {
          * @param reasonCancelled Reason that this *this* task was cancelled. Note that each entry in {@code sliceStatuses} can be cancelled
          *        independently of this task but if this task is cancelled then the workers *should* be cancelled.
          */
-        public Status(List<StatusOrException> sliceStatuses, @Nullable String reasonCancelled) {
+        /**
+         * Constructor merging many statuses. The caller provides the authoritative requestsPerSecond rather than
+         * summing from children, which can be stale after rethrottle with completed slices.
+         */
+        public Status(List<StatusOrException> sliceStatuses, @Nullable String reasonCancelled, float requestsPerSecond) {
             sliceId = null;
             this.reasonCancelled = reasonCancelled;
 
@@ -607,7 +611,6 @@ public class BulkByScrollTask extends CancellableTask {
             long mergedBulkRetries = 0;
             long mergedSearchRetries = 0;
             long mergedThrottled = 0;
-            float mergedRequestsPerSecond = 0;
             long mergedThrottledUntil = Long.MAX_VALUE;
 
             for (StatusOrException slice : sliceStatuses) {
@@ -629,7 +632,6 @@ public class BulkByScrollTask extends CancellableTask {
                 mergedBulkRetries += slice.status.getBulkRetries();
                 mergedSearchRetries += slice.status.getSearchRetries();
                 mergedThrottled += slice.status.getThrottled().nanos();
-                mergedRequestsPerSecond += slice.status.getRequestsPerSecond();
                 mergedThrottledUntil = min(mergedThrottledUntil, slice.status.getThrottledUntil().nanos());
             }
 
@@ -643,7 +645,7 @@ public class BulkByScrollTask extends CancellableTask {
             bulkRetries = mergedBulkRetries;
             searchRetries = mergedSearchRetries;
             throttled = timeValueNanos(mergedThrottled);
-            requestsPerSecond = mergedRequestsPerSecond;
+            this.requestsPerSecond = requestsPerSecond;
             throttledUntil = timeValueNanos(mergedThrottledUntil == Long.MAX_VALUE ? 0 : mergedThrottledUntil);
             this.sliceStatuses = sliceStatuses;
         }
@@ -862,27 +864,6 @@ public class BulkByScrollTask extends CancellableTask {
          */
         public List<StatusOrException> getSliceStatuses() {
             return sliceStatuses;
-        }
-
-        /** Returns a copy of this status with the given {@code requestsPerSecond}, all other fields unchanged. */
-        public Status withRequestsPerSecond(float requestsPerSecond) {
-            assert sliceStatuses.isEmpty() : "withRequestsPerSecond should only be called on leaf (non-merged) Status";
-            return new Status(
-                sliceId,
-                total,
-                updated,
-                created,
-                deleted,
-                batches,
-                versionConflicts,
-                noops,
-                bulkRetries,
-                searchRetries,
-                throttled,
-                requestsPerSecond,
-                reasonCancelled,
-                throttledUntil
-            );
         }
 
         @Override

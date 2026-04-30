@@ -319,6 +319,104 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         }
     }
 
+    public void testFinalResponseUsesLeaderStoredRps() {
+        final float leaderRps = randomFloatBetween(1f, 1000f, true);
+        final int sliceCount = between(2, 5);
+        final BulkByScrollTask leaderTask = new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            false,
+            null
+        );
+        leaderTask.setWorkerCount(sliceCount, leaderRps);
+        final LeaderBulkByScrollTaskState state = leaderTask.getLeaderState();
+
+        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        for (int i = 0; i < sliceCount; i++) {
+            float childRps = randomFloatBetween(0.1f, 50f, true);
+            BulkByScrollTask.Status childStatus = new BulkByScrollTask.Status(
+                i,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                timeValueMillis(0),
+                childRps,
+                null,
+                timeValueMillis(0)
+            );
+            ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
+            state.onSliceResponse(
+                listener,
+                i,
+                new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()), childStatus, emptyList(), emptyList(), false)
+            );
+        }
+
+        assertTrue(future.isDone());
+        final BulkByScrollResponse response = future.actionGet();
+        assertThat(response.getStatus().getRequestsPerSecond(), equalTo(leaderRps));
+    }
+
+    public void testGetStatusReportsStoredRpsNotSumOfChildren() {
+        final float leaderRps = randomFloatBetween(1f, 1000f, true);
+        final int sliceCount = between(2, 10);
+        final BulkByScrollTask leaderTask = new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            false,
+            null
+        );
+        leaderTask.setWorkerCount(sliceCount, leaderRps);
+        final LeaderBulkByScrollTaskState state = leaderTask.getLeaderState();
+
+        // Simulate children completing with various per-child RPS that don't sum to leaderRps
+        for (int i = 0; i < sliceCount; i++) {
+            float childRps = randomFloatBetween(0.1f, 50f, true);
+            BulkByScrollTask.Status childStatus = new BulkByScrollTask.Status(
+                i,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                timeValueMillis(0),
+                childRps,
+                null,
+                timeValueMillis(0)
+            );
+            state.onSliceResponse(
+                i < sliceCount - 1 ? neverCalledListener() : ActionListener.noop(),
+                i,
+                new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()), childStatus, emptyList(), emptyList(), false)
+            );
+        }
+
+        assertThat(leaderTask.getStatus().getRequestsPerSecond(), equalTo(leaderRps));
+
+        // After rethrottle, getStatus reports the new value
+        final float rethrottledRps = randomFloatBetween(1f, 2000f, true);
+        state.setRequestsPerSecondWithRelocationGuard(rethrottledRps);
+        assertThat(leaderTask.getStatus().getRequestsPerSecond(), equalTo(rethrottledRps));
+    }
+
     public void testCaptureRequestsPerSecondForRelocation() {
         final float initialRPS = randomFloatBetween(0.1f, 1000f, true);
         final BulkByScrollTask leaderTask = new BulkByScrollTask(
@@ -446,7 +544,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         );
         return new BulkByScrollResponse(
             randomTimeValue(),
-            new BulkByScrollTask.Status(List.of(), null),
+            new BulkByScrollTask.Status(List.of(), null, 0f),
             List.of(),
             List.of(),
             false,

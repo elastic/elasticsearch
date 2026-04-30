@@ -158,7 +158,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
         );
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(
             Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(completedStatus)),
-            null
+            null,
+            0f
         );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), containsString("\"slices\":[null,null,{\"slice_id\":2"));
@@ -169,7 +170,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
         Exception e = new Exception();
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(
             Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(e)),
-            null
+            null,
+            0f
         );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), containsString("\"slices\":[null,null,{\"type\":\"exception\""));
@@ -239,7 +241,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
             mergedThrottledUntil = timeValueNanos(min(mergedThrottledUntil.nanos(), throttledUntil.nanos()));
         }
         String reasonCancelled = randomBoolean() ? randomAlphaOfLength(10) : null;
-        BulkByScrollTask.Status merged = new BulkByScrollTask.Status(Arrays.asList(statuses), reasonCancelled);
+        BulkByScrollTask.Status merged = new BulkByScrollTask.Status(Arrays.asList(statuses), reasonCancelled, mergedRequestsPerSecond);
         assertEquals(mergedTotal, merged.getTotal());
         assertEquals(mergedUpdated, merged.getUpdated());
         assertEquals(mergedCreated, merged.getCreated());
@@ -253,61 +255,6 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertEquals(mergedRequestsPerSecond, merged.getRequestsPerSecond(), 0.0001f);
         assertEquals(mergedThrottledUntil, merged.getThrottledUntil());
         assertEquals(reasonCancelled, merged.getReasonCancelled());
-    }
-
-    public void testStatusWithRequestsPerSecond() {
-        final Integer sliceId = randomBoolean() ? null : randomIntBetween(0, 100);
-        final long total = randomNonNegativeLong();
-        final long updated = randomNonNegativeLong();
-        final long created = randomNonNegativeLong();
-        final long deleted = randomNonNegativeLong();
-        final int batches = randomNonNegativeInt();
-        final long versionConflicts = randomNonNegativeLong();
-        final long noops = randomNonNegativeLong();
-        final long bulkRetries = randomNonNegativeLong();
-        final long searchRetries = randomNonNegativeLong();
-        final TimeValue throttled = randomPositiveTimeValue();
-        final float originalRps = randomFloatBetween(0.1f, 1000f, true);
-        final String reasonCancelled = randomBoolean() ? null : randomAlphaOfLength(5);
-        final TimeValue throttledUntil = randomPositiveTimeValue();
-
-        final BulkByScrollTask.Status original = new BulkByScrollTask.Status(
-            sliceId,
-            total,
-            updated,
-            created,
-            deleted,
-            batches,
-            versionConflicts,
-            noops,
-            bulkRetries,
-            searchRetries,
-            throttled,
-            originalRps,
-            reasonCancelled,
-            throttledUntil
-        );
-
-        final float newRps = randomValueOtherThan(originalRps, () -> randomFloatBetween(0.1f, 1000f, true));
-        final BulkByScrollTask.Status copy = original.withRequestsPerSecond(newRps);
-
-        final BulkByScrollTask.Status expected = new BulkByScrollTask.Status(
-            sliceId,
-            total,
-            updated,
-            created,
-            deleted,
-            batches,
-            versionConflicts,
-            noops,
-            bulkRetries,
-            searchRetries,
-            throttled,
-            newRps,
-            reasonCancelled,
-            throttledUntil
-        );
-        assertThat(copy, equalTo(expected));
     }
 
     /**

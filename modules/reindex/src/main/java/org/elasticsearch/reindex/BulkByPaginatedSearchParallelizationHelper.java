@@ -182,6 +182,12 @@ class BulkByPaginatedSearchParallelizationHelper {
         assert request.getResumeInfo().isEmpty() || totalSlices == request.getResumeInfo().get().getTotalSlices()
             : "If resuming, the total slices in the resume info should match the total slices in the task state";
 
+        // When resuming with completed slices, inflate so forSlice `RPS / totalSlices` yields `RPS / incompleteSlices`
+        if (request.getResumeInfo().isPresent()) {
+            long incompleteSlices = request.getResumeInfo().get().slices().values().stream().filter(s -> s.isCompleted() == false).count();
+            request.setRequestsPerSecond(request.getRequestsPerSecond() * totalSlices / incompleteSlices);
+        }
+
         SearchRequest[] searchRequests = sliceIntoSubRequests(request.getSearchRequest(), IdFieldMapper.NAME, totalSlices);
         for (int sliceId = 0; sliceId < searchRequests.length; sliceId++) {
             // If a resumed slice was already completed, skip sending the request and directly record the result

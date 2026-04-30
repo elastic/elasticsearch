@@ -112,9 +112,6 @@ public record ResumeInfo(
         long startTimeEpochMillis();
 
         BulkByScrollTask.Status status();
-
-        /** Returns a copy with the given {@code rps} baked into the status, all other fields unchanged. */
-        WorkerResumeInfo withRequestsPerSecond(float rps);
     }
 
     /**
@@ -151,10 +148,6 @@ public record ResumeInfo(
             return NAME;
         }
 
-        @Override
-        public WorkerResumeInfo withRequestsPerSecond(float rps) {
-            return new ScrollWorkerResumeInfo(scrollId, startTimeEpochMillis, status.withRequestsPerSecond(rps), remoteVersion);
-        }
     }
 
     /**
@@ -199,16 +192,6 @@ public record ResumeInfo(
             return NAME;
         }
 
-        @Override
-        public WorkerResumeInfo withRequestsPerSecond(float rps) {
-            return new PitWorkerResumeInfo(
-                pitId,
-                searchAfterValues,
-                startTimeEpochMillis,
-                status.withRequestsPerSecond(rps),
-                remoteVersion
-            );
-        }
     }
 
     /*

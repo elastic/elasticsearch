@@ -365,9 +365,6 @@ tests:
 - class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
   method: testEqualsAndHashCode
   issue: https://github.com/elastic/elasticsearch/issues/147778
-- class: org.elasticsearch.search.rescore.QueryRescoreModeTests
-  method: testQueryRescoreMode
-  issue: https://github.com/elastic/elasticsearch/issues/147812
 
 # Examples:
 #
@@ -451,9 +448,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.RefreshNodeCreditManagerTests
   method: testPeriodicWarning
   issue: https://github.com/elastic/elasticsearch-serverless/issues/6518
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testDoExecutePreservesContextIdInFinalResult
-  issue: https://github.com/elastic/elasticsearch/issues/147840
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/147849
@@ -469,15 +463,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
   method: testRetentionLeasesIgnoredForSoftDeletesPolicy
   issue: https://github.com/elastic/elasticsearch/issues/147859
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testDoExecuteReleasesRegistrationWhenDataNodeFailsAfterChunkStreaming
-  issue: https://github.com/elastic/elasticsearch/issues/147870
 - class: org.elasticsearch.xpack.stateless.recovery.SearchShardRecoveryIT
   method: testRefreshOfRecoveringSearchShard
   issue: https://github.com/elastic/elasticsearch/issues/147871
-- class: org.elasticsearch.search.internal.CancellableBulkScorerTests
-  method: testIntervalGrowsGeometrically
-  issue: https://github.com/elastic/elasticsearch/issues/147872
 - class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/147482

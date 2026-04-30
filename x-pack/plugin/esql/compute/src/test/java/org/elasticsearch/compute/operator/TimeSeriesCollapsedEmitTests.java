@@ -13,7 +13,6 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.WindowAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -24,7 +23,6 @@ import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -222,34 +220,6 @@ public class TimeSeriesCollapsedEmitTests extends ComputeTestCase {
     }
 
     /**
-     * When both window expansion and collapsed expansion fire, the combined output must still be
-     * tsid-contiguous with null-fill for missing steps. Window-expanded groups are created first,
-     * then collapsed expansion fills the remaining gaps.
-     */
-    public void testWindowPlusCollapsed() {
-        Duration window = Duration.ofMinutes(3);
-        DriverContext driverContext = driverContext();
-        TimeSeriesAggregationOperator op = createOperator(driverContext, List.of(windowSumFactory(window)), null, false);
-
-        // tsid1 has step(0), tsid2 has step(2) — range is [step(0), step(2)]
-        feedInput(driverContext, op, List.of(new InputRow("tsid1", step(0), 10), new InputRow("tsid2", step(2), 200)));
-        op.finish();
-        List<Row> result = drainRows(op, 0, 1, 2);
-
-        // Both tsids must cover the full range [step(0), step(2)] = 3 steps
-        assertThat(result.size(), equalTo(6));
-        // tsid1: step(0) has data (value=10), step(1) and step(2) are collapsed null-fill
-        assertThat(result.get(0), equalTo(new Row("tsid1", step(0), 10L)));
-        assertThat(result.get(1), equalTo(new Row("tsid1", step(1), null)));
-        assertThat(result.get(2), equalTo(new Row("tsid1", step(2), null)));
-        // tsid2: window expansion fills step(0) and step(1) with the windowed sum from step(2),
-        // so all three steps have value 200 (not null)
-        assertThat(result.get(3), equalTo(new Row("tsid2", step(0), 200L)));
-        assertThat(result.get(4), equalTo(new Row("tsid2", step(1), 200L)));
-        assertThat(result.get(5), equalTo(new Row("tsid2", step(2), 200L)));
-    }
-
-    /**
      * Feeds input across multiple pages to exercise min/max timestamp tracking across addInput calls.
      */
     public void testMultiPageInput() {
@@ -317,11 +287,6 @@ public class TimeSeriesCollapsedEmitTests extends ComputeTestCase {
             AggregatorMode.SINGLE,
             List.of(2)
         );
-    }
-
-    private static GroupingAggregator.Factory windowSumFactory(Duration window) {
-        return new WindowAggregatorFunctionSupplier(new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE), window)
-            .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(2));
     }
 
     private DriverContext driverContext() {

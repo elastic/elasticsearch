@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Random;
 
 /**
- *  Generates partitioned vector data for KNN benchmarking.
+ *  Generates non-partitioned vector data for KNN benchmarking.
  */
 public final class NonPartitionDataGenerator extends DataGenerator {
 

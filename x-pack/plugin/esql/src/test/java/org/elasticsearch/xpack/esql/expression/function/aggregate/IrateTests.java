@@ -31,6 +31,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 
 public class IrateTests extends AbstractAggregationTestCase {
     public IrateTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -94,6 +95,7 @@ public class IrateTests extends AbstractAggregationTestCase {
     ) {
         DataType type = counterType(fieldSupplier.type());
         String versionStr = ((BytesRef) aggregatorVersion.value()).utf8ToString();
+        boolean supportsDelta = versionStr.equals("V2");
         return new TestCaseSupplier(
             fieldSupplier.name() + " temporality=" + temporality + " version=" + versionStr,
             List.of(type, DataType.DATETIME, DataType.KEYWORD, DataType.KEYWORD, DataType.INTEGER, DataType.LONG),
@@ -148,7 +150,7 @@ public class IrateTests extends AbstractAggregationTestCase {
                 );
 
                 List<Object> nonNullDataRows = dataRows.stream().filter(Objects::nonNull).toList();
-                final Matcher<?> matcher = irateMatcher(nonNullDataRows, timestamps, temporality);
+                final Matcher<?> matcher = irateMatcher(nonNullDataRows, timestamps, temporality, supportsDelta);
                 TestCaseSupplier.TestCase result = new TestCaseSupplier.TestCase(
                     List.of(
                         fieldTypedData,
@@ -162,24 +164,26 @@ public class IrateTests extends AbstractAggregationTestCase {
                     DataType.DOUBLE,
                     matcher
                 );
-                if (temporality == RateTests.TemporalityParameter.INVALID && nonNullDataRows.isEmpty() == false) {
-                    return result.withWarning(
-                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                    )
-                        .withWarning(
-                            "Line 1:1: org.elasticsearch.compute.aggregation.InvalidTemporalityException: "
-                                + "Invalid temporality value: [gotcha], expected [cumulative] or [delta]"
-                        );
-                }
-                if (temporality == RateTests.TemporalityParameter.DELTA && nonNullDataRows.isEmpty() == false) {
-                    return result.withWarning(
-                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                    )
-                        .withWarning(
-                            "Line 1:1: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality"
-                                + " for counters yet. The affected time series are excluded from irate calculations."
-                                + " Upgrade your cluster to fix this."
-                        );
+                if (nonNullDataRows.isEmpty() == false) {
+
+                    if (temporality == RateTests.TemporalityParameter.INVALID) {
+                        return result.withWarning(
+                                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                            )
+                            .withWarning(
+                                "Line 1:1: org.elasticsearch.compute.aggregation.InvalidTemporalityException: "
+                                    + "Invalid temporality value: [gotcha], expected [cumulative] or [delta]"
+                            );
+                    } else if (temporality == RateTests.TemporalityParameter.DELTA && supportsDelta == false) {
+                        return result.withWarning(
+                                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                            )
+                            .withWarning(
+                                "Line 1:1: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality"
+                                    + " for counters yet. The affected time series are excluded from irate calculations."
+                                    + " Upgrade your cluster to fix this."
+                            );
+                    }
                 }
                 return result;
             }
@@ -189,20 +193,25 @@ public class IrateTests extends AbstractAggregationTestCase {
     private static Matcher<?> irateMatcher(
         List<Object> nonNullDataRows,
         List<Long> timestamps,
-        RateTests.TemporalityParameter temporality
+        RateTests.TemporalityParameter temporality,
+        boolean supportsDelta
     ) {
-        // TODO: implement delta temporality support for irate; for now it returns null
         if (nonNullDataRows.size() < 2
-            || temporality == RateTests.TemporalityParameter.DELTA
+            || (temporality == RateTests.TemporalityParameter.DELTA && supportsDelta == false)
             || temporality == RateTests.TemporalityParameter.INVALID) {
             return Matchers.nullValue();
         }
-        var lastValue = ((Number) nonNullDataRows.getFirst()).doubleValue();
-        var secondLastValue = ((Number) nonNullDataRows.get(1)).doubleValue();
-        var increase = lastValue >= secondLastValue ? lastValue - secondLastValue : lastValue;
-        var largestTimestamp = timestamps.get(0);
-        var secondLargestTimestamp = timestamps.get(1);
-        var smallestTimestamp = timestamps.getLast();
+        double lastValue = ((Number) nonNullDataRows.getFirst()).doubleValue();
+        double secondLastValue = ((Number) nonNullDataRows.get(1)).doubleValue();
+        double increase;
+        if (temporality == RateTests.TemporalityParameter.CUMULATIVE && lastValue >= secondLastValue) {
+            increase = lastValue - secondLastValue;
+        } else {
+            increase = lastValue;
+        }
+        long largestTimestamp = timestamps.get(0);
+        long secondLargestTimestamp = timestamps.get(1);
+        long smallestTimestamp = timestamps.getLast();
         return Matchers.allOf(
             Matchers.greaterThanOrEqualTo(increase / (largestTimestamp - smallestTimestamp) * 1000 * 0.9),
             Matchers.lessThanOrEqualTo(

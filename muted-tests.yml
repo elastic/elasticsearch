@@ -505,18 +505,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/147988
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testPagination
-  issue: https://github.com/elastic/elasticsearch/issues/148006
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testTermsAggsWithProfile
-  issue: https://github.com/elastic/elasticsearch/issues/148010
 - class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
   method: plugin projects are wired into test cluster setup
   issue: https://github.com/elastic/elasticsearch/issues/148014
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testHasChildWithInnerHit
-  issue: https://github.com/elastic/elasticsearch/issues/148023
 - class: org.elasticsearch.xpack.stateless.shutdown.SigtermTerminationHandlerTests
   method: testShutdownBlockIgnoreOtherRoles
   issue: https://github.com/elastic/elasticsearch/issues/148037
@@ -532,30 +523,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotAndRelocationEnabled
   issue: https://github.com/elastic/elasticsearch/issues/148041
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testTopHits
-  issue: https://github.com/elastic/elasticsearch/issues/148044
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testTermsAggs
-  issue: https://github.com/elastic/elasticsearch/issues/148049
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testProfile
-  issue: https://github.com/elastic/elasticsearch/issues/148050
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testSortByField
-  issue: https://github.com/elastic/elasticsearch/issues/148052
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testHasParentWithInnerHit
-  issue: https://github.com/elastic/elasticsearch/issues/148058
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testFetchSource
-  issue: https://github.com/elastic/elasticsearch/issues/148059
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testFieldCollapsingSortByScore
-  issue: https://github.com/elastic/elasticsearch/issues/148063
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeTermVectorsIT
   method: testUpdatedDocsNotInLiveVersionMapDoNotRefresh
   issue: https://github.com/elastic/elasticsearch/issues/148067

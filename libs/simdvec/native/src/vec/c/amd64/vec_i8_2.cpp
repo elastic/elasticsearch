@@ -187,174 +187,6 @@ static inline int32_t doti8_inner_bulk(const int8_t* a, const int8_t* b, const i
     return (int32_t)(_mm512_reduce_add_epi32(total_ab) - b_correction);
 }
 
-// Bulk dot i8 with shared query loads.
-//
-// Iterates over `batches` document vectors in parallel per dimension step,
-// loading the query once per step (XORed into u8 form for vpdpbusd) and
-// reusing it across all batched documents to amortise b-side L1D bandwidth
-// across the batch.
-//
-// Two independent unroll axes:
-//   batches    - number of distinct document vectors scored in parallel;
-//                amortises the query load and adds independent vpdpbusd chains
-//                across documents.
-//   unroll_dim - number of consecutive 64-byte blocks of the same document
-//                processed per inner-loop iteration, each into its own
-//                accumulator. Hides vpdpbusd latency (Sapphire Rapids:
-//                ~4-cyc latency, ~0.5-cyc throughput on ports 0/5).
-//
-// The single-pair scorer `doti8_inner_bulk` above uses the same dim-axis
-// pattern under its local `batches` constant.
-//
-// Prefetch strategy (head + spread):
-//   - At each batch boundary, software-prefetches the first `unroll_dim`
-//     cache lines of every next-batch vector so the very first inner-loop
-//     iter never waits on a demand miss.
-//   - At each inner iter, software-prefetches the next `unroll_dim` lines
-//     (the lines that the *next* outer iter will consume) of every
-//     next-batch vector. Spreading the issues across the inner loop keeps
-//     the L1d fill buffer occupancy below the per-core ceiling and lets the
-//     prefetched lines arrive ~1 outer iter before they are used.
-template <
-    typename TData,
-    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int batches = 4,
-    int unroll_dim = 1
->
-static inline void doti8_bulk(
-    const TData* a, const int8_t* b, const int32_t dims, const int32_t pitch,
-    const int32_t* offsets, const int32_t count, f32_t* results
-) {
-    constexpr int stride = sizeof(__m512i);
-    constexpr int dimStride = stride * unroll_dim;
-    const int blk = dims & ~(stride - 1);
-    const __m512i xor_mask = _mm512_set1_epi8((char)0x80);
-    const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
-    const int64_t b_correction = precompute_b_correction(b, dims);
-    int c = 0;
-
-    const int8_t* current_vecs[batches];
-    init_pointers<batches, TData, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
-
-    for (; c + batches - 1 < count; c += batches) {
-        const int8_t* next_vecs[batches];
-        const bool has_next = c + 2 * batches - 1 < count;
-        if (has_next) {
-            apply_indexed<batches>([&](auto I) {
-                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
-                const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
-                apply_indexed<unroll_dim>([&](auto K) {
-                    _mm_prefetch((const void*)(base + K * CACHE_LINE_SIZE), _MM_HINT_T0);
-                });
-            });
-        }
-
-        // Row-major layout: acc[I * unroll_dim + U] keeps the unroll_dim
-        // accumulators for batch member I contiguous, so tree_reduce can fold
-        // them in one call.
-        __m512i acc[batches * unroll_dim];
-        apply_indexed<batches * unroll_dim>([&](auto I) {
-            acc[I] = _mm512_setzero_si512();
-        });
-
-        int i = 0;
-        for (; i + dimStride <= blk; i += dimStride) {
-            if (has_next) {
-                const int next_line_start = i / CACHE_LINE_SIZE + unroll_dim;
-                apply_indexed<unroll_dim>([&](auto U) {
-                    const int line = next_line_start + U;
-                    if (line < lines_to_fetch) {
-                        apply_indexed<batches>([&](auto I) {
-                            const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
-                            _mm_prefetch((const void*)(base + line * CACHE_LINE_SIZE), _MM_HINT_T0);
-                        });
-                    }
-                });
-            }
-            apply_indexed<unroll_dim>([&](auto U) {
-                __m512i bv = _mm512_loadu_si512((const __m512i*)(b + i + U * stride));
-                apply_indexed<batches>([&](auto I) {
-                    __m512i av = _mm512_loadu_si512((const __m512i*)(current_vecs[I] + i + U * stride));
-                    acc[I * unroll_dim + U] = _mm512_dpbusd_epi32(
-                        acc[I * unroll_dim + U], _mm512_xor_si512(av, xor_mask), bv);
-                });
-            });
-        }
-
-        // Fold the unroll_dim accumulators per batch back into acc[I] before
-        // the unroll_dim=1 tail and the masked tail. Skipped at unroll_dim=1,
-        // where the main loop already wrote into acc[I*1+0] = acc[I].
-        if constexpr (unroll_dim > 1) {
-            apply_indexed<batches>([&](auto I) {
-                acc[I] = tree_reduce<unroll_dim, __m512i, _mm512_add_epi32>(&acc[I * unroll_dim]);
-            });
-            for (; i + stride <= blk; i += stride) {
-                if (has_next) {
-                    const int line = i / CACHE_LINE_SIZE + 1;
-                    if (line < lines_to_fetch) {
-                        apply_indexed<batches>([&](auto I) {
-                            const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
-                            _mm_prefetch((const void*)(base + line * CACHE_LINE_SIZE), _MM_HINT_T0);
-                        });
-                    }
-                }
-                __m512i bv = _mm512_loadu_si512((const __m512i*)(b + i));
-                apply_indexed<batches>([&](auto I) {
-                    __m512i av = _mm512_loadu_si512((const __m512i*)(current_vecs[I] + i));
-                    acc[I] = _mm512_dpbusd_epi32(acc[I], _mm512_xor_si512(av, xor_mask), bv);
-                });
-            }
-        }
-
-        const int rem = dims - i;
-        if (rem > 0) {
-            __mmask64 mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFFULL, rem);
-            __m512i bv = _mm512_maskz_loadu_epi8(mask, b + i);
-            apply_indexed<batches>([&](auto I) {
-                __m512i av = _mm512_maskz_loadu_epi8(mask, current_vecs[I] + i);
-                acc[I] = _mm512_dpbusd_epi32(acc[I], _mm512_xor_si512(av, xor_mask), bv);
-            });
-        }
-
-        apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)(_mm512_reduce_add_epi32(acc[I]) - b_correction);
-        });
-
-        if (has_next) {
-            std::copy_n(next_vecs, batches, current_vecs);
-        }
-    }
-
-    for (; c < count; c++) {
-        const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = (f32_t)doti8_inner_bulk(a0, b, dims, b_correction);
-    }
-}
-
-EXPORT void vec_doti8_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    doti8_bulk<int8_t, sequential_mapper, 4, 2>(a, b, dims, dims, NULL, count, results);
-}
-
-EXPORT void vec_doti8_bulk_offsets_2(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    doti8_bulk<int8_t, offsets_mapper, 4, 1>(a, b, dims, pitch, offsets, count, results);
-}
-
-EXPORT void vec_doti8_bulk_sparse_2(
-    const void* const* addresses,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t count,
-    f32_t* results) {
-    doti8_bulk<const int8_t*, sparse_mapper, 4, 2>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
-}
-
 // Accumulates acc += sqr_distance(pa, pb) for signed int8. Sign-extends to 16-bit,
 // subtracts, then madd for squared accumulation.
 template<int offsetRegs>
@@ -428,31 +260,187 @@ EXPORT f32_t vec_sqri8_2(const int8_t* a, const int8_t* b, const int32_t dims) {
     return (f32_t)sqri8_inner(a, b, dims);
 }
 
-// Bulk squared distance for signed int8 with shared query loads.
+// Step policy structs that capture the per-kernel work for the unified
+// `i8_bulk` template below. Each Step owns:
+//   - `step`               outer dim cursor advance per iter, in bytes
+//   - `BSide`              precomputed query-side scalar (e.g. b_correction)
+//   - `precompute_b`       returns the BSide given the query
+//   - `inner<U,B>(...)`    issues U * B FMA-equivalents into `acc`
+//   - `masked_tail<B>(...)` finalises a sub-step-sized tail with a mask
+//   - `finalize(acc, bs)`  reduces one batch member's accumulator to f32
+//   - `scalar_tail(...)`   single-vector fallback for the per-batch tail
 //
-// The query is sign-extended to 16-bit once per chunk and reused across all
-// batches; this keeps `vpmovsxbw` off the critical path on the b stream
-// (Sapphire Rapids: vpmovsxbw is port-5-only, so one b cvt per outer step
-// instead of one per batched document removes a port-5 bottleneck).
+// The same scaffold (batch loop, prefetch, accumulator lifecycle, tail
+// dispatch) is shared by the Step instantiations.
+
+// DotI8Step: AVX-512 i8 dot via DPBUSD on the (a XOR 0x80) shifted form.
 //
-// The single-vector scorer `sqri8_inner` above uses the multi-accumulator
-// trick on the dim axis; bulk-side parallelism here comes from the batch axis.
+// `vpdpbusd` is unsigned*signed; we XOR the signed `a` lanes with 0x80 so
+// they become unsigned, then subtract a precomputed `b_correction`
+// (= 128 * sum(b)) at the end. Inner step is 64 B (one __m512i per side),
+// so unroll_dim>1 is meaningful here to fill the multi-cycle vpdpbusd
+// latency window with extra independent accumulators.
+struct DotI8Step {
+    static constexpr int step = sizeof(__m512i);  // 64 bytes per inner iter
+    using BSide = int64_t;
+
+    static inline BSide precompute_b(const int8_t* b, const int32_t dims) {
+        return precompute_b_correction(b, dims);
+    }
+
+    // `acc` is __m512i* (not a sized reference) so the same method serves
+    // both the unrolled main loop (size = batches * unroll_dim) and the
+    // unroll_dim>1 tail (size = batches, after the per-batch fold).
+    template <int unroll_dim, int batches>
+    static inline void inner(
+        __m512i* acc,
+        const int8_t* const (&current_vecs)[batches],
+        const int8_t* b, int i
+    ) {
+        const __m512i xor_mask = _mm512_set1_epi8((char)0x80);
+        apply_indexed<unroll_dim>([&](auto U) {
+            __m512i bv = _mm512_loadu_si512((const __m512i*)(b + i + U * step));
+            apply_indexed<batches>([&](auto I) {
+                __m512i av = _mm512_loadu_si512((const __m512i*)(current_vecs[I] + i + U * step));
+                acc[I * unroll_dim + U] = _mm512_dpbusd_epi32(
+                    acc[I * unroll_dim + U], _mm512_xor_si512(av, xor_mask), bv);
+            });
+        });
+    }
+
+    template <int batches>
+    static inline void masked_tail(
+        __m512i* acc,
+        const int8_t* const (&current_vecs)[batches],
+        const int8_t* b, int i, int rem
+    ) {
+        const __m512i xor_mask = _mm512_set1_epi8((char)0x80);
+        __mmask64 mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFFULL, rem);
+        __m512i bv = _mm512_maskz_loadu_epi8(mask, b + i);
+        apply_indexed<batches>([&](auto I) {
+            __m512i av = _mm512_maskz_loadu_epi8(mask, current_vecs[I] + i);
+            acc[I] = _mm512_dpbusd_epi32(acc[I], _mm512_xor_si512(av, xor_mask), bv);
+        });
+    }
+
+    static inline f32_t finalize(__m512i acc, BSide b_correction) {
+        return (f32_t)(_mm512_reduce_add_epi32(acc) - b_correction);
+    }
+
+    static inline f32_t scalar_tail(const int8_t* a, const int8_t* b, int32_t dims, BSide b_correction) {
+        return (f32_t)doti8_inner_bulk(a, b, dims, b_correction);
+    }
+};
+
+// SqrI8Step: AVX-512 squared-distance for signed i8 via cvtepi8_epi16 +
+// sub + madd_epi16. Inner step is 32 B (one __m256i per side, widened to a
+// __m512i of 16-bit lanes). `vpmovsxbw` is port-5-only on Sapphire Rapids,
+// so unroll_dim>1 cannot help here — the b cvt itself is already the
+// bottleneck — and is statically rejected.
+struct SqrI8Step {
+    static constexpr int step = sizeof(__m256i);  // 32 bytes per inner iter
+    // No precomputed query-side scalar is needed; placeholder type to share
+    // the same template signature as DotI8Step.
+    using BSide = int;
+
+    static inline BSide precompute_b(const int8_t*, const int32_t) {
+        return 0;
+    }
+
+    template <int unroll_dim, int batches>
+    static inline void inner(
+        __m512i* acc,
+        const int8_t* const (&current_vecs)[batches],
+        const int8_t* b, int i
+    ) {
+        static_assert(unroll_dim == 1, "SqrI8Step does not support unroll_dim > 1 (port-5 bound)");
+        __m512i b16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(b + i)));
+        apply_indexed<batches>([&](auto I) {
+            __m512i a16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(current_vecs[I] + i)));
+            __m512i dist = _mm512_sub_epi16(a16, b16);
+            acc[I] = _mm512_add_epi32(acc[I], _mm512_madd_epi16(dist, dist));
+        });
+    }
+
+    template <int batches>
+    static inline void masked_tail(
+        __m512i* acc,
+        const int8_t* const (&current_vecs)[batches],
+        const int8_t* b, int i, int rem
+    ) {
+        __mmask32 mask = (__mmask32)((1ULL << rem) - 1);
+        __m512i b16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
+        apply_indexed<batches>([&](auto I) {
+            __m512i a16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, current_vecs[I] + i));
+            __m512i dist = _mm512_sub_epi16(a16, b16);
+            acc[I] = _mm512_add_epi32(acc[I], _mm512_madd_epi16(dist, dist));
+        });
+    }
+
+    static inline f32_t finalize(__m512i acc, BSide /*unused*/) {
+        return (f32_t)_mm512_reduce_add_epi32(acc);
+    }
+
+    static inline f32_t scalar_tail(const int8_t* a, const int8_t* b, int32_t dims, BSide /*unused*/) {
+        return (f32_t)sqri8_inner(a, b, dims);
+    }
+};
+
+// Unified bulk i8 scoring template, parameterised by a Step policy.
 //
-// Prefetch strategy: head=1 + 1-line spread per cache-line boundary. Inner
-// step is half a cache line (32 bytes) so the spread prefetch is gated to
-// fire only on the iter that crosses into a new cache line.
+// Iterates over `batches` document vectors in parallel per dimension step,
+// loading the query once per step and reusing it across all batched
+// documents to amortise b-side L1D bandwidth across the batch.
+//
+// Two independent unroll axes:
+//   batches    - number of distinct document vectors scored in parallel;
+//                amortises the query load and adds independent FMA chains
+//                across documents.
+//   unroll_dim - number of consecutive `step`-byte blocks of the same
+//                document processed per inner-loop iteration, each into its
+//                own accumulator. Hides FMA latency on Steps where the FMA
+//                throughput is not yet saturated by the `batches` chains
+//                alone (true for `DotI8Step`; explicitly unsupported on
+//                `SqrI8Step` whose port-5 cvt is the actual bottleneck).
+//
+// Prefetch strategy (head + spread):
+//   - At each batch boundary, prefetch the first `lines_per_iter` cache
+//     lines of every next-batch vector so the very first inner-loop iter
+//     never waits on a demand miss.
+//   - At each inner iter, prefetch `lines_per_iter` more cache lines per
+//     next-batch vector. The L1d fill-buffer never holds more than
+//     `batches * lines_per_iter` outstanding entries, vs the
+//     `batches * lines_to_fetch` peak of a boundary burst (which would
+//     overflow the per-core ~16-entry LFB on Sapphire Rapids).
+//   - For Steps whose `step` is < CACHE_LINE_SIZE (e.g. SqrI8Step at 32 B
+//     half a cache line), the spread is gated to fire only on the iter
+//     that crosses a cache-line boundary; per-iter `lines_per_iter` falls
+//     back to 1.
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int batches = 4
+    typename Step,
+    int batches = 4,
+    int unroll_dim = 1
 >
-static inline void sqri8_bulk(
+static inline void i8_bulk(
     const TData* a, const int8_t* b, const int32_t dims, const int32_t pitch,
     const int32_t* offsets, const int32_t count, f32_t* results
 ) {
-    constexpr int chunk = sizeof(__m256i);  // 32 bytes -> 32 i8 -> __m512i of 16-bit
-    const int blk = dims & ~(chunk - 1);
+    constexpr int step = Step::step;
+    constexpr int dimStride = step * unroll_dim;
+    // unroll_dim > 1 only makes sense when each iter consumes >= 1 cache
+    // line; otherwise the prefetch math collapses to lines_per_iter=1 and
+    // the extra accumulators provide no benefit. Steps that are bounded by
+    // a non-FMA port (e.g. SqrI8Step / port 5) reject unroll_dim>1
+    // separately via their own static_assert in `inner`.
+    static_assert(unroll_dim == 1 || dimStride >= CACHE_LINE_SIZE,
+        "unroll_dim>1 only supported when step * unroll_dim >= cache line size");
+    constexpr int lines_per_iter = (dimStride >= CACHE_LINE_SIZE) ? unroll_dim : 1;
+
+    const int blk = dims & ~(step - 1);
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
+    const auto b_side = Step::precompute_b(b, dims);
     int c = 0;
 
     const int8_t* current_vecs[batches];
@@ -464,48 +452,54 @@ static inline void sqri8_bulk(
         if (has_next) {
             apply_indexed<batches>([&](auto I) {
                 next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
-                const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
-                _mm_prefetch((const void*)base, _MM_HINT_T0);
             });
+            head_prefetch<batches, lines_per_iter>(next_vecs);
         }
 
-        __m512i acc[batches];
-        apply_indexed<batches>([&](auto I) {
+        // Row-major layout: acc[I * unroll_dim + U] keeps the unroll_dim
+        // accumulators for batch member I contiguous, so tree_reduce can fold
+        // them in one call.
+        __m512i acc[batches * unroll_dim];
+        apply_indexed<batches * unroll_dim>([&](auto I) {
             acc[I] = _mm512_setzero_si512();
         });
 
         int i = 0;
-        for (; i + chunk <= blk; i += chunk) {
-            if (has_next && (i & (CACHE_LINE_SIZE - 1)) == 0) {
-                const int line = i / CACHE_LINE_SIZE + 1;
-                if (line < lines_to_fetch) {
-                    apply_indexed<batches>([&](auto I) {
-                        const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
-                        _mm_prefetch((const void*)(base + line * CACHE_LINE_SIZE), _MM_HINT_T0);
-                    });
+        for (; i + dimStride <= blk; i += dimStride) {
+            if (has_next) {
+                if constexpr (dimStride >= CACHE_LINE_SIZE) {
+                    spread_prefetch<batches, lines_per_iter>(next_vecs, i, lines_to_fetch);
+                } else if ((i & (CACHE_LINE_SIZE - 1)) == 0) {
+                    // step < cache line: prefetch one line, but only on the
+                    // iter that crosses a new cache-line boundary.
+                    spread_prefetch<batches, 1>(next_vecs, i, lines_to_fetch);
                 }
             }
-            __m512i b16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(b + i)));
+            Step::template inner<unroll_dim, batches>(acc, current_vecs, b, i);
+        }
+
+        // Fold the unroll_dim accumulators per batch into acc[I] before the
+        // unroll_dim=1 tail and the masked tail. Skipped at unroll_dim=1,
+        // where the main loop already wrote into acc[I*1+0] = acc[I].
+        if constexpr (unroll_dim > 1) {
             apply_indexed<batches>([&](auto I) {
-                __m512i a16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(current_vecs[I] + i)));
-                __m512i dist = _mm512_sub_epi16(a16, b16);
-                acc[I] = _mm512_add_epi32(acc[I], _mm512_madd_epi16(dist, dist));
+                acc[I] = tree_reduce<unroll_dim, __m512i, _mm512_add_epi32>(&acc[I * unroll_dim]);
             });
+            for (; i + step <= blk; i += step) {
+                if (has_next) {
+                    spread_prefetch<batches, 1>(next_vecs, i, lines_to_fetch);
+                }
+                Step::template inner<1, batches>(acc, current_vecs, b, i);
+            }
         }
 
         const int rem = dims - i;
         if (rem > 0) {
-            __mmask32 mask = (__mmask32)((1ULL << rem) - 1);
-            __m512i b16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
-            apply_indexed<batches>([&](auto I) {
-                __m512i a16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, current_vecs[I] + i));
-                __m512i dist = _mm512_sub_epi16(a16, b16);
-                acc[I] = _mm512_add_epi32(acc[I], _mm512_madd_epi16(dist, dist));
-            });
+            Step::template masked_tail<batches>(acc, current_vecs, b, i, rem);
         }
 
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)_mm512_reduce_add_epi32(acc[I]);
+            results[c + I] = Step::finalize(acc[I], b_side);
         });
 
         if (has_next) {
@@ -515,12 +509,36 @@ static inline void sqri8_bulk(
 
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = (f32_t)sqri8_inner(a0, b, dims);
+        results[c] = Step::scalar_tail(a0, b, dims, b_side);
     }
 }
 
+EXPORT void vec_doti8_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    i8_bulk<int8_t, sequential_mapper, DotI8Step, 4, 2>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_doti8_bulk_offsets_2(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    i8_bulk<int8_t, offsets_mapper, DotI8Step, 4, 1>(a, b, dims, pitch, offsets, count, results);
+}
+
+EXPORT void vec_doti8_bulk_sparse_2(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    i8_bulk<const int8_t*, sparse_mapper, DotI8Step, 4, 2>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
+}
+
 EXPORT void vec_sqri8_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    sqri8_bulk<int8_t, sequential_mapper>(a, b, dims, dims, NULL, count, results);
+    i8_bulk<int8_t, sequential_mapper, SqrI8Step, 4, 1>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqri8_bulk_offsets_2(
@@ -531,7 +549,7 @@ EXPORT void vec_sqri8_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    sqri8_bulk<int8_t, offsets_mapper>(a, b, dims, pitch, offsets, count, results);
+    i8_bulk<int8_t, offsets_mapper, SqrI8Step, 4, 1>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_sqri8_bulk_sparse_2(
@@ -540,7 +558,7 @@ EXPORT void vec_sqri8_bulk_sparse_2(
     const int32_t dims,
     const int32_t count,
     f32_t* results) {
-    sqri8_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
+    i8_bulk<const int8_t*, sparse_mapper, SqrI8Step, 4, 1>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
 // --- Cosine i8 (signed) AVX-512 ---

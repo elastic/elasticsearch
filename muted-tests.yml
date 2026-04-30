@@ -285,18 +285,6 @@ tests:
 - class: org.elasticsearch.search.KnnSearchIT
   method: testKnnSearchWithScroll
   issue: https://github.com/elastic/elasticsearch/issues/148590
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testActionType
-  issue: https://github.com/elastic/elasticsearch/issues/148911
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testDoExecuteReleasesRegistrationOnLastChunkDeserializationFailure
-  issue: https://github.com/elastic/elasticsearch/issues/148912
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testDoExecuteReleasesRegistrationWhenDataNodeFailsAfterChunkStreaming
-  issue: https://github.com/elastic/elasticsearch/issues/148913
-- class: org.elasticsearch.search.rescore.QueryRescoreModeTests
-  method: testQueryRescoreMode
-  issue: https://github.com/elastic/elasticsearch/issues/148923
 
 # Examples:
 #

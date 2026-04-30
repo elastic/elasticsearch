@@ -797,6 +797,10 @@ public class RelocationIT extends ESIntegTestCase {
 
         // Re-open works
         safeGet(indicesAdmin().prepareOpen(indexName).execute());
+        ensureGreen(indexName);
+        // Index also works and we get expected number of docs
+        indexRandom(true, indexName, 10);
+        assertHitCount(safeGet(prepareSearch(indexName).setSize(0).execute()), 20);
     }
 
     private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {

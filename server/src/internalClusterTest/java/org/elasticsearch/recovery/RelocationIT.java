@@ -56,7 +56,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.Transport;
@@ -775,7 +774,6 @@ public class RelocationIT extends ESIntegTestCase {
         assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();
     }
 
-    @TestLogging(value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG", reason = "observe relocation")
     public void testRelocationForClosedIndex() {
         final var oldNodes = internalCluster().startNodes(2);
         ensureStableCluster(2);

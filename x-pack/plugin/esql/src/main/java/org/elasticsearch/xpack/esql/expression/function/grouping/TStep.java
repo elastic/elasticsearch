@@ -83,10 +83,13 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
         description = """
-            Creates groups of values - buckets - out of a `@timestamp` attribute, similar to
-            [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md).
-            Unlike `TBUCKET` which aligns buckets to calendar boundaries, TSTEP aligns them to the query range.
-            This means the first bucket covers the interval from `from` to `from` + `step` and is labeled by its right boundary.
+            Creates groups of values - buckets - out of a `@timestamp` attribute using either a fixed step width
+            or a target bucket count.
+            Unlike [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md),
+            which aligns buckets to calendar boundaries, TSTEP uses a fixed-width UTC grid anchored at the start
+            of the query range. Each bucket is labeled by its right boundary.
+            When a target bucket count is provided, TSTEP derives a fixed step width from the query range.
+            The derived step is rounded up so that the result uses no more than the target number of buckets.
 
             When using ES|QL in Kibana, the range can be derived automatically from the
             [`@timestamp` filter](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter)
@@ -114,7 +117,8 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         Source source,
         @Param(name = "step", type = { "time_duration", "integer", "long" }, description = """
             Fixed bucket width on a UTC grid, or a target bucket count. When a bucket count is provided,
-            the actual step width is derived from `from` and `to` by dividing the range into equal intervals.
+            the actual step width is derived from `from` and `to` and rounded up so the target bucket count
+            is not exceeded.
             TSTEP always needs a range to anchor the grid; when `from` and `to` are omitted,
             the range is derived from the request `@timestamp` filter.""") Expression stepOrBuckets,
         @Param(
@@ -401,9 +405,10 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         long count = ((Number) folded).longValue();
         long scaled = 1000L * count;
         if ((count <= Long.MAX_VALUE / 1000L) && (range >= scaled)) {
+            // Prefer whole-second steps once the derived step reaches second-scale.
             return Math.ceilDiv(range, scaled) * 1000L;
         }
-
+        // Keep millisecond precision for sub-second derived steps.
         return Math.ceilDiv(range, count);
     }
 

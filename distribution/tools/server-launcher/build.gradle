@@ -25,6 +25,7 @@ configurations {
 
 dependencies {
   implementation project(':libs:server-launcher-common')
+  implementation project(':libs:cli-terminal')
   testImplementation project(':test:framework')
 }
 

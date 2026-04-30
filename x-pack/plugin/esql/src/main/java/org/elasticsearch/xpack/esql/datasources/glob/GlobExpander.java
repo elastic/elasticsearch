@@ -215,8 +215,8 @@ public final class GlobExpander {
                 return FileList.UNRESOLVED;
             }
             // Hints resolved all wildcards to a concrete path — resolve via exists()
-            if (provider.exists(storagePath)) {
-                var obj = provider.newObject(storagePath);
+            var obj = provider.newObject(storagePath);
+            if (obj.exists()) {
                 StorageEntry entry = new StorageEntry(storagePath, obj.length(), obj.lastModified());
                 PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), hivePartitioning, partitionConfig, config);
                 return new GenericFileList(List.of(entry), pattern, partitionMetadata);
@@ -235,8 +235,8 @@ public final class GlobExpander {
                 String prefixStr = prefix.toString();
                 for (String candidate : candidates) {
                     StoragePath fullPath = StoragePath.of(prefixStr + candidate);
-                    if (provider.exists(fullPath)) {
-                        var obj = provider.newObject(fullPath);
+                    var obj = provider.newObject(fullPath);
+                    if (obj.exists()) {
                         matched.add(new StorageEntry(fullPath, obj.length(), obj.lastModified()));
                     }
                     checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
@@ -389,8 +389,8 @@ public final class GlobExpander {
                     allEntries.addAll(g.files());
                 }
             } else {
-                if (provider.exists(segmentPath)) {
-                    var obj = provider.newObject(segmentPath);
+                var obj = provider.newObject(segmentPath);
+                if (obj.exists()) {
                     allEntries.add(new StorageEntry(segmentPath, obj.length(), obj.lastModified()));
                     checkDiscoveredFilesLimit(allEntries.size(), maxDiscoveredFiles);
                 }

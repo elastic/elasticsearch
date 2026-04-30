@@ -18,9 +18,9 @@ application {
     mainClass = 'org.elasticsearch.test.knn.StatelessKnnIndexTester'
 }
 
-tasks.named('assemble').configure { enabled = false }
-tasks.named('test').configure { enabled = false }
-tasks.named('javadoc').configure { enabled = false }
+tasks.named('jar').configure {
+  archiveClassifier = 'stateless'
+}
 
 tasks.register('printClasspath') {
     group = 'Help'

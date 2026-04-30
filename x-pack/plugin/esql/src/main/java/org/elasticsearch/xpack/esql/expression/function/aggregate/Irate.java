@@ -114,7 +114,7 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         this(source, field, filter, window, timestamp, AGGREGATOR_V2, temporality);
     }
 
-    Irate(
+    public Irate(
         Source source,
         Expression field,
         Expression filter,
@@ -123,11 +123,16 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         Expression aggregatorVersion,
         @Nullable Expression temporality
     ) {
-        super(source, field, filter, window, temporality == null ? List.of(timestamp) : List.of(timestamp, temporality));
+        super(
+            source,
+            field,
+            filter,
+            window,
+            temporality == null ? List.of(timestamp, aggregatorVersion) : List.of(timestamp, aggregatorVersion, temporality)
+        );
         this.timestamp = timestamp;
         this.temporality = temporality;
         this.aggregatorVersion = aggregatorVersion;
-        assert aggregatorVersion instanceof Literal : "Aggregator version must be a literal";
     }
 
     private static Irate readFrom(StreamInput in) throws IOException {
@@ -203,8 +208,8 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
             newChildren.get(1),
             newChildren.get(2),
             newChildren.get(3),
-            aggregatorVersion,
-            newChildren.size() > 4 ? newChildren.get(4) : null
+            newChildren.get(4),
+            newChildren.size() > 5 ? newChildren.get(5) : null
         );
     }
 
@@ -225,6 +230,7 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     public AggregatorFunctionSupplier supplier() {
+        assert aggregatorVersion instanceof Literal : "Aggregator version must be a literal";
         final DataType type = field().dataType();
         final DataType tsType = timestamp().dataType();
         final boolean isDateNanos = tsType == DataType.DATE_NANOS;

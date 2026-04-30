@@ -241,8 +241,8 @@ public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFie
         }
 
         /**
-         * Returns the text value of the input, or {@code null} if no input was provided or the input is not a single text entry.
-         * Provided for backward compatibility; prefer {@link #input()} for new code.
+         * Returns the text value of the input, or {@code null} if no input was provided.
+         * Only valid for single-element text inputs; prefer {@link #input()} for new code that may handle non-text data.
          */
         @Nullable
         public String query() {

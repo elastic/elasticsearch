@@ -210,24 +210,50 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
         });
 
         switch (taskType) {
-            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                InferenceAction.INSTANCE,
-                new InferenceAction.Request(
-                    taskType,
-                    inferenceId,
-                    null,
-                    null,
-                    null,
-                    List.of(input.textValue()),
-                    Map.of(),
-                    InputType.INTERNAL_SEARCH,
-                    null,
-                    false
-                ),
-                responseListener
-            );
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
+                if (input.containsNonTextEntry()) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "Non-text input is not supported for ["
+                                + taskType
+                                + "] inference endpoints for inference_id ["
+                                + inferenceId
+                                + "]"
+                        )
+                    );
+                    return;
+                }
+                if (input.containsMultipleInferenceStrings()) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "Multiple text inputs are not supported for ["
+                                + taskType
+                                + "] inference endpoints for inference_id ["
+                                + inferenceId
+                                + "]"
+                        )
+                    );
+                    return;
+                }
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    InferenceAction.INSTANCE,
+                    new InferenceAction.Request(
+                        taskType,
+                        inferenceId,
+                        null,
+                        null,
+                        null,
+                        List.of(input.textValue()),
+                        Map.of(),
+                        InputType.INTERNAL_SEARCH,
+                        null,
+                        false
+                    ),
+                    responseListener
+                );
+            }
             case EMBEDDING -> executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,

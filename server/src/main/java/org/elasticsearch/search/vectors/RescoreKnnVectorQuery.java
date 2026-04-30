@@ -12,7 +12,6 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.ConjunctionUtils;
@@ -57,21 +56,13 @@ import java.util.Objects;
 public abstract class RescoreKnnVectorQuery extends Query implements QueryProfilerProvider {
     protected final String fieldName;
     protected final float[] floatTarget;
-    protected final VectorSimilarityFunction vectorSimilarityFunction;
     protected final int k;
     protected final Query innerQuery;
     protected long vectorOperations = 0;
 
-    private RescoreKnnVectorQuery(
-        String fieldName,
-        float[] floatTarget,
-        VectorSimilarityFunction vectorSimilarityFunction,
-        int k,
-        Query innerQuery
-    ) {
+    private RescoreKnnVectorQuery(String fieldName, float[] floatTarget, int k, Query innerQuery) {
         this.fieldName = fieldName;
         this.floatTarget = floatTarget;
-        this.vectorSimilarityFunction = vectorSimilarityFunction;
         this.k = k;
         this.innerQuery = innerQuery;
     }
@@ -81,26 +72,18 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
      *
      * @param fieldName                the name of the field containing the vector
      * @param floatTarget              the target vector to compare against
-     * @param vectorSimilarityFunction the similarity function to apply
      * @param k                        the number of top documents to return after rescoring
      * @param rescoreK                 the number of top documents to consider for rescoring
      * @param innerQuery               the original Lucene query to rescore
      */
-    public static RescoreKnnVectorQuery fromInnerQuery(
-        String fieldName,
-        float[] floatTarget,
-        VectorSimilarityFunction vectorSimilarityFunction,
-        int k,
-        int rescoreK,
-        Query innerQuery
-    ) {
+    public static RescoreKnnVectorQuery fromInnerQuery(String fieldName, float[] floatTarget, int k, int rescoreK, Query innerQuery) {
         if ((innerQuery instanceof KnnFloatVectorQuery fQuery && fQuery.getK() == rescoreK)
             || (innerQuery instanceof KnnByteVectorQuery bQuery && bQuery.getK() == rescoreK)
             || (innerQuery instanceof AbstractIVFKnnVectorQuery ivfQuery && ivfQuery.k == rescoreK)) {
             // Queries that return only the top `k` results and do not require reduction before re-scoring.
-            return new InlineRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
+            return new InlineRescoreQuery(fieldName, floatTarget, k, innerQuery);
         }
-        return new LateRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, rescoreK, innerQuery);
+        return new LateRescoreQuery(fieldName, floatTarget, k, rescoreK, innerQuery);
     }
 
     public Query innerQuery() {
@@ -132,14 +115,13 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         RescoreKnnVectorQuery that = (RescoreKnnVectorQuery) o;
         return Objects.equals(fieldName, that.fieldName)
             && Arrays.equals(floatTarget, that.floatTarget)
-            && vectorSimilarityFunction == that.vectorSimilarityFunction
             && Objects.equals(k, that.k)
             && Objects.equals(innerQuery, that.innerQuery);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, Arrays.hashCode(floatTarget), vectorSimilarityFunction, k, innerQuery);
+        return Objects.hash(fieldName, Arrays.hashCode(floatTarget), k, innerQuery);
     }
 
     @Override
@@ -152,8 +134,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             + ", floatTarget="
             + floatTarget[0]
             + "..."
-            + ", vectorSimilarityFunction="
-            + vectorSimilarityFunction
             + ", k="
             + k
             + ", vectorQuery="
@@ -162,14 +142,8 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
     }
 
     private static class InlineRescoreQuery extends RescoreKnnVectorQuery {
-        private InlineRescoreQuery(
-            String fieldName,
-            float[] floatTarget,
-            VectorSimilarityFunction vectorSimilarityFunction,
-            int k,
-            Query innerQuery
-        ) {
-            super(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
+        private InlineRescoreQuery(String fieldName, float[] floatTarget, int k, Query innerQuery) {
+            super(fieldName, floatTarget, k, innerQuery);
         }
 
         @Override
@@ -196,15 +170,8 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
     private static class LateRescoreQuery extends RescoreKnnVectorQuery {
         final int rescoreK;
 
-        private LateRescoreQuery(
-            String fieldName,
-            float[] floatTarget,
-            VectorSimilarityFunction vectorSimilarityFunction,
-            int k,
-            int rescoreK,
-            Query innerQuery
-        ) {
-            super(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
+        private LateRescoreQuery(String fieldName, float[] floatTarget, int k, int rescoreK, Query innerQuery) {
+            super(fieldName, floatTarget, k, innerQuery);
             this.rescoreK = rescoreK;
         }
 

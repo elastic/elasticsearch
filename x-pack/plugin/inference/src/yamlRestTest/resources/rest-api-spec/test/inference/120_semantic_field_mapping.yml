@@ -38,3 +38,87 @@ setup:
 
   - match: { test-semantic-field-index.mappings.properties.my_field.type: semantic }
   - match: { test-semantic-field-index.mappings.properties.my_field.inference_id: embedding-inference-id }
+
+---
+"Semantic field can index a mix of text and image chunks":
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: doc_1
+        body:
+          _inference_fields.my_field:
+            inference:
+              inference_id: embedding-inference-id
+              model_settings:
+                task_type: embedding
+                dimensions: 4
+                similarity: cosine
+                element_type: float
+              chunks:
+                my_field:
+                  - start_offset: 0
+                    end_offset: 19
+                    embeddings: [ 1, 2, 3, 4 ]
+                  - input_index: 0
+                    embeddings: [ 5, 6, 7, 8 ]
+                  - start_offset: 20
+                    end_offset: 25
+                    embeddings: [ 9, 10, 11, 12 ]
+                  - input_index: 1
+                    embeddings: [ 12, 11, 10, 9 ]
+                  - start_offset: 26
+                    end_offset: 54
+                    embeddings: [ 8, 7, 6, 5 ]
+                  - input_index: 2
+                    embeddings: [ 4, 3, 2, 1 ]
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            match_all: { }
+          _source:
+            exclude_vectors: false
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source._inference_fields.my_field.inference.inference_id: embedding-inference-id }
+  - match: { hits.hits.0._source._inference_fields.my_field.inference.model_settings.task_type: embedding }
+  - match: { hits.hits.0._source._inference_fields.my_field.inference.model_settings.dimensions: 4 }
+
+  # Chunk 0: text/offset form
+  - match: { hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.0.end_offset: 19 }
+  - exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.0.embeddings
+  - not_exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.0.input_index
+
+  # Chunk 1: input_index form
+  - match: { hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.1.input_index: 0 }
+  - exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.1.embeddings
+  - not_exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.1.start_offset
+  - not_exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.1.end_offset
+
+  # Chunk 2: text/offset form
+  - match: { hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.2.start_offset: 20 }
+  - match: { hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.2.end_offset: 25 }
+  - exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.2.embeddings
+  - not_exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.2.input_index
+
+  # Chunk 3: input_index form
+  - match: { hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.3.input_index: 1 }
+  - exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.3.embeddings
+  - not_exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.3.start_offset
+  - not_exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.3.end_offset
+
+  # Chunk 4: text/offset form
+  - match: { hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.4.start_offset: 26 }
+  - match: { hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.4.end_offset: 54 }
+  - exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.4.embeddings
+  - not_exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.4.input_index
+
+  # Chunk 5: input_index form
+  - match: { hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.5.input_index: 2 }
+  - exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.5.embeddings
+  - not_exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.5.start_offset
+  - not_exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.5.end_offset

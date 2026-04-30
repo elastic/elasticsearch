@@ -30,6 +30,7 @@ You can pass an `X-Opaque-Id` HTTP header to track the origin of a request in {{
 * [Task management API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-tasks) response
 * [Slow logs](/reference/elasticsearch/index-settings/slow-log.md)
 * [Deprecation logs](docs-content://deploy-manage/monitor/logging-configuration/elasticsearch-deprecation-logs.md)
+* {applies_to}`stack: preview 9.4` {applies_to}`serverless: unavailable` [Query logs](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md)
 
 For the deprecation logs, {{es}} also uses the `X-Opaque-Id` value to throttle and deduplicate deprecation warnings. See [Deprecation logs throttling](docs-content://deploy-manage/monitor/logging-configuration/elasticsearch-deprecation-logs.md).
 

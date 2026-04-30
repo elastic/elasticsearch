@@ -154,7 +154,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -178,7 +178,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -205,7 +205,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -224,7 +224,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -243,7 +243,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 
@@ -263,7 +263,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            () -> licenseState,
+            licenseState,
             Clock.systemUTC()
         );
 

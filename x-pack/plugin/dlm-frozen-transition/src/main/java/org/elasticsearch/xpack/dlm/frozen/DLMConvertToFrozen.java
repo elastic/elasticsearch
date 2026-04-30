@@ -88,7 +88,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT;
@@ -119,7 +118,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     private final ProjectId projectId;
     private final Client client;
     private final ClusterService clusterService;
-    private final Supplier<XPackLicenseState> licenseStateSupplier;
+    private final XPackLicenseState licenseState;
     private final Clock clock;
 
     public DLMConvertToFrozen(
@@ -127,14 +126,14 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         ProjectId projectId,
         Client client,
         ClusterService clusterService,
-        Supplier<XPackLicenseState> licenseStateSupplier,
+        XPackLicenseState licenseState,
         Clock clock
     ) {
         this.indexName = indexName;
         this.projectId = projectId;
         this.client = client;
         this.clusterService = clusterService;
-        this.licenseStateSupplier = licenseStateSupplier;
+        this.licenseState = licenseState;
         this.clock = clock;
     }
 
@@ -224,7 +223,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             );
         }
 
-        if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseStateSupplier.get()) == false) {
+        if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
             throw LicenseUtils.newComplianceException("searchable-snapshots");
         }
     }

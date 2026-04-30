@@ -5,7 +5,7 @@ apply plugin: 'java-library'
 apply plugin: 'application'
 
 dependencies {
-    // The elasticsearch modules-self-managed:vector module (KnnIndexTester and friends)
+    // The elasticsearch vector module (KnnIndexTester and friends)
     api project(':qa:vector')
     api(project(':x-pack:plugin:stateless')) {
         capabilities {
@@ -18,9 +18,9 @@ application {
     mainClass = 'org.elasticsearch.test.knn.StatelessKnnIndexTester'
 }
 
-tasks.named('assemble').configure { enabled = false }
-tasks.named('test').configure { enabled = false }
-tasks.named('javadoc').configure { enabled = false }
+tasks.named('jar').configure {
+  archiveClassifier = 'stateless'
+}
 
 tasks.register('printClasspath') {
     group = 'Help'

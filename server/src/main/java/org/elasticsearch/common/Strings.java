@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -867,18 +866,6 @@ public class Strings {
     }
 
     /**
-     * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
-     * @deprecated don't add usages of this method, it will be removed eventually. Use {@link #toTruncatedString(ChunkedToXContent, int)}
-     *             instead.
-     * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
-     */
-    @Deprecated
-    @SuppressForbidden(reason = "overload of a forbidden method")
-    public static String toString(ChunkedToXContent chunkedToXContent) {
-        return toString(chunkedToXContent, false, false);
-    }
-
-    /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
      * Wraps the output into an anonymous object if needed.
      * Allows to configure the params.
@@ -910,18 +897,6 @@ public class Strings {
      */
     public static String toString(ToXContent toXContent, boolean pretty, boolean human) {
         return toString(toXContent, ToXContent.EMPTY_PARAMS, pretty, human);
-    }
-
-    /**
-     * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
-     * Allows to control whether the outputted json needs to be pretty printed and human readable.
-     * @deprecated don't add usages of this method, it will be removed eventually. Use
-     *             {@link #toTruncatedString(ChunkedToXContent, int, boolean, boolean)} instead.
-     * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
-     */
-    @Deprecated
-    public static String toString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
-        return toString(ChunkedToXContent.wrapAsToXContent(chunkedToXContent), pretty, human);
     }
 
     /**

@@ -34,6 +34,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldStorageVerifier;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -815,5 +816,28 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
                 assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             }
         }
+    }
+
+    public void testSingleValueIsAcceptedWhenMultiValueNo() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "match_only_text").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+        mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(5))));
+    }
+
+    public void testSecondValueIsRejectedWhenMultiValueNo() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "match_only_text").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(3), randomAlphanumericOfLength(4))))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
     }
 }

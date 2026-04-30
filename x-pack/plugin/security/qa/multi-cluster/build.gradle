@@ -32,6 +32,8 @@ dependencies {
   clusterModules project(':x-pack:plugin:ml')
   clusterModules project(':x-pack:plugin:inference')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+  // exposes /_flush_telemetry for RemoteClusterSecurityWithApmTracingRestIT
+  clusterModules project(':test:external-modules:test-apm-integration')
 }
 
 tasks.named("javaRestTest") {

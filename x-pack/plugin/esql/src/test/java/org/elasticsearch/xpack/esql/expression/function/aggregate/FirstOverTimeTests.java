@@ -49,7 +49,12 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
                 .stream()
                 .map(s -> s.withAppliesTo(expHistogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
                 .toList(),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramGaAppliesTo)).toList()
+            MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramGaAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.dateCases(1, 1000),
+            MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.ipCases(1, 1000),
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         );
         for (List<TestCaseSupplier.TypedDataSupplier> valuesSupplier : valuesSuppliers) {
             for (TestCaseSupplier.TypedDataSupplier fieldSupplier : valuesSupplier) {
@@ -104,7 +109,7 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
             }
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField),
-                standardAggregatorName("First", type) + "ByTimestamp",
+                standardAggregatorNameAllBytesTheSame("First", type) + "ByTimestamp",
                 fieldSupplier.type(),
                 equalTo(expected)
             );

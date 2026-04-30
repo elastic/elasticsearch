@@ -44,6 +44,14 @@ import java.util.Locale;
  *   FROM s3://bucket/data.csv WITH {"error_mode": "null_field"}
  * }
  *
+ * <h2>Client-visible warnings</h2>
+ * Whenever the non-strict modes ({@link Mode#SKIP_ROW} and {@link Mode#NULL_FIELD}) cause a row to be
+ * dropped or a field to be null-filled, format readers emit response {@code Warning} headers via
+ * {@link SkipWarnings}: a one-time summary identifying the file, plus per-event details capped at
+ * {@link SkipWarnings#MAX_ADDED_WARNINGS} entries (further events collapse into a single
+ * "further warnings suppressed" line). This is independent of {@code logErrors}, which still only
+ * controls server-side WARN logging.
+ *
  * @param mode           how to handle rows with parse errors
  * @param maxErrors      maximum number of errors to tolerate before failing
  *                       (only meaningful for {@code SKIP_ROW} and {@code NULL_FIELD})
@@ -116,6 +124,15 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
 
     public boolean isPermissive() {
         return mode == Mode.NULL_FIELD;
+    }
+
+    /**
+     * Lowercase, locale-insensitive name of {@link #mode()}, suitable for user-facing messages
+     * (e.g. {@code "skip_row"}, {@code "null_field"}). Matches the parser input accepted by
+     * {@link Mode#parse(String)}.
+     */
+    public String modeName() {
+        return mode.name().toLowerCase(Locale.ROOT);
     }
 
     /**

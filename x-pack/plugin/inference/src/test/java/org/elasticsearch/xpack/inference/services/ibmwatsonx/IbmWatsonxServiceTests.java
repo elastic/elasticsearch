@@ -97,7 +97,6 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -642,7 +641,6 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -677,7 +675,6 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -1141,17 +1138,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             );
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        "id",
-                        IbmWatsonxService.NAME,
-                        IbmWatsonxService.NAME,
-                        TaskType.SPARSE_EMBEDDING
-                    )
-                )
+                is(Strings.format("The [%s] service does not support task type [%s]", IbmWatsonxService.NAME, TaskType.SPARSE_EMBEDDING))
 
             );
         }

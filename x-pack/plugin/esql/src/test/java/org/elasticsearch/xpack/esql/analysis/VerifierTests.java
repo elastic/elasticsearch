@@ -1679,12 +1679,56 @@ public class VerifierTests extends ESTestCase {
             "from test | mv_expand id | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
         );
+        fullText().error(
+            "from test | limit 1 by id | where " + functionInvocation,
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
+        );
+        fullText().error(
+            "from test | sort id | limit 1 by id | where " + functionInvocation,
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
+        );
         fullText().stripErrorPrefix(false)
             .error(
                 "from test | mv_expand " + fieldName + " | where " + functionInvocation,
                 allOf(
                     containsString("Found 1 problem"),
                     containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
+                )
+            );
+    }
+
+    public void testFullTextFunctionsAfterFork() {
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where title : \"data\"",
+            containsString("[:] operator cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
+            containsString("[MATCH] function cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")",
+            containsString("[MatchPhrase] function cannot be used after FORK")
+        );
+        fullText().stripErrorPrefix(false)
+            .error(
+                "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
+                allOf(containsString("Found 1 problem"), containsString("[MATCH] function cannot be used after FORK"))
+            );
+    }
+
+    public void testFullTextFunctionsAfterForkWithEvalInBranch() {
+        fullText().stripErrorPrefix(false)
+            .error(
+                "from test metadata _id, _index, _score "
+                    + "| fork (where true) (where true | EVAL title = \"abc\") "
+                    + "| keep title "
+                    + "| where title : \"data\"",
+                allOf(
+                    containsString("Found 3 problems"),
+                    containsString("[:] operator cannot be used after FORK"),
+                    containsString("[:] operator cannot operate on [title], which is not a field from an index mapping"),
+                    containsString("Column [title] has conflicting data types in FORK branches: [KEYWORD] and [TEXT]")
                 )
             );
     }

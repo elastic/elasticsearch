@@ -26,6 +26,35 @@ The repository is organized into several key directories:
 *   `x-pack`: Additional code modules and plugins under Elastic License.
 *   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic. Refer to BUILDING.md for details on how these are structured and used.
 
+## Stateless Elasticsearch
+
+Stateless Elasticsearch is a distribution where shard data is stored in an **object store** (e.g., S3, GCS, Azure) rather than local disk. Nodes carry no durable local state. The cluster distinguishes two node roles: **indexing nodes** (`index` role, write path + translog replication to object store) and **search nodes** (`search` role, read-only via shared blob cache). The `DiscoveryNode.STATELESS_ENABLED_SETTING` gates stateless behavior at runtime.
+
+### Plugin `deploymentTarget`
+
+Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node **whether to load the plugin**: **`STATEFUL_ONLY`** (stateful clusters only), **`STATELESS_ONLY`** (stateless mode on only), or **`ALL`** (always loaded; this is the default when the property is omitted).
+
+### Plugin locations
+
+| Plugin | Gradle path | Purpose |
+|---|---|---|
+| `stateless` | `:x-pack:plugin:stateless` | Core stateless — engines, allocation, cache, object store, recovery |
+| `stateless-sigterm` | `:x-pack:plugin:stateless-sigterm` | Clean SIGTERM shutdown for Kubernetes |
+| `stateless-master-failover` | `:x-pack:plugin:stateless-master-failover` | Master failover behavior |
+| `stateless-no-wait-for-active-shards` | `:x-pack:plugin:stateless-no-wait-for-active-shards` | Suppresses wait-for-active-shards |
+| `stateless-health-shards-availability` | `:x-pack:plugin:stateless-health-shards-availability` | Shard availability health indicators |
+
+**Package**: `org.elasticsearch.xpack.stateless.*` throughout.
+
+### Key subsystems
+
+- **Object store** (`objectstore/`): `ObjectStoreService`, bucket config, GC tasks for stale indices and translogs.
+- **Commits** (`commits/`): `StatelessCommitService` manages shard commits to blob store; `HollowShardsService` manages hollow indexing shards.
+- **Cache & prewarming** (`cache/`): `StatelessSharedBlobCacheService`, online prewarming, `SearchCommitPrefetcher`.
+- **Engines** (`engine/`): `IndexEngine` (write path) and `SearchEngine` (read-only); `TranslogReplicator` replicates translog to object store.
+- **Allocation** (`allocation/`): `StatelessExistingShardsAllocator`, separate balancing weights per tier, heap-usage-aware allocation decisions.
+- **Recovery** (`recovery/`): custom primary relocation and unpromotable shard relocation protocols.
+
 ## Testing Cheatsheet
 - Standard suite: `./gradlew test` (respects cached results; add `-Dtests.timestamp=$(date +%s)` to bypass caches when reusing seeds).
 - Single project: `./gradlew :server:test` (or other subproject path).

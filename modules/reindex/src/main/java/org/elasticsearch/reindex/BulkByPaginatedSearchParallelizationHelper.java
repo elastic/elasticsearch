@@ -153,7 +153,7 @@ class BulkByPaginatedSearchParallelizationHelper {
         int slices
     ) {
         if (slices > 1) {
-            task.setWorkerCount(slices);
+            task.setWorkerCount(slices, request.getRequestsPerSecond());
         } else {
             SliceBuilder sliceBuilder = request.getSearchRequest().source().slice();
             Integer sliceId = sliceBuilder == null ? null : sliceBuilder.getId();
@@ -182,6 +182,14 @@ class BulkByPaginatedSearchParallelizationHelper {
         assert request.getResumeInfo().isEmpty() || totalSlices == request.getResumeInfo().get().getTotalSlices()
             : "If resuming, the total slices in the resume info should match the total slices in the task state";
 
+        final int activeSlices;
+        if (request.getResumeInfo().isPresent()) {
+            activeSlices = (int) request.getResumeInfo().get().slices().values().stream().filter(s -> s.isCompleted() == false).count();
+            assert activeSlices > 0 : "if resuming, there should be at least one active slice";
+        } else {
+            activeSlices = totalSlices;
+        }
+
         SearchRequest[] searchRequests = sliceIntoSubRequests(request.getSearchRequest(), IdFieldMapper.NAME, totalSlices);
         for (int sliceId = 0; sliceId < searchRequests.length; sliceId++) {
             // If a resumed slice was already completed, skip sending the request and directly record the result
@@ -198,7 +206,7 @@ class BulkByPaginatedSearchParallelizationHelper {
 
             TaskId parentTaskId = new TaskId(localNodeId, task.getId());
             SearchRequest searchRequest = searchRequests[sliceId];
-            Request requestForSlice = request.forSlice(parentTaskId, searchRequest, totalSlices);
+            Request requestForSlice = request.forSlice(parentTaskId, searchRequest, totalSlices, activeSlices);
             ActionListener<BulkByScrollResponse> sliceListener = ActionListener.wrap(
                 r -> leader.onSliceResponse(listener, searchRequest.source().slice().getId(), r),
                 e -> leader.onSliceFailure(listener, searchRequest.source().slice().getId(), e)

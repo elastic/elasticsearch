@@ -50,6 +50,18 @@ public class BertJapaneseTokenizationUpdateTests extends AbstractBWCWireSerializ
         assertThat(new BertJapaneseTokenizationUpdate(null, null).apply(unmodified), sameInstance(unmodified));
     }
 
+    /**
+     * {@link Tokenization.Truncate#NONE} with a span plus an update to span-incompatible {@code truncate} and omitted
+     * {@code span} merges the old span and fails {@link Tokenization#validateSpanAndTruncate}.
+     */
+    public void testApplyIncompatibleTruncateWithInheritedSpanThrows() {
+        var windowing = new BertJapaneseTokenization(false, false, 512, Tokenization.Truncate.NONE, 50);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new BertJapaneseTokenizationUpdate(Tokenization.Truncate.FIRST, null).apply(windowing)
+        );
+    }
+
     public void testNoop() {
         assertTrue(new BertJapaneseTokenizationUpdate(null, null).isNoop());
         assertFalse(new BertJapaneseTokenizationUpdate(Tokenization.Truncate.SECOND, null).isNoop());

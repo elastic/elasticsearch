@@ -50,6 +50,15 @@ public class BertTokenizationUpdateTests extends AbstractBWCWireSerializationTes
         assertThat(new BertTokenizationUpdate(null, null).apply(unmodified), sameInstance(unmodified));
     }
 
+    /**
+     * {@link Tokenization.Truncate#NONE} with a span plus an update to span-incompatible {@code truncate} and omitted
+     * {@code span} merges the old span and fails {@link Tokenization#validateSpanAndTruncate}.
+     */
+    public void testApplyIncompatibleTruncateWithInheritedSpanThrows() {
+        var windowing = new BertTokenization(false, false, 512, Tokenization.Truncate.NONE, 50);
+        expectThrows(IllegalArgumentException.class, () -> new BertTokenizationUpdate(Tokenization.Truncate.FIRST, null).apply(windowing));
+    }
+
     public void testNoop() {
         assertTrue(new BertTokenizationUpdate(null, null).isNoop());
         assertFalse(new BertTokenizationUpdate(Tokenization.Truncate.SECOND, null).isNoop());

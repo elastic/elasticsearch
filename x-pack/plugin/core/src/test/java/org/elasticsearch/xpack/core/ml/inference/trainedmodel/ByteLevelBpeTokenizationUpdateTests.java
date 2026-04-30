@@ -71,6 +71,30 @@ public class ByteLevelBpeTokenizationUpdateTests extends AbstractBWCWireSerializ
         assertThat(new ByteLevelBpeTokenizationUpdate(null, null).apply(unmodified), sameInstance(unmodified));
     }
 
+    /**
+     * {@link Tokenization.Truncate#NONE} with a span plus an update to span-incompatible {@code truncate} and omitted
+     * {@code span} merges the old span and fails {@link Tokenization#validateSpanAndTruncate}.
+     */
+    public void testApplyIncompatibleTruncateWithInheritedSpanThrows() {
+        var windowing = new ByteLevelBpeTokenization(
+            false,
+            false,
+            512,
+            Tokenization.Truncate.NONE,
+            50,
+            false,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ByteLevelBpeTokenizationUpdate(Tokenization.Truncate.FIRST, null).apply(windowing)
+        );
+    }
+
     @Override
     protected Writeable.Reader<ByteLevelBpeTokenizationUpdate> instanceReader() {
         return ByteLevelBpeTokenizationUpdate::new;

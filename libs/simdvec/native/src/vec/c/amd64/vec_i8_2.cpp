@@ -205,6 +205,16 @@ static inline int32_t doti8_inner_bulk(const int8_t* a, const int8_t* b, const i
 //
 // The single-pair scorer `doti8_inner_bulk` above uses the same dim-axis
 // pattern under its local `batches` constant.
+//
+// Prefetch strategy (head + spread):
+//   - At each batch boundary, software-prefetches the first `unroll_dim`
+//     cache lines of every next-batch vector so the very first inner-loop
+//     iter never waits on a demand miss.
+//   - At each inner iter, software-prefetches the next `unroll_dim` lines
+//     (the lines that the *next* outer iter will consume) of every
+//     next-batch vector. Spreading the issues across the inner loop keeps
+//     the L1d fill buffer occupancy below the per-core ceiling and lets the
+//     prefetched lines arrive ~1 outer iter before they are used.
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
@@ -232,7 +242,10 @@ static inline void doti8_bulk(
         if (has_next) {
             apply_indexed<batches>([&](auto I) {
                 next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
-                prefetch(next_vecs[I], lines_to_fetch);
+                const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
+                apply_indexed<unroll_dim>([&](auto K) {
+                    _mm_prefetch((const void*)(base + K * CACHE_LINE_SIZE), _MM_HINT_T0);
+                });
             });
         }
 
@@ -246,6 +259,18 @@ static inline void doti8_bulk(
 
         int i = 0;
         for (; i + dimStride <= blk; i += dimStride) {
+            if (has_next) {
+                const int next_line_start = i / CACHE_LINE_SIZE + unroll_dim;
+                apply_indexed<unroll_dim>([&](auto U) {
+                    const int line = next_line_start + U;
+                    if (line < lines_to_fetch) {
+                        apply_indexed<batches>([&](auto I) {
+                            const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
+                            _mm_prefetch((const void*)(base + line * CACHE_LINE_SIZE), _MM_HINT_T0);
+                        });
+                    }
+                });
+            }
             apply_indexed<unroll_dim>([&](auto U) {
                 __m512i bv = _mm512_loadu_si512((const __m512i*)(b + i + U * stride));
                 apply_indexed<batches>([&](auto I) {
@@ -264,6 +289,15 @@ static inline void doti8_bulk(
                 acc[I] = tree_reduce<unroll_dim, __m512i, _mm512_add_epi32>(&acc[I * unroll_dim]);
             });
             for (; i + stride <= blk; i += stride) {
+                if (has_next) {
+                    const int line = i / CACHE_LINE_SIZE + 1;
+                    if (line < lines_to_fetch) {
+                        apply_indexed<batches>([&](auto I) {
+                            const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
+                            _mm_prefetch((const void*)(base + line * CACHE_LINE_SIZE), _MM_HINT_T0);
+                        });
+                    }
+                }
                 __m512i bv = _mm512_loadu_si512((const __m512i*)(b + i));
                 apply_indexed<batches>([&](auto I) {
                     __m512i av = _mm512_loadu_si512((const __m512i*)(current_vecs[I] + i));
@@ -403,6 +437,10 @@ EXPORT f32_t vec_sqri8_2(const int8_t* a, const int8_t* b, const int32_t dims) {
 //
 // The single-vector scorer `sqri8_inner` above uses the multi-accumulator
 // trick on the dim axis; bulk-side parallelism here comes from the batch axis.
+//
+// Prefetch strategy: head=1 + 1-line spread per cache-line boundary. Inner
+// step is half a cache line (32 bytes) so the spread prefetch is gated to
+// fire only on the iter that crosses into a new cache line.
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
@@ -426,7 +464,8 @@ static inline void sqri8_bulk(
         if (has_next) {
             apply_indexed<batches>([&](auto I) {
                 next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
-                prefetch(next_vecs[I], lines_to_fetch);
+                const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
+                _mm_prefetch((const void*)base, _MM_HINT_T0);
             });
         }
 
@@ -437,6 +476,15 @@ static inline void sqri8_bulk(
 
         int i = 0;
         for (; i + chunk <= blk; i += chunk) {
+            if (has_next && (i & (CACHE_LINE_SIZE - 1)) == 0) {
+                const int line = i / CACHE_LINE_SIZE + 1;
+                if (line < lines_to_fetch) {
+                    apply_indexed<batches>([&](auto I) {
+                        const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
+                        _mm_prefetch((const void*)(base + line * CACHE_LINE_SIZE), _MM_HINT_T0);
+                    });
+                }
+            }
             __m512i b16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(b + i)));
             apply_indexed<batches>([&](auto I) {
                 __m512i a16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(current_vecs[I] + i)));

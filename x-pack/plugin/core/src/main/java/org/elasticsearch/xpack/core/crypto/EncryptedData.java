@@ -25,7 +25,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * Holds the result of an encryption operation: the key ID that was used and the encrypted payload.
  */
-public record EncryptedData(String keyId, byte[] payload) implements Writeable, ToXContentObject {
+public final class EncryptedData implements Writeable, ToXContentObject {
 
     private static final ParseField KEY_ID_FIELD = new ParseField("key_id");
     private static final ParseField DATA_FIELD = new ParseField("data");
@@ -41,13 +41,26 @@ public record EncryptedData(String keyId, byte[] payload) implements Writeable, 
         PARSER.declareField(constructorArg(), (p, c) -> p.binaryValue(), DATA_FIELD, ObjectParser.ValueType.VALUE);
     }
 
-    public EncryptedData {
-        Objects.requireNonNull(keyId, "keyId must not be null");
+    private final String keyId;
+    private final byte[] payload;
+
+    public EncryptedData(String keyId, byte[] payload) {
+        this.keyId = Objects.requireNonNull(keyId, "keyId must not be null");
         Objects.requireNonNull(payload, "payload must not be null");
+        this.payload = payload.clone();
     }
 
     public EncryptedData(StreamInput in) throws IOException {
-        this(in.readString(), in.readByteArray());
+        this.keyId = in.readString();
+        this.payload = in.readByteArray();
+    }
+
+    public String keyId() {
+        return keyId;
+    }
+
+    public byte[] payload() {
+        return payload.clone();
     }
 
     @Override

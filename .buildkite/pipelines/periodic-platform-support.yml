@@ -11,7 +11,6 @@ steps:
               - debian-12
               - debian-13
               - opensuse-leap-15
-              - oraclelinux-7
               - oraclelinux-8
               - oraclelinux-9
               - oraclelinux-10
@@ -22,7 +21,6 @@ steps:
               - rocky-8
               - rocky-9
               - rocky-10
-              - rhel-7
               - rhel-8
               - rhel-9
               - rhel-10
@@ -35,6 +33,32 @@ steps:
           localSsds: 1
           localSsdInterface: nvme
           machineType: custom-32-98304
+        env: {}
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+  - group: platform-support-unix-legacy
+    steps:
+      - label: "{{matrix.image}} / platform-support-unix-legacy"
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true functionalTests
+        timeout_in_minutes: 420
+        matrix:
+          setup:
+            image:
+              - oraclelinux-7
+              - rhel-7
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          localSsds: 1
+          localSsdInterface: nvme
+          machineType: n1-standard-32
         env: {}
         retry:
           automatic:

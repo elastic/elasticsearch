@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.CompactInvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -100,17 +101,19 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
         Map<String, EsField> mapping = new HashMap<>();
         for (int i = 0; i < MultiTypeEsFieldMemoryTests.NUM_CONFLICTING_FIELDS; i++) {
             String fieldName = "id_" + i;
-            Map<String, Set<String>> perFieldTypesToIndices = new HashMap<>();
-            perFieldTypesToIndices.put("keyword", new HashSet<>());
-            perFieldTypesToIndices.put("integer", new HashSet<>());
+            Set<String> kwIndices = new HashSet<>();
+            Set<String> intIndices = new HashSet<>();
             for (int j = 0; j < MultiTypeEsFieldMemoryTests.NUM_INDICES; j++) {
-                perFieldTypesToIndices.get(j % 2 == 0 ? "keyword" : "integer").add("idx_" + j);
+                (j % 2 == 0 ? kwIndices : intIndices).add("idx_" + j);
             }
             mapping.put(
                 fieldName,
                 compact
-                    ? new CompactInvalidMappedField(fieldName, perFieldTypesToIndices)
-                    : new InvalidMappedField(fieldName, perFieldTypesToIndices)
+                    ? new CompactInvalidMappedField(fieldName, Map.of(DataType.KEYWORD, kwIndices, DataType.INTEGER, intIndices))
+                    : new InvalidMappedField(
+                        fieldName,
+                        Map.of(DataType.KEYWORD.typeName(), kwIndices, DataType.INTEGER.typeName(), intIndices)
+                    )
             );
         }
         return IndexResolution.valid(new EsIndex("idx*", mapping, indexNamesWithModes, Map.of(), Map.of()));

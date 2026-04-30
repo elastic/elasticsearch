@@ -28,10 +28,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CompactInvalidMappedFieldTests extends ESTestCase {
     public void testKeepsAllIndicesWhenAtOrBelowLimit() {
-        Map<String, Set<String>> input = Map.of(
-            DataType.KEYWORD.typeName(),
+        Map<DataType, Set<String>> input = Map.of(
+            DataType.KEYWORD,
             new LinkedHashSet<>(Set.of("idx_a", "idx_b")),
-            DataType.LONG.typeName(),
+            DataType.LONG,
             new LinkedHashSet<>(Set.of("idx_c", "idx_d", "idx_e"))
         );
 
@@ -48,7 +48,7 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
         Set<String> manyIndices = IntStream.range(0, 5_000)
             .mapToObj(i -> Strings.format("idx_%05d", i))
             .collect(Collectors.toCollection(LinkedHashSet::new));
-        Map<String, Set<String>> input = Map.of(DataType.KEYWORD.typeName(), manyIndices);
+        Map<DataType, Set<String>> input = Map.of(DataType.KEYWORD, manyIndices);
 
         CompactInvalidMappedField field = new CompactInvalidMappedField("f", input);
 
@@ -62,7 +62,7 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
         Set<String> manyIndices = IntStream.range(0, 5_000)
             .mapToObj(i -> Strings.format("idx_%05d", i))
             .collect(Collectors.toCollection(LinkedHashSet::new));
-        Map<String, Set<String>> input = new TreeMap<>(Map.of(DataType.KEYWORD.typeName(), manyIndices));
+        Map<DataType, Set<String>> input = new TreeMap<>(Map.of(DataType.KEYWORD, manyIndices));
 
         String message = new CompactInvalidMappedField("f", input).errorMessage();
 
@@ -72,20 +72,21 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
     }
 
     public void testErrorMessageMatchesInvalidMappedFieldForSmallInputs() {
-        Map<String, Set<String>> input = new TreeMap<>(
-            Map.of(
-                DataType.KEYWORD.typeName(),
-                new LinkedHashSet<>(Set.of("idx_a", "idx_b")),
-                DataType.LONG.typeName(),
-                new LinkedHashSet<>(Set.of("idx_c"))
-            )
+        Set<String> kwIndices = new LinkedHashSet<>(Set.of("idx_a", "idx_b"));
+        Set<String> longIndices = new LinkedHashSet<>(Set.of("idx_c"));
+        Map<DataType, Set<String>> compactInput = new TreeMap<>(Map.of(DataType.KEYWORD, kwIndices, DataType.LONG, longIndices));
+        Map<String, Set<String>> legacyInput = new TreeMap<>(
+            Map.of(DataType.KEYWORD.typeName(), kwIndices, DataType.LONG.typeName(), longIndices)
         );
 
-        assertThat(new CompactInvalidMappedField("f", input).errorMessage(), equalTo(new InvalidMappedField("f", input).errorMessage()));
+        assertThat(
+            new CompactInvalidMappedField("f", compactInput).errorMessage(),
+            equalTo(new InvalidMappedField("f", legacyInput).errorMessage())
+        );
     }
 
     public void testPotentiallyUnmappedFlagAndMessageInsistOnKeyword() {
-        Map<String, Set<String>> input = new TreeMap<>(Map.of(DataType.LONG.typeName(), new LinkedHashSet<>(Set.of("idx_a"))));
+        Map<DataType, Set<String>> input = new TreeMap<>(Map.of(DataType.LONG, new LinkedHashSet<>(Set.of("idx_a"))));
 
         CompactInvalidMappedField field = CompactInvalidMappedField.potentiallyUnmapped("f", input);
 
@@ -95,11 +96,11 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
     }
 
     public void testTypesReflectsKeysOfTruncatedMap() {
-        Map<String, Set<String>> input = new TreeMap<>(
+        Map<DataType, Set<String>> input = new TreeMap<>(
             Map.of(
-                DataType.KEYWORD.typeName(),
+                DataType.KEYWORD,
                 IntStream.range(0, 100).mapToObj(i -> "k" + i).collect(Collectors.toSet()),
-                DataType.LONG.typeName(),
+                DataType.LONG,
                 Set.of("only")
             )
         );

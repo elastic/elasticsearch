@@ -34,34 +34,30 @@ import java.util.TreeMap;
  * {@link InvalidMappedField}: their on-the-wire form is identical (the truncated/full {@code typesToIndices} map is never serialized) so
  * sharing implementation via inheritance would only obscure the fact that they're peer flavors of the same field shape.
  *
- * <p>Wire format matches {@link InvalidMappedField} byte-for-byte and reuses its writeable name, so a {@code CompactInvalidMappedField}
- * round-trips through the wire as a plain {@link InvalidMappedField} on the receiving side. That's fine because {@code typesToIndices}
- * is empty after deserialization anyway, so the truncation no longer matters.
+ * <p>The internal {@code typesToIndices} map is keyed by {@link DataType} (rather than {@link String}) so that the type-safe
+ * {@link DataType} flows all the way down to construction; the {@link TypeConflictField#getTypesToIndices()} contract is honored by
+ * converting back to string keys on access. Since the map is post-truncation (a few entries per field), the conversion is cheap and the
+ * accessor is on a cold path anyway.
  */
 public final class CompactInvalidMappedField extends EsField implements TypeConflictField {
     private static final int MAX_INDICES_PER_TYPE = 3;
 
     private final String errorMessage;
-    private final Map<String, Set<String>> typesToIndices;
+    private final Map<DataType, Set<String>> typesToIndices;
     private final boolean isPotentiallyUnmapped;
 
-    public CompactInvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
-        this(name, TypeConflictField.makeErrorMessage(typesToIndices, false), truncate(typesToIndices), false);
+    public CompactInvalidMappedField(String name, Map<DataType, Set<String>> typesToIndices) {
+        this(name, makeErrorMessage(typesToIndices, false), truncate(typesToIndices), false);
     }
 
-    public static CompactInvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
-        return new CompactInvalidMappedField(
-            name,
-            TypeConflictField.makeErrorMessage(typesToIndices, true),
-            truncate(typesToIndices),
-            true
-        );
+    public static CompactInvalidMappedField potentiallyUnmapped(String name, Map<DataType, Set<String>> typesToIndices) {
+        return new CompactInvalidMappedField(name, makeErrorMessage(typesToIndices, true), truncate(typesToIndices), true);
     }
 
     private CompactInvalidMappedField(
         String name,
         String errorMessage,
-        Map<String, Set<String>> typesToIndices,
+        Map<DataType, Set<String>> typesToIndices,
         boolean isPotentiallyUnmapped
     ) {
         super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, TimeSeriesFieldType.UNKNOWN);
@@ -87,7 +83,9 @@ public final class CompactInvalidMappedField extends EsField implements TypeConf
 
     @Override
     public Map<String, Set<String>> getTypesToIndices() {
-        return typesToIndices;
+        Map<String, Set<String>> result = new TreeMap<>();
+        typesToIndices.forEach((k, v) -> result.put(k.typeName(), v));
+        return result;
     }
 
     @Override
@@ -120,9 +118,9 @@ public final class CompactInvalidMappedField extends EsField implements TypeConf
     }
 
     /** Cap each per-type index set at {@value #MAX_INDICES_PER_TYPE} entries. */
-    private static Map<String, Set<String>> truncate(Map<String, Set<String>> typesToIndices) {
-        Map<String, Set<String>> result = new TreeMap<>();
-        for (Map.Entry<String, Set<String>> entry : typesToIndices.entrySet()) {
+    private static Map<DataType, Set<String>> truncate(Map<DataType, Set<String>> typesToIndices) {
+        Map<DataType, Set<String>> result = new TreeMap<>();
+        for (Map.Entry<DataType, Set<String>> entry : typesToIndices.entrySet()) {
             Set<String> indices = entry.getValue();
             result.put(entry.getKey(), indices.size() <= MAX_INDICES_PER_TYPE ? Set.copyOf(indices) : truncate(indices));
         }
@@ -134,5 +132,15 @@ public final class CompactInvalidMappedField extends EsField implements TypeConf
         indices.stream().sorted().limit(MAX_INDICES_PER_TYPE).forEach(truncated::add);
         truncated.add("...");
         return Collections.unmodifiableSet(truncated);
+    }
+
+    /**
+     * Adapter onto {@link TypeConflictField#makeErrorMessage(Map, boolean)} since that one is shared with {@link InvalidMappedField} and
+     * therefore takes string keys. The string-keyed view is built ad-hoc here, used to render the message, and discarded.
+     */
+    private static String makeErrorMessage(Map<DataType, Set<String>> typesToIndices, boolean includeInsistKeyword) {
+        Map<String, Set<String>> stringKeyed = new TreeMap<>();
+        typesToIndices.forEach((k, v) -> stringKeyed.put(k.typeName(), v));
+        return TypeConflictField.makeErrorMessage(stringKeyed, includeInsistKeyword);
     }
 }

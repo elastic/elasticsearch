@@ -209,8 +209,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final CentroidAssignments centroidAssignments = floatVectorValues.size() > 0
                 && flatVectorThreshold > 0
                 && floatVectorValues.size() <= flatVectorThreshold
-                ? buildFlatCentroidAssignments(fieldWriter.fieldInfo, floatVectorValues)
-                : calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
+                    ? buildFlatCentroidAssignments(fieldWriter.fieldInfo, floatVectorValues)
+                    : calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
             final CentroidSupplier centroidSupplier = createCentroidSupplier(
                 fieldWriter.fieldInfo,
                 centroidAssignments.centroids(),

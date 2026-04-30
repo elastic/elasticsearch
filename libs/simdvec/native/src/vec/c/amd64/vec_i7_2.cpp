@@ -93,8 +93,124 @@ EXPORT int32_t vec_doti7u_2(const int8_t* a, const int8_t* b, const int32_t dims
     return dot7u_inner(a, b, dims);
 }
 
+/*
+ * Bulk dot product for 7-bit unsigned int lanes with shared query loads.
+ *
+ * Iterates over `batches` document vectors in parallel per dimension step,
+ * loading the query once per step and reusing it across all batched documents
+ * to amortise b-side L1D bandwidth across the batch.
+ *
+ * Two independent unroll axes:
+ *   batches    - number of distinct document vectors scored in parallel;
+ *                amortises the query load and adds independent madd chains
+ *                across documents.
+ *   unroll_dim - number of consecutive 64-byte blocks of the same document
+ *                processed per inner-loop iteration, each into its own
+ *                accumulator. Hides the maddubs/madd port-5 latency on hosts
+ *                whose throughput exceeds what `batches` chains alone can
+ *                saturate.
+ *
+ * The single-pair scorer `dot7u_inner` above uses the same dim-axis pattern
+ * under its local `batches` constant.
+ */
+template <
+    typename TData,
+    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
+    int batches = 4,
+    int unroll_dim = 1
+>
+static inline void dot7u_bulk_avx512(
+    const TData* a, const int8_t* b, const int32_t dims,
+    const int32_t pitch, const int32_t* offsets,
+    const int32_t count, f32_t* results
+) {
+    constexpr int stride = sizeof(__m512i);              // 64 bytes
+    constexpr int dimStride = stride * unroll_dim;
+    const int blk = dims & ~(stride - 1);
+    const __m512i ones = _mm512_set1_epi16(1);
+    const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
+    int c = 0;
+
+    const int8_t* current_vecs[batches];
+    init_pointers<batches, TData, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
+
+    for (; c + batches - 1 < count; c += batches) {
+        const int8_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
+
+        // Row-major layout: acc[I * unroll_dim + U] keeps the unroll_dim
+        // accumulators for batch member I contiguous, so tree_reduce can fold
+        // them in one call.
+        __m512i acc[batches * unroll_dim];
+        apply_indexed<batches * unroll_dim>([&](auto I) {
+            acc[I] = _mm512_setzero_si512();
+        });
+
+        int i = 0;
+        for (; i + dimStride <= blk; i += dimStride) {
+            apply_indexed<unroll_dim>([&](auto U) {
+                __m512i bv = _mm512_loadu_si512((const __m512i*)(b + i + U * stride));
+                apply_indexed<batches>([&](auto I) {
+                    __m512i av = _mm512_loadu_si512((const __m512i*)(current_vecs[I] + i + U * stride));
+                    acc[I * unroll_dim + U] = _mm512_add_epi32(
+                        acc[I * unroll_dim + U],
+                        _mm512_madd_epi16(ones, _mm512_maddubs_epi16(av, bv)));
+                });
+            });
+        }
+
+        // Fold the unroll_dim accumulators per batch back into acc[I] before
+        // the unroll_dim=1 tail and the masked tail. Skipped at unroll_dim=1,
+        // where the main loop already wrote into acc[I*1+0] = acc[I].
+        if constexpr (unroll_dim > 1) {
+            apply_indexed<batches>([&](auto I) {
+                acc[I] = tree_reduce<unroll_dim, __m512i, _mm512_add_epi32>(&acc[I * unroll_dim]);
+            });
+            for (; i + stride <= blk; i += stride) {
+                __m512i bv = _mm512_loadu_si512((const __m512i*)(b + i));
+                apply_indexed<batches>([&](auto I) {
+                    __m512i av = _mm512_loadu_si512((const __m512i*)(current_vecs[I] + i));
+                    acc[I] = _mm512_add_epi32(
+                        acc[I], _mm512_madd_epi16(ones, _mm512_maddubs_epi16(av, bv)));
+                });
+            }
+        }
+
+        // Masked tail: zeroed lanes from maskz_loadu contribute nothing to the sum.
+        const int rem = dims - i;
+        if (rem > 0) {
+            __mmask64 mask = (__mmask64)((1ULL << rem) - 1);
+            __m512i bv = _mm512_maskz_loadu_epi8(mask, b + i);
+            apply_indexed<batches>([&](auto I) {
+                __m512i av = _mm512_maskz_loadu_epi8(mask, current_vecs[I] + i);
+                acc[I] = _mm512_add_epi32(
+                    acc[I], _mm512_madd_epi16(ones, _mm512_maddubs_epi16(av, bv)));
+            });
+        }
+
+        apply_indexed<batches>([&](auto I) {
+            results[c + I] = (f32_t)_mm512_reduce_add_epi32(acc[I]);
+        });
+
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
+    }
+
+    for (; c < count; c++) {
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
+        results[c] = (f32_t)dot7u_inner(a0, b, dims);
+    }
+}
+
 EXPORT void vec_doti7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<int8_t, sequential_mapper, dot7u_inner, 4>(a, b, dims, dims, NULL, count, results);
+    dot7u_bulk_avx512<int8_t, sequential_mapper, 4, 1>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_doti7u_bulk_offsets_2(
@@ -105,7 +221,7 @@ EXPORT void vec_doti7u_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<int8_t, offsets_mapper, dot7u_inner, 4>(a, b, dims, pitch, offsets, count, results);
+    dot7u_bulk_avx512<int8_t, offsets_mapper, 4, 1>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_doti7u_bulk_sparse_2(
@@ -114,7 +230,7 @@ EXPORT void vec_doti7u_bulk_sparse_2(
     const int32_t dims,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<const int8_t*, sparse_mapper, dot7u_inner, 4>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
+    dot7u_bulk_avx512<const int8_t*, sparse_mapper, 4, 1>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
 // Accumulates acc += sqr_distance(pa, pb) for unsigned 7-bit int lanes (64 bytes per step).
@@ -198,8 +314,92 @@ EXPORT int32_t vec_sqri7u_2(const int8_t* a, const int8_t* b, const int32_t dims
     return sqr7u_inner(a, b, dims);
 }
 
+/*
+ * Bulk squared distance for 7-bit unsigned int lanes with shared query loads.
+ *
+ * Same shape as dot7u_bulk_avx512 (parallel batches, shared b per dimension
+ * step) but with sub_epi8 + abs_epi8 + maddubs_epi16(abs,abs) per step. The
+ * per-step op count (5 ops on ports 0/5: sub, abs, maddubs, madd, add)
+ * already saturates the issue ports at one accumulator per batch on Sapphire
+ * Rapids, so a dim-axis unroll would only add register pressure without
+ * throughput. Only the batch-axis (shared-b) parallelism is applied.
+ */
+template <
+    typename TData,
+    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
+    int batches = 4
+>
+static inline void sqr7u_bulk_avx512(
+    const TData* a, const int8_t* b, const int32_t dims,
+    const int32_t pitch, const int32_t* offsets,
+    const int32_t count, f32_t* results
+) {
+    constexpr int stride = sizeof(__m512i);
+    const int blk = dims & ~(stride - 1);
+    const __m512i ones = _mm512_set1_epi16(1);
+    const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
+    int c = 0;
+
+    const int8_t* current_vecs[batches];
+    init_pointers<batches, TData, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
+
+    for (; c + batches - 1 < count; c += batches) {
+        const int8_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
+
+        __m512i acc[batches];
+        apply_indexed<batches>([&](auto I) {
+            acc[I] = _mm512_setzero_si512();
+        });
+
+        int i = 0;
+        for (; i + stride <= blk; i += stride) {
+            __m512i bv = _mm512_loadu_si512((const __m512i*)(b + i));
+            apply_indexed<batches>([&](auto I) {
+                __m512i av = _mm512_loadu_si512((const __m512i*)(current_vecs[I] + i));
+                __m512i dist = _mm512_sub_epi8(av, bv);
+                __m512i abs_dist = _mm512_abs_epi8(dist);
+                __m512i sqr_add = _mm512_maddubs_epi16(abs_dist, abs_dist);
+                acc[I] = _mm512_add_epi32(acc[I], _mm512_madd_epi16(ones, sqr_add));
+            });
+        }
+
+        const int rem = dims - i;
+        if (rem > 0) {
+            __mmask64 mask = (__mmask64)((1ULL << rem) - 1);
+            __m512i bv = _mm512_maskz_loadu_epi8(mask, b + i);
+            apply_indexed<batches>([&](auto I) {
+                __m512i av = _mm512_maskz_loadu_epi8(mask, current_vecs[I] + i);
+                __m512i dist = _mm512_sub_epi8(av, bv);
+                __m512i abs_dist = _mm512_abs_epi8(dist);
+                acc[I] = _mm512_add_epi32(acc[I],
+                    _mm512_madd_epi16(ones, _mm512_maddubs_epi16(abs_dist, abs_dist)));
+            });
+        }
+
+        apply_indexed<batches>([&](auto I) {
+            results[c + I] = (f32_t)_mm512_reduce_add_epi32(acc[I]);
+        });
+
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
+    }
+
+    for (; c < count; c++) {
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
+        results[c] = (f32_t)sqr7u_inner(a0, b, dims);
+    }
+}
+
 EXPORT void vec_sqri7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<int8_t, sequential_mapper, sqr7u_inner, 4>(a, b, dims, dims, NULL, count, results);
+    sqr7u_bulk_avx512<int8_t, sequential_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqri7u_bulk_offsets_2(
@@ -210,7 +410,7 @@ EXPORT void vec_sqri7u_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<int8_t, offsets_mapper, sqr7u_inner, 4>(a, b, dims, pitch, offsets, count, results);
+    sqr7u_bulk_avx512<int8_t, offsets_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_sqri7u_bulk_sparse_2(
@@ -219,5 +419,5 @@ EXPORT void vec_sqri7u_bulk_sparse_2(
     const int32_t dims,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<const int8_t*, sparse_mapper, sqr7u_inner, 4>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
+    sqr7u_bulk_avx512<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }

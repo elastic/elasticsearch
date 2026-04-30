@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -77,6 +78,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     public ReindexRequest(StreamInput in) throws IOException {
         super(in);
         destination = new IndexRequest(in);
+        if (in.getTransportVersion().supports(SliceIndexing.REINDEX_DEST_ROUTING_PROVENANCE_VERSION)) {
+            destination.setRoutingFromSlice(in.readBoolean());
+        }
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
     }
 
@@ -331,6 +335,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         destination.writeTo(out);
+        if (out.getTransportVersion().supports(SliceIndexing.REINDEX_DEST_ROUTING_PROVENANCE_VERSION)) {
+            out.writeBoolean(destination.isRoutingFromSlice());
+        }
         out.writeOptionalWriteable(remoteInfo);
     }
 
@@ -415,7 +422,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
         };
 
-        ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
+        ObjectParser<IndexRequest, Predicate<NodeFeature>> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
         destParser.declareString((request, routing) -> {
             if (request.isRoutingFromSlice()) {
@@ -423,8 +430,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
             request.routing(routing);
         }, new ParseField("routing"));
-        destParser.declareString((request, slice) -> {
-            if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+        destParser.declareField((parser, request, clusterSupportsFeature) -> {
+            final String slice = parser.text();
+            if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false
+                || (clusterSupportsFeature != null && clusterSupportsFeature.test(IndexFeatures.SLICE_INDEXING) == false)) {
                 throw new IllegalArgumentException("request does not support [" + SliceIndexing.PARAM_NAME + "]");
             }
             if (request.routing() != null) {
@@ -432,17 +441,13 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
             request.routing(slice);
             request.setRoutingFromSlice(true);
-        }, new ParseField(SliceIndexing.PARAM_NAME));
+        }, new ParseField(SliceIndexing.PARAM_NAME), ObjectParser.ValueType.STRING);
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
         PARSER.declareField(sourceParser, new ParseField("source"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField(
-            (p, v, c) -> destParser.parse(p, v.getDestination(), null),
-            new ParseField("dest"),
-            ObjectParser.ValueType.OBJECT
-        );
+        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
 
         PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical, new ParseField("max_docs"));
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"), ObjectParser.ValueType.OBJECT);

@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
@@ -1045,6 +1046,172 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         );
 
         assertTrue(e.getMessage().contains("Resumed task should be eligible for relocation on shutdown"));
+    }
+
+    public void testResumeReindexFromScrollPreservesSliceRoutingProvenanceAcrossTransport() {
+        assumeFalse("reindex with point-in-time search must not be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
+        String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
+        int totalDocs = randomIntBetween(20, 40);
+        int batchSize = randomIntBetween(1, 5);
+
+        createIndex(sourceIndex);
+        prepareCreate(destIndex).setSettings(Settings.builder().put("index.slice.enabled", true)).get();
+        for (int i = 0; i < totalDocs; i++) {
+            client().prepareIndex(sourceIndex).setId(Integer.toString(i)).setRouting("s" + (i % 3)).setSource("f", 1).get();
+        }
+        refresh(sourceIndex);
+
+        String scrollId;
+        SearchResponse searchResponse = client().prepareSearch(sourceIndex).setScroll(DEFAULT_SCROLL_TIMEOUT).setSize(batchSize).get();
+        try {
+            scrollId = searchResponse.getScrollId();
+            assertNotNull(scrollId);
+            assertEquals(totalDocs, (int) searchResponse.getHits().getTotalHits().value());
+            assertEquals(batchSize, searchResponse.getHits().getHits().length);
+        } finally {
+            searchResponse.decRef();
+        }
+
+        int remainingDocs = totalDocs - batchSize;
+        BulkByScrollTask.Status resumeStatus = randomStats();
+        long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
+
+        ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
+            .setShouldStoreResult(true)
+            .setEligibleForRelocationOnShutdown(true)
+            .setDestIndex(destIndex)
+            .setSourceBatchSize(batchSize)
+            .setRefresh(true)
+            .setResumeInfo(new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo(scrollId, startTime, resumeStatus, null), null));
+        request.getDestination().routing("keep").setRoutingFromSlice(true);
+
+        TaskResult validResult = executeResumeAndGetTask(request);
+        assertStatus(validResult, resumeStatus, totalDocs, batchSize, remainingDocs);
+        assertHitCount(prepareSearch(destIndex), remainingDocs);
+
+        ReindexRequest invalidRequest = new ReindexRequest().setSourceIndices(sourceIndex)
+            .setShouldStoreResult(true)
+            .setEligibleForRelocationOnShutdown(true)
+            .setDestIndex(destIndex)
+            .setSourceBatchSize(batchSize)
+            .setRefresh(true)
+            .setResumeInfo(new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo(scrollId, startTime, resumeStatus, null), null));
+        invalidRequest.getDestination().routing("keep").setRoutingFromSlice(false);
+
+        TaskResult invalidResult = executeResumeAndGetTask(invalidRequest);
+        assertSliceRoutingValidationFailure(invalidResult);
+    }
+
+    public void testResumeReindexFromPitPreservesSliceRoutingProvenanceAcrossTransport() {
+        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
+        String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
+        int totalDocs = randomIntBetween(20, 40);
+        int batchSize = randomIntBetween(1, 5);
+
+        createIndex(sourceIndex);
+        prepareCreate(destIndex).setSettings(Settings.builder().put("index.slice.enabled", true)).get();
+        for (int i = 0; i < totalDocs; i++) {
+            client().prepareIndex(sourceIndex).setId(Integer.toString(i)).setRouting("s" + (i % 3)).setSource("f", 1).get();
+        }
+        refresh(sourceIndex);
+
+        OpenPointInTimeResponse openPitResponse = client().execute(
+            TransportOpenPointInTimeAction.TYPE,
+            new OpenPointInTimeRequest(sourceIndex).keepAlive(DEFAULT_SCROLL_TIMEOUT)
+        ).actionGet();
+        BytesReference pitId = openPitResponse.getPointInTimeId();
+
+        SearchRequest firstPitSearch = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(DEFAULT_SCROLL_TIMEOUT))
+                .sort(SortBuilders.pitTiebreaker())
+                .size(batchSize)
+        );
+        SearchResponse searchResponse = client().search(firstPitSearch).actionGet();
+        final Object[] searchAfterValues;
+        try {
+            assertEquals(totalDocs, (int) searchResponse.getHits().getTotalHits().value());
+            assertEquals(batchSize, searchResponse.getHits().getHits().length);
+            if (searchResponse.pointInTimeId() != null) {
+                pitId = searchResponse.pointInTimeId();
+            }
+            SearchHit lastHit = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1];
+            searchAfterValues = lastHit.getSortValues();
+            assertNotNull(searchAfterValues);
+        } finally {
+            searchResponse.decRef();
+        }
+
+        int remainingDocs = totalDocs - batchSize;
+        BulkByScrollTask.Status resumeStatus = randomStats();
+        long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
+
+        ReindexRequest invalidRequest = new ReindexRequest().setShouldStoreResult(true)
+            .setEligibleForRelocationOnShutdown(true)
+            .setDestIndex(destIndex)
+            .setSourceBatchSize(batchSize)
+            .setRefresh(true)
+            .setResumeInfo(
+                new ResumeInfo(randomOrigin(), new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, resumeStatus, null), null)
+            );
+        invalidRequest.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(DEFAULT_SCROLL_TIMEOUT))
+                    .sort(SortBuilders.pitTiebreaker())
+                    .size(batchSize)
+            );
+        invalidRequest.getSearchRequest().scroll(null);
+        invalidRequest.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        invalidRequest.getDestination().routing("keep").setRoutingFromSlice(false);
+
+        TaskResult invalidResult = executeResumeAndGetTask(invalidRequest);
+        assertSliceRoutingValidationFailure(invalidResult);
+
+        ReindexRequest request = new ReindexRequest().setShouldStoreResult(true)
+            .setEligibleForRelocationOnShutdown(true)
+            .setDestIndex(destIndex)
+            .setSourceBatchSize(batchSize)
+            .setRefresh(true)
+            .setResumeInfo(
+                new ResumeInfo(randomOrigin(), new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, resumeStatus, null), null)
+            );
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(DEFAULT_SCROLL_TIMEOUT))
+                    .sort(SortBuilders.pitTiebreaker())
+                    .size(batchSize)
+            );
+        request.getSearchRequest().scroll(null);
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getDestination().routing("keep").setRoutingFromSlice(true);
+
+        TaskResult validResult = executeResumeAndGetTask(request);
+        assertStatus(validResult, resumeStatus, totalDocs, batchSize, remainingDocs);
+        assertHitCount(prepareSearch(destIndex), remainingDocs);
+        assertEquals(0, currentNumberOfScrollContexts());
+    }
+
+    private TaskResult executeResumeAndGetTask(ReindexRequest request) {
+        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
+            .actionGet();
+        GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueSeconds(30))
+            .get();
+        return getTaskResponse.getTask();
+    }
+
+    private static void assertSliceRoutingValidationFailure(TaskResult result) {
+        assertTrue(result.isCompleted());
+        Map<String, Object> error = result.getErrorAsMap();
+        assertFalse(error.isEmpty());
+        assertTrue(error.toString().contains("[routing] is not allowed in [dest]"));
+        assertTrue(error.toString().contains("use [" + SliceIndexing.PARAM_NAME + "] instead"));
     }
 
     private BulkByScrollTask.Status randomStats() {

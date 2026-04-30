@@ -25,6 +25,9 @@ public final class SliceIndexing {
     public static final String PARAM_NAME = "_slice";
     public static final FeatureFlag SLICE_FEATURE_FLAG = new FeatureFlag("slice_indexing");
     public static final TransportVersion SLICE_MISSING_EXCEPTION_VERSION = TransportVersion.fromName("slice_missing_exception");
+    public static final TransportVersion REINDEX_DEST_ROUTING_PROVENANCE_VERSION = TransportVersion.fromName(
+        "reindex_dest_routing_provenance"
+    );
     private static final int MAX_SLICE_VALUE_LENGTH = 128;
     private static final Pattern VALID_SLICE_VALUE_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9._:-]*[a-zA-Z0-9])?");
 

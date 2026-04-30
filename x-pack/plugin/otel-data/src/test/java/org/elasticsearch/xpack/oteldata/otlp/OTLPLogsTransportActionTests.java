@@ -11,6 +11,7 @@ import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
 import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
+import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.common.v1.KeyValueList;
 import io.opentelemetry.proto.logs.v1.LogRecord;
 import io.opentelemetry.proto.logs.v1.ResourceLogs;
@@ -37,6 +38,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTests {
@@ -325,5 +327,58 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
             scope.addAttributes(keyValue("elastic.mapping.mode", scopeMappingMode));
         }
         return ScopeLogs.newBuilder().setScope(scope).addAllLogRecords(logRecords).build();
+    }
+
+    public void testPrepareBulkRequestUsesDocumentIdAttribute() throws Exception {
+        IndexRequest indexRequest = prepareIndexRequestWithAttributes(
+            List.of(OtlpUtils.keyValue(DocumentMetadata.DOCUMENT_ID_ATTRIBUTE, "log-doc-id"))
+        );
+
+        assertThat(indexRequest.id(), equalTo("log-doc-id"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> attributes = (Map<String, Object>) indexRequest.sourceAsMap().get("attributes");
+        assertThat(attributes.get(DocumentMetadata.DOCUMENT_ID_ATTRIBUTE), nullValue());
+    }
+
+    public void testPrepareBulkRequestLeavesDocumentIdUnsetWhenAttributeEmpty() throws Exception {
+        IndexRequest indexRequest = prepareIndexRequestWithAttributes(
+            List.of(OtlpUtils.keyValue(DocumentMetadata.DOCUMENT_ID_ATTRIBUTE, ""))
+        );
+
+        assertThat(indexRequest.id(), nullValue());
+    }
+
+    public void testPrepareBulkRequestUsesIngestPipelineAttribute() throws Exception {
+        IndexRequest indexRequest = prepareIndexRequestWithAttributes(
+            List.of(OtlpUtils.keyValue(DocumentMetadata.INGEST_PIPELINE_ATTRIBUTE, "logs-pipeline"))
+        );
+
+        assertThat(indexRequest.getPipeline(), equalTo("logs-pipeline"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> attributes = (Map<String, Object>) indexRequest.sourceAsMap().get("attributes");
+        assertThat(attributes.get(DocumentMetadata.INGEST_PIPELINE_ATTRIBUTE), nullValue());
+    }
+
+    public void testPrepareBulkRequestLeavesPipelineUnsetWhenAttributeEmpty() throws Exception {
+        IndexRequest indexRequest = prepareIndexRequestWithAttributes(
+            List.of(OtlpUtils.keyValue(DocumentMetadata.INGEST_PIPELINE_ATTRIBUTE, ""))
+        );
+
+        assertThat(indexRequest.getPipeline(), nullValue());
+    }
+
+    private IndexRequest prepareIndexRequestWithAttributes(List<KeyValue> attributes) throws Exception {
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        createAction().prepareBulkRequest(
+            new OTLPActionRequest(
+                new BytesArray(
+                    OtlpLogUtils.createLogsRequest(
+                        List.of(OtlpLogUtils.createLogRecord("Hello world", SeverityNumber.SEVERITY_NUMBER_INFO, "INFO", attributes))
+                    ).toByteArray()
+                )
+            ),
+            bulkRequestBuilder
+        );
+        return (IndexRequest) bulkRequestBuilder.request().requests().get(0);
     }
 }

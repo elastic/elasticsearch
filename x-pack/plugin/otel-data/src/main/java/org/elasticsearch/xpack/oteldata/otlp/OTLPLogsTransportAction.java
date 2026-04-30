@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
@@ -111,10 +112,17 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
                                 logRecord
                             );
                         }
+                        IndexRequest indexRequest = new IndexRequest(index.index());
+                        String documentId = DocumentMetadata.documentId(logRecord.getAttributesList());
+                        if (Strings.hasLength(documentId)) {
+                            indexRequest.id(documentId);
+                        }
+                        String ingestPipeline = DocumentMetadata.ingestPipeline(logRecord.getAttributesList());
+                        if (Strings.hasLength(ingestPipeline)) {
+                            indexRequest.setPipeline(ingestPipeline);
+                        }
                         bulkRequestBuilder.add(
-                            new IndexRequest(index.index()).opType(DocWriteRequest.OpType.CREATE)
-                                .setRequireDataStream(true)
-                                .source(xContentBuilder)
+                            indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
                         );
                     }
                 }

@@ -17,6 +17,7 @@ import com.google.protobuf.ByteString;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.oteldata.otlp.DocumentMetadata;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
@@ -33,7 +34,6 @@ public abstract class OTelDocumentBuilder {
 
     private static final String DATA_STREAM_TYPE = "data_stream.type";
     private static final String ELASTIC_MAPPING_MODE = "elastic.mapping.mode";
-    private static final String ELASTICSEARCH_DOCUMENT_ID = "elasticsearch.document_id";
     private static final HexFormat HEX = HexFormat.of();
     private final BufferedByteStringAccessor byteStringAccessor;
 
@@ -118,9 +118,9 @@ public abstract class OTelDocumentBuilder {
     public static boolean isIgnoredAttribute(String attributeKey) {
         return TargetIndex.isTargetIndexAttribute(attributeKey)
             || MappingHints.isMappingHintsAttribute(attributeKey)
+            || DocumentMetadata.isDocumentMetadataAttribute(attributeKey)
             || DATA_STREAM_TYPE.equals(attributeKey)
-            || ELASTIC_MAPPING_MODE.equals(attributeKey)
-            || ELASTICSEARCH_DOCUMENT_ID.equals(attributeKey);
+            || ELASTIC_MAPPING_MODE.equals(attributeKey);
     }
 
     protected void buildAnyValue(XContentBuilder builder, AnyValue value) throws IOException {

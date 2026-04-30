@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
@@ -226,6 +227,25 @@ public class ReindexValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is not allowed in [dest]"));
     }
 
+    public void testRequireSliceInSliceEnabledDestinationFromV1Template() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationV1TemplateSetting(true));
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-auto");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is required in [dest]"));
+    }
+
+    public void testRejectSliceInSliceDisabledDestinationFromV1Template() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationV1TemplateSetting(false));
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-auto");
+        request.getDestination().routing("keep").setRoutingFromSlice(true);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is not allowed in [dest]"));
+    }
+
     /** Minimal {@link ReindexValidator} for tests that only exercise {@link ReindexValidator#normalize}. */
     private static ReindexValidator newValidator() {
         IndexNameExpressionResolver indexResolver = TestIndexNameExpressionResolver.newInstance();
@@ -284,6 +304,26 @@ public class ReindexValidatorTests extends ESTestCase {
                     .numberOfReplicas(0)
                     .build(),
                 true
+            )
+            .build();
+    }
+
+    private ProjectMetadata projectMetadataWithDestinationV1TemplateSetting(boolean destinationSliceEnabled) {
+        return ProjectMetadata.builder(randomUniqueProjectId())
+            .put(
+                IndexMetadata.builder("source-index")
+                    .settings(indexSettings(IndexVersion.current(), 1, 0))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(),
+                true
+            )
+            .put(
+                IndexTemplateMetadata.builder("dest-template")
+                    .patterns(java.util.List.of("dest-*"))
+                    .settings(
+                        indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SLICE_ENABLED.getKey(), destinationSliceEnabled)
+                    )
             )
             .build();
     }

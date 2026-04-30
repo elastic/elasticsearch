@@ -911,6 +911,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
         String getRouting();
 
+        boolean isRoutingFromSlice();
+
         void setRoutingFromSlice(boolean routingFromSlice);
 
         void setSource(Map<String, Object> source);
@@ -974,6 +976,11 @@ public abstract class AbstractAsyncBulkByScrollAction<
         @Override
         public String getRouting() {
             return request.routing();
+        }
+
+        @Override
+        public boolean isRoutingFromSlice() {
+            return request.isRoutingFromSlice();
         }
 
         @Override
@@ -1063,6 +1070,11 @@ public abstract class AbstractAsyncBulkByScrollAction<
         @Override
         public void setRoutingFromSlice(boolean routingFromSlice) {
             request.setRoutingFromSlice(routingFromSlice);
+        }
+
+        @Override
+        public boolean isRoutingFromSlice() {
+            return request.isRoutingFromSlice();
         }
 
         @Override

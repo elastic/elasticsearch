@@ -1189,7 +1189,7 @@ public class Reindexer {
                  * Its important that routing comes after parent in case you want to
                  * change them both.
                  */
-                if (metadata.routingChanged() || metadata.isRoutingFromSlice()) {
+                if (metadata.routingChangedWithSlice(request.isRoutingFromSlice())) {
                     request.setRouting(metadata.getRouting());
                     request.setRoutingFromSlice(metadata.isRoutingFromSlice());
                 }

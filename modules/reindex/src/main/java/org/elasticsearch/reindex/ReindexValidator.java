@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -145,10 +146,15 @@ public class ReindexValidator {
         }
 
         final String templateName = MetadataIndexTemplateService.findV2Template(projectMetadata, destinationIndex, false);
-        if (templateName == null) {
+        if (templateName != null) {
+            final Settings resolvedSettings = MetadataIndexTemplateService.resolveSettings(projectMetadata, templateName);
+            return IndexSettings.SLICE_ENABLED.get(resolvedSettings);
+        }
+        final List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(projectMetadata, destinationIndex, null);
+        if (templates.isEmpty()) {
             return false;
         }
-        final Settings resolvedSettings = MetadataIndexTemplateService.resolveSettings(projectMetadata, templateName);
+        final Settings resolvedSettings = MetadataIndexTemplateService.resolveSettings(templates);
         return IndexSettings.SLICE_ENABLED.get(resolvedSettings);
     }
 

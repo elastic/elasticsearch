@@ -179,6 +179,10 @@ public class ReindexMetadata extends Metadata {
         return Objects.equals(routing, getString(ROUTING)) == false;
     }
 
+    public boolean routingChangedWithSlice(boolean previousRoutingFromSlice) {
+        return Objects.equals(routing, getString(ROUTING)) == false || routingFromSlice != previousRoutingFromSlice;
+    }
+
     public boolean isRoutingFromSlice() {
         return routingFromSlice;
     }

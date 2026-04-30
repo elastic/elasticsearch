@@ -159,6 +159,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
     private void doTestSlices(BooleanSupplier supplier, boolean applyFilter) throws IOException {
         int dimensions = random().nextInt(12, 500);
         int numDocs = random().nextInt(100, 10_000);
+        int numSlices = random().nextInt(1, numDocs);
         int[] docsPerSlice = new int[numSlices];
         int[] docsPerSliceFiltered = new int[numSlices];
         int[] docSlices = new int[numDocs];
@@ -242,7 +243,6 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
                             new BytesRef("" + slice)
                         );
                         TopDocs topDocs = searcher.search(kvq, k);
-                        searcher.search(kvq, k);
                         assertEquals(expectedDocs, topDocs.scoreDocs.length);
                         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                             Document document = reader.storedFields().document(topDocs.scoreDocs[i].doc);

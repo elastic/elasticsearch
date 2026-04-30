@@ -160,27 +160,31 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
      * Reuse strategy for {@link org.apache.lucene.analysis.AnalyzerWrapper} subclasses that delegate
      * to this {@link ReloadableCustomAnalyzer}.
      *
-     * <p>The closure captures {@code this} instead of casting the {@code analyzer} parameter
+     * <p>Tracks freshness independently from {@link #UPDATE_STRATEGY} by storing the
+     * {@link AnalyzerComponents} version together with the {@link TokenStreamComponents} in the
+     * wrapper analyzer's own per-thread slot, so the two strategies never interfere with each other.
      */
     public ReuseStrategy createWrapperReuseStrategy() {
         return new ReuseStrategy() {
             @Override
             public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
-                AnalyzerComponents components = ReloadableCustomAnalyzer.this.getComponents();
-                AnalyzerComponents stored = ReloadableCustomAnalyzer.this.getStoredComponents();
-                if (stored == null || components != stored) {
-                    ReloadableCustomAnalyzer.this.setStoredComponents(components);
+                AnalyzerComponents current = ReloadableCustomAnalyzer.this.getComponents();
+                WrapperEntry entry = (WrapperEntry) getStoredValue(analyzer);
+                if (entry == null || entry.components != current) {
                     return null;
                 }
-                return (TokenStreamComponents) getStoredValue(analyzer); // wrapper's storedValue
+                return entry.tsc;
             }
 
             @Override
             public void setReusableComponents(Analyzer analyzer, String fieldName, TokenStreamComponents tsc) {
-                setStoredValue(analyzer, tsc); // wrapper's storedValue
+                setStoredValue(analyzer, new WrapperEntry(ReloadableCustomAnalyzer.this.getComponents(), tsc));
             }
         };
     }
+
+    /** Pairs an {@link AnalyzerComponents} snapshot with the corresponding {@link TokenStreamComponents} for a wrapper analyzer. */
+    private record WrapperEntry(AnalyzerComponents components, TokenStreamComponents tsc) {}
 
     private void setStoredComponents(AnalyzerComponents components) {
         storedComponents.set(components);
@@ -192,7 +196,12 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        final AnalyzerComponents components = getStoredComponents();
+        AnalyzerComponents components = getStoredComponents();
+        if (components == null) {
+            // Reached via an AnalyzerWrapper chain; storedComponents is only set by UPDATE_STRATEGY
+            // (direct path). Fall back to the current volatile components.
+            components = getComponents();
+        }
         Tokenizer tokenizer = components.getTokenizerFactory().create();
         TokenStream tokenStream = tokenizer;
         for (TokenFilterFactory tokenFilter : components.getTokenFilters()) {
@@ -203,7 +212,10 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
-        final AnalyzerComponents components = getStoredComponents();
+        AnalyzerComponents components = getStoredComponents();
+        if (components == null) {
+            components = getComponents();
+        }
         if (CollectionUtils.isEmpty(components.getCharFilters()) == false) {
             for (CharFilterFactory charFilter : components.getCharFilters()) {
                 reader = charFilter.create(reader);

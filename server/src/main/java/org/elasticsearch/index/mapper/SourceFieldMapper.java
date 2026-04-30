@@ -425,7 +425,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         SourceToParse.Source sourceObject = context.sourceToParse().source();
         XContentType contentType = sourceObject.xContentType();
         // TODO: Optimize if source not materialized
-        final var originalSource = sourceObject.originalSourceBytes();
+        final var originalSource = sourceObject.originalBytes();
         final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
 

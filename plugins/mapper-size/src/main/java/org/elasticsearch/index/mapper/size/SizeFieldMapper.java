@@ -106,7 +106,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
             return;
         }
         // TODO: Similar to source mapper optimize in case of not materialized.
-        final int value = context.sourceToParse().source().originalSourceBytes().length();
+        final int value = context.sourceToParse().source().originalBytes().length();
         NumberType.INTEGER.addFields(context.doc(), fullPath(), value, IndexType.points(true, true), true);
     }
 

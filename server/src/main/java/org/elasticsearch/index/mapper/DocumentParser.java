@@ -192,7 +192,7 @@ public final class DocumentParser {
                     fto
                 )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source().originalSourceBytes()),
+            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source().originalBytes()),
             LeafFieldLookupProvider.fromStoredFields()
         );
         // field scripts can be called both by the loop at the end of this method and via
@@ -1127,7 +1127,7 @@ public final class DocumentParser {
                 // but when applying a translog operation, shard routing is not happening, and we have to create the tsid from source
                 SourceToParse.Source sourceObject = source.source();
                 // TODO: this can likely operate on eirf if present opposed to materlizing the originl source bytes if not present.
-                tsid = forIndexDimensions.buildTsid(sourceObject.xContentType(), sourceObject.originalSourceBytes());
+                tsid = forIndexDimensions.buildTsid(sourceObject.xContentType(), sourceObject.originalBytes());
             }
             this.tsid = tsid;
             assert this.tsid == null || indexSettings.getMode() == IndexMode.TIME_SERIES

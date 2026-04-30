@@ -149,17 +149,7 @@ public class ParsedDocument {
         CompressedXContent dynamicMappingsUpdate,
         long normalizedSize
     ) {
-        this(
-            version,
-            seqID,
-            id,
-            routing,
-            documents,
-            source.originalSourceBytes(),
-            source.xContentType(),
-            dynamicMappingsUpdate,
-            normalizedSize
-        );
+        this(version, seqID, id, routing, documents, source.originalBytes(), source.xContentType(), dynamicMappingsUpdate, normalizedSize);
     }
 
     public ParsedDocument(

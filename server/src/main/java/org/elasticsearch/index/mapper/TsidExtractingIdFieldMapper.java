@@ -67,7 +67,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 || id.equals(
                     indexRouting.createId(
                         context.sourceToParse().source().xContentType(),
-                        context.sourceToParse().source().originalSourceBytes(),
+                        context.sourceToParse().source().originalBytes(),
                         suffix
                     )
                 );

@@ -159,6 +159,7 @@ public class SourceToParse {
         return source.parser(configuration);
     }
 
+    // TODO: Eventually will want to combine this with our other source abstractions IndexSource, etc.
     public static class Source {
 
         private final boolean includeSourceOnError1;
@@ -208,7 +209,7 @@ public class SourceToParse {
         }
 
         // Synchronized for now to be safe. Probably unnecessary.
-        public synchronized BytesReference originalSourceBytes() {
+        public synchronized BytesReference originalBytes() {
             if (originalSourceBytes == null) {
                 try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
                     EirfRowToXContent.writeRowFromSchema(row, schemaTree, builder);

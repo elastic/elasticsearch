@@ -18,10 +18,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 // FIXME(gal, NOCOMMIT) Reduce duplication with MultiTypeEsField
 /**
@@ -107,39 +105,20 @@ public final class CompactMultiTypeEsField extends EsField implements UnionTypeE
         return unmappedConversionExpression;
     }
 
-    /**
-     * Build a {@link CompactMultiTypeEsField} from the per-type resolutions previously computed against a
-     * {@link TypeConflictField}. Only types present in {@code imf.getTypesToIndices()} for which a
-     * conversion was supplied are included.
-     */
     public static CompactMultiTypeEsField resolveFrom(
         TypeConflictField imf,
         Map<String, Expression> typesToConversionExpressions,
         @Nullable Expression unmappedConversionExpression
     ) {
-        Map<String, Set<String>> typesToIndices = imf.getTypesToIndices();
-        DataType resolvedDataType = DataType.UNSUPPORTED;
-        Map<DataType, Expression> filtered = new HashMap<>();
-        for (String typeName : typesToIndices.keySet()) {
-            Expression convertExpr = typesToConversionExpressions.get(typeName);
-            if (convertExpr == null) {
-                continue;
-            }
-            if (resolvedDataType == DataType.UNSUPPORTED) {
-                resolvedDataType = convertExpr.dataType();
-            } else if (resolvedDataType != convertExpr.dataType()) {
-                throw new IllegalArgumentException("Resolved data type mismatch: " + resolvedDataType + " != " + convertExpr.dataType());
-            }
-            filtered.put(DataType.fromTypeName(typeName), convertExpr);
-        }
-        if (resolvedDataType == DataType.UNSUPPORTED && unmappedConversionExpression != null) {
-            resolvedDataType = unmappedConversionExpression.dataType();
-        }
+        UnionTypeEsField.Resolution resolution = UnionTypeEsField.resolve(imf, typesToConversionExpressions);
+        DataType resolvedDataType = resolution.resolvedDataType() == DataType.UNSUPPORTED && unmappedConversionExpression != null
+            ? unmappedConversionExpression.dataType()
+            : resolution.resolvedDataType();
         return new CompactMultiTypeEsField(
             imf.getName(),
             resolvedDataType,
             false,
-            filtered,
+            resolution.typeToExpr(),
             imf.getTimeSeriesFieldType(),
             unmappedConversionExpression
         );

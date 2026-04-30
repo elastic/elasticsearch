@@ -21,7 +21,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * <p>
@@ -131,24 +130,17 @@ public final class MultiTypeEsField extends EsField implements UnionTypeEsField 
         TypeConflictField typeConflictedField,
         Map<String, Expression> typesToConversionExpressions
     ) {
-        Map<String, Set<String>> typesToIndices = typeConflictedField.getTypesToIndices();
-        DataType resolvedDataType = DataType.UNSUPPORTED;
+        UnionTypeEsField.Resolution resolution = UnionTypeEsField.resolve(typeConflictedField, typesToConversionExpressions);
         Map<String, Expression> indexToConversionExpressions = new HashMap<>();
-        for (String typeName : typesToIndices.keySet()) {
-            Set<String> indices = typesToIndices.get(typeName);
-            Expression convertExpr = typesToConversionExpressions.get(typeName);
-            if (resolvedDataType == DataType.UNSUPPORTED) {
-                resolvedDataType = convertExpr.dataType();
-            } else if (resolvedDataType != convertExpr.dataType()) {
-                throw new IllegalArgumentException("Resolved data type mismatch: " + resolvedDataType + " != " + convertExpr.dataType());
-            }
+        typeConflictedField.getTypesToIndices().forEach((typeName, indices) -> {
+            Expression convertExpr = resolution.typeToExpr().get(DataType.fromTypeName(typeName));
             for (String indexName : indices) {
                 indexToConversionExpressions.put(indexName, convertExpr);
             }
-        }
+        });
         return new MultiTypeEsField(
             typeConflictedField.getName(),
-            resolvedDataType,
+            resolution.resolvedDataType(),
             false,
             indexToConversionExpressions,
             typeConflictedField.getTimeSeriesFieldType(),

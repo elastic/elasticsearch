@@ -11,6 +11,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Common interface implemented by both {@link MultiTypeEsField} (legacy, keyed by index name) and
@@ -27,4 +29,21 @@ public sealed interface UnionTypeEsField permits MultiTypeEsField, CompactMultiT
     Expression getUnmappedConversionExpression();
 
     Collection<Expression> getConversionExpressions();
+
+    static Resolution resolve(TypeConflictField field, Map<String, Expression> typesToConversionExpressions) {
+        DataType resolvedDataType = DataType.UNSUPPORTED;
+        Map<DataType, Expression> typeToExpr = new HashMap<>();
+        for (String typeName : field.getTypesToIndices().keySet()) {
+            Expression convertExpr = typesToConversionExpressions.get(typeName);
+            if (resolvedDataType == DataType.UNSUPPORTED) {
+                resolvedDataType = convertExpr.dataType();
+            } else if (resolvedDataType != convertExpr.dataType()) {
+                throw new IllegalArgumentException("Resolved data type mismatch: " + resolvedDataType + " != " + convertExpr.dataType());
+            }
+            typeToExpr.put(DataType.fromTypeName(typeName), convertExpr);
+        }
+        return new Resolution(resolvedDataType, typeToExpr);
+    }
+
+    record Resolution(DataType resolvedDataType, Map<DataType, Expression> typeToExpr) {}
 }

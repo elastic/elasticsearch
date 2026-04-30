@@ -353,6 +353,8 @@ tests:
 - class: org.elasticsearch.cluster.routing.IndexRoutingTests
   method: testRequiredRoutingUsesSliceMessageWhenSliceEnabled
   issue: https://github.com/elastic/elasticsearch/issues/147777
+- class: org.elasticsearch.xpack.esql.CsvIT
+  issue: https://github.com/elastic/elasticsearch/issues/147971
 
 # Examples:
 #

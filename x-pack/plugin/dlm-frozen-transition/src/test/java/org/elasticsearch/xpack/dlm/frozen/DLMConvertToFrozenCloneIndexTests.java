@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
     private ProjectId projectId;
@@ -97,7 +98,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockCloneFailure = new AtomicReference<>();
         mockDeleteFailure = new AtomicReference<>();
         capturedHealthRequest = new AtomicReference<>();
-        mockHealthResponse = new AtomicReference<>();
+        mockHealthResponse = new AtomicReference<>(new ClusterHealthResponse());
         mockHealthFailure = new AtomicReference<>();
         client = createMockClient();
     }
@@ -193,6 +194,21 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         String indexForForceMerge = convert.getIndexForForceMerge();
         assertThat(indexForForceMerge, is(notNullValue()));
         assertThat(indexForForceMerge, equalTo(indexName));
+    }
+
+    public void testMaybeCloneIndexThrowsWhenYellowStatusTimeoutBreached() {
+        createProjectState(2); // replicas > 0 to trigger cloning
+        ClusterHealthResponse timedOut = new ClusterHealthResponse();
+        timedOut.setTimedOut(true);
+        mockHealthResponse.set(timedOut);
+
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::maybeCloneIndex);
+        assertThat(exception.getMessage(), containsString("timed out"));
+        assertThat(exception.getMessage(), containsString(indexName));
+        // No clone (resize) request should have been issued
+        assertThat(capturedResizeRequest.get(), is(nullValue()));
     }
 
     public void testMaybeCloneIndexCreatesCloneWithCorrectSettings() throws InterruptedException {

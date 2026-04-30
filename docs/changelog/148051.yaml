@@ -1,0 +1,5 @@
+area: Infra/Entitlements
+issues: []
+pr: 148051
+summary: Preload `AllPermissionCollection` to avoid JDK 21 circularity
+type: bug

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -61,6 +62,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.getM
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * A test that starts a single node with security enabled. This test case allows for customization
@@ -101,6 +103,29 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         super.setUp();
         deleteSecurityIndexIfExists();
         createSecurityIndexWithWaitForActiveShards();
+    }
+
+    private void awaitQueryableBuiltInRolesSyncSettled() throws Exception {
+        if (QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_ENABLED == false) {
+            return;
+        }
+        QueryableBuiltInRolesSynchronizer synchronizer = getInstanceFromNode(QueryableBuiltInRolesSynchronizer.class);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        // The digest is only set after a successful sync, which requires an active primary,
+        // so it is a reliable signal that any reactive recreation has fully completed.
+        assertBusy(() -> {
+            assertThat(synchronizer.isSynchronizationInProgress(), is(false));
+            IndexMetadata indexMetadata = clusterService.state()
+                .metadata()
+                .getProject()
+                .index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
+            if (indexMetadata != null) {
+                assertThat(
+                    indexMetadata.getCustomData(QueryableBuiltInRolesSynchronizer.METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY),
+                    is(notNullValue())
+                );
+            }
+        });
     }
 
     @Override
@@ -384,7 +409,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         return builder.build();
     }
 
-    protected void deleteSecurityIndexIfExists() {
+    protected void deleteSecurityIndexIfExists() throws Exception {
         // delete the security index, if it exist
         GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
         getIndexRequest.indices(SECURITY_MAIN_ALIAS);
@@ -398,6 +423,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
             awaitSecurityMigration();
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
             assertAcked(client().admin().indices().delete(deleteIndexRequest).actionGet());
+            awaitQueryableBuiltInRolesSyncSettled();
         }
     }
 

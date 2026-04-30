@@ -611,7 +611,7 @@ public class ReindexerTests extends ESTestCase {
         for (int i = completedSliceCount; i < totalSlices; i++) {
             final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
                 randomAlphaOfLength(10),
-                System.nanoTime(),
+                System.currentTimeMillis(),
                 new BulkByScrollTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), originalSliceRps, null, timeValueMillis(0)),
                 null
             );

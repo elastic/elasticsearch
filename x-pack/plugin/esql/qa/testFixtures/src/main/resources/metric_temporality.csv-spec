@@ -4,7 +4,7 @@
 
 multipleAggsWithoutTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v2
+required_capability: tsdb_temporality_support_v3
 
 TS metric_temporality
  | STATS bytes_per_second = SUM(rate(network.total_bytes_in)), bytes = SUM(increase(network.total_bytes_in)) BY cluster
@@ -24,7 +24,7 @@ prod-null       | 0.2928479               | 264.0
 
 rateGroupedByTemporality
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v2
+required_capability: tsdb_temporality_support_v3
 
 TS metric_temporality
  | STATS bytes_per_second = SUM(rate(network.total_bytes_in)) BY my_temporality
@@ -44,7 +44,7 @@ null                   | 0.2928479
 
 multipleAggsByTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v2
+required_capability: tsdb_temporality_support_v3
 
 TS metric_temporality
  | STATS bytes_per_second = SUM(rate(network.total_bytes_in)), bytes = SUM(increase(network.total_bytes_in)) BY cluster, bucket = TBUCKET(300s)
@@ -66,4 +66,73 @@ bucket:datetime          | cluster:keyword | bytes_per_second:double | bytes:dou
 2024-05-10T00:15:00.000Z | prod-cumulative | 0.5786293               | 0.863315
 2024-05-10T00:15:00.000Z | prod-delta      | 0.5786293               | 0.863315
 2024-05-10T00:15:00.000Z | prod-null       | 0.5786293               | 0.863315
+;
+
+// ---------------------------------------------------------------------------------
+
+
+irateWithoutTBucket
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v3
+
+TS metric_temporality
+ | STATS irate_bytes = SUM(irate(network.total_bytes_in)) BY cluster
+ | EVAL irate_bytes = round(irate_bytes, 7)
+ | KEEP cluster, irate_bytes
+ | SORT cluster
+;
+
+cluster:keyword | irate_bytes:double
+prod-cumulative | 0.5786293
+prod-delta      | null
+prod-null       | 0.5786293
+;
+
+// ---------------------------------------------------------------------------------
+
+
+irateGroupedByTemporality
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v3
+
+TS metric_temporality
+ | STATS irate_bytes = SUM(irate(network.total_bytes_in)) BY my_temporality
+ | EVAL irate_bytes = round(irate_bytes, 7)
+ | KEEP my_temporality, irate_bytes
+ | SORT my_temporality
+;
+
+my_temporality:keyword | irate_bytes:double
+cumulative             | 0.5786293
+delta                  | null
+null                   | 0.5786293
+;
+
+// ---------------------------------------------------------------------------------
+
+
+irateByTBucket
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v3
+
+TS metric_temporality
+ | STATS irate_bytes = SUM(irate(network.total_bytes_in)) BY cluster, bucket = TBUCKET(300s)
+ | EVAL irate_bytes = round(irate_bytes, 7)
+ | KEEP bucket, cluster, irate_bytes
+ | SORT bucket, cluster
+;
+
+bucket:datetime          | cluster:keyword | irate_bytes:double
+2024-05-10T00:00:00.000Z | prod-cumulative | 0.5703784
+2024-05-10T00:00:00.000Z | prod-delta      | null
+2024-05-10T00:00:00.000Z | prod-null       | 0.5703784
+2024-05-10T00:05:00.000Z | prod-cumulative | 0.137893
+2024-05-10T00:05:00.000Z | prod-delta      | null
+2024-05-10T00:05:00.000Z | prod-null       | 0.137893
+2024-05-10T00:10:00.000Z | prod-cumulative | 0.0
+2024-05-10T00:10:00.000Z | prod-delta      | null
+2024-05-10T00:10:00.000Z | prod-null       | 0.0
+2024-05-10T00:15:00.000Z | prod-cumulative | null
+2024-05-10T00:15:00.000Z | prod-delta      | null
+2024-05-10T00:15:00.000Z | prod-null       | null
 ;

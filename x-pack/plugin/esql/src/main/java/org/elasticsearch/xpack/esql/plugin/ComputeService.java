@@ -1224,20 +1224,14 @@ public class ComputeService {
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
-        // Just send out everything through a single exchange as a fallback
-        ReductionPlan passThroughReduction = new ReductionPlan(
-            originalPlan.replaceChild(source),
-            originalPlan,
-            LocalPhysicalOptimization.ENABLED
-        );
+        ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return passThroughReduction;
         }
 
         Function<PhysicalPlan, ReductionPlan> placePlanBetweenExchanges = p -> new ReductionPlan(
             originalPlan.replaceChild(p.replaceChildren(List.of(source))),
-            originalPlan,
-            LocalPhysicalOptimization.ENABLED
+            originalPlan
         );
 
         // The default plan is just the exchange source piped directly into the exchange sink.

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.test.rest;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -55,7 +56,7 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .build();
 
-    public XPackRestIT(ClientYamlTestCandidate testCandidate) {
+    public XPackRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

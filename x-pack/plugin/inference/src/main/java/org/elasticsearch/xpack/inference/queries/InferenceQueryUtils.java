@@ -302,11 +302,19 @@ public final class InferenceQueryUtils {
             createRemoteInferenceInfoGroupedActionListener(remoteIndices.size(), remoteInferenceInfoListener);
 
         InferenceStringGroup input = inferenceInfoRequest.input();
-        // Remote clusters accept only a plain text string. Extract it when input is a single text entry; use null otherwise
-        // (non-text or multi-entry inputs are not forwarded, and a null query simply skips remote inference generation).
-        String remoteQuery = (input != null && input.containsNonTextEntry() == false && input.containsMultipleInferenceStrings() == false)
-            ? input.textValue()
-            : null;
+        String remoteQuery = null;
+        if (input != null) {
+            if (input.containsNonTextEntry() || input.containsMultipleInferenceStrings()) {
+                // Remote clusters accept only a plain text string; extract it when the input is a single text entry.
+                gal.onFailure(
+                    new IllegalArgumentException(
+                        "Remote inference info requests do not support non-text or multiple inputs. Input must be a single text entry."
+                    )
+                );
+                return;
+            }
+            remoteQuery = input.textValue();
+        }
 
         for (var entry : remoteIndices.entrySet()) {
             String clusterAlias = entry.getKey();
@@ -599,13 +607,23 @@ public final class InferenceQueryUtils {
                 case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                     if (input.containsNonTextEntry()) {
                         gal.onFailure(
-                            new IllegalArgumentException("Non-text input is not supported for [" + taskType + "] inference endpoints")
+                            new IllegalArgumentException(
+                                "Non-text input is not supported for ["
+                                    + taskType
+                                    + "] inference endpoints for inference_id ["
+                                    + inferenceId
+                                    + "]"
+                            )
                         );
                         return;
                     } else if (input.containsMultipleInferenceStrings()) {
                         gal.onFailure(
                             new IllegalArgumentException(
-                                "Multiple text inputs are not supported for [" + taskType + "] inference endpoints"
+                                "Multiple text inputs are not supported for ["
+                                    + taskType
+                                    + "] inference endpoints for inference_id ["
+                                    + inferenceId
+                                    + "]"
                             )
                         );
                         return;

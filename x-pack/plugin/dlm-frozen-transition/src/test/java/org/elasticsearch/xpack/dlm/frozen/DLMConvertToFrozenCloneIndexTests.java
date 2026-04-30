@@ -146,14 +146,28 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
 
     public void testGetIndexForForceMergeReturnsCloneIndexWhenNoExistingClone() {
         createProjectState(2);
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
         String indexForForceMerge = convert.getIndexForForceMerge();
         assertThat(indexForForceMerge, is(convert.getDLMCloneIndexName()));
     }
 
     public void testGetIndexForForceMergeReturnsCloneWhenCloneExists() {
         createProjectStateWithClone(true);
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
         String indexForForceMerge = convert.getIndexForForceMerge();
         assertThat(indexForForceMerge, is(notNullValue()));
         assertThat(indexForForceMerge, equalTo(convert.getDLMCloneIndexName()));
@@ -165,7 +179,14 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         ClusterHealthResponse healthResponse = new ClusterHealthResponse();
         mockHealthResponse.set(healthResponse);
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
         String indexForForceMerge = convert.getIndexForForceMerge();
 
         // Should have issued a health request to wait for clone to become active
@@ -182,7 +203,14 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockHealthResponse.set(healthResponse);
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::getIndexForForceMerge);
         assertThat(exception.getMessage(), containsString("timed out waiting for clone index"));
@@ -190,7 +218,14 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
 
     public void testGetIndexForForceMergeReturnsOriginalIndexWhenZeroReplicas() {
         createProjectState(0);
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
         String indexForForceMerge = convert.getIndexForForceMerge();
         assertThat(indexForForceMerge, is(notNullValue()));
         assertThat(indexForForceMerge, equalTo(indexName));
@@ -202,7 +237,14 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         timedOut.setTimedOut(true);
         mockHealthResponse.set(timedOut);
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::maybeCloneIndex);
         assertThat(exception.getMessage(), containsString("timed out"));
@@ -213,7 +255,14 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
 
     public void testMaybeCloneIndexCreatesCloneWithCorrectSettings() throws InterruptedException {
         createProjectState(2); // replicas > 0 to trigger cloning
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
         mockCloneResponse.set(new CreateIndexResponse(true, true, convert.getDLMCloneIndexName()));
         convert.maybeCloneIndex();
 
@@ -230,7 +279,14 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockCloneFailure.set(new ElasticsearchException("clone failed"));
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::maybeCloneIndex);
         assertThat(exception.getMessage(), containsString("failed to clone"));
 
@@ -244,7 +300,14 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         createProjectState(1);
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
         convert.deleteIndex(convert.getDLMCloneIndexName());
 
         String cloneIndexName = convert.getDLMCloneIndexName();
@@ -256,7 +319,14 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         createProjectState(1);
         mockDeleteResponse.set(AcknowledgedResponse.of(false));
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
 
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,
@@ -274,7 +344,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
             projectId,
             client,
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -291,7 +361,14 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         ClusterHealthResponse healthResponse = new ClusterHealthResponse();
         mockHealthResponse.set(healthResponse);
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
         // Should not throw
         convert.waitForCloneToBeActive();
 
@@ -308,7 +385,14 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         mockHealthResponse.set(healthResponse);
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::waitForCloneToBeActive);
         assertThat(exception.getMessage(), containsString("timed out waiting for clone index"));
@@ -325,7 +409,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
             projectId,
             client,
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -343,7 +427,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
             projectId,
             client,
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
         converter.waitForCloneToBeActive();

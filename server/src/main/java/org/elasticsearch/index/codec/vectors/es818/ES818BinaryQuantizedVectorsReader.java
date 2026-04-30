@@ -625,6 +625,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
         }
     }
 
+    @SuppressForbidden(reason = "Lucene classes")
     static class LuceneQuantizedByteVectorValues extends QuantizedByteVectorValues {
         private final BinarizedByteVectorValues delegate;
         private final VectorSimilarityFunction similarityFunction;

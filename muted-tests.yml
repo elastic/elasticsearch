@@ -532,3 +532,27 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotAndRelocationEnabled
   issue: https://github.com/elastic/elasticsearch/issues/148041
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTopHits
+  issue: https://github.com/elastic/elasticsearch/issues/148044
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTermsAggs
+  issue: https://github.com/elastic/elasticsearch/issues/148049
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testProfile
+  issue: https://github.com/elastic/elasticsearch/issues/148050
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testSortByField
+  issue: https://github.com/elastic/elasticsearch/issues/148052
+- class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
+  method: test500Queries
+  issue: https://github.com/elastic/elasticsearch/issues/148056
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testHasParentWithInnerHit
+  issue: https://github.com/elastic/elasticsearch/issues/148058
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testFetchSource
+  issue: https://github.com/elastic/elasticsearch/issues/148059
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testFieldCollapsingSortByScore
+  issue: https://github.com/elastic/elasticsearch/issues/148063

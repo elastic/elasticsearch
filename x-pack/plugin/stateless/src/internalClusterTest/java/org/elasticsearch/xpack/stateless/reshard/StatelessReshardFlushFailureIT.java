@@ -1,0 +1,144 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.reshard;
+
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
+
+public class StatelessReshardFlushFailureIT extends AbstractStatelessPluginIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(org.elasticsearch.xpack.stateless.TestStatelessPlugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
+        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
+    }
+
+    private static final AtomicInteger flushFailureCountdown = new AtomicInteger(0);
+
+    public void testSourceReleasesPermitsUponFlushFailure() throws Exception {
+        var indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        Index index = resolveIndex(indexName);
+        ensureGreen(indexName);
+
+        int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+
+        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        var setFlushFailureCountdown = new AtomicBoolean(false);
+        splitSourceService.setPreHandoffHook(() -> {
+            if (setFlushFailureCountdown.getAndSet(true) == false) {
+                // Fail the second flush which occurs after acquiring permits
+                flushFailureCountdown.set(2);
+            }
+        });
+
+        logger.info("starting reshard");
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        awaitClusterState((state) -> state.getMetadata().indexMetadata(index).getReshardingMetadata() == null);
+        ensureGreen(indexName);
+        refresh(indexName);
+        assertHitCount(
+            client().prepareSearch(indexName)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setSize(10000)
+                .setTrackTotalHits(true)
+                .setAllowPartialSearchResults(false),
+            numDocs
+        );
+    }
+
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+        public TestStatelessPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected IndexEngine newIndexEngine(
+            EngineConfig engineConfig,
+            TranslogReplicator translogReplicator,
+            Function<String, BlobContainer> translogBlobContainer,
+            StatelessCommitService statelessCommitService,
+            HollowShardsService hollowShardsService,
+            SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
+            RefreshManagerService refreshManagerService,
+            ReshardIndexService reshardIndexService,
+            DocumentParsingProvider documentParsingProvider,
+            IndexEngine.EngineMetrics engineMetrics
+        ) {
+            return new IndexEngine(
+                engineConfig,
+                translogReplicator,
+                translogBlobContainer,
+                statelessCommitService,
+                hollowShardsService,
+                sharedBlobCacheWarmingService,
+                refreshManagerService,
+                reshardIndexService,
+                statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
+                documentParsingProvider,
+                engineMetrics,
+                statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
+            ) {
+                @Override
+                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
+                    final ShardId shardId = engineConfig.getShardId();
+                    // Fail if countdown goes to 0
+                    if (flushFailureCountdown.getAndUpdate(val -> val == 0 ? 0 : val - 1) == 1) {
+                        if (randomBoolean()) {
+                            listener.onFailure(new EngineException(shardId, "test failure"));
+                        } else {
+                            throw new IllegalArgumentException("test flush exception");
+                        }
+                    } else {
+                        super.flushHoldingLock(force, waitIfOngoing, listener);
+                    }
+                }
+            };
+        }
+    }
+}

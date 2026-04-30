@@ -65,8 +65,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -1859,6 +1861,76 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         assertEquals("Sum of rows across splits must equal the row count written", numRows, totalRowsFromRanges);
+    }
+
+    /**
+     * Regression test for #147691: concurrent {@code readRange} calls on a single shared
+     * {@link ParquetFormatReader} must not corrupt the codec factory it caches internally.
+     * <p>
+     * In production {@code AsyncExternalSourceOperatorFactory} hands a single {@code ParquetFormatReader}
+     * to multiple driver threads, each reading a distinct row-group split. Every split decodes
+     * column chunks via the reader's shared {@link PlainCompressionCodecFactory}, so
+     * {@link PlainCompressionCodecFactory#getDecompressor} runs concurrently for the same codec.
+     * An earlier implementation backed the lookup with an unsynchronized {@code HashMap}, which
+     * raced under load (typically as {@code ConcurrentModificationException} from
+     * {@code computeIfAbsent}, but the symptom is non-deterministic).
+     * <p>
+     * We additionally collect the {@code id} value of every emitted row into a shared set, so a
+     * silently-corrupted decode (e.g. plausible-looking but wrong INT64s after a torn snappy
+     * block) is caught as a duplicate or missing id rather than only via the row count.
+     */
+    public void testConcurrentReadRangeAcrossRowGroupsDoesNotCorruptCodecFactory() throws Exception {
+        int numRows = 10_000;
+        // 8 KB row-group target with highly-compressible payload reliably produces several
+        // row groups; the assertion below pins the invariant in case writer defaults change.
+        byte[] parquetData = createCompressibleMultiRowGroupFile(numRows, CompressionCodecName.SNAPPY);
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertThat("Test needs multiple row groups to exercise concurrency", ranges.size(), greaterThan(2));
+
+        AtomicInteger totalRows = new AtomicInteger();
+        Set<Long> observedIds = new HashSet<>();
+
+        startInParallel(ranges.size(), i -> {
+            RangeAwareFormatReader.SplitRange range = ranges.get(i);
+            long rangeStart = range.offset();
+            long rangeEnd = rangeStart + range.length();
+            List<Long> idsForSplit = new ArrayList<>();
+            try (
+                CloseableIterator<Page> iterator = reader.readRange(
+                    storageObject,
+                    null,
+                    500,
+                    rangeStart,
+                    rangeEnd,
+                    List.of(),
+                    ErrorPolicy.STRICT
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    Page page = iterator.next();
+                    LongBlock ids = (LongBlock) page.getBlock(0);
+                    for (int row = 0; row < page.getPositionCount(); row++) {
+                        idsForSplit.add(ids.getLong(row));
+                    }
+                    totalRows.addAndGet(page.getPositionCount());
+                    page.releaseBlocks();
+                }
+            } catch (IOException e) {
+                throw new AssertionError("readRange failed for split [" + rangeStart + "," + rangeEnd + ")", e);
+            }
+            // Single bulk synchronization per split rather than per-row contention.
+            synchronized (observedIds) {
+                for (Long id : idsForSplit) {
+                    assertTrue("duplicate id [" + id + "] across splits", observedIds.add(id));
+                }
+            }
+        });
+
+        assertEquals("All splits combined must yield every row exactly once", numRows, totalRows.get());
+        assertEquals("Observed ids must cover the full row range", numRows, observedIds.size());
     }
 
     /**

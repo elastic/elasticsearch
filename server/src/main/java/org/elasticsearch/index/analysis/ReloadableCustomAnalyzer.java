@@ -50,9 +50,13 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
                 custom.setStoredComponents(components);
                 return null;
             }
-            TokenStreamComponents tokenStream = (TokenStreamComponents) getStoredValue(analyzer);
-            assert tokenStream != null;
-            return tokenStream;
+            // No assertion that the per-strategy slot is populated: {@link #createWrapperReuseStrategy}
+            // also writes to {@code storedComponents} (it has to, to satisfy the per-call snapshot
+            // contract used by {@link #createComponents} and {@link #initReader}). When this
+            // strategy is invoked on a thread where a wrapper strategy has primed the TL but this
+            // analyzer's own per-strategy slot is still empty, returning {@code null} lets Lucene
+            // rebuild and populate the slot.
+            return (TokenStreamComponents) getStoredValue(analyzer);
         }
 
         @Override

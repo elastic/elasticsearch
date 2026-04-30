@@ -564,7 +564,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         BulkByScrollTask task = createTask(true);
         assertTrue(task.tryInitiateRelocationHandoff());
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, task::ensureCancellable);
-        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         assertThat(e.getMessage(), equalTo("cannot cancel task [" + task.getId() + "] because it is being relocated"));
         assertEquals(BulkByScrollTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
         assertTrue(task.useCreateSemanticsForResultStorage());

@@ -114,7 +114,10 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         String sourceRouting = randomRealisticUnicodeOfLengthBetween(5, 20);
         String prepopulatedRouting = randomValueOtherThan(sourceRouting, () -> randomRealisticUnicodeOfLengthBetween(5, 20));
         ReindexRequest request = request();
-        IndexRequest index = new IndexRequest("index").id("1").source(Map.of("foo", "bar")).routing(prepopulatedRouting).setRoutingFromSlice(true);
+        IndexRequest index = new IndexRequest("index").id("1")
+            .source(Map.of("foo", "bar"))
+            .routing(prepopulatedRouting)
+            .setRoutingFromSlice(true);
         PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0).setRouting(sourceRouting);
 
         IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> ctx.put("_routing", sourceRouting), request, index, doc);

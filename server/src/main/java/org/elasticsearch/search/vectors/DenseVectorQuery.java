@@ -10,6 +10,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
@@ -32,14 +33,19 @@ import java.util.Objects;
 /**
  * Exact knn query. Will iterate and score all documents that have the provided dense vector field in the index.
  * <p>
- * Each subclass takes an optional {@link VectorSimilarityFunction}:
+ * Each subclass takes an optional {@link VectorSimilarityFunction}, which selects one of three modes:
  * <ul>
- *     <li>{@code function == null}: scoring uses the codec-bound {@link VectorScorer} returned by
+ *     <li>{@code function == null}: scoring uses the codec-bound scorer returned by
  *     {@code vectorValues.scorer(query)}. On codec-quantized fields this scores against the
  *     quantized representation.</li>
- *     <li>{@code function != null}: scoring iterates the raw vectors via {@code vectorValue(ord)}
- *     and applies {@code function.compare(target, raw)} directly. This produces full-precision
- *     scores regardless of index type, at the cost of bypassing the codec's optimized scorer.</li>
+ *     <li>{@code function != null} and equal to the field's bound similarity function: scoring uses
+ *     {@code vectorValues.rescorer(query)}, Lucene's primitive for highest-fidelity raw scoring.
+ *     For codecs that preserve raw vectors alongside quantized ones (INT8/INT4/BBQ via
+ *     {@code QuantizedAndRawFloatVectorValues} and friends) this returns the raw scorer; for
+ *     non-quantized codecs it equals {@code scorer(query)} per the Lucene default.</li>
+ *     <li>{@code function != null} and different from the field's bound similarity function:
+ *     scoring iterates {@code vectorValue(ord)} and applies {@code function.compare(target, raw)}
+ *     directly — the only path that supports a per-query similarity-function override.</li>
  * </ul>
  */
 public abstract class DenseVectorQuery extends Query {
@@ -111,8 +117,10 @@ public abstract class DenseVectorQuery extends Query {
         }
 
         /**
-         * Raw scoring with the given {@code function}; iterates {@code FloatVectorValues.vectorValue(ord)}
-         * and applies {@code function.compare(query, raw)}. Pass {@code null} to use the codec scorer.
+         * Raw scoring with the given {@code function}. When {@code function} matches the field's bound
+         * similarity, scoring uses {@link FloatVectorValues#rescorer(float[])} (Lucene's high-fidelity
+         * raw primitive); when it differs, scoring iterates {@code vectorValue(ord)} and applies
+         * {@code function.compare(query, raw)} directly. Pass {@code null} to use the codec scorer.
          */
         public Floats(float[] query, String field, VectorSimilarityFunction function) {
             super(field);
@@ -142,7 +150,14 @@ public abstract class DenseVectorQuery extends Query {
                     if (vectorValues == null) {
                         return null;
                     }
-                    return function == null ? vectorValues.scorer(query) : new RawFloatVectorScorer(vectorValues, query, function);
+                    if (function == null) {
+                        return vectorValues.scorer(query);
+                    }
+                    FieldInfo fieldInfo = leafReaderContext.reader().getFieldInfos().fieldInfo(field);
+                    if (fieldInfo != null && fieldInfo.getVectorSimilarityFunction() == function) {
+                        return vectorValues.rescorer(query);
+                    }
+                    return new RawFloatVectorScorer(vectorValues, query, function);
                 }
             };
         }
@@ -198,8 +213,10 @@ public abstract class DenseVectorQuery extends Query {
         }
 
         /**
-         * Raw scoring with the given {@code function}; iterates {@code ByteVectorValues.vectorValue(ord)}
-         * and applies {@code function.compare(query, raw)}. Pass {@code null} to use the codec scorer.
+         * Raw scoring with the given {@code function}. When {@code function} matches the field's bound
+         * similarity, scoring uses {@link ByteVectorValues#rescorer(byte[])} (Lucene's high-fidelity
+         * raw primitive); when it differs, scoring iterates {@code vectorValue(ord)} and applies
+         * {@code function.compare(query, raw)} directly. Pass {@code null} to use the codec scorer.
          */
         public Bytes(byte[] query, String field, VectorSimilarityFunction function) {
             super(field);
@@ -229,7 +246,14 @@ public abstract class DenseVectorQuery extends Query {
                     if (vectorValues == null) {
                         return null;
                     }
-                    return function == null ? vectorValues.scorer(query) : new RawByteVectorScorer(vectorValues, query, function);
+                    if (function == null) {
+                        return vectorValues.scorer(query);
+                    }
+                    FieldInfo fieldInfo = leafReaderContext.reader().getFieldInfos().fieldInfo(field);
+                    if (fieldInfo != null && fieldInfo.getVectorSimilarityFunction() == function) {
+                        return vectorValues.rescorer(query);
+                    }
+                    return new RawByteVectorScorer(vectorValues, query, function);
                 }
             };
         }

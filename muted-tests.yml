@@ -394,9 +394,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogMasterFailureOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/147835
-- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
-  method: testTranslogIsolatedNodeOnlyStressRecoveryTest
-  issue: https://github.com/elastic/elasticsearch/issues/147836
 - class: org.elasticsearch.xpack.stateless.lucene.SearchDirectoryTests
   method: testGetHighestOffsetSegmentInfos
   issue: https://github.com/elastic/elasticsearch/issues/147837
@@ -505,3 +502,6 @@ tests:
 - class: org.elasticsearch.search.rescore.QueryRescoreModeTests
   method: testQueryRescoreMode
   issue: https://github.com/elastic/elasticsearch/issues/147812
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
+  issue: https://github.com/elastic/elasticsearch/issues/147988

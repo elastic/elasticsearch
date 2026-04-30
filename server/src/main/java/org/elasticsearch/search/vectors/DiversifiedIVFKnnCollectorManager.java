@@ -18,12 +18,18 @@ import org.apache.lucene.util.BitSet;
 import java.io.IOException;
 
 public class DiversifiedIVFKnnCollectorManager extends AbstractIVFKnnVectorQuery.IVFCollectorManager {
-    private final int k;
     private final BitSetProducer parentsFilter;
 
-    DiversifiedIVFKnnCollectorManager(int k, IndexSearcher searcher, BitSetProducer parentsFilter) {
-        super(k, searcher);
-        this.k = k;
+    DiversifiedIVFKnnCollectorManager(
+        int k,
+        IndexSearcher searcher,
+        BitSetProducer parentsFilter,
+        String field,
+        int kRequest,
+        float oversampleFallback,
+        boolean usePerSegmentRescoreOversampling
+    ) {
+        super(k, searcher, field, kRequest, oversampleFallback, usePerSegmentRescoreOversampling);
         this.parentsFilter = parentsFilter;
     }
 
@@ -34,6 +40,9 @@ public class DiversifiedIVFKnnCollectorManager extends AbstractIVFKnnVectorQuery
         if (parentBitSet == null) {
             return null;
         }
-        return new DiversifyingNearestChildrenKnnCollector(k, visitedLimit, searchStrategy, parentBitSet);
+        int collectorK = usePerSegmentRescoreOversampling
+            ? AbstractIVFKnnVectorQuery.perSegmentCollectorK(context, field, kRequest, oversampleFallback, k)
+            : k;
+        return new DiversifyingNearestChildrenKnnCollector(collectorK, visitedLimit, searchStrategy, parentBitSet);
     }
 }

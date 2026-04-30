@@ -30,6 +30,10 @@ import java.util.stream.IntStream;
 /**
  * Byte-level BPE tokenizer backed by {@link BpeTokenizer} and {@link BpeAnalyzer}, using configurable
  * special token strings from {@link ByteLevelBpeTokenization}.
+ *
+ * <p>Results are built with {@link RobertaTokenizationResult} on purpose: the packed token layout
+ * (CLS/BOS, SEP/EOS, padding) matches what RoBERTa-style BPE models expect, independent of the
+ * configurable BOS/EOS string values.
  */
 public class ByteLevelBpeTokenizer extends NlpTokenizer {
 
@@ -250,7 +254,7 @@ public class ByteLevelBpeTokenizer extends NlpTokenizer {
                 neverSplit = Collections.emptySet();
             }
             ByteLevelBpeTokenization effectiveTokenization = new ByteLevelBpeTokenization(
-                tokenization.doLowerCase(),
+                false,
                 withSpecialTokens,
                 maxSequenceLength,
                 tokenization.getTruncate(),

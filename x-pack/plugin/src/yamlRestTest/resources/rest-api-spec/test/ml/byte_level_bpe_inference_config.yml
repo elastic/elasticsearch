@@ -1,0 +1,42 @@
+setup:
+  - skip:
+      features: headers
+
+---
+"Put and get trained model with byte_level_bpe text embedding tokenization":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: byte_level_bpe_rest_config_model
+        body: >
+          {
+            "description": "byte_level_bpe tokenization XContent REST coverage",
+            "model_type": "pytorch",
+            "inference_config": {
+              "text_embedding": {
+                "tokenization": {
+                  "byte_level_bpe": {
+                    "with_special_tokens": false,
+                    "add_prefix_space": true,
+                    "max_sequence_length": 256,
+                    "truncate": "first",
+                    "unk_token": "<unk>",
+                    "pad_token": "<pad>"
+                  }
+                }
+              }
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.get_trained_models:
+        model_id: byte_level_bpe_rest_config_model
+  - match: { trained_model_configs.0.model_id: "byte_level_bpe_rest_config_model" }
+  - match: { trained_model_configs.0.inference_config.text_embedding.tokenization.byte_level_bpe.with_special_tokens: false }
+  - match: { trained_model_configs.0.inference_config.text_embedding.tokenization.byte_level_bpe.add_prefix_space: true }
+  - match: { trained_model_configs.0.inference_config.text_embedding.tokenization.byte_level_bpe.max_sequence_length: 256 }
+  - match: { trained_model_configs.0.inference_config.text_embedding.tokenization.byte_level_bpe.truncate: "first" }
+  - match: { trained_model_configs.0.inference_config.text_embedding.tokenization.byte_level_bpe.unk_token: "<unk>" }
+  - match: { trained_model_configs.0.inference_config.text_embedding.tokenization.byte_level_bpe.pad_token: "<pad>" }

@@ -16,6 +16,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -29,6 +30,8 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * modification and instrumentation within Elasticsearch.
  */
 public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRangeQuery {
+
+    public static final FeatureFlag NUMERIC_RANGE_COLLECT_PUSHDOWN = new FeatureFlag("numeric_range_collect_pushdown");
 
     public SortedNumericDocValuesRangeQuery(String field, long lowerValue, long upperValue) {
         super(field, lowerValue, upperValue);
@@ -243,7 +246,9 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                     scoreMode,
                     maxDoc
                 );
-                if (skipper != null && singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
+                if (NUMERIC_RANGE_COLLECT_PUSHDOWN.isEnabled()
+                    && skipper != null
+                    && singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
                     var rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue, skipper);
                     if (rangeIterator != null) {
                         return ConstantScoreScorerSupplier.fromIterator(rangeIterator, score(), scoreMode, maxDoc);

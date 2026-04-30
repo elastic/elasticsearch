@@ -197,24 +197,40 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 new Query[] {
                     FloatField.newExactQuery("field", 42),
                     FloatPoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesField.newSlowExactQuery("field", NumericUtils.floatToSortableInt(42)) }
+                    new SortedNumericDocValuesRangeQuery(
+                        "field",
+                        NumericUtils.floatToSortableInt(42),
+                        NumericUtils.floatToSortableInt(42)
+                    ) }
             ),
             new TermQueryTestCase(
                 NumberType.DOUBLE,
                 new Query[] {
                     DoubleField.newExactQuery("field", 42),
                     DoublePoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesField.newSlowExactQuery("field", NumericUtils.doubleToSortableLong(42)) }
+                    new SortedNumericDocValuesRangeQuery(
+                        "field",
+                        NumericUtils.doubleToSortableLong(42),
+                        NumericUtils.doubleToSortableLong(42)
+                    ) }
             ),
             new TermQueryTestCase(
                 NumberType.HALF_FLOAT,
                 new Query[] {
                     new IndexOrDocValuesQuery(
                         HalfFloatPoint.newExactQuery("field", 42),
-                        SortedNumericDocValuesField.newSlowExactQuery("field", HalfFloatPoint.halfFloatToSortableShort(42))
+                        new SortedNumericDocValuesRangeQuery(
+                            "field",
+                            HalfFloatPoint.halfFloatToSortableShort(42),
+                            HalfFloatPoint.halfFloatToSortableShort(42)
+                        )
                     ),
                     HalfFloatPoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesField.newSlowExactQuery("field", HalfFloatPoint.halfFloatToSortableShort(42)) }
+                    new SortedNumericDocValuesRangeQuery(
+                        "field",
+                        HalfFloatPoint.halfFloatToSortableShort(42),
+                        HalfFloatPoint.halfFloatToSortableShort(42)
+                    ) }
             )
         );
 

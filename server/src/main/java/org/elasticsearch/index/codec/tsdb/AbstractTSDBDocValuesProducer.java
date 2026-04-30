@@ -32,10 +32,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
-import org.apache.lucene.search.CheckedIntConsumer;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.DocIdStream;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -46,7 +43,6 @@ import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
-import org.apache.lucene.util.MathUtil;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
@@ -2415,10 +2411,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper) {
                     return new DocIdSetIterator() {
-                        private final FixedBitSet matches = new FixedBitSet(
-                            new long[(numericBlockMask + 1) >>> 6],
-                            numericBlockMask + 1
-                        );
+                        private final FixedBitSet matches = new FixedBitSet(numericBlockSize);
                         private int iterDoc = -1;
                         private int cachedBlockId = -1;
 

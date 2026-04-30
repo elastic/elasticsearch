@@ -15,7 +15,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;

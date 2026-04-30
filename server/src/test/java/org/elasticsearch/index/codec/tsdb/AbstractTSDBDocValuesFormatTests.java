@@ -2494,8 +2494,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         return expected;
     }
 
-    private void assertRangeIterator(LeafReader leafReader, String field, int numDocs, long lower, long upper)
-            throws IOException {
+    private void assertRangeIterator(LeafReader leafReader, String field, int numDocs, long lower, long upper) throws IOException {
         Set<Integer> expected = bruteForceRange(leafReader, field, lower, upper);
 
         // Pass 1: nextDoc() correctness + docIDRunEnd() contract.
@@ -2533,7 +2532,11 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             List<Integer> sortedDocs = expected.stream().sorted().collect(Collectors.toList());
             for (int expectedDoc : sortedDocs) {
                 if (iter.docID() < expectedDoc) {
-                    assertEquals("advance(" + expectedDoc + ") for range [" + lower + "," + upper + "]", expectedDoc, iter.advance(expectedDoc));
+                    assertEquals(
+                        "advance(" + expectedDoc + ") for range [" + lower + "," + upper + "]",
+                        expectedDoc,
+                        iter.advance(expectedDoc)
+                    );
                 }
             }
         }
@@ -2549,7 +2552,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
     }
 
     private void assertRangeIteratorIntoBitSet(LeafReader leafReader, String field, int numDocs, long lower, long upper)
-            throws IOException {
+        throws IOException {
         Set<Integer> expected = bruteForceRange(leafReader, field, lower, upper);
 
         var ndv = getBaseDenseNumericValues(leafReader, field);
@@ -2577,24 +2580,14 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         assertEquals("intoBitSet range [" + lower + "," + upper + "]", expected, actual);
     }
 
-    private void assertRangeQuerySearcher(
-        LeafReader leafReader,
-        String field,
-        IndexSearcher searcher,
-        int numDocs,
-        long lower,
-        long upper
-    ) throws IOException {
+    private void assertRangeQuerySearcher(LeafReader leafReader, String field, IndexSearcher searcher, int numDocs, long lower, long upper)
+        throws IOException {
         Set<Integer> expected = bruteForceRange(leafReader, field, lower, upper);
 
         var query = new SortedNumericDocValuesRangeQuery(field, lower, upper);
         var topDocs = searcher.search(query, numDocs + 1);
 
-        assertEquals(
-            "hit count for range [" + lower + "," + upper + "]",
-            expected.size(),
-            (int) topDocs.totalHits.value()
-        );
+        assertEquals("hit count for range [" + lower + "," + upper + "]", expected.size(), (int) topDocs.totalHits.value());
 
         Set<Integer> actual = new HashSet<>();
         for (var scoreDoc : topDocs.scoreDocs) {

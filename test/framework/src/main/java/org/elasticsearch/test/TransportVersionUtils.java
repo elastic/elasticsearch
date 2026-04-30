@@ -20,7 +20,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.apache.lucene.tests.util.TestCase.random;
 import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
 
 public class TransportVersionUtils {

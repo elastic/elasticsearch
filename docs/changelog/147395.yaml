@@ -1,6 +1,0 @@
-area: Vector Search
-issues: []
-pr: 147395
-summary: "DiskBBQ - write persisted per-segment config on merge, read on flush and\
-  \ at query time"
-type: enhancement

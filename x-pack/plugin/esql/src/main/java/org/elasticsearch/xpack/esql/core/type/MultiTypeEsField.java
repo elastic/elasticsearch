@@ -17,11 +17,13 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+// FIXME(gal, NOCOMMIT) Redocument that this is for BWC.
 /**
  * During IndexResolution it can occur that the same field is mapped to different types in different indices.
  * An {@link InvalidMappedField} holds that information and allows for later resolution of the field
@@ -31,7 +33,7 @@ import java.util.Set;
  * this class instead of the {@link InvalidMappedField}.
  * This class is sent to the data nodes to inform them that they have to convert the type directly during field extraction.
  */
-public class MultiTypeEsField extends EsField implements UnionTypeEsField {
+public final class MultiTypeEsField extends EsField implements UnionTypeEsField {
     private static final TransportVersion POTENTIALLY_UNMAPPED_EXPRESSION = TransportVersion.fromName(
         "esql_potentially_unmapped_expression"
     );
@@ -101,6 +103,11 @@ public class MultiTypeEsField extends EsField implements UnionTypeEsField {
 
     public Map<String, Expression> getIndexToConversionExpressions() {
         return indexToConversionExpressions;
+    }
+
+    @Override
+    public Collection<Expression> getConversionExpressions() {
+        return indexToConversionExpressions.values();
     }
 
     public @Nullable Expression getConversionExpressionForIndex(String indexName) {

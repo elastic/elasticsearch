@@ -20,6 +20,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
+// FIXME(gal, NOCOMMIT) Redocument that this is for BWC
 /**
  * Representation of field mapped differently across indices; or being potentially unmapped in some, in which case it is treated as
  * {@link DataType#KEYWORD} in the indices where it is unmapped.
@@ -28,7 +29,7 @@ import java.util.TreeMap;
  * not required through the cluster, only surviving as long as the Analyser phase of query planning.
  * It is used specifically for the 'union types' and 'unmapped fields' feature in ES|QL.
  */
-public class InvalidMappedField extends EsField implements TypeConflictField {
+public final class InvalidMappedField extends EsField implements TypeConflictField {
 
     private final String errorMessage;
     private final Map<String, Set<String>> typesToIndices;

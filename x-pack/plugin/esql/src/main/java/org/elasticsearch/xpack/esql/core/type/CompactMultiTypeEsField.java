@@ -17,12 +17,13 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-// FIXME(gal, NOCOMMIT) Go over this javadocs
+// FIXME(gal, NOCOMMIT) Go over these javadocs
 // FIXME(gal, NOCOMMIT) Reduce duplication with MultiTypeEsField
 /**
  * Memory-efficient variant of {@link MultiTypeEsField} that stores the per-source-type conversion
@@ -35,7 +36,7 @@ import java.util.Set;
  * legacy {@link MultiTypeEsField} when the cluster minimum transport version does not yet support
  * {@code esql_multi_type_es_field_2}.
  */
-public class CompactMultiTypeEsField extends EsField implements UnionTypeEsField {
+public final class CompactMultiTypeEsField extends EsField implements UnionTypeEsField {
     // FIXME(gal, NOCOMMIT) rename
     public static final TransportVersion ESQL_MULTI_TYPE_ES_FIELD_2 = TransportVersion.fromName("esql_multi_type_es_field_2");
 
@@ -96,10 +97,14 @@ public class CompactMultiTypeEsField extends EsField implements UnionTypeEsField
         return typeToConversionExpressions;
     }
 
+    @Override
+    public Collection<Expression> getConversionExpressions() {
+        return typeToConversionExpressions.values();
+    }
+
     /**
      * Returns the conversion expression to apply for the given source {@link DataType}, or {@code null}
-     * if no conversion is registered for that type. Callers should fall back to
-     * {@link #getUnmappedConversionExpression()} when the field is unmapped in the local index.
+     * if no conversion is registered for that type.
      */
     public @Nullable Expression getConversionExpressionForType(DataType type) {
         return typeToConversionExpressions.get(type);

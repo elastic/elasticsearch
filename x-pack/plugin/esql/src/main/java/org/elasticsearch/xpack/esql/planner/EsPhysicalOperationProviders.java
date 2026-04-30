@@ -265,21 +265,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             );
             return ValuesSourceReaderOperator.load(blockLoader);
         }
-        Expression conversion;
-        if (unionTypes instanceof MultiTypeEsField legacy) {
-            // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
-            String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
-            conversion = legacy.getConversionExpressionForIndex(indexName);
-        } else {
-            // Type-keyed lookup: resolve the field's local data type from the shard context, falling back to "unmapped" when the field has
-            // no local mapping. The conversion map is keyed by DataType.typeName().
-            MappedFieldType mft = shardContext.fieldType(fieldName);
-            conversion = mft == null
-                ? null
-                : ((CompactMultiTypeEsField) unionTypes).getConversionExpressionForType(
-                    EsqlDataTypeRegistry.INSTANCE.fromEs(mft.typeName(), mft.getMetricType())
-                );
-        }
+        Expression conversion = switch (unionTypes) {
+            case CompactMultiTypeEsField compact -> {
+                MappedFieldType mft = shardContext.fieldType(fieldName);
+                yield mft == null
+                    ? null
+                    : compact.getConversionExpressionForType(EsqlDataTypeRegistry.INSTANCE.fromEs(mft.typeName(), mft.getMetricType()));
+            }
+            case MultiTypeEsField legacy -> {
+                // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with cluster prefix
+                String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
+                yield legacy.getConversionExpressionForIndex(indexName);
+            }
+        };
         if (conversion == null) {
             Expression potentiallyUnmapped = unionTypes.getUnmappedConversionExpression();
             if (!(potentiallyUnmapped instanceof AbstractConvertFunction convert)) {

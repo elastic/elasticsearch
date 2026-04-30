@@ -7,25 +7,27 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
+// FIXME(gal, NOCOMMIT) Go over these docs
 /**
  * Memory-frugal counterpart to {@link InvalidMappedField}: stores at most {@value #MAX_INDICES_PER_TYPE} concrete index names per source
- * type (plus the {@value #ELLIPSIS} sentinel when more existed) instead of the full per-type index list. Wide union-typed fields routinely
- * span thousands of indices but the only consumers that need the full list are the legacy index-keyed conversion structures, and they
- * aren't used on transport versions that support {@link CompactMultiTypeEsField}. Truncating here lets the analyzed plan stay small while
- * still producing a good "[a, b, c, ...]" error message: the message itself is rendered from the full input map at construction time and
- * then stored as a string, so we lose only the post-construction ability to enumerate every index.
+ * type instead of the full per-type index list. Wide union-typed fields routinely span thousands of indices but the only consumers that
+ * need the full list are the legacy index-keyed conversion structures, and they aren't used on transport versions that support
+ * {@link CompactMultiTypeEsField}. Truncating here lets the analyzed plan stay small while still producing a good "[a, b, c, ...]" error
+ * message: the message itself is rendered from the full input map at construction time and then stored as a string, so we lose only the
+ * post-construction ability to enumerate every index.
  *
  * <p>The two classes share the {@link TypeConflictField} interface so consumers (the analyzer, the verifier, type resolution) can branch
  * on it instead of either concrete class. {@link CompactInvalidMappedField} deliberately does <em>not</em> extend
@@ -36,8 +38,7 @@ import java.util.TreeMap;
  * round-trips through the wire as a plain {@link InvalidMappedField} on the receiving side. That's fine because {@code typesToIndices}
  * is empty after deserialization anyway, so the truncation no longer matters.
  */
-public class CompactInvalidMappedField extends EsField implements TypeConflictField {
-    private static final String ELLIPSIS = "...";
+public final class CompactInvalidMappedField extends EsField implements TypeConflictField {
     private static final int MAX_INDICES_PER_TYPE = 3;
 
     private final String errorMessage;
@@ -71,10 +72,7 @@ public class CompactInvalidMappedField extends EsField implements TypeConflictFi
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(getName());
-        out.writeString(errorMessage);
-        out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
-        writeTimeSeriesFieldType(out);
+        throw new UnsupportedOperationException("CompactInvalidMappedField shouldn't be transported");
     }
 
     @Override
@@ -121,24 +119,20 @@ public class CompactInvalidMappedField extends EsField implements TypeConflictFi
         return Objects.equals(errorMessage, other.errorMessage);
     }
 
-    /**
-     * Cap each per-type index set at {@value #MAX_INDICES_PER_TYPE} entries, appending the {@value #ELLIPSIS} sentinel iff anything was
-     * dropped. The retained 3 are picked by sorted order so that the (already truncated) error message and the stored set stay
-     * consistent.
-     */
+    /** Cap each per-type index set at {@value #MAX_INDICES_PER_TYPE} entries. */
     private static Map<String, Set<String>> truncate(Map<String, Set<String>> typesToIndices) {
         Map<String, Set<String>> result = new TreeMap<>();
         for (Map.Entry<String, Set<String>> entry : typesToIndices.entrySet()) {
             Set<String> indices = entry.getValue();
-            if (indices.size() <= MAX_INDICES_PER_TYPE) {
-                result.put(entry.getKey(), Set.copyOf(indices));
-            } else {
-                Set<String> truncated = new LinkedHashSet<>(MAX_INDICES_PER_TYPE + 1);
-                indices.stream().sorted().limit(MAX_INDICES_PER_TYPE).forEach(truncated::add);
-                truncated.add(ELLIPSIS);
-                result.put(entry.getKey(), Set.copyOf(truncated));
-            }
+            result.put(entry.getKey(), indices.size() <= MAX_INDICES_PER_TYPE ? Set.copyOf(indices) : truncate(indices));
         }
         return result;
+    }
+
+    private static @NonNull Set<String> truncate(Set<String> indices) {
+        Set<String> truncated = new LinkedHashSet<>(MAX_INDICES_PER_TYPE + 1);
+        indices.stream().sorted().limit(MAX_INDICES_PER_TYPE).forEach(truncated::add);
+        truncated.add("...");
+        return Collections.unmodifiableSet(truncated);
     }
 }

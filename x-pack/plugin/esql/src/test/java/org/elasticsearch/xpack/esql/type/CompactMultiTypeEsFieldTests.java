@@ -42,7 +42,6 @@ import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigur
  * Mirror of {@link MultiTypeEsFieldTests} for the type-keyed {@link CompactMultiTypeEsField}.
  */
 public class CompactMultiTypeEsFieldTests extends AbstractEsFieldTypeTests<CompactMultiTypeEsField> {
-
     private Configuration config;
 
     @Before

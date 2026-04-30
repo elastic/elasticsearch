@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+// FIXME(gal, NOCOMMIT) Go over these docs
 /**
  * Common surface for the two ESQL field flavors that carry per-index type-conflict information: the legacy
  * {@link InvalidMappedField} (full per-type index lists) and the memory-frugal {@link CompactInvalidMappedField} (truncated lists).
@@ -21,8 +22,7 @@ import java.util.stream.Collectors;
  * provided for free by {@link EsField}, which both implementations extend; they're declared here so consumers can pull everything
  * they need off a single typed reference.
  */
-public interface TypeConflictField {
-
+public sealed interface TypeConflictField permits InvalidMappedField, CompactInvalidMappedField {
     String getName();
 
     Map<String, EsField> getProperties();

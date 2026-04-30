@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.tests.util.RamUsageTester;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -31,8 +32,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField.ESQL_MULTI_TYPE_ES_FIELD_2;
 import static org.hamcrest.Matchers.lessThan;
 
+// FIXME(gal, NOCOMMIT) Go over these docs
 /**
  * End-to-end check that an analyzed plan over many union-typed fields, each conflicting across thousands of indices, retains substantially
  * less memory under {@link CompactMultiTypeEsField} (paired with {@link CompactInvalidMappedField}'s truncated index lists) than under
@@ -64,30 +67,23 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
     };
 
     public void testV2AnalyzedPlanIsAtLeastTenTimesSmallerThanLegacy() {
-        String query = buildExplicitConversionQuery(NUM_CONFLICTING_FIELDS);
-
-        LogicalPlan legacyPlan = analyzer().addIndex(unionTypedIndex(false))
-            .minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.ESQL_MULTI_TYPE_ES_FIELD_2))
-            .query(query);
-        LogicalPlan v2Plan = analyzer().addIndex(unionTypedIndex(true))
-            .minimumTransportVersion(CompactMultiTypeEsField.ESQL_MULTI_TYPE_ES_FIELD_2)
-            .query(query);
-
-        long legacyBytes = RamUsageTester.ramUsed(legacyPlan, ACCUMULATOR);
-        long v2Bytes = RamUsageTester.ramUsed(v2Plan, ACCUMULATOR);
-        assertThat(v2Bytes * 10L, lessThan(legacyBytes));
-    }
-
-    /**
-     * Build a query that forces the analyzer to materialize a {@code MultiTypeEsField}/{@link CompactMultiTypeEsField} for every
-     * {@code id_<i>} field by explicitly casting each to keyword.
-     */
-    private static String buildExplicitConversionQuery(int numFields) {
-        String evalAssignments = IntStream.range(0, numFields)
+        String evalAssignments = IntStream.range(0, MultiTypeEsFieldMemoryTests.NUM_CONFLICTING_FIELDS)
             .mapToObj(i -> "id_" + i + "_kw = id_" + i + "::keyword")
             .collect(Collectors.joining(", "));
-        String keepFields = IntStream.range(0, numFields).mapToObj(i -> "id_" + i + "_kw").collect(Collectors.joining(", "));
-        return "FROM idx* | EVAL " + evalAssignments + " | KEEP " + keepFields + " | LIMIT 1";
+        String keepFields = IntStream.range(0, MultiTypeEsFieldMemoryTests.NUM_CONFLICTING_FIELDS)
+            .mapToObj(i -> "id_" + i + "_kw")
+            .collect(Collectors.joining(", "));
+        String query = "FROM idx* | EVAL " + evalAssignments + " | KEEP " + keepFields + " | LIMIT 1";
+
+        assertThat(getBytesUsed(true, query) * 10L, lessThan(getBytesUsed(false, query)));
+    }
+
+    private static long getBytesUsed(boolean compact, String query) {
+        TransportVersion transportVersion = compact
+            ? TransportVersionUtils.randomVersionSupporting(ESQL_MULTI_TYPE_ES_FIELD_2)
+            : TransportVersionUtils.randomVersionNotSupporting(ESQL_MULTI_TYPE_ES_FIELD_2);
+        LogicalPlan plan = analyzer().addIndex(unionTypedIndex(compact)).minimumTransportVersion(transportVersion).query(query);
+        return RamUsageTester.ramUsed(plan, ACCUMULATOR);
     }
 
     /**

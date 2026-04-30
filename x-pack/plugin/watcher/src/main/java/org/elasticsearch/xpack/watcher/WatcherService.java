@@ -289,12 +289,7 @@ public class WatcherService {
         if (processedClusterStateVersion.get() == state.getVersion()) {
             executionService.unPause();
             triggerService.start(watches);
-            IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, state.metadata());
-            Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigurationByShardId(state, indexMetadata);
-            synchronized (pendingWatches) {
-                collectPendingWatches(indexMetadata, shardConfigs).forEach(triggerService::add);
-                pendingWatches.clear();
-            }
+            addPendingWatches(state);
             if (triggeredWatches.isEmpty() == false) {
                 executionService.executeTriggeredWatches(triggeredWatches);
             }
@@ -336,7 +331,7 @@ public class WatcherService {
         try {
             refreshWatches(indexMetadata);
 
-            Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigurationByShardId(clusterState, indexMetadata);
+            final Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigurations(clusterState, indexMetadata);
 
             if (shardConfigs == null) {
                 return List.of(); // no shard configs mean the index is not yet ready, so we can't load watches yet'
@@ -386,38 +381,41 @@ public class WatcherService {
         return watches;
     }
 
-    private static Map<ShardId, ShardAllocationConfiguration> shardAllocationConfigurationByShardId(
+    private static Map<ShardId, ShardAllocationConfiguration> shardAllocationConfigurations(
         ClusterState clusterState,
         IndexMetadata indexMetadata
     ) {
         // find out local shards
-        RoutingNode routingNode = clusterState.getRoutingNodes().node(clusterState.nodes().getLocalNodeId());
+        final RoutingNode routingNode = clusterState.getRoutingNodes().node(clusterState.nodes().getLocalNodeId());
         // yes, this can happen, if the state is not recovered
         if (routingNode == null) {
             return null;
         }
 
-        String watchIndexName = indexMetadata.getIndex().getName();
-        List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
+        final String watchIndexName = indexMetadata.getIndex().getName();
+        final List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
 
         @NotMultiProjectCapable(description = "Watcher is not available in serverless")
-        IndexRoutingTable indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(watchIndexName);
+        final IndexRoutingTable indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(watchIndexName);
         return ShardAllocationConfiguration.forLocalShards(localShards, indexRoutingTable);
     }
 
-    private List<Watch> collectPendingWatches(IndexMetadata indexMetadata, Map<ShardId, ShardAllocationConfiguration> shardConfigs) {
-        List<Watch> watches = new ArrayList<>();
-        int numShards = indexMetadata.getNumberOfShards();
-        for (Watch pendingWatch : this.pendingWatches.values()) {
-            ShardAllocationConfiguration shardConfig = findShardConfig(shardConfigs, pendingWatch.id(), numShards);
-            if (shardConfig == null || shardConfig.shouldBeTriggered(pendingWatch.id()) == false) {
-                continue;
+    private void addPendingWatches(ClusterState state) {
+        final IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, state.metadata());
+        final Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigurations(state, indexMetadata);
+        final int numShards = indexMetadata.getNumberOfShards();
+        synchronized (pendingWatches) {
+            for (Watch pendingWatch : this.pendingWatches.values()) {
+                final ShardAllocationConfiguration shardConfig = findShardConfig(shardConfigs, pendingWatch.id(), numShards);
+                if (shardConfig == null || shardConfig.shouldBeTriggered(pendingWatch.id()) == false) {
+                    continue;
+                }
+                if (pendingWatch.status().state().isActive()) {
+                    triggerService.add(pendingWatch);
+                }
             }
-            if (pendingWatch.status().state().isActive()) {
-                watches.add(pendingWatch);
-            }
+            pendingWatches.clear();
         }
-        return watches;
     }
 
     /**

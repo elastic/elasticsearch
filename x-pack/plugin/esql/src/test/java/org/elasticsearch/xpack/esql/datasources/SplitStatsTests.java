@@ -316,7 +316,7 @@ public class SplitStatsTests extends ESTestCase {
         Map<String, Object> sourceMetadata = new HashMap<>();
         sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
 
-        SplitStats result = SplitStats.resolveEffectiveStats(List.of(), sourceMetadata);
+        var result = SplitStats.resolveEffectiveStats(List.of(), sourceMetadata);
         assertNotNull(result);
         assertEquals(1000, result.rowCount());
     }
@@ -326,7 +326,7 @@ public class SplitStatsTests extends ESTestCase {
         sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
         sourceMetadata.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
 
-        SplitStats result = SplitStats.resolveEffectiveStats(List.of(), sourceMetadata);
+        var result = SplitStats.resolveEffectiveStats(List.of(), sourceMetadata);
         assertNull("Should return null for partial stats to prevent wrong pushdown", result);
     }
 
@@ -335,7 +335,7 @@ public class SplitStatsTests extends ESTestCase {
         sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
         sourceMetadata.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.FALSE);
 
-        SplitStats result = SplitStats.resolveEffectiveStats(List.of(), sourceMetadata);
+        var result = SplitStats.resolveEffectiveStats(List.of(), sourceMetadata);
         assertNotNull("Non-true partial flag should not block stats", result);
         assertEquals(1000, result.rowCount());
     }
@@ -346,7 +346,7 @@ public class SplitStatsTests extends ESTestCase {
         SplitStats splitStats = b.build();
         FileSplit split = fileSplitWithStats(splitStats);
 
-        SplitStats result = SplitStats.resolveEffectiveStats(List.of(split), Map.of());
+        var result = SplitStats.resolveEffectiveStats(List.of(split), Map.of());
         assertNotNull(result);
         assertEquals(500, result.rowCount());
         assertEquals(0, result.columnNullCount("x"));
@@ -367,7 +367,7 @@ public class SplitStatsTests extends ESTestCase {
 
         List<ExternalSplit> splits = List.of(fileSplitWithStats(s1), fileSplitWithStats(s2), fileSplitWithStats(s3));
 
-        SplitStats result = SplitStats.resolveEffectiveStats(splits, Map.of());
+        var result = SplitStats.resolveEffectiveStats(splits, Map.of());
         assertNotNull(result);
         assertEquals(600, result.rowCount());
         assertEquals(15, result.columnNullCount("age"));
@@ -393,7 +393,7 @@ public class SplitStatsTests extends ESTestCase {
 
         List<ExternalSplit> splits = List.of(splitWithStats, splitWithoutStats);
 
-        SplitStats result = SplitStats.resolveEffectiveStats(splits, Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 9999L));
+        var result = SplitStats.resolveEffectiveStats(splits, Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 9999L));
         assertNull("Should return null when any split lacks stats", result);
     }
 

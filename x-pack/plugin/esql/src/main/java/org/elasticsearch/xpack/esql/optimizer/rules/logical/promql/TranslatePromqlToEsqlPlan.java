@@ -412,13 +412,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.optimizerContext().configuration()
         );
 
-        Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
-            functionCall.functionName(),
-            functionCall.source(),
-            childResult.expression(),
-            promqlCtx,
-            functionCall.parameters()
-        );
+        Expression function = functionCall.buildEsqlFunction(childResult.expression(), promqlCtx);
 
         // This can happen when trying to provide a counter to a function that doesn't support it e.g. avg_over_time on a counter
         // This is essentially a bug since this limitation doesn't exist in PromQL itself.
@@ -632,7 +626,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.stepAttr(),
             ctx.optimizerContext().configuration()
         );
-        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(agg.functionName(), agg.source(), inputValue, promqlCtx, agg.parameters());
+        return agg.buildEsqlFunction(inputValue, promqlCtx);
     }
 
     private static LogicalPlan createInnermostAggregatePlan(TranslationContext ctx, LogicalPlan plan, LabelSetSpec labels, Expression agg) {

@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Random;
 
 public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
+    // Setting is owned by xpack-deprecation, which is not a stateless module — applying it would fail node startup.
     private static final List<String> EXCLUDED_SETTINGS = List.of("cluster.deprecation_indexing.enabled");
 
     @Override

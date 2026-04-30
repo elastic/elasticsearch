@@ -19,21 +19,14 @@ import java.util.function.Consumer;
  * Default configuration applied to all stateless clusters.
  */
 public class DefaultStatelessLocalConfigProvider implements LocalClusterConfigProvider {
-    private final boolean addDefaultNodes;
-
-    public DefaultStatelessLocalConfigProvider(boolean addDefaultNodes) {
-        this.addDefaultNodes = addDefaultNodes;
-    }
 
     @Override
     public void apply(LocalClusterSpecBuilder<?> builder) {
         // Stateless self-managed tests run against the INTEG_TEST distribution plus explicit modules per test
         // (rather than the DEFAULT distribution) because:
-        // 1. Until the stateless code is moved to the public elasticsearch repo, the upstream DEFAULT
-        // distribution does not include all plugins that ship with our serverless distribution.
-        // 2. Pinning modules explicitly keeps the task graph small and stable: test inputs don't change
+        // 1. Pinning modules explicitly keeps the task graph small and stable: test inputs don't change
         // every time an unrelated plugin's code changes.
-        // 3. Each test's required modules are declared in the build, making module dependencies explicit
+        // 2. Each test's required modules are declared in the build, making module dependencies explicit
         // instead of implicitly pulling in "everything".
         builder.distribution(DistributionType.INTEG_TEST)
             .keystore("bootstrap.password", "x-pack-test-password")
@@ -41,12 +34,9 @@ public class DefaultStatelessLocalConfigProvider implements LocalClusterConfigPr
             .setting("stateless.object_store.type", "fs")
             .setting("stateless.object_store.bucket", "stateless")
             .setting("stateless.object_store.base_path", "base_path")
-            .feature(FeatureFlag.TIME_SERIES_MODE);
-
-        if (addDefaultNodes) {
-            builder.withNode(node("index", "[master,remote_cluster_client,ingest,index]"))
-                .withNode(node("search", "[remote_cluster_client,search]"));
-        }
+            .feature(FeatureFlag.TIME_SERIES_MODE)
+            .withNode(node("index", "[master,remote_cluster_client,ingest,index]"))
+            .withNode(node("search", "[remote_cluster_client,search]"));
     }
 
     public static Consumer<? super LocalNodeSpecBuilder> node(String name, String nodeRoles) {

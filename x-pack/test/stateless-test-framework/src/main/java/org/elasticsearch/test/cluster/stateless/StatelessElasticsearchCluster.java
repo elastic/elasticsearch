@@ -20,16 +20,7 @@ public interface StatelessElasticsearchCluster extends ElasticsearchCluster {
      * @return a builder for a local stateless cluster
      */
     static StatelessLocalClusterSpecBuilder local() {
-        return new StatelessLocalClusterSpecBuilder(true);
-    }
-
-    /**
-     * Creates a new {@link LocalClusterSpecBuilder} for defining a locally orchestrated stateless cluster with no preconfigured nodes.
-     *
-     * @return a builder for a local stateless cluster
-     */
-    static StatelessLocalClusterSpecBuilder localEmptyNode() {
-        return new StatelessLocalClusterSpecBuilder(false);
+        return new StatelessLocalClusterSpecBuilder();
     }
 
     /**

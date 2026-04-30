@@ -578,7 +578,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             throw new AlreadyClosedException("source shard closed before recovery started: " + shardRouting);
         } else {
             final var message = format(
-                "not an IndexEngine: %s [indexShardState=%s, shardRouting=%s]",
+                "not an allowed engine on indexing tier: %s [indexShardState=%s, shardRouting=%s]",
                 engine,
                 indexShardState,
                 shardRouting

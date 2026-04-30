@@ -26,9 +26,10 @@ import java.util.function.LongSupplier;
 public final class SearchContextKeepaliveDeadline {
 
     /**
-     * Until {@link #recordSuccessfulExtension(TimeValue)} runs, comparisons against this value avoid false positives.
+     * Sentinel meaning no extension has been recorded yet. Chosen so {@link Math#max(long, long)} with any real
+     * {@code now + keepAliveMillis} replaces it on the first successful extension.
      */
-    static final long INITIAL_DEADLINE = Long.MAX_VALUE;
+    static final long INITIAL_DEADLINE = -1L;
 
     private final AtomicLong deadlineEpochMillis = new AtomicLong(INITIAL_DEADLINE);
     private final LongSupplier clockMillis;
@@ -44,12 +45,7 @@ public final class SearchContextKeepaliveDeadline {
         long extensionMillis = Math.max(0L, effectiveKeepAlive.millis());
         long now = clockMillis.getAsLong();
         long candidate = now + extensionMillis;
-        deadlineEpochMillis.updateAndGet(prev -> {
-            if (prev == INITIAL_DEADLINE) {
-                return candidate;
-            }
-            return Math.max(prev, candidate);
-        });
+        deadlineEpochMillis.accumulateAndGet(candidate, Math::max);
     }
 
     /** Returns true when wall-clock time is past {@link #recordSuccessfulExtension(TimeValue)} */

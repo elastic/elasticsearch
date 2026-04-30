@@ -70,12 +70,12 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             case 0 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                FieldMapper.DocValuesParameter.Values.MultiValue.ARRAYS
+                FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
             );
             case 1 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                FieldMapper.DocValuesParameter.Values.MultiValue.ARRAYS
+                FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
             );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();

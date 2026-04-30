@@ -549,7 +549,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             e.getMessage(),
-            containsString("Unknown value [sorted_set] for field [multi_value] - accepted values are [no, sorted, arrays]")
+            containsString("Unknown value [sorted_set] for field [multi_value] - accepted values are [no, sorted, array]")
         );
     }
 

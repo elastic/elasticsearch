@@ -508,6 +508,16 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertIgnoredSourceIsEmpty(doc);
     }
 
+    public void testMultiValueDefaultIsSortedSet() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text").field("doc_values", true)));
+        TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET));
+    }
+
     public void testDocValuesEnabledWithIndexing() throws IOException {
         assumeTrue(
             "text field doc_values feature must be enabled",

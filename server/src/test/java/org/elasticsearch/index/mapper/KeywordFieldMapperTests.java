@@ -1113,7 +1113,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
+            containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, array]")
         );
     }
 

@@ -132,6 +132,16 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         minimalMapping(b);
     }
 
+    public void testMultiValueDefaultIsSortedSet() throws IOException {
+        assumeTrue(
+            "match_only_text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
+        MatchOnlyTextFieldMapper mapper = (MatchOnlyTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET));
+    }
+
     public void testDefaults() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());

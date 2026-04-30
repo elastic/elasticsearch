@@ -243,7 +243,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 stored.getValue(),
                 this,
                 indexSettings.getIndexVersionCreated(),
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_UNSIGNED_LONG
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_UNSIGNED_LONG,
+                docValuesParameters.getValue().multiValue()
             );
             return new UnsignedLongFieldMapper(
                 leafName(),

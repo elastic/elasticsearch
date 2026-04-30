@@ -251,7 +251,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 stored.getValue(),
                 this,
                 indexSettings.getIndexVersionCreated(),
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_SCALED_FLOAT
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_SCALED_FLOAT,
+                docValuesParameters.getValue().multiValue()
             );
             return new ScaledFloatFieldMapper(
                 leafName(),

@@ -487,7 +487,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 stored.getValue(),
                 this,
                 indexCreatedVersion,
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD,
+                docValuesParameters().multiValue()
             );
             return new KeywordFieldMapper(
                 leafName(),

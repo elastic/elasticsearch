@@ -102,8 +102,15 @@ public class FieldArrayContext {
         boolean isStored,
         FieldMapper.Builder fieldMapperBuilder,
         IndexVersion indexCreatedVersion,
-        IndexVersion minSupportedVersionMain
+        IndexVersion minSupportedVersionMain,
+        FieldMapper.DocValuesParameter.Values.MultiValue multiValue
     ) {
+        // multi_value=array trigger: mapping-time validation enforces the safety conditions (copy_to empty, no multi-fields, doc_values
+        // enabled, not nested, index version supports the offsets payload), so the runtime gate here is intentionally minimal.
+        if (multiValue == FieldMapper.DocValuesParameter.Values.MultiValue.ARRAY) {
+            return context.buildFullName(fieldMapperBuilder.leafName() + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX);
+        }
+
         var sourceKeepMode = fieldMapperBuilder.sourceKeepMode.orElse(indexSourceKeepMode);
         if (context.isSourceSynthetic()
             && sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
@@ -122,6 +129,51 @@ public class FieldArrayContext {
             return context.buildFullName(fieldMapperBuilder.leafName() + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX);
         } else {
             return null;
+        }
+    }
+
+    /**
+     * Mapping-time validation for {@code multi_value=array}. Run from each field mapper builder's {@code validate()} when the user has
+     * explicitly opted into {@code array}. Each rejected combination throws so the failure surfaces at parse / put-mapping time rather
+     * than as a silent ordering bug at read time.
+     * <ul>
+     *     <li>{@code copy_to} non-empty — slot-count coordination across source and copy-to destination is non-trivial.</li>
+     *     <li>multi-fields configured — same coordination issue as {@code copy_to}.</li>
+     *     <li>{@code doc_values=false} — offsets encode positions into the doc-values list; without doc values offsets point to nothing.</li>
+     *     <li>nested context — nested doc-id addressing complicates which doc the offsets attach to.</li>
+     *     <li>index version pre-dates the offsets payload format — old readers cannot decode it.</li>
+     * </ul>
+     */
+    public static void validateMultiValueArray(
+        String fieldName,
+        MapperBuilderContext context,
+        boolean hasDocValues,
+        FieldMapper.Builder fieldMapperBuilder,
+        IndexVersion indexCreatedVersion,
+        IndexVersion minSupportedVersionMain
+    ) {
+        if (fieldMapperBuilder.copyTo.copyToFields().isEmpty() == false) {
+            throw new IllegalArgumentException("Field [" + fieldName + "] has [multi_value=array] which is incompatible with [copy_to]");
+        }
+        if (fieldMapperBuilder.multiFieldsBuilder.hasMultiFields()) {
+            throw new IllegalArgumentException("Field [" + fieldName + "] has [multi_value=array] which is incompatible with [fields]");
+        }
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "Field [" + fieldName + "] has [multi_value=array] which requires [doc_values] to be enabled"
+            );
+        }
+        if (context.isInNestedContext()) {
+            throw new IllegalArgumentException(
+                "Field [" + fieldName + "] has [multi_value=array] which is not supported inside a [nested] object"
+            );
+        }
+        if (indexVersionSupportStoringArraysNatively(indexCreatedVersion, minSupportedVersionMain) == false) {
+            throw new IllegalArgumentException(
+                "Field ["
+                    + fieldName
+                    + "] has [multi_value=array] which requires an index created on a version that supports natively storing arrays"
+            );
         }
     }
 

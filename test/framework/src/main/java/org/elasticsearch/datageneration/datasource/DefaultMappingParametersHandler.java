@@ -322,8 +322,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case 1 -> Map.of("cardinality", "low");
             case 2 -> Map.of("cardinality", "high");
             case 3 -> true;
-            case 4 -> Map.of("cardinality", "low", "multi_value", "arrays");
-            case 5 -> Map.of("cardinality", "high", "multi_value", "arrays");
+            case 4 -> Map.of("cardinality", "low", "multi_value", "array");
+            case 5 -> Map.of("cardinality", "high", "multi_value", "array");
             default -> throw new IllegalStateException();
         };
     }

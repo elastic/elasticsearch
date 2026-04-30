@@ -79,7 +79,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("Unknown value [invalid] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
+            containsString("Unknown value [invalid] for field [multi_value] - accepted values are [no, sorted_set, array]")
         );
     }
 

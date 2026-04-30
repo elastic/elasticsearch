@@ -235,7 +235,8 @@ public class IpFieldMapper extends FieldMapper {
                 stored.getValue(),
                 this,
                 indexSettings.getIndexVersionCreated(),
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_IP
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_IP,
+                docValuesParameters.getValue().multiValue()
             );
             return new IpFieldMapper(
                 leafName(),

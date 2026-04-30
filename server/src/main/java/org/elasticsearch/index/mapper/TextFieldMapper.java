@@ -115,7 +115,7 @@ public final class TextFieldMapper extends FieldMapper {
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         false,
         DocValuesParameter.Values.Cardinality.HIGH,
-        DocValuesParameter.Values.MultiValue.ARRAYS
+        DocValuesParameter.Values.MultiValue.SORTED_SET
     );
 
     public static class Defaults {
@@ -267,7 +267,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
 
-        final DocValuesParameter docValuesParameters = DocValuesParameter.arraysWithCardinality(
+        final DocValuesParameter docValuesParameters = DocValuesParameter.sortedSetWithCardinality(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> ((TextFieldMapper) m).docValuesParameters
         );
@@ -1714,6 +1714,10 @@ public final class TextFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue().isSingleValued();
+    }
+
+    public DocValuesParameter.Values docValuesParameters() {
+        return docValuesParameters;
     }
 
     @Override

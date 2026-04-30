@@ -1489,13 +1489,13 @@ public abstract class FieldMapper extends Mapper {
              * {@code NO} restricts the field to a single value per document.
              * {@code SORTED} stores multiple values sorted per document (numeric types).
              * {@code SORTED_SET} stores multiple values sorted and deduplicated per document (keyword/IP types).
-             * {@code ARRAYS} allows multiple values, keeps original ordering, and supports null values.
+             * {@code ARRAY} allows multiple values, keeps original ordering, and supports null values.
              */
             public enum MultiValue {
                 NO,
                 SORTED,
                 SORTED_SET,
-                ARRAYS;
+                ARRAY;
 
                 /**
                  * Whether this mode restricts the field to a single value per document. Callers use this to branch between single-valued
@@ -1525,7 +1525,7 @@ public abstract class FieldMapper extends Mapper {
                 defaultValue,
                 initializer,
                 false,
-                EnumSet.of(Values.MultiValue.NO, Values.MultiValue.SORTED, Values.MultiValue.ARRAYS)
+                EnumSet.of(Values.MultiValue.NO, Values.MultiValue.SORTED, Values.MultiValue.ARRAY)
             );
         }
 
@@ -1538,7 +1538,7 @@ public abstract class FieldMapper extends Mapper {
                 defaultValue,
                 initializer,
                 false,
-                EnumSet.of(Values.MultiValue.NO, Values.MultiValue.SORTED_SET, Values.MultiValue.ARRAYS)
+                EnumSet.of(Values.MultiValue.NO, Values.MultiValue.SORTED_SET, Values.MultiValue.ARRAY)
             );
         }
 
@@ -1550,15 +1550,8 @@ public abstract class FieldMapper extends Mapper {
                 defaultValue,
                 initializer,
                 true,
-                EnumSet.of(Values.MultiValue.NO, Values.MultiValue.SORTED_SET, Values.MultiValue.ARRAYS)
+                EnumSet.of(Values.MultiValue.NO, Values.MultiValue.SORTED_SET, Values.MultiValue.ARRAY)
             );
-        }
-
-        /**
-         * Factory for field types that support cardinality. Use for text-family fields (text, match_only_text).
-         */
-        public static DocValuesParameter arraysWithCardinality(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            return new DocValuesParameter(defaultValue, initializer, true, EnumSet.of(Values.MultiValue.NO, Values.MultiValue.ARRAYS));
         }
 
         private DocValuesParameter(
@@ -1605,7 +1598,7 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": { "multi_value": "no" }} - single value enforced per document</li>
          *   <li>{@code "doc_values": { "multi_value": "sorted" }} - multiple values sorted per document</li>
          *   <li>{@code "doc_values": { "multi_value": "sorted_set" }} - multiple values sorted and deduplicated per document</li>
-         *   <li>{@code "doc_values": { "multi_value": "arrays" }} - multiple values stored as-is (no sorting or deduplication)</li>
+         *   <li>{@code "doc_values": { "multi_value": "array" }} - multiple values stored as-is (no sorting or deduplication)</li>
          * </ul>
          * <p>
          * Not all {@code multi_value} options are supported by every field type; unsupported options are rejected at mapping parse time.

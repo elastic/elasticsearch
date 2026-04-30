@@ -347,24 +347,18 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return nodeName()
-            + "["
-            + indexPattern
-            + "], "
-            + "indexMode["
-            + indexMode
-            + "], "
-            + NodeUtils.limitedToString(attrs)
-            + ", limit["
-            + (limit != null ? limit.toString() : "")
-            + "], sort["
-            + (sorts != null ? sorts.toString() : "")
-            + "] estimatedRowSize["
-            + estimatedRowSize
-            + "] queryBuilderAndTags ["
-            + (queryBuilderAndTags != null ? queryBuilderAndTags.toString() : "")
-            + "]";
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(indexPattern).append("], ").append("indexMode[").append(indexMode).append("], ");
+        NodeUtils.toString(sb, attrs, format);
+        sb.append(", limit[")
+            .append(limit != null ? limit.toString(format) : "")
+            .append("], sort[")
+            .append(sorts != null ? sorts.toString() : "")
+            .append("] estimatedRowSize[")
+            .append(estimatedRowSize)
+            .append("] queryBuilderAndTags [")
+            .append(queryBuilderAndTags != null ? queryBuilderAndTags.toString() : "")
+            .append("]");
     }
 
     public enum Direction {

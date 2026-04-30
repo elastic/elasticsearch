@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
@@ -1023,7 +1024,6 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     // test that docs in same date bucket with a later date than the updated doc are not ignored by the transform.
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98377")
     public void testContinuousDateHistogramPivot() throws Exception {
         String indexName = "continuous_reviews_date_histogram";
 
@@ -1067,6 +1067,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                 "timestamp": "2023-07-24T17:55:00.000Z",
                 "stars": 5
             }""");
+        putRequest.addParameter("refresh", "true");
         client().performRequest(putRequest);
 
         String transformId = "continuous_date_histogram_pivot";
@@ -1120,6 +1121,17 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         startAndWaitForContinuousTransform(transformId, transformIndex, null);
         assertTrue(indexExists(transformIndex));
 
+        // The sync delay means the initial data may take multiple checkpoints to be fully processed.
+        // Wait until the destination reflects the correct initial aggregate before proceeding.
+        assertBusy(() -> {
+            refreshIndex(transformIndex);
+            var response = getAsMap(transformIndex + "/_search");
+            var hitList = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", response);
+            assertFalse("Expected at least one hit in destination index", hitList.isEmpty());
+            var stars = (double) XContentMapValues.extractValue("_source.total_rating", hitList.get(0));
+            assertEquals(10.0, stars, 0);
+        }, 30, TimeUnit.SECONDS);
+
         // update stars field in first doc
         Request updateDoc = new Request("PUT", indexName + "/_doc/1");
         updateDoc.setJsonEntity("""
@@ -1131,14 +1143,17 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         updateDoc.addParameter("refresh", "true");
         client().performRequest(updateDoc);
 
-        waitForTransformCheckpoint(transformId, 2);
-        stopTransform(transformId, false);
-        refreshIndex(transformIndex);
+        // Wait for the transform to pick up the change and recompute the bucket correctly
+        assertBusy(() -> {
+            refreshIndex(transformIndex);
+            var response = getAsMap(transformIndex + "/_search");
+            var hitList = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", response);
+            assertFalse("Expected at least one hit in destination index", hitList.isEmpty());
+            var stars = (double) XContentMapValues.extractValue("_source.total_rating", hitList.get(0));
+            assertEquals(11.0, stars, 0);
+        }, 30, TimeUnit.SECONDS);
 
-        var searchResponse = getAsMap(transformIndex + "/_search");
-        var hits = ((List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", searchResponse)).get(0);
-        var totalStars = (double) XContentMapValues.extractValue("_source.total_rating", hits);
-        assertEquals(11, totalStars, 0);
+        stopTransform(transformId, false);
     }
 
     public void testPreviewTransform() throws Exception {

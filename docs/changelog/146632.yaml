@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 146632
+summary: Fix NPE in GPU resource pool when CuVSResources creation fails
+type: bug

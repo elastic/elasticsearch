@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143262
+summary: Skip time series field type merge for non-TS agg queries
+type: enhancement

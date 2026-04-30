@@ -16,11 +16,14 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Attribute for an ES field.
@@ -50,6 +53,22 @@ public class FieldAttribute extends TypedAttribute {
 
     // Only public for testing
     public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = TransportVersion.fromName("esql_field_attribute_drop_type");
+
+    private static final EsField TIMESERIES_FIELD = new EsField(
+        MetadataAttribute.TIMESERIES,
+        DataType.KEYWORD,
+        Map.of(),
+        false,
+        EsField.TimeSeriesFieldType.DIMENSION
+    );
+
+    static EsField timeSeriesField() {
+        return TIMESERIES_FIELD;
+    }
+
+    public static TimeSeriesMetadataAttribute timeSeriesAttribute(Source source) {
+        return new TimeSeriesMetadataAttribute(source, Set.of());
+    }
 
     private final String parentName;
     private final EsField field;
@@ -177,6 +196,10 @@ public class FieldAttribute extends TypedAttribute {
         return lazyFieldName;
     }
 
+    public boolean hasTypeConflicts() {
+        return field instanceof InvalidMappedField;
+    }
+
     /**
      * The name of the attribute. Can deviate from the field name e.g. in case of union types. For the physical field name, use
      * {@link FieldAttribute#fieldName()}.
@@ -258,5 +281,22 @@ public class FieldAttribute extends TypedAttribute {
 
     public EsField field() {
         return field;
+    }
+
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        switch (format) {
+            case FULL -> {
+                sb.append(qualifiedName()).append("{").append(label());
+                if (field.getNodeStringName().isEmpty() == false) {
+                    sb.append("(").append(field.getNodeStringName()).append(")");
+                }
+                if (synthetic()) {
+                    sb.append("$");
+                }
+                sb.append("}#").append(id());
+            }
+            case LIMITED -> super.nodeString(sb, format);
+        }
     }
 }

@@ -302,6 +302,9 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
+                    // Local physical optimization is aimed at data nodes, e.g., inserting field extractions, which don't apply here.
+                    // Cluster-level reduction uses simple query plans that just perform a single reduction step between exchanges.
+                    LocalPhysicalOptimization.DISABLED,
                     configuration.profile() ? new PlanTimeProfile() : null,
                     computeListener.acquireCompute()
                 );

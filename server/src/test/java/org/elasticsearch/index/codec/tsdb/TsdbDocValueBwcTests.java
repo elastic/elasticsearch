@@ -446,14 +446,6 @@ public class TsdbDocValueBwcTests extends ESTestCase {
     // A hacky way to figure out whether doc values format is written in what version. Need to use reflection, because
     // PerFieldDocValuesFormat hides the doc values formats it wraps.
     private void assert87DocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException, IOException {
-        if (System.getSecurityManager() != null) {
-            // With jvm version 24 entitlements are used and security manager is nog longer used.
-            // Making this assertion work with security manager requires granting the entire test codebase privileges to use
-            // suppressAccessChecks and accessDeclaredMembers. This is undesired from a security manager perspective.
-            logger.info("not asserting doc values format version, because security manager is used");
-            return;
-        }
-
         for (var leafReaderContext : reader.leaves()) {
             var leaf = (SegmentReader) leafReaderContext.reader();
             var dvReader = leaf.getDocValuesReader();
@@ -484,13 +476,6 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                     Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
                 );
             } else {
-                if (System.getSecurityManager() != null) {
-                    // With jvm version 24 entitlements are used and security manager is nog longer used.
-                    // Making this assertion work with security manager requires granting the entire test codebase privileges to use
-                    // suppressAccessChecks and suppressAccessChecks. This is undesired from a security manager perspective.
-                    logger.info("not asserting doc values format version, because security manager is used");
-                    continue;
-                }
                 var field = getFormatsFieldFromPerFieldFieldsReader(dvReader.getClass());
                 Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
                 assertThat(formats, Matchers.aMapWithSize(1));

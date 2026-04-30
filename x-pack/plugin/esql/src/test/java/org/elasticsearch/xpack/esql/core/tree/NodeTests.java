@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -14,11 +17,16 @@ import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.StringJoiner;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -222,6 +230,62 @@ public class NodeTests extends ESTestCase {
         assertEquals(node.children().size(), 0);
     }
 
+    public void testTransformDownAsyncNoChildren() throws InterruptedException {
+        NoChildren node = new NoChildren(randomSource(), "original");
+
+        assertAsyncTransform(node, (n, listener) -> {
+            NoChildren transformed = new NoChildren(n.source(), "transformed");
+            listener.onResponse(transformed);
+        }, result -> {
+            assertEquals(NoChildren.class, result.getClass());
+            assertEquals("transformed", result.thing());
+        });
+    }
+
+    public void testTransformDownAsyncWithChildren() throws InterruptedException {
+        NoChildren child1 = new NoChildren(randomSource(), "child1");
+        NoChildren child2 = new NoChildren(randomSource(), "child2");
+        ChildrenAreAProperty parent = new ChildrenAreAProperty(randomSource(), Arrays.asList(child1, child2), "parent");
+
+        assertAsyncTransform(parent, (n, listener) -> {
+            if (n instanceof NoChildren) {
+                NoChildren nc = (NoChildren) n;
+                if ("child1".equals(nc.thing())) {
+                    listener.onResponse(new NoChildren(nc.source(), "transformed1"));
+                } else {
+                    listener.onResponse(n);
+                }
+            } else {
+                listener.onResponse(n);
+            }
+        }, result -> {
+            assertEquals(ChildrenAreAProperty.class, result.getClass());
+            ChildrenAreAProperty transformed = (ChildrenAreAProperty) result;
+            assertEquals(2, transformed.children().size());
+            assertEquals("transformed1", transformed.children().get(0).thing());
+            assertEquals("child2", transformed.children().get(1).thing());
+        });
+    }
+
+    public void testTransformDownAsyncNoChange() throws InterruptedException {
+        NoChildren node = new NoChildren(randomSource(), "unchanged");
+        assertAsyncTransform(node, (n, listener) -> listener.onResponse(n), result -> assertSame(node, result));
+    }
+
+    private void assertAsyncTransform(Dummy node, BiConsumer<? super Dummy, ActionListener<Dummy>> rule, Consumer<Dummy> assertions)
+        throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+
+        LatchedActionListener<Dummy> listener = new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
+            assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
+            assertions.accept(result);
+        }), latch);
+
+        node.transformDown(rule, listener);
+        assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));
+    }
+
     public abstract static class Dummy extends Node<Dummy> {
         private final String thing;
 
@@ -294,12 +358,16 @@ public class NodeTests extends ESTestCase {
         }
 
         @Override
-        public String nodeString(NodeStringFormat format) {
-            StringJoiner sj = new StringJoiner(",", nodeName() + "(", ")");
-            for (Dummy child : children()) {
-                sj.add(child.nodeString(format));
+        public void nodeString(StringBuilder sb, NodeStringFormat format) {
+            sb.append(nodeName()).append("(");
+            List<Dummy> kids = children();
+            for (int i = 0; i < kids.size(); i++) {
+                if (i > 0) {
+                    sb.append(",");
+                }
+                kids.get(i).nodeString(sb, format);
             }
-            return sj.toString();
+            sb.append(")");
         }
     }
 

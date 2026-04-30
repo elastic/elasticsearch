@@ -23,6 +23,7 @@ public class TermIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
+        assumeTrue("term function is enabled", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
         createAndPopulateIndex(this::ensureYellow);
     }
 

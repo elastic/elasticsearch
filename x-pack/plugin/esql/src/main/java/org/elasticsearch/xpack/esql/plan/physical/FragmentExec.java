@@ -128,8 +128,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        StringBuilder sb = new StringBuilder();
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
         sb.append(nodeName());
         sb.append("[filter=");
         sb.append(esFilter);
@@ -139,6 +138,5 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         sb.append("], fragment=[<>\n");
         sb.append(fragment.toString());
         sb.append("<>]]");
-        return sb.toString();
     }
 }

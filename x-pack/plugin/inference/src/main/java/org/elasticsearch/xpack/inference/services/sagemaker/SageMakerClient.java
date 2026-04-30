@@ -25,7 +25,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenerTimeouts;
@@ -42,8 +41,6 @@ import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.reactivestreams.FlowAdapters;
 
 import java.io.Closeable;
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -189,29 +186,25 @@ public class SageMakerClient implements Closeable {
 
         @Override
         public SageMakerRuntimeAsyncClient load(RegionAndSecrets key) throws Exception {
-            SpecialPermission.check();
-            // TODO migrate to entitlements
-            return AccessController.doPrivileged((PrivilegedExceptionAction<SageMakerRuntimeAsyncClient>) () -> {
-                var credentials = AwsBasicCredentials.create(
-                    key.secretSettings().accessKey().toString(),
-                    key.secretSettings().secretKey().toString()
-                );
-                var credentialsProvider = StaticCredentialsProvider.create(credentials);
-                var clientConfig = NettyNioAsyncHttpClient.builder().connectionTimeout(httpSettings.connectionTimeoutDuration());
-                var override = ClientOverrideConfiguration.builder()
-                    // disable profileFile, user credentials will always come from the configured Model Secrets
-                    .defaultProfileFileSupplier(ProfileFile.aggregator()::build)
-                    .defaultProfileFile(ProfileFile.aggregator().build())
-                    .retryPolicy(retryPolicy -> retryPolicy.numRetries(3))
-                    .retryStrategy(retryStrategy -> retryStrategy.maxAttempts(3))
-                    .build();
-                return SageMakerRuntimeAsyncClient.builder()
-                    .credentialsProvider(credentialsProvider)
-                    .region(Region.of(key.region()))
-                    .httpClientBuilder(clientConfig)
-                    .overrideConfiguration(override)
-                    .build();
-            });
+            var credentials = AwsBasicCredentials.create(
+                key.secretSettings().accessKey().toString(),
+                key.secretSettings().secretKey().toString()
+            );
+            var credentialsProvider = StaticCredentialsProvider.create(credentials);
+            var clientConfig = NettyNioAsyncHttpClient.builder().connectionTimeout(httpSettings.connectionTimeoutDuration());
+            var override = ClientOverrideConfiguration.builder()
+                // disable profileFile, user credentials will always come from the configured Model Secrets
+                .defaultProfileFileSupplier(ProfileFile.aggregator()::build)
+                .defaultProfileFile(ProfileFile.aggregator().build())
+                .retryPolicy(retryPolicy -> retryPolicy.numRetries(3))
+                .retryStrategy(retryStrategy -> retryStrategy.maxAttempts(3))
+                .build();
+            return SageMakerRuntimeAsyncClient.builder()
+                .credentialsProvider(credentialsProvider)
+                .region(Region.of(key.region()))
+                .httpClientBuilder(clientConfig)
+                .overrideConfiguration(override)
+                .build();
         }
     }
 

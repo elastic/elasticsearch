@@ -56,8 +56,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -762,6 +764,95 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var caseF = as(inn.children().get(0), Case.class);
         assertThat(Expressions.names(caseF.children()), contains("emp_no IS NULL", "\"1\"", "salary IS NOT NULL", "\"2\"", "first_name"));
         var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testIsNullFilterDoesNotPruneDisjunctionBranch() {
+        // (nullable IS NOT NULL OR emp_no > 10000) AND nullable IS NULL simplifies to
+        // (emp_no > 10000) AND nullable IS NULL — the surviving OR branch must not be pruned.
+        var plan = localPlan("""
+            FROM test
+            | EVAL nullable = languages
+            | KEEP emp_no, nullable
+            | WHERE nullable IS NOT NULL OR emp_no > 10000
+            | WHERE nullable IS NULL
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat(conjuncts, hasSize(2));
+
+        var residualBranch = conjuncts.stream()
+            .filter(GreaterThan.class::isInstance)
+            .map(GreaterThan.class::cast)
+            .findFirst()
+            .orElseThrow();
+        var residualField = as(residualBranch.left(), FieldAttribute.class);
+        assertEquals("emp_no", residualField.name());
+
+        var isNull = conjuncts.stream().filter(IsNull.class::isInstance).map(IsNull.class::cast).findFirst().orElseThrow();
+        String nullableName = Expressions.name(isNull.field());
+        assertTrue(
+            "expected nullable field null-check to be preserved",
+            "nullable".equals(nullableName) || "languages".equals(nullableName)
+        );
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
+    public void testIsNullOrDisjunctionWithSeparateWhereClauses() {
+        // Two separate WHERE clauses are merged by PushDownAndCombineFilters into the same pattern,
+        // so the surviving OR branch must also be preserved when the clauses come from different pipes.
+        var plan = localPlan("""
+            FROM test
+            | WHERE gender IS NOT NULL OR emp_no > 10015
+            | WHERE gender IS NULL
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
+
+        assertTrue("expected emp_no GreaterThan conjunct", conjuncts.stream().anyMatch(GreaterThan.class::isInstance));
+        assertTrue("expected gender IS NULL conjunct", conjuncts.stream().anyMatch(IsNull.class::isInstance));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
+    public void testIsNullOrDisjunctionWithEvalAlias() {
+        // EVAL introduces an alias; PropagateNullable must preserve the surviving OR branch
+        // even when the IS NULL targets an alias rather than a direct field.
+        var plan = localPlan("""
+            FROM test
+            | EVAL g = gender
+            | KEEP emp_no, g
+            | WHERE g IS NOT NULL OR emp_no > 10015
+            | WHERE g IS NULL
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
+    public void testIsNullOrDisjunctionDoesNotPruneToEmptyRelation() {
+        // A salary-based surviving branch: (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
+        // must keep the salary filter rather than pruning to empty.
+        var plan = localPlan("""
+            FROM test
+            | WHERE (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
+
+        assertTrue("expected salary GreaterThan conjunct", conjuncts.stream().anyMatch(GreaterThan.class::isInstance));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
     }
 
     /*
@@ -2126,6 +2217,136 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var filter = as(limit.child(), Filter.class);
         var fullTextFunction = as(filter.condition(), SingleFieldFullTextFunction.class);
         assertThat(Expressions.name(fullTextFunction.field()), equalTo("text"));
+    }
+
+    public void testFullTextFunctionOnConstantField() {
+        String functionName = randomFrom("match", "match_phrase");
+        var plan = plan(String.format(Locale.ROOT, """
+            from test
+            | where %s(first_name, "John")
+            """, functionName));
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("first_name")) {
+                    return "John";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var fullTextFunction = as(filter.condition(), SingleFieldFullTextFunction.class);
+        // The field must remain a FieldAttribute — not replaced with a constant Literal
+        assertThat(fullTextFunction.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(fullTextFunction.field()), equalTo("first_name"));
+    }
+
+    public void testConstantFieldReplacedOutsideFullTextFunction() {
+        var plan = plan("""
+            from test
+            | where match_phrase(first_name, "John") and last_name == "Doe"
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("last_name")) {
+                    return "Doe";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        // last_name is a constant field with value "Doe", so last_name == "Doe" folds to true
+        // and is eliminated from the AND, leaving only the full-text function in the condition.
+        // If constant substitution had NOT happened, the condition would still be an And.
+        var matchPhrase = as(filter.condition(), SingleFieldFullTextFunction.class);
+        assertThat(matchPhrase.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(matchPhrase.field()), equalTo("first_name"));
+    }
+
+    public void testMatchOperatorOnConstantField() {
+        var plan = plan("""
+            from test
+            | where first_name : "John"
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("first_name")) {
+                    return "John";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var matchOp = as(filter.condition(), SingleFieldFullTextFunction.class);
+        assertThat(matchOp.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(matchOp.field()), equalTo("first_name"));
+    }
+
+    public void testSameConstantFieldProtectedInFullTextAndOutside() {
+        var plan = plan("""
+            from test
+            | where match(first_name, "John") and first_name == "John"
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("first_name")) {
+                    return "John";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        // first_name is protected everywhere because it appears in a full-text function;
+        // semantic equality in AttributeSet means all references to the same field are kept.
+        filter.condition().forEachDown(FieldAttribute.class, fa -> assertThat(Expressions.name(fa), equalTo("first_name")));
+        filter.condition().forEachDown(SingleFieldFullTextFunction.class, ftf -> assertThat(ftf.field(), instanceOf(FieldAttribute.class)));
+    }
+
+    public void testMultipleFullTextFunctionsOnConstantFields() {
+        var plan = plan("""
+            from test
+            | where match(first_name, "John") and match_phrase(last_name, "Doe")
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("first_name") || name.string().equals("last_name")) {
+                    return "constant";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+        var match = as(and.left(), SingleFieldFullTextFunction.class);
+        assertThat(match.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(match.field()), equalTo("first_name"));
+        var matchPhrase = as(and.right(), SingleFieldFullTextFunction.class);
+        assertThat(matchPhrase.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(matchPhrase.field()), equalTo("last_name"));
     }
 
     private static PhysicalPlan physicalPlan(LogicalPlan logicalPlan, Analyzer analyzer) {

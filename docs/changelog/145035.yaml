@@ -1,5 +1,0 @@
-area: CCR
-issues: []
-pr: 145035
-summary: CCR follower index needs to copy transport version from CCR leader index
-type: bug

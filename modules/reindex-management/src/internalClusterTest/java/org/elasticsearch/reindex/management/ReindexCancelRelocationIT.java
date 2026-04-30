@@ -91,10 +91,8 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
         return false;
     }
 
-    /**
-     * Pins the relocation handoff in {@code HANDOFF_INITIATED} so a cancel-reindex issued during that window reliably hits the CAS gate
-     * and is rejected with {@code 409 CONFLICT}, with the cause's status preserved through the cancel-reindex wrapper.
-     */
+    /// Pins the relocation handoff in `HANDOFF_INITIATED` so a cancel-reindex issued during that window reliably hits the CAS gate
+    /// and is rejected with `503 SERVICE_UNAVAILABLE`, with the cause's status preserved through the cancel-reindex wrapper.
     public void testCancelReindexBailsWhenHandoffInitiated() throws Exception {
         final String indexHostNode = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
@@ -145,7 +143,7 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
             // Wait for the handoff to reach the destination, i.e. the source has CAS'd into HANDOFF_INITIATED.
             assertTrue("relocation handoff must reach the destination within 60s", resumeReceivedOnDestination.await(60, TimeUnit.SECONDS));
 
-            // Drive the cancel through the cancel-reindex API. This must surface the 409 conflict raised by
+            // Drive the cancel through the cancel-reindex API. This must surface the 503 service-unavailable raised by
             // BulkByScrollTask.ensureCancellable() rather than swallowing it as a not-found, regardless of the underlying delegation.
             final ElasticsearchException cancelReindexFailure = expectThrows(
                 ElasticsearchException.class,
@@ -154,14 +152,14 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
             );
 
             assertThat(
-                "cancel-reindex must propagate the 409 status from cancel-tasks via the wrapped cause",
+                "cancel-reindex must propagate the 503 status from cancel-tasks via the wrapped cause",
                 ExceptionsHelper.status(cancelReindexFailure),
-                is(RestStatus.CONFLICT)
+                is(RestStatus.SERVICE_UNAVAILABLE)
             );
 
             final Throwable rootCause = ExceptionsHelper.unwrap(cancelReindexFailure, ElasticsearchStatusException.class);
-            assertThat("conflict cause is reachable on the cause chain", rootCause, is(notNullValue()));
-            assertThat(((ElasticsearchStatusException) rootCause).status(), is(RestStatus.CONFLICT));
+            assertThat("relocation race cause is reachable on the cause chain", rootCause, is(notNullValue()));
+            assertThat(((ElasticsearchStatusException) rootCause).status(), is(RestStatus.SERVICE_UNAVAILABLE));
             assertThat(
                 rootCause.getMessage(),
                 equalTo("cannot cancel task [" + originalTaskId.getId() + "] because it is being relocated")

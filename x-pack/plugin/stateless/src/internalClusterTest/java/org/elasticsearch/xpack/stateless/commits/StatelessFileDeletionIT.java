@@ -71,7 +71,6 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -154,12 +153,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
-@TestIssueLogging(
-    issueUrl = "https://github.com/elastic/elasticsearch/issues/129445",
-    value = "org.elasticsearch.action.search:DEBUG,"
-        + "org.elasticsearch.search.SearchService:TRACE,"
-        + "org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction:DEBUG"
-)
 public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCase {
 
     /**

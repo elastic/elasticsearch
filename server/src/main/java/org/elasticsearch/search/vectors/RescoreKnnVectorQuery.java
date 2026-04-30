@@ -287,36 +287,47 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIter, filterIterator));
 
             VectorScorer scorer = knnVectorValues.rescorer(floatTarget);
-            int[] docs = new int[PREFETCH_BUFFER_SIZE];
             DocAndFloatFeatureBuffer scoreBuffer = new DocAndFloatFeatureBuffer();
             scoreBuffer.growNoCopy(PREFETCH_BUFFER_SIZE);
 
-            // sequentially copy the doc ids into the docs array for bulk rescoring in batches
-            int nextDocIdx = 0;
-            while ((docs[nextDocIdx++] = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            if (input != null) {
+                int[] docs = new int[PREFETCH_BUFFER_SIZE];
 
-                if (nextDocIdx == PREFETCH_BUFFER_SIZE) {
-                    // do the bulk rescore
-                    var bulk = scorer.bulk(new ArrayDocIdSetIterator(docs));
-                    bulk.nextDocsAndScores(docs[PREFETCH_BUFFER_SIZE - 1], null, scoreBuffer);
+                // sequentially copy the doc ids into the docs array for bulk rescoring in batches
+                int nextDocIdx = 0;
+                while ((docs[nextDocIdx++] = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+
+                    if (nextDocIdx == PREFETCH_BUFFER_SIZE) {
+                        // do the bulk rescore
+                        var bulk = scorer.bulk(new ArrayDocIdSetIterator(docs, PREFETCH_BUFFER_SIZE));
+                        bulk.nextDocsAndScores(docs[PREFETCH_BUFFER_SIZE - 1], null, scoreBuffer);
+
+                        for (int s = 0; s < scoreBuffer.size; s++) {
+                            if (!Float.isNaN(scoreBuffer.features[s])) {
+                                queue.add(new ScoreDoc(scoreBuffer.docs[s] + docBase, scoreBuffer.features[s]));
+                            }
+                        }
+                        nextDocIdx = 0; // don't need to explicitly clear the arrays, they just get overwritten
+                    }
+
+                    input.prefetch((long) vectorIter.index() * vectorByteSize, vectorByteSize);
+                }
+
+                if (nextDocIdx > 0) {
+                    // rescore the remaining docs
+                    var bulk = scorer.bulk(new ArrayDocIdSetIterator(docs, nextDocIdx));
+                    bulk.nextDocsAndScores(docs[nextDocIdx - 1], null, scoreBuffer);
 
                     for (int s = 0; s < scoreBuffer.size; s++) {
                         if (!Float.isNaN(scoreBuffer.features[s])) {
                             queue.add(new ScoreDoc(scoreBuffer.docs[s] + docBase, scoreBuffer.features[s]));
                         }
                     }
-                    nextDocIdx = 0; // don't need to explicitly clear the arrays, they just get overwritten
                 }
-
-                if (input != null) {
-                    input.prefetch((long) vectorIter.index() * vectorByteSize, vectorByteSize);
-                }
-            }
-
-            if (nextDocIdx > 0) {
-                // rescore the remaining docs
-                var bulk = scorer.bulk(new ArrayDocIdSetIterator(Arrays.copyOf(docs, nextDocIdx)));
-                bulk.nextDocsAndScores(docs[nextDocIdx - 1], null, scoreBuffer);
+            } else {
+                // just use the bulk scorer over the whole lot, nothing to prefetch
+                var bulk = scorer.bulk(conjunction);
+                bulk.nextDocsAndScores(DocIdSetIterator.NO_MORE_DOCS, null, scoreBuffer);
 
                 for (int s = 0; s < scoreBuffer.size; s++) {
                     if (!Float.isNaN(scoreBuffer.features[s])) {
@@ -329,10 +340,12 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         private static class ArrayDocIdSetIterator extends DocIdSetIterator {
 
             private final int[] ids;
+            private final int size;
             private int idx = -1;
 
-            private ArrayDocIdSetIterator(int[] ids) {
+            private ArrayDocIdSetIterator(int[] ids, int size) {
                 this.ids = ids;
+                this.size = size;
             }
 
             @Override
@@ -340,12 +353,12 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                 if (idx == -1) {
                     return -1;
                 }
-                return idx < ids.length ? ids[idx] : NO_MORE_DOCS;
+                return idx < size ? ids[idx] : NO_MORE_DOCS;
             }
 
             @Override
             public int nextDoc() {
-                if (++idx >= ids.length) {
+                if (++idx >= size) {
                     return NO_MORE_DOCS;
                 } else {
                     return ids[idx];
@@ -354,11 +367,11 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
 
             @Override
             public int advance(int target) {
-                if (idx >= ids.length) {
+                if (idx >= size) {
                     return NO_MORE_DOCS;
                 }
 
-                int pos = Arrays.binarySearch(ids, idx + 1, ids.length, target);
+                int pos = Arrays.binarySearch(ids, idx + 1, size, target);
                 if (pos < 0) {
                     pos = -pos - 1;
                 }
@@ -369,7 +382,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
 
             @Override
             public long cost() {
-                return ids.length;
+                return size;
             }
         }
     }

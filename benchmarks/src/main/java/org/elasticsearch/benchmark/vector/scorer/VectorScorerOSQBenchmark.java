@@ -22,6 +22,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -71,10 +72,11 @@ public class VectorScorerOSQBenchmark {
 
     public enum VectorImplementation {
         SCALAR,
-        VECTORIZED
+        PANAMA,
+        NATIVE
     }
 
-    @Param({ "384", "768", "1024" })
+    @Param({ "96", "128", "192", "256", "384", "768", "1024" })
     public int dims;
 
     @Param({ "1", "2", "4", "7" })
@@ -302,7 +304,16 @@ public class VectorScorerOSQBenchmark {
                 ES940OSQVectorsScorer.BULK_SIZE,
                 resolvedEncoding
             );
-            case VECTORIZED -> ESVectorizationProvider.getInstance()
+            case PANAMA -> new PanamaESVectorizationProvider(false).newES940OSQVectorsScorer(
+                input,
+                (byte) queryBits,
+                (byte) docBits,
+                dims,
+                data.binaryIndexLength,
+                BULK_SIZE,
+                resolvedEncoding
+            );
+            case NATIVE -> ESVectorizationProvider.getInstance()
                 .newES940OSQVectorsScorer(
                     input,
                     (byte) queryBits,

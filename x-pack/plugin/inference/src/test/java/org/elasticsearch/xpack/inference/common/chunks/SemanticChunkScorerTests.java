@@ -21,6 +21,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -47,6 +47,7 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.mockito.Mockito;
 
@@ -184,10 +185,17 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
 
     private MapperService createDefaultMapperService(boolean useLegacyFormat) throws IOException {
         var mappings = Streams.readFully(SemanticChunkScorerTests.class.getResourceAsStream("mappings.json"));
-        var settings = Settings.builder()
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .build();
-        return createMapperService(settings, mappings.utf8ToString());
+        if (useLegacyFormat) {
+            Settings settings = SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(true);
+            MapperService mapperService = createMapperService(
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings),
+                settings,
+                mapping(b -> {})
+            );
+            merge(mapperService, mappings.utf8ToString());
+            return mapperService;
+        }
+        return createMapperService(Settings.EMPTY, mappings.utf8ToString());
     }
 
     private float[] readDenseVector(Object value) {

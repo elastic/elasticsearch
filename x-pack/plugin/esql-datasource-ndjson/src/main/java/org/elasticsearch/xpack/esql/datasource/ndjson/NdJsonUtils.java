@@ -17,7 +17,16 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 
 class NdJsonUtils {
-    static final JsonFactory JSON_FACTORY = new JsonFactory();
+    /**
+     * Schema inference may call {@link JsonParser#close()} while recovering from malformed JSON;
+     * that must not close a wrapping codec stream (e.g. bzip2) that is still being read.
+     */
+    static final JsonFactory JSON_FACTORY;
+    static {
+        JsonFactory factory = new JsonFactory();
+        factory.configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, false);
+        JSON_FACTORY = factory;
+    }
 
     /**
      * Given a parser and the stream it reads from, restart parsing at the next line.

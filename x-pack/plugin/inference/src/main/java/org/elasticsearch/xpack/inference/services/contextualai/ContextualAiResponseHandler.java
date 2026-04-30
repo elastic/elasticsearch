@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.inference.services.contextualai;
 
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.contextualai.response.ContextualAiErrorResponseEntity;
 
 /**
  * Response handler for ContextualAI API calls.
@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.inference.services.contextualai.response.Contextu
 public class ContextualAiResponseHandler extends BaseResponseHandler {
 
     public ContextualAiResponseHandler(String requestType, ResponseParser parseFunction, boolean supportsStreaming) {
-        super(requestType, parseFunction, ContextualAiErrorResponseEntity::fromResponse, supportsStreaming);
+        super(requestType, parseFunction, ErrorResponse::fromResponse, supportsStreaming);
     }
 
     @Override
@@ -32,6 +32,8 @@ public class ContextualAiResponseHandler extends BaseResponseHandler {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
+            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
+        } else if (statusCode == 503) {
             throw new RetryException(true, buildError(SERVER_ERROR, request, result));
         } else if (statusCode > 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));

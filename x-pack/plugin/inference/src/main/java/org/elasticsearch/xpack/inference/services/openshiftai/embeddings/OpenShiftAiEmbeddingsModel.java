@@ -42,7 +42,7 @@ public class OpenShiftAiEmbeddingsModel extends OpenShiftAiModel {
             service,
             OpenShiftAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

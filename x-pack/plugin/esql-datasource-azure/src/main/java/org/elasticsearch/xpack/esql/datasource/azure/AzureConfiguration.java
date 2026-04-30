@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
-import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.secret;
 
 /**
  * Configuration for Azure Blob Storage access including credentials and endpoint settings.
  * <p>
- * Supports multiple authentication modes:
+ * Supports authentication modes:
  * <ul>
  *   <li>Connection string (full connection string)</li>
  *   <li>Account + key (SharedKey auth)</li>
@@ -27,33 +27,29 @@ import java.util.Map;
  *   <li>DefaultAzureCredential when no explicit credentials are provided</li>
  * </ul>
  */
-public record AzureConfiguration(String connectionString, String account, String key, String sasToken, String endpoint, String auth) {
+public class AzureConfiguration extends FileDataSourceConfiguration {
 
-    public AzureConfiguration {
-        auth = auth != null ? auth.toLowerCase(Locale.ROOT) : null;
-        if (auth != null && "none".equals(auth) == false) {
-            throw new IllegalArgumentException("Unsupported auth value [" + auth + "]; supported values: [none]");
-        }
-        if ("none".equals(auth) && hasExplicitCredentials(connectionString, account, key, sasToken)) {
-            throw new IllegalArgumentException(
-                "auth=none cannot be combined with connection_string/account+key/sas_token; anonymous access uses no credentials"
-            );
-        }
+    private static final DataSourceConfigDefinition CONNECTION_STRING = secret("connection_string");
+    private static final DataSourceConfigDefinition ACCOUNT = plaintext("account");
+    private static final DataSourceConfigDefinition KEY = secret("key");
+    private static final DataSourceConfigDefinition SAS_TOKEN = secret("sas_token");
+    private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
+
+    private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
+        CONNECTION_STRING,
+        ACCOUNT,
+        KEY,
+        SAS_TOKEN,
+        ENDPOINT,
+        AUTH
+    );
+
+    private AzureConfiguration(Map<String, Object> raw) {
+        super(raw, FIELDS);
     }
 
-    public static AzureConfiguration fromParams(Map<String, Expression> params) {
-        if (params == null || params.isEmpty()) {
-            return null;
-        }
-
-        String connectionString = extractStringParam(params, "connection_string");
-        String account = extractStringParam(params, "account");
-        String key = extractStringParam(params, "key");
-        String sasToken = extractStringParam(params, "sas_token");
-        String endpoint = extractStringParam(params, "endpoint");
-        String auth = extractStringParam(params, "auth");
-
-        return fromFields(connectionString, account, key, sasToken, endpoint, auth);
+    public static AzureConfiguration fromMap(Map<String, Object> raw) {
+        return raw == null || raw.isEmpty() ? null : new AzureConfiguration(raw);
     }
 
     public static AzureConfiguration fromFields(String connectionString, String account, String key, String sasToken, String endpoint) {
@@ -68,35 +64,50 @@ public record AzureConfiguration(String connectionString, String account, String
         String endpoint,
         String auth
     ) {
-        if (connectionString == null && account == null && key == null && sasToken == null && endpoint == null && auth == null) {
-            return null;
-        }
-        return new AzureConfiguration(connectionString, account, key, sasToken, endpoint, auth);
+        var raw = buildRawMap(
+            CONNECTION_STRING,
+            connectionString,
+            ACCOUNT,
+            account,
+            KEY,
+            key,
+            SAS_TOKEN,
+            sasToken,
+            ENDPOINT,
+            endpoint,
+            AUTH,
+            auth
+        );
+        return raw != null ? fromMap(raw) : null;
     }
 
-    private static String extractStringParam(Map<String, Expression> params, String key) {
-        Expression expr = params.get(key);
-        if (expr instanceof Literal literal) {
-            Object value = literal.value();
-            if (value instanceof BytesRef bytesRef) {
-                return BytesRefs.toString(bytesRef);
-            }
-            return value != null ? value.toString() : null;
-        }
-        return null;
+    public String connectionString() {
+        return get(CONNECTION_STRING.name());
     }
 
-    public boolean isAnonymous() {
-        return "none".equals(auth);
+    public String account() {
+        return get(ACCOUNT.name());
+    }
+
+    public String key() {
+        return get(KEY.name());
+    }
+
+    public String sasToken() {
+        return get(SAS_TOKEN.name());
+    }
+
+    public String endpoint() {
+        return get(ENDPOINT.name());
     }
 
     public boolean hasCredentials() {
-        return hasExplicitCredentials(connectionString, account, key, sasToken);
+        return hasExplicitCredentials();
     }
 
-    private static boolean hasExplicitCredentials(String connectionString, String account, String key, String sasToken) {
-        return (connectionString != null && connectionString.isEmpty() == false)
-            || (account != null && key != null)
-            || (sasToken != null && sasToken.isEmpty() == false);
+    private boolean hasExplicitCredentials() {
+        return (connectionString() != null && connectionString().isEmpty() == false)
+            || (account() != null && key() != null)
+            || (sasToken() != null && sasToken().isEmpty() == false);
     }
 }

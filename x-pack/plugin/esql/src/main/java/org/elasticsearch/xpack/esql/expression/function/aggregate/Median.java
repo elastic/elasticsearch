@@ -55,7 +55,19 @@ public class Median extends AggregateFunction implements SurrogateExpression {
                     + "maximum value per row, and use the result with the `MEDIAN` function",
                 file = "stats_percentile",
                 tag = "docsStatsMedianNestedExpression"
-            ), }
+            ),
+            @Example(
+                description = "`MEDIAN` can also operate on `exponential_histogram` fields, "
+                    + "approximating the median of the values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "medianExpHistoForDocs"
+            ),
+            @Example(
+                description = "`MEDIAN` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "approximating the median of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "medianTDigestForDocs"
+            ) }
     )
     public Median(
         Source source,

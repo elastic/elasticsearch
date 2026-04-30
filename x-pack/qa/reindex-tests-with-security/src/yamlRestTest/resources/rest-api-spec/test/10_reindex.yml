@@ -358,3 +358,170 @@ setup:
       catch: forbidden
       tasks.get:
         task_id: $task
+
+---
+"Reindex wait_for_completion=false as minimal with reindex get API":
+  - requires:
+      test_runner_features: [capabilities]
+      reason: Dedicated reindex GET requires reindex management API
+      capabilities:
+        - method: GET
+          path: /_reindex/{task_id}
+          capabilities: [reindex_management_api]
+
+  - do:
+      index:
+        index:   source
+        id:      "1"
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_reindex_get_user}
+      reindex:
+        refresh: true
+        wait_for_completion: false
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - set: {task: task}
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_reindex_get_user}
+      reindex_get:
+        task_id: $task
+        wait_for_completion: true
+        human: true
+  # Assert the dedicated GET /_reindex/{task_id} (human) response matches a finished reindex
+  - is_true: completed
+  - match: { id: $task }
+  - match: { description: "reindex from [source] to [dest]" }
+  - match: { cancelled: false }
+  - exists: start_time
+  - exists: start_time_in_millis
+  - exists: running_time
+  - exists: running_time_in_nanos
+  - exists: status
+  - is_false: error
+  - match: { response.total: 1 }
+  - gt: { response.took: 0 }
+  - match: { response.batches: 1 }
+  - match: { response.failures: [ ] }
+  - match: { response.timed_out: false }
+
+  - do:
+      search:
+        index: dest
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              text: test
+  - match: { hits.total: 1 }
+
+  # the minimal user doesn't have permission to call the dedicated reindex GET API
+  - do:
+      headers: {es-security-runas-user: minimal_user}
+      catch: forbidden
+      reindex_get:
+        task_id: $task
+
+---
+"List reindex works with only reindex/list permission":
+  - requires:
+      test_runner_features: [capabilities]
+      reason: Dedicated reindex list requires reindex management API
+      capabilities:
+        - method: GET
+          path: /_reindex
+          capabilities: [reindex_management_api]
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_reindex_list_user}
+      reindex:
+        wait_for_completion: false
+        requests_per_second: 0.000001
+        body:
+          source:
+            index: source
+            size: 1
+          dest:
+            index: dest
+  - set: {task: task}
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_reindex_list_user}
+      reindex_list:
+        human: true
+        detailed: true
+  - is_true: reindex
+  - length: { reindex: 1 }
+  - match: { reindex.0.id: $task }
+  - match: { reindex.0.description: "reindex from [source] to [dest]" }
+  - match: { reindex.0.cancelled: false }
+  - is_false: reindex.0.original_task_id
+  - is_false: reindex.0.original_start_time
+  - is_false: reindex.0.original_start_time_in_millis
+  - exists: reindex.0.start_time
+  - exists: reindex.0.start_time_in_millis
+  - exists: reindex.0.running_time
+  - exists: reindex.0.running_time_in_nanos
+  - exists: reindex.0.status
+
+  # rethrottle as admin to speed up, then wait for completion to clean up
+  - do:
+      reindex_rethrottle:
+        task_id: $task
+        requests_per_second: -1
+  - do:
+      reindex_get:
+        task_id: $task
+        wait_for_completion: true
+
+---
+"List reindex forbidden without reindex/list permission":
+  - requires:
+      test_runner_features: [capabilities]
+      reason: Dedicated reindex list requires reindex management API
+      capabilities:
+        - method: GET
+          path: /_reindex
+          capabilities: [reindex_management_api]
+
+  - do:
+      headers: {es-security-runas-user: minimal_user}
+      catch: forbidden
+      reindex_list: {}
+
+---
+"List reindex forbidden for user with task permissions but no reindex/list permission":
+  - requires:
+      test_runner_features: [capabilities]
+      reason: Dedicated reindex list requires reindex management API
+      capabilities:
+        - method: GET
+          path: /_reindex
+          capabilities: [reindex_management_api]
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_task_user}
+      catch: forbidden
+      reindex_list: {}

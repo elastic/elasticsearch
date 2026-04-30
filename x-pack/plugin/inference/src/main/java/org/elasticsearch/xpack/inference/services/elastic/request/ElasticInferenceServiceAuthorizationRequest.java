@@ -11,6 +11,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -84,4 +85,8 @@ public class ElasticInferenceServiceAuthorizationRequest extends ElasticInferenc
         return null;
     }
 
+    @Override
+    public TaskType getTaskType() {
+        return null;
+    }
 }

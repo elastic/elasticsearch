@@ -24,10 +24,11 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -58,7 +59,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.search.SearchTransportService.FETCH_ID_ACTION_NAME;
-import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -82,7 +83,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         transportService = MockTransportService.createNewService(
             Settings.EMPTY,
             VersionInformation.CURRENT,
-            CHUNKED_FETCH_PHASE,
+            CHUNKED_FETCH_DOC_ID_ORDER,
             threadPool
         );
         transportService.start();
@@ -91,11 +92,12 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         activeFetchPhaseTasks = new ActiveFetchPhaseTasks();
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
 
+        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofMb(64));
         action = new TransportFetchPhaseCoordinationAction(
             transportService,
             new ActionFilters(Set.of()),
             activeFetchPhaseTasks,
-            new NoneCircuitBreakerService(),
+            breakerService,
             namedWriteableRegistry
         );
         new TransportFetchPhaseResponseChunkAction(transportService, activeFetchPhaseTasks, namedWriteableRegistry);
@@ -289,6 +291,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
 
                     BytesStreamOutput out = new BytesStreamOutput();
                     SearchHit hit = createHit(0);
+                    out.writeVInt(0);
                     hit.writeTo(out);
                     hit.decRef();
 
@@ -467,9 +470,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         Exception failure = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
         assertThat(failure.getMessage(), equalTo("simulated data node failure during chunk streaming"));
 
-        assertBusy(() -> {
-            expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID));
-        });
+        assertBusy(
+            () -> expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID))
+        );
     }
 
     private ShardFetchSearchRequest createShardFetchSearchRequest() {
@@ -501,8 +504,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
 
     private BytesReference serializeHits(SearchHit... hits) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
+            for (int i = 0; i < hits.length; i++) {
+                out.writeVInt(i);
+                hits[i].writeTo(out);
             }
             return out.bytes();
         }

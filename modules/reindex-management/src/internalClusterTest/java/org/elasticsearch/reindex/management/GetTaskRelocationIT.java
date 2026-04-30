@@ -11,6 +11,7 @@ package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -30,6 +31,8 @@ import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -76,7 +79,7 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -96,12 +99,19 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
 
         assertThat("should not be completed (relocated task is still running)", runningResult.isCompleted(), is(false));
         assertThat("should be a reindex action", runningResult.getTask().action(), equalTo(ReindexAction.NAME));
+        assertThat("task ID should be the relocated task", runningResult.getTask().taskId(), equalTo(relocatedTaskId));
+        assertThat("node should be the survivor node", runningResult.getTask().node(), equalTo(setup.survivorNodeId));
+        assertThat("start time should be from original task", runningResult.getTask().startTime(), equalTo(setup.originalStartTimeMillis));
         assertThat(
-            "task ID should be the original (relocation is transparent)",
-            runningResult.getTask().taskId(),
+            "original task ID should reference the original",
+            runningResult.getTask().originalTaskId(),
             equalTo(setup.originalTaskId)
         );
-        assertThat("start time should be from original task", runningResult.getTask().startTime(), equalTo(setup.originalStartTimeMillis));
+        assertThat(
+            "original start time should match original",
+            runningResult.getTask().originalStartTimeMillis(),
+            equalTo(setup.originalStartTimeMillis)
+        );
         assertThat(
             "running time should cover time since original start",
             runningResult.getTask().runningTimeNanos(),
@@ -111,15 +121,114 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
         assertThat("no error on running task", runningResult.getError(), is(nullValue()));
         assertThat("no response yet on running task", runningResult.getResponse(), is(nullValue()));
 
+        // Direct get of the relocated task returns its own start_time (not the original's)
+        final TaskResult directResult = getTask(relocatedTaskId, false).getTask();
+        assertThat("direct get: task ID is the relocated task", directResult.getTask().taskId(), equalTo(relocatedTaskId));
+        assertThat(
+            "direct get: start_time is the relocated task's own (later than original)",
+            directResult.getTask().startTime(),
+            greaterThan(setup.originalStartTimeMillis)
+        );
+        assertThat(
+            "direct get: original_task_id references the original",
+            directResult.getTask().originalTaskId(),
+            equalTo(setup.originalTaskId)
+        );
+        assertThat(
+            "direct get: original_start_time is from the original",
+            directResult.getTask().originalStartTimeMillis(),
+            equalTo(setup.originalStartTimeMillis)
+        );
+
         unthrottleReindex(relocatedTaskId);
 
         final TaskResult completedResult = getTask(setup.originalTaskId, true).getTask();
         assertThat("task should be completed after wait", completedResult.isCompleted(), is(true));
-        assertThat("task ID preserved after completion", completedResult.getTask().taskId(), equalTo(setup.originalTaskId));
+        assertThat("task ID should be the relocated task after completion", completedResult.getTask().taskId(), equalTo(relocatedTaskId));
         assertThat("start time preserved after completion", completedResult.getTask().startTime(), equalTo(setup.originalStartTimeMillis));
+        assertThat(
+            "original task ID preserved after completion",
+            completedResult.getTask().originalTaskId(),
+            equalTo(setup.originalTaskId)
+        );
+        assertThat(
+            "original start time preserved after completion",
+            completedResult.getTask().originalStartTimeMillis(),
+            equalTo(setup.originalStartTimeMillis)
+        );
         assertThat("completed task should have no error", completedResult.getError(), is(nullValue()));
 
         assertCompletedReindexResponse(completedResult);
+    }
+
+    /**
+     * Tests that the Get Task API falls back to the {@code .tasks} index when the original task's node
+     * is unreachable, then follows the relocation chain and waits for the relocated task to complete.
+     */
+    public void testGetTaskFallsBackToTasksIndexOnNodeDisconnect() throws Exception {
+        final ClusterSetup setup = startClusterAndReindex();
+
+        // Trigger relocation: .tasks is written, relocated task running on survivor. Reindex node still alive.
+        internalCluster().getInstance(ShutdownPrepareService.class, setup.reindexNodeName).prepareForShutdown();
+        assertTrue(".tasks index should exist after relocation", indexExists(TaskResultsService.TASK_INDEX));
+        ensureYellowAndNoInitializingShards(TaskResultsService.TASK_INDEX);
+
+        final TaskId relocatedTaskId = readRelocatedTaskId(setup.originalTaskId);
+
+        // Block the GetTask transport action from survivor → reindex node and simulate a ConnectTransportException
+        MockTransportService survivorTransport = MockTransportService.getInstance(setup.survivorNodeName);
+        survivorTransport.addFailToSendNoConnectRule(
+            internalCluster().getInstance(TransportService.class, setup.reindexNodeName),
+            Set.of(TransportGetTaskAction.TYPE.name())
+        );
+
+        // Unthrottle so the relocated task can finish
+        unthrottleReindex(relocatedTaskId);
+
+        // Get should still follow relocation chain using result in .tasks
+        final GetTaskResponse response = getTask(setup.survivorNodeName, setup.originalTaskId, true);
+        final TaskResult result = response.getTask();
+        assertThat("task should be completed", result.isCompleted(), is(true));
+        assertThat("start time should be from original task", result.getTask().startTime(), equalTo(setup.originalStartTimeMillis));
+        assertThat("original task ID should be preserved", result.getTask().originalTaskId(), equalTo(setup.originalTaskId));
+        assertThat("no error on completed task", result.getError(), is(nullValue()));
+        assertCompletedReindexResponse(result);
+    }
+
+    /**
+     * Tests that {@code GET _tasks/{originalTaskId}?follow_relocations=false} returns the raw task result
+     * with the {@code task_relocated_exception} error instead of transparently following the relocation chain.
+     */
+    public void testGetTaskWithFollowRelocationsFalse() throws Exception {
+        final ClusterSetup setup = startClusterAndReindex();
+
+        shutdownAndRelocate(setup.reindexNodeName);
+        final TaskId relocatedTaskId = readRelocatedTaskId(setup.originalTaskId);
+
+        // While the relocated task is still running, follow_relocations=false should return the original's raw result
+        assertRawRelocatedTask(setup.originalTaskId, relocatedTaskId);
+
+        // Let the relocated task complete, then verify the stored result is unchanged
+        unthrottleReindex(relocatedTaskId);
+        getTask(relocatedTaskId, true);
+        assertRawRelocatedTask(setup.originalTaskId, relocatedTaskId);
+    }
+
+    private void assertRawRelocatedTask(TaskId originalTaskId, TaskId expectedRelocatedTaskId) throws IOException {
+        final Request request = new Request("GET", "/_tasks/" + originalTaskId);
+        request.addParameter("follow_relocations", "false");
+        final Response response = getRestClient().performRequest(request);
+        final Map<String, Object> body = ESRestTestCase.entityAsMap(response);
+
+        assertThat("task is completed", body.get("completed"), is(true));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> task = (Map<String, Object>) body.get("task");
+        assertThat("task node is the original", task.get("node"), equalTo(originalTaskId.getNodeId()));
+        assertThat("task id is the original", task.get("id"), equalTo((int) originalTaskId.getId()));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> error = (Map<String, Object>) body.get("error");
+        assertThat("error type is task_relocated_exception", error.get("type"), equalTo("task_relocated_exception"));
+        assertThat("relocated_task_id is present", error.get("relocated_task_id"), equalTo(expectedRelocatedTaskId.toString()));
     }
 
     // --- Setup ---
@@ -172,7 +281,11 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
     }
 
     private GetTaskResponse getTask(TaskId taskId, boolean waitForCompletion) {
-        return client().admin()
+        return getTask(null, taskId, waitForCompletion);
+    }
+
+    private GetTaskResponse getTask(String nodeName, TaskId taskId, boolean waitForCompletion) {
+        return client(nodeName).admin()
             .cluster()
             .getTask(
                 new GetTaskRequest().setTaskId(taskId).setWaitForCompletion(waitForCompletion).setTimeout(TimeValue.timeValueSeconds(30))

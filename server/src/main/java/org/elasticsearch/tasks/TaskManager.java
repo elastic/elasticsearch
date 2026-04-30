@@ -416,7 +416,7 @@ public class TaskManager implements ClusterStateApplier {
             listener.onFailure(ex);
             return;
         }
-        taskResultsService.storeResult(taskResult, new ActionListener<Void>() {
+        storeTaskResult(task, taskResult, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 listener.onFailure(error);
@@ -450,7 +450,7 @@ public class TaskManager implements ClusterStateApplier {
             return;
         }
 
-        taskResultsService.storeResult(taskResult, new ActionListener<Void>() {
+        storeTaskResult(task, taskResult, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 listener.onResponse(response);
@@ -462,6 +462,14 @@ public class TaskManager implements ClusterStateApplier {
                 listener.onFailure(e);
             }
         });
+    }
+
+    private void storeTaskResult(Task task, TaskResult taskResult, ActionListener<Void> listener) {
+        if (task.useCreateSemanticsForResultStorage()) {
+            taskResultsService.storeResultIfAbsent(taskResult, listener);
+        } else {
+            taskResultsService.storeResult(taskResult, listener);
+        }
     }
 
     /**

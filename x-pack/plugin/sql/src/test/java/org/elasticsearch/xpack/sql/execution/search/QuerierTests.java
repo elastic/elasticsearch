@@ -6,16 +6,21 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.execution.search.Querier.AggSortingQueue;
@@ -38,6 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -355,5 +361,70 @@ public class QuerierTests extends ESTestCase {
         verify(response, times(1)).decRef();
         assertNotNull(receivedFailure[0]);
         assertSame(failure, receivedFailure[0]);
+    }
+
+    public void testConsumeRowSetReleasesSearchHitRowSetWhenNoRows() {
+        SqlSession session = new SqlSession(SqlTestUtils.TEST_CFG, null, null, null, null, null, null, null, null);
+        Querier querier = new Querier(session);
+        Querier.LocalAggregationSorterListener listener = querier.new LocalAggregationSorterListener(
+            ActionListener.noop(), emptyList(), -1
+        );
+        SearchHitRowSet rowSet = mock(SearchHitRowSet.class);
+        when(rowSet.hasCurrentRow()).thenReturn(false);
+
+        assertTrue(listener.consumeRowSet(rowSet));
+        verify(rowSet, times(1)).releaseSearchHits();
+    }
+
+    public void testConsumeRowSetReleasesSearchHitRowSetAfterOverflowFailure() {
+        int targetRows = MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 2;
+        SearchHit hit = new SearchHit(1, "doc");
+        SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchResponse response = new SearchResponse(
+            hits,
+            null,
+            null,
+            false,
+            null,
+            null,
+            0,
+            null,
+            1,
+            1,
+            0,
+            0L,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+        try {
+            BitSet mask = new BitSet();
+            mask.set(0);
+            AtomicInteger virtualRow = new AtomicInteger(0);
+            SearchHitRowSet delegate = new SearchHitRowSet(List.of(new ConstantExtractor(1)), mask, targetRows, -1, response) {
+                @Override
+                protected boolean doHasCurrent() {
+                    return virtualRow.get() < targetRows;
+                }
+
+                @Override
+                protected boolean doNext() {
+                    int next = virtualRow.incrementAndGet();
+                    return next < targetRows;
+                }
+            };
+            SearchHitRowSet rowSet = spy(delegate);
+
+            SqlSession session = new SqlSession(SqlTestUtils.TEST_CFG, null, null, null, null, null, null, null, null);
+            Querier querier = new Querier(session);
+            Querier.LocalAggregationSorterListener listener = querier.new LocalAggregationSorterListener(
+                ActionListener.noop(), emptyList(), -1
+            );
+
+            assertFalse(listener.consumeRowSet(rowSet));
+            verify(rowSet, times(1)).releaseSearchHits();
+        } finally {
+            response.decRef();
+            hits.decRef();
+        }
     }
 }

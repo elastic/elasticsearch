@@ -292,6 +292,28 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         new Test("version").test(randomVersionString());
     }
 
+    /**
+     * Querying a date_range field with doc_values disabled should return null for every document
+     * rather than throwing an exception. Before the fix, this caused a full query failure because
+     * the block loader tried to access doc values that were not present.
+     */
+    public void testDateRangeNoDocValues() throws IOException {
+        assumeDateRangeFieldTypeSupported();
+        createIndex("test", index -> {
+            index.startObject("properties");
+            index.startObject("dates");
+            index.field("type", "date_range");
+            index.field("doc_values", false);
+            index.endObject();
+            index.endObject();
+        });
+        index("test", """
+            {"dates": {"gte": "2024-01-01", "lte": "2024-12-31"}}""");
+
+        Map<String, Object> result = runEsql("FROM test* | LIMIT 10");
+        assertResultMap(result, List.of(columnInfo("dates", "date_range")), List.of(matchesList().item(null)));
+    }
+
     public void testGeoPoint() throws IOException {
         new Test("geo_point")
             // TODO we should support loading geo_point from doc values if source isn't enabled
@@ -1520,6 +1542,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         var capsName = EsqlCapabilities.Cap.REPORT_ORIGINAL_TYPES.name().toLowerCase(Locale.ROOT);
         boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
         assumeTrue("This test makes sense for versions that report original types", requiredClusterCapability);
+    }
+
+    private void assumeDateRangeFieldTypeSupported() throws IOException {
+        var capsName = EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V3.name().toLowerCase(Locale.ROOT);
+        boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        assumeTrue("date_range field type not supported in this version", requiredClusterCapability);
     }
 
     private void assumeSuggestedCastReported() throws IOException {

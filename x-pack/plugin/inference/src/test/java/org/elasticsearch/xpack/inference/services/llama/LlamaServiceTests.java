@@ -43,7 +43,6 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -62,6 +61,7 @@ import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatComp
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.CoreMatchers;
@@ -93,8 +93,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelTests.createChatCompletionModel;
-import static org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionServiceSettingsTests.getServiceSettingsMap;
-import static org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettingsTests.buildServiceSettingsMap;
+import static org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionServiceSettingsTests.buildServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.empty;
@@ -164,8 +163,8 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
                 }
 
                 @Override
-                protected ModelSecrets createModelSecrets() {
-                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
+                protected ModelSecrets createModelSecrets(ConfigurationParseContext context) {
+                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap(), context));
                 }
 
                 @Override
@@ -190,7 +189,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
-            protected LlamaEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
+            protected LlamaEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
                 return createInternalEmbeddingModel(similarityMeasure);
             }
         }).build();
@@ -318,7 +317,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
                 "id",
                 TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    getServiceSettingsMap("model", "url"),
+                    LlamaEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model", "url", null, null, null, null),
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
@@ -342,7 +341,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
                 "id",
                 TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    getServiceSettingsMap("model", "url"),
+                    LlamaEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model", "url", null, null, null, null),
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
@@ -376,7 +375,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(null, url), getSecretSettingsMap(secret)),
+                getRequestConfigMap(buildServiceSettingsMap(null, url, null), getSecretSettingsMap(secret)),
                 modelVerificationListener
             );
         }
@@ -407,7 +406,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(model, null), getSecretSettingsMap(secret)),
+                getRequestConfigMap(buildServiceSettingsMap(model, null, null), getSecretSettingsMap(secret)),
                 modelVerificationListener
             );
         }
@@ -449,7 +448,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -487,7 +486,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
                         var t = unwrapCause(e);
@@ -575,7 +574,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -664,7 +663,17 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             var secretSettings = getSecretSettingsMap("secret");
             secretSettings.put("extra_key", "value");
 
-            var config = getRequestConfigMap(getEmbeddingsServiceSettingsMap(), secretSettings);
+            var config = getRequestConfigMap(
+                LlamaEmbeddingsServiceSettingsTests.buildServiceSettingsMap(
+                    "id",
+                    "url",
+                    null,
+                    SimilarityMeasure.COSINE.toString(),
+                    null,
+                    null
+                ),
+                secretSettings
+            );
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
                 model -> fail("Expected exception, but got model: " + model),
@@ -703,15 +712,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
 
         try (var service = new LlamaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
 
@@ -748,7 +749,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
                 List.of(new ChunkInferenceInput("abc"), new ChunkInferenceInput("def")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -862,18 +863,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
         try (var service = new LlamaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = LlamaChatCompletionModelTests.createCompletionModel("model", getUrl(webServer), "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                true,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
@@ -900,10 +890,6 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
         builtServiceSettings.putAll(secretSettings);
 
         return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings));
-    }
-
-    private static Map<String, Object> getEmbeddingsServiceSettingsMap() {
-        return buildServiceSettingsMap("id", "url", SimilarityMeasure.COSINE.toString(), null, null, null);
     }
 
     @Override

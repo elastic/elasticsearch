@@ -1,0 +1,170 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+
+esplugin {
+  name = 'esql-datasource-netty-commons'
+  description = 'Shared Netty libraries for ESQL external data source plugins'
+  classname = 'org.elasticsearch.xpack.esql.datasource.nettycommons.NettyCommonsPlugin'
+}
+
+base {
+  archivesName = 'esql-datasource-netty-commons'
+}
+
+dependencies {
+  compileOnly project(':server')
+
+  // Core Netty (same set as transport-netty4)
+  implementation "io.netty:netty-buffer:${versions.netty}"
+  implementation "io.netty:netty-codec:${versions.netty}"
+  implementation "io.netty:netty-codec-http:${versions.netty}"
+  implementation "io.netty:netty-common:${versions.netty}"
+  implementation "io.netty:netty-handler:${versions.netty}"
+  implementation "io.netty:netty-resolver:${versions.netty}"
+  implementation "io.netty:netty-transport:${versions.netty}"
+  implementation "io.netty:netty-transport-native-unix-common:${versions.netty}"
+
+  // Extended Netty modules needed by S3 and/or Azure async HTTP transports
+  implementation "io.netty:netty-codec-dns:${versions.netty}"
+  implementation "io.netty:netty-codec-http2:${versions.netty}"
+  implementation "io.netty:netty-codec-socks:${versions.netty}"
+  implementation "io.netty:netty-handler-proxy:${versions.netty}"
+  implementation "io.netty:netty-resolver-dns:${versions.netty}"
+  implementation "io.netty:netty-transport-classes-epoll:${versions.netty}"
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /netty-.*/, to: 'netty'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // Netty optional logging
+    'org.apache.commons.logging.Log',
+    'org.apache.commons.logging.LogFactory',
+    'org.apache.log4j.Level',
+    'org.apache.log4j.Logger',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.helpers.FormattingTuple',
+    'org.slf4j.helpers.MessageFormatter',
+    'org.slf4j.spi.LocationAwareLogger',
+
+    // Netty SSL (optional tcnative)
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
+    'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCallback',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
+    'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.Library',
+    'io.netty.internal.tcnative.ResultCallback',
+    'io.netty.internal.tcnative.SSL',
+    'io.netty.internal.tcnative.SSLContext',
+    'io.netty.internal.tcnative.SSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
+    'io.netty.internal.tcnative.SessionTicketKey',
+    'io.netty.internal.tcnative.SniHostNameMatcher',
+
+    // Netty optional Conscrypt/Jetty ALPN/NPN
+    'org.conscrypt.AllocatedBuffer',
+    'org.conscrypt.BufferAllocator',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.HandshakeListener',
+    'org.eclipse.jetty.alpn.ALPN',
+    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
+    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
+    'org.eclipse.jetty.npn.NextProtoNego',
+    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
+    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
+
+    // Netty optional compression
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+    'com.github.luben.zstd.Zstd',
+    'com.github.luben.zstd.ZstdInputStreamNoFinalizer',
+    'com.github.luben.zstd.util.Native',
+    'com.jcraft.jzlib.Deflater',
+    'com.jcraft.jzlib.Inflater',
+    'com.jcraft.jzlib.JZlib',
+    'com.jcraft.jzlib.JZlib$WrapperType',
+    'com.ning.compress.BufferRecycler',
+    'com.ning.compress.lzf.ChunkDecoder',
+    'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
+    'com.ning.compress.lzf.LZFEncoder',
+    'com.ning.compress.lzf.util.ChunkDecoderFactory',
+    'com.ning.compress.lzf.util.ChunkEncoderFactory',
+    'lzma.sdk.lzma.Encoder',
+
+    // Netty optional protobuf codec
+    'com.google.protobuf.ExtensionRegistry',
+    'com.google.protobuf.ExtensionRegistryLite',
+    'com.google.protobuf.MessageLite',
+    'com.google.protobuf.MessageLite$Builder',
+    'com.google.protobuf.MessageLiteOrBuilder',
+    'com.google.protobuf.Parser',
+    'com.google.protobuf.nano.CodedOutputByteBufferNano',
+    'com.google.protobuf.nano.MessageNano',
+
+    // Netty optional BouncyCastle for SSL
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
+    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
+    'org.jboss.marshalling.ByteInput',
+    'org.jboss.marshalling.ByteOutput',
+    'org.jboss.marshalling.Marshaller',
+    'org.jboss.marshalling.MarshallerFactory',
+    'org.jboss.marshalling.MarshallingConfiguration',
+    'org.jboss.marshalling.Unmarshaller',
+
+    // Netty BlockHound integration (optional)
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
+  )
+
+  ignoreViolations(
+    // Netty uses sun.misc.Unsafe
+    'io.netty.util.internal.PlatformDependent0',
+    'io.netty.util.internal.PlatformDependent0$1',
+    'io.netty.util.internal.PlatformDependent0$2',
+    'io.netty.util.internal.PlatformDependent0$3',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+  )
+}

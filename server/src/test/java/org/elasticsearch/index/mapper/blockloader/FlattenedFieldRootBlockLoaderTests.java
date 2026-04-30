@@ -18,6 +18,7 @@ import org.elasticsearch.datageneration.matchers.source.FlattenedFieldMatcher;
 import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -133,6 +134,23 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
             case List<?> list -> list.stream().map(v -> applyFlattenedNullValue(v, nullValue)).toList();
             default -> value;
         };
+    }
+
+    public void testBlockLoaderOutputFlatStructure() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        runner.document(Map.of("field", Map.of("a", Map.of("x", "10"), "b", Map.of("y", "20"))));
+        runner.fieldName("field");
+
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "flattened")))),
+            Map.of("field", Map.of("type", "flattened"))
+        );
+
+        String expected = "{\"a.x\":\"10\",\"b.y\":\"20\"}";
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(new BytesRef(expected));
     }
 
     @Override

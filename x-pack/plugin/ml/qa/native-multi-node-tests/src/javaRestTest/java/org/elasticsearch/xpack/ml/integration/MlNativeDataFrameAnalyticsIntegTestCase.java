@@ -303,7 +303,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
             // If the job is stopped during writing_results phase and it is then restarted, there is a chance two trained models
             // were persisted as there is no way currently for the process to be certain the model was persisted.
             searchResponse -> assertThat(
-                "Hits were: " + Strings.toString(searchResponse.getHits()),
+                "Hits were: " + Strings.toTruncatedString(searchResponse.getHits()),
                 searchResponse.getHits().getHits(),
                 is(arrayWithSize(modelHitsArraySizeMatcher))
             )

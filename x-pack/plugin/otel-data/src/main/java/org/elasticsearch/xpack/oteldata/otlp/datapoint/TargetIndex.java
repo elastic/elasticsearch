@@ -117,7 +117,9 @@ public final class TargetIndex {
             String overrideType = firstAttributeValue(DATA_STREAM_TYPE, attributes, scopeAttributes, resourceAttributes);
             if (overrideType != null) {
                 if (TYPE_LOGS.equals(overrideType) == false && TYPE_METRICS.equals(overrideType) == false) {
-                    throw new IllegalArgumentException("data_stream.type cannot be other than logs or metrics, got [" + overrideType + "]");
+                    throw new IllegalArgumentException(
+                        "data_stream.type can only be set to \"logs\" or \"metrics\", got [" + overrideType + "]"
+                    );
                 }
                 target.type = overrideType;
             }

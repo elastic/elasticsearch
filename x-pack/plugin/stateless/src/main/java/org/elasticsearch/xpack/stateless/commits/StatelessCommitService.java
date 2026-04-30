@@ -120,14 +120,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     /** How long an indexing shard should not have sent new commit notifications in order to be deemed as inactive. */
     public static final Setting<TimeValue> SHARD_INACTIVITY_DURATION_TIME_SETTING = Setting.positiveTimeSetting(
-        "shard.inactivity.duration",
+        "stateless.shard.inactivity.duration",
         TimeValue.timeValueMinutes(10),
         Setting.Property.NodeScope
     );
 
     /** How frequently we check for inactive indexing shards, and potentially send requests for in-use commits to the search shards. */
     public static final Setting<TimeValue> SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING = Setting.positiveTimeSetting(
-        "shard.inactivity.monitor.interval",
+        "stateless.shard.inactivity.monitor.interval",
         TimeValue.timeValueMinutes(30),
         Setting.Property.NodeScope
     );

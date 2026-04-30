@@ -31,7 +31,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 
 public class IrateTests extends AbstractAggregationTestCase {
     public IrateTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -152,14 +151,7 @@ public class IrateTests extends AbstractAggregationTestCase {
                 List<Object> nonNullDataRows = dataRows.stream().filter(Objects::nonNull).toList();
                 final Matcher<?> matcher = irateMatcher(nonNullDataRows, timestamps, temporality, supportsDelta);
                 TestCaseSupplier.TestCase result = new TestCaseSupplier.TestCase(
-                    List.of(
-                        fieldTypedData,
-                        timestampsField,
-                        aggregatorVersionField,
-                        temporalityField,
-                        sliceIndexType,
-                        nextTimestampType
-                    ),
+                    List.of(fieldTypedData, timestampsField, aggregatorVersionField, temporalityField, sliceIndexType, nextTimestampType),
                     standardAggregatorName("Irate" + versionStr, fieldTypedData.type()),
                     DataType.DOUBLE,
                     matcher
@@ -168,16 +160,16 @@ public class IrateTests extends AbstractAggregationTestCase {
 
                     if (temporality == RateTests.TemporalityParameter.INVALID) {
                         return result.withWarning(
-                                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                            )
+                            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                        )
                             .withWarning(
                                 "Line 1:1: org.elasticsearch.compute.aggregation.InvalidTemporalityException: "
                                     + "Invalid temporality value: [gotcha], expected [cumulative] or [delta]"
                             );
                     } else if (temporality == RateTests.TemporalityParameter.DELTA && supportsDelta == false) {
                         return result.withWarning(
-                                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                            )
+                            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                        )
                             .withWarning(
                                 "Line 1:1: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality"
                                     + " for counters yet. The affected time series are excluded from irate calculations."

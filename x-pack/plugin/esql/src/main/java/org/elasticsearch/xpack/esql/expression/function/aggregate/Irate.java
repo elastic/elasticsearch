@@ -22,7 +22,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -178,7 +177,15 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         } else {
             return NodeInfo.create(
                 this,
-                (source, field, filter, window, timestamp, aggregatorVersion) -> new Irate(source, field, filter, window, timestamp, aggregatorVersion, null),
+                (source, field, filter, window, timestamp, aggregatorVersion) -> new Irate(
+                    source,
+                    field,
+                    filter,
+                    window,
+                    timestamp,
+                    aggregatorVersion,
+                    null
+                ),
                 field(),
                 filter(),
                 window(),

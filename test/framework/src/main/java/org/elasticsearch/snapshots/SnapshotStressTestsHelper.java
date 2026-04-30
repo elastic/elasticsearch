@@ -376,7 +376,7 @@ public class SnapshotStressTestsHelper {
                 logger.warn("--> failed to acquire all permits: {}", failedPermitAcquisitions);
                 logger.info(
                     "--> current cluster state:\n{}",
-                    Strings.toString(client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
+                    Strings.toTruncatedString(client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
                 );
                 fail("failed to acquire all permits: " + failedPermitAcquisitions);
             }
@@ -386,7 +386,7 @@ public class SnapshotStressTestsHelper {
                 logger.warn("--> threadpool termination timed out");
                 logger.info(
                     "--> current cluster state:\n{}",
-                    Strings.toString(client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
+                    Strings.toTruncatedString(client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
                 );
             }
         }
@@ -409,7 +409,11 @@ public class SnapshotStressTestsHelper {
                         logger.warn("--> failed to acquire permit [{}]", label);
                         logger.info(
                             "--> current cluster state:\n{}",
-                            Strings.toString(client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
+                            Strings.toTruncatedString(
+                                client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
+                                true,
+                                true
+                            )
                         );
                         HotThreads.logLocalHotThreads(
                             logger,
@@ -1310,7 +1314,7 @@ public class SnapshotStressTestsHelper {
                                     @Override
                                     public ClusterState execute(ClusterState currentState) {
                                         assertTrue(
-                                            Strings.toString(currentState),
+                                            Strings.toTruncatedString(currentState),
                                             currentState.metadata().nodeShutdowns().getAll().isEmpty()
                                         );
                                         final var discoveryNode = currentState.nodes().resolveNode(node.nodeName);

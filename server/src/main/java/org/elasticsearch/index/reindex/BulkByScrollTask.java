@@ -190,17 +190,15 @@ public class BulkByScrollTask extends CancellableTask {
         return workerState;
     }
 
-    /**
-     * Claims cancellation on the task's {@link RelocationProgress}. Throws {@link ElasticsearchStatusException} with
-     * {@link RestStatus#CONFLICT} if the relocation handoff has already committed, since cancelling the source at
-     * that point would leave the resumed task on the destination unaware.
-     */
+    /// Claims cancellation on the task's [RelocationProgress]. Throws [ElasticsearchStatusException] with
+    /// [RestStatus#SERVICE_UNAVAILABLE] if the relocation handoff has already committed, since cancelling the
+    /// source at that point would leave the resumed task on the destination unaware.
     @Override
     public void ensureCancellable() {
         if (relocationProgress.tryPrepareCancellation() == false) {
             throw new ElasticsearchStatusException(
                 "cannot cancel task [" + getId() + "] because it is being relocated",
-                RestStatus.CONFLICT
+                RestStatus.SERVICE_UNAVAILABLE
             );
         }
     }

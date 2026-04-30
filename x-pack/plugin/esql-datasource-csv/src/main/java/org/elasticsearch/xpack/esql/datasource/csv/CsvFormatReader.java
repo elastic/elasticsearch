@@ -58,11 +58,14 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -99,6 +102,12 @@ import java.util.regex.Pattern;
  *   <tr><td>{@code max_field_size}</td><td>10 MB</td><td>OOM protection; max bytes per field</td></tr>
  *   <tr><td>{@code multi_value_syntax}</td><td>{@code brackets}</td><td>Multi-value field syntax</td></tr>
  *   <tr><td>{@code schema_sample_size}</td><td>20,000</td><td>Number of rows to sample for type inference</td></tr>
+ *   <tr><td>{@code header_row}</td><td>{@code true}</td>
+ *       <td>When {@code false}, no header row is read; column names are synthesized from
+ *           {@code column_prefix} and types are inferred from the sample.</td></tr>
+ *   <tr><td>{@code column_prefix}</td><td>{@code col}</td>
+ *       <td>Prefix for synthesized column names when {@code header_row} is {@code false};
+ *           a 0-based counter is appended (e.g. {@code col0, col1, col2, ...}).</td></tr>
  * </table>
  *
  * <h2>Bracket multi-value syntax</h2>
@@ -130,6 +139,9 @@ import java.util.regex.Pattern;
  * }
  * {@snippet lang="esql" :
  *   EXTERNAL "s3://bucket/data.csv" WITH {"multi_value_syntax": "brackets", "error_mode": "skip_row"}
+ * }
+ * {@snippet lang="esql" :
+ *   EXTERNAL "https://datasets.example.com/headerless.csv.gz" WITH {"header_row": false}
  * }
  *
  * <p>Works with any {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider}
@@ -199,6 +211,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         DateTimeFormatter datetimeFormatter = parseDatetimeFormat(config.get("datetime_format"));
         int maxFieldSize = parseInt(config.get("max_field_size"), CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE);
         CsvFormatOptions.MultiValueSyntax multiValueSyntax = parseMultiValueSyntax(config.get("multi_value_syntax"));
+        boolean headerRow = parseBoolean(config.get("header_row"), true);
+        String columnPrefix = parseString(config.get("column_prefix"), CsvFormatOptions.DEFAULT_COLUMN_PREFIX);
 
         if (delimiter == ','
             && quoteChar == '"'
@@ -208,7 +222,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             && StandardCharsets.UTF_8.equals(encoding)
             && datetimeFormatter == null
             && maxFieldSize == CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE
-            && multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS) {
+            && multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS
+            && headerRow
+            && CsvFormatOptions.DEFAULT_COLUMN_PREFIX.equals(columnPrefix)) {
             return null;
         }
         return new CsvFormatOptions(
@@ -220,7 +236,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             encoding,
             datetimeFormatter,
             maxFieldSize,
-            multiValueSyntax
+            multiValueSyntax,
+            headerRow,
+            columnPrefix
         );
     }
 
@@ -280,6 +298,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid integer value [" + value + "]", e);
         }
+    }
+
+    private static boolean parseBoolean(Object value, boolean defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Boolean b) {
+            return b;
+        }
+        String s = value.toString().trim();
+        if (s.isEmpty()) {
+            return defaultValue;
+        }
+        if ("true".equalsIgnoreCase(s)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(s)) {
+            return false;
+        }
+        throw new IllegalArgumentException("Invalid boolean value [" + value + "]");
     }
 
     private static Charset parseEncoding(Object value) {
@@ -347,6 +385,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             InputStream stream = object.newStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE)
         ) {
+            if (options.headerRow() == false) {
+                return inferSchemaWithSyntheticNames(reader);
+            }
             String headerLine = null;
             while ((headerLine = reader.readLine()) != null) {
                 headerLine = headerLine.trim();
@@ -361,9 +402,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             List<Attribute> typedSchema = parseSchema(headerLine);
             if (typedSchema != null) {
+                checkUniqueAttributeNames(typedSchema);
                 return typedSchema;
             }
-            return inferSchemaFromSample(headerLine, reader);
+            List<Attribute> inferred = inferSchemaFromSample(headerLine, reader);
+            checkUniqueAttributeNames(inferred);
+            return inferred;
         }
     }
 
@@ -376,6 +420,60 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
+        }
+    }
+
+    private List<Attribute> inferSchemaWithSyntheticNames(BufferedReader reader) throws IOException {
+        Iterator<List<?>> csvIterator = newCsvIterator(reader);
+        CircuitBreaker breaker = blockFactory.breaker();
+        SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker);
+        try {
+            if (sample.rows().isEmpty()) {
+                throw new IOException("CSV file has no data rows");
+            }
+            int columnCount = 0;
+            for (String[] row : sample.rows()) {
+                if (row.length > columnCount) {
+                    columnCount = row.length;
+                }
+            }
+            String[] columnNames = synthesizeColumnNames(columnCount, options.columnPrefix());
+            return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
+        } finally {
+            breaker.addWithoutBreaking(-sample.reservedBytes());
+        }
+    }
+
+    static String[] synthesizeColumnNames(int count, String prefix) {
+        String[] names = new String[count];
+        for (int i = 0; i < count; i++) {
+            names[i] = prefix + i;
+        }
+        return names;
+    }
+
+    /**
+     * Throws a {@link ParsingException} when the inferred or typed header has duplicate column names.
+     * Without this guard the optimizer's {@code PlanConsistencyChecker} would later 500 with a
+     * "duplicate output attribute" error that is hard to map back to the CSV input.
+     */
+    private static void checkUniqueAttributeNames(List<Attribute> attributes) {
+        Set<String> seen = new HashSet<>(attributes.size());
+        LinkedHashSet<String> duplicates = null;
+        for (Attribute a : attributes) {
+            if (seen.add(a.name()) == false) {
+                if (duplicates == null) {
+                    duplicates = new LinkedHashSet<>();
+                }
+                duplicates.add(a.name());
+            }
+        }
+        if (duplicates != null) {
+            throw new ParsingException(
+                "CSV header has duplicate column names {}; if the file has no header row, "
+                    + "set [\"header_row\": false] in the WITH options",
+                duplicates
+            );
         }
     }
 
@@ -708,6 +806,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (schema == null) {
                 if (preResolvedSchema != null) {
                     schema = preResolvedSchema;
+                } else if (options.headerRow() == false) {
+                    schema = inferSchemaHeaderlessFromBatchReader();
+                    if (schema == null) {
+                        return null;
+                    }
                 } else {
                     String headerLine = null;
                     String line;
@@ -912,6 +1015,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;
             }
+            prefetchedRows = sample.rows();
+            prefetchedRowsBytes = sample.reservedBytes();
+            return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
+        }
+
+        private List<Attribute> inferSchemaHeaderlessFromBatchReader() throws IOException {
+            csvIterator = newCsvIterator(reader);
+            SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, blockFactory.breaker());
+            if (sample.rows().isEmpty()) {
+                blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
+                return null;
+            }
+            int columnCount = 0;
+            for (String[] row : sample.rows()) {
+                if (row.length > columnCount) {
+                    columnCount = row.length;
+                }
+            }
+            String[] columnNames = synthesizeColumnNames(columnCount, options.columnPrefix());
             prefetchedRows = sample.rows();
             prefetchedRowsBytes = sample.reservedBytes();
             return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());

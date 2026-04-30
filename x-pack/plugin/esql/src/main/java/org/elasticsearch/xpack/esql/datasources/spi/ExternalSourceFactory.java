@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -25,20 +24,6 @@ public interface ExternalSourceFactory {
     boolean canHandle(String location);
 
     SourceMetadata resolveMetadata(String location, Map<String, Object> config);
-
-    /**
-     * Resolves the full file layout (metadata + split ranges) for a single file in one pass.
-     * The default implementation defers to {@link #resolveMetadata} and returns no split ranges,
-     * preserving backward compatibility for non-file factories (connectors, table catalogs).
-     * <p>
-     * File-based factories that work with range-aware (columnar) formats should override this
-     * to read the file's footer once and emit both schema/statistics and split ranges, avoiding
-     * the double-read that would otherwise happen across {@code resolveMetadata} and
-     * {@link RangeAwareFormatReader#resolveFileLayout}.
-     */
-    default FileLayout resolveFileLayout(String location, Map<String, Object> config) {
-        return new FileLayout(resolveMetadata(location, config), List.of());
-    }
 
     default FilterPushdownSupport filterPushdownSupport() {
         return null;

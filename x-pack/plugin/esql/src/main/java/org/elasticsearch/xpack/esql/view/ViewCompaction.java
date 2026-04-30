@@ -37,16 +37,18 @@ import java.util.Map;
  *       least one {@link NamedSubquery} child into {@link ViewUnionAll}.</li>
  *   <li>{@link #compactNestedViewUnionAlls} — bottom-up flatten nested {@link ViewUnionAll} (and
  *       merge sibling bare {@link UnresolvedRelation}s when an inner Fork is lifted). Also unwraps
- *       {@link NamedSubquery} wrappers whose child has been reduced to a bare UR without
- *       exclusions, so the outer level's compaction can see them as bare URs.</li>
+ *       {@link NamedSubquery} wrappers whose child has been reduced to a bare
+ *       {@link UnresolvedRelation} without exclusions, so the outer level's compaction can see them
+ *       as bare {@link UnresolvedRelation}s.</li>
  *   <li>Unwrap remaining {@link NamedSubquery} wrappers — they only existed to defeat the merge
  *       step in scope-sensitive cases.</li>
  * </ol>
  * <p>
  * Note: a small amount of compaction stays inside {@link ViewResolver#buildPlanFromBranches} —
- * specifically the per-level sibling-UR merge — because {@link ViewUnionAll} (a {@link Fork}
- * subclass) enforces {@link Fork#MAX_BRANCHES} at construction time, and a wide branching level of
- * compactable views would be unconstructible without first reducing the entry count.
+ * specifically the per-level sibling {@link UnresolvedRelation} merge — because
+ * {@link ViewUnionAll} (a {@link Fork} subclass) enforces {@link Fork#MAX_BRANCHES} at construction
+ * time, and a wide branching level of compactable views would be unconstructible without first
+ * reducing the entry count.
  */
 public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
@@ -105,9 +107,10 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * Also unwraps {@link NamedSubquery} entries whose child has been reduced to a bare
      * {@link UnresolvedRelation} without exclusions. The wrap was added by
      * {@code ViewResolver.buildPlanFromBranches} purely because the original child wasn't a bare
-     * UR; once nested compaction reduces it to one, the wrapper has no purpose and would block the
-     * outer level's sibling-UR merge step from seeing it. Exclusion-bearing URs stay wrapped to
-     * preserve their narrow scope (see exclusion-leak tests).
+     * {@link UnresolvedRelation}; once nested compaction reduces it to one, the wrapper has no
+     * purpose and would block the outer level's sibling {@link UnresolvedRelation} merge step from
+     * seeing it. Exclusion-bearing {@link UnresolvedRelation}s stay wrapped to preserve their
+     * narrow scope (see exclusion-leak tests).
      */
     static LogicalPlan compactNestedViewUnionAlls(LogicalPlan plan) {
         List<LogicalPlan> children = plan.children();
@@ -169,10 +172,11 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
             hasInnerFork = true;
             if (inner instanceof ViewUnionAll innerVua) {
-                // Named branches from inner ViewUnionAll: lift with their own names. A bare UR with
-                // an exclusion must be wrapped in a NamedSubquery before lifting — otherwise the
-                // subsequent merge step would concatenate its pattern list with a sibling outer UR,
-                // widening the exclusion's scope beyond the inner view body it came from.
+                // Named branches from inner ViewUnionAll: lift with their own names. A bare
+                // UnresolvedRelation with an exclusion must be wrapped in a NamedSubquery before
+                // lifting — otherwise the subsequent merge step would concatenate its pattern list
+                // with a sibling outer UnresolvedRelation, widening the exclusion's scope beyond
+                // the inner view body it came from.
                 for (Map.Entry<String, LogicalPlan> innerEntry : innerVua.namedSubqueries().entrySet()) {
                     String innerKey = innerEntry.getKey();
                     LogicalPlan innerValue = innerEntry.getValue();
@@ -182,9 +186,10 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                     flat.put(makeUniqueKey(flat, innerKey), innerValue);
                 }
             } else {
-                // Plain Fork/UnionAll from user-written subqueries: lift children with suffixed parent name.
-                // As in the ViewUnionAll branch above, a bare UR child with an exclusion must be wrapped in
-                // a NamedSubquery before lifting so the subsequent merge step does not widen its scope.
+                // Plain Fork/UnionAll from user-written subqueries: lift children with suffixed
+                // parent name. As in the ViewUnionAll branch above, a bare UnresolvedRelation child
+                // with an exclusion must be wrapped in a NamedSubquery before lifting so the
+                // subsequent merge step does not widen its scope.
                 Fork fork = (Fork) inner;
                 int childIndex = 1;
                 for (LogicalPlan child : fork.children()) {
@@ -202,7 +207,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             return vua;
         }
 
-        // Try to merge all UR entries into a single one, unless there are duplicates
+        // Try to merge all UnresolvedRelation entries into a single one, unless there are duplicates
         mergeUnresolvedRelationEntries(flat);
 
         if (flat.size() > Fork.MAX_BRANCHES) {
@@ -230,9 +235,9 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Merges bare UnresolvedRelation entries in the map into a single entry where possible.
-     * URs that share individual index names with the merged result are kept as separate entries
-     * to prevent IndexResolution from deduplicating them and losing data.
+     * Merges bare {@link UnresolvedRelation} entries in the map into a single entry where possible.
+     * {@link UnresolvedRelation}s that share individual index names with the merged result are kept
+     * as separate entries to prevent IndexResolution from deduplicating them and losing data.
      */
     private static void mergeUnresolvedRelationEntries(LinkedHashMap<String, LogicalPlan> flat) {
         List<String> urKeys = new ArrayList<>();

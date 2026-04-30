@@ -205,8 +205,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     /**
      * A view body's exclusion must stay scoped to its own body. When the body is a simple
      * {@link UnresolvedRelation} containing an exclusion, it must not be merged with sibling or
-     * outer URs, because the merge concatenates patterns into one UR and widens the scope of
-     * the exclusion to everything in the combined pattern list.
+     * outer {@link UnresolvedRelation}s, because the merge concatenates patterns into one
+     * {@link UnresolvedRelation} and widens the scope of the exclusion to everything in the
+     * combined pattern list.
      * <p>
      * Real-world failure (ServerlessCrossProjectEsqlIT):
      * <pre>
@@ -214,8 +215,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      *   view data-view = FROM index-b*,-*2        (scopes to index-b*, excludes index-b2)
      *   query: FROM index-a*,data-view            (expects index-a1, index-a2, index-b1)
      * </pre>
-     * Before the fix the resolver merged into {@code UR(index-a*,index-b*,-*2)} so the view
-     * body's {@code -*2} excluded {@code index-a2} as well, producing only {@code a1, b1}.
+     * Before the fix the resolver merged into {@code UnresolvedRelation(index-a*,index-b*,-*2)}
+     * so the view body's {@code -*2} excluded {@code index-a2} as well, producing only
+     * {@code a1, b1}.
      */
     public void testViewBodyExclusionNotLeakedToOuter() {
         addIndex("index-a1");
@@ -247,9 +249,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * The single-level case is covered by {@link #testViewBodyExclusionNotLeakedToOuter}. In the
      * nested case the view-flattening path in {@code ViewResolver.tryFlattenViewUnionAll} would
      * lift the inner ViewUnionAll's entries (ViewUnionAll extends UnionAll extends Fork, which
-     * triggers the fork-flattening branch) and then merge their bare URs with sibling outer URs,
-     * re-widening the exclusion's scope. The fix wraps exclusion-bearing URs in a NamedSubquery
-     * before lifting so the subsequent merge step leaves them alone.
+     * triggers the fork-flattening branch) and then merge their bare {@link UnresolvedRelation}s
+     * with sibling outer {@link UnresolvedRelation}s, re-widening the exclusion's scope. The fix
+     * wraps exclusion-bearing {@link UnresolvedRelation}s in a NamedSubquery before lifting so the
+     * subsequent merge step leaves them alone.
      */
     public void testViewBodyExclusionNotLeakedThroughNestedViews() {
         addIndex("index-1-a");
@@ -265,7 +268,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view-0-l", "FROM view-1-*");
         LogicalPlan plan = query("FROM view-0-l");
         // The inner -*b exclusion must stay scoped to view-1-l's body, not widen to view-0-l's
-        // sibling view-1-r-* indices. Each scope-carrying UR stays in its own branch.
+        // sibling view-1-r-* indices. Each scope-carrying UnresolvedRelation stays in its own branch.
         assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM view-1-*),(FROM index-2-*,-*a),(FROM view-2-*,index-1-*,-*b)")));
     }
 
@@ -286,7 +289,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("my_view", "FROM outer-*, (FROM inner-*,-*b)");
         LogicalPlan plan = query("FROM my_view, inner-b");
         // The -*b in the inner subquery must only exclude -*b from matches of inner-*, not from the
-        // outer inner-b pattern. Each scope-carrying UR stays in its own branch.
+        // outer inner-b pattern. Each scope-carrying UnresolvedRelation stays in its own branch.
         assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM inner-b,outer-*),(FROM inner-*,-*b)")));
     }
 
@@ -844,7 +847,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_c", "FROM view_a");
         // view_b -> view_c -> view_a -> emp is a valid chain, not circular.
         // view_a appearing as both a direct source and a transitive dependency of view_b is fine.
-        // Both resolve to UR("emp") but are kept as separate branches (not merged into "emp,emp")
+        // Both resolve to UnresolvedRelation("emp") but are kept as separate branches (not merged into "emp,emp")
         // because IndexResolution would deduplicate a single "emp,emp" relation, losing the duplicate.
         assertThat(replaceViews(query("FROM view_a, view_b")), matchesPlan(query("FROM (FROM emp),(FROM emp)")));
     }
@@ -1598,7 +1601,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             matchesPlan(query("FROM employees, (FROM employees) | STATS count=COUNT()"))
         );
         // Nested ViewUnionAlls that only contain UnresolvedRelations are flattened into the parent,
-        // so the nested structure is eliminated and each UR becomes a separate branch.
+        // so the nested structure is eliminated and each UnresolvedRelation becomes a separate branch.
         assertThat(
             replaceViews(query("FROM employees, employees_extra | STATS count=COUNT()")),
             matchesPlan(query("FROM employees, (FROM employees), (FROM employees) | STATS count=COUNT()"))
@@ -1612,18 +1615,18 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     /**
      * Reproduces a bug in {@code mergeUnresolvedRelationEntries} where {@code hasPatternDuplicates}
      * only checks whole-pattern equality, not individual index name overlap. Two inner VUAs can each
-     * contribute a bare UR with different whole patterns (e.g. "emp1,emp2" vs "emp1,emp3") that share
-     * an individual index ("emp1"). After flattening, {@code mergeUnresolvedRelationEntries} merges
-     * them into "emp1,emp2,emp1,emp3" because the whole patterns differ — but IndexResolution would
-     * then deduplicate "emp1", losing data.
+     * contribute a bare {@link UnresolvedRelation} with different whole patterns (e.g. "emp1,emp2"
+     * vs "emp1,emp3") that share an individual index ("emp1"). After flattening,
+     * {@code mergeUnresolvedRelationEntries} merges them into "emp1,emp2,emp1,emp3" because the
+     * whole patterns differ — but IndexResolution would then deduplicate "emp1", losing data.
      */
     public void testFlattenedViewUnionAllWithOverlappingIndices() {
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         // Non-compactable views (have WHERE) that force NamedSubquery branches
         addView("view_x", "FROM emp1 | WHERE emp.age > 30");
         addView("view_y", "FROM emp1 | WHERE emp.salary > 50000");
-        // Each of these resolves to a VUA with a bare UR("emp1,emp2") or UR("emp1,emp3")
-        // plus a NamedSubquery for the non-compactable view
+        // Each of these resolves to a VUA with a bare UnresolvedRelation("emp1,emp2") or
+        // UnresolvedRelation("emp1,emp3") plus a NamedSubquery for the non-compactable view
         addView("view_a", "FROM emp2, emp1, view_x");
         addView("view_b", "FROM emp3, emp1, view_y");
         addIndex("emp1");
@@ -1631,14 +1634,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("emp3");
 
         // Query FROM view_a, view_b produces a VUA with two inner VUAs.
-        // tryFlattenViewUnionAll lifts the entries. The bare URs "emp1,emp2" and "emp1,emp3"
-        // share "emp1" — merging them would lose data.
+        // tryFlattenViewUnionAll lifts the entries. The bare UnresolvedRelations "emp1,emp2" and
+        // "emp1,emp3" share "emp1" — merging them would lose data.
         LogicalPlan result = replaceViews(query("FROM view_a, view_b"));
         assertThat(result, instanceOf(ViewUnionAll.class));
         ViewUnionAll vua = (ViewUnionAll) result;
 
-        // Count how many branches resolve to a bare UR containing "emp1"
-        // If the bug is present, the URs get merged into one, losing the second copy of emp1
+        // Count how many branches resolve to a bare UnresolvedRelation containing "emp1"
+        // If the bug is present, the UnresolvedRelations get merged into one, losing the second copy of emp1
         long urBranchesWithEmp1 = vua.namedSubqueries()
             .values()
             .stream()
@@ -1648,7 +1651,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             .count();
 
         assertThat(
-            "emp1 should appear in at least 2 separate UR branches to preserve view semantics, "
+            "emp1 should appear in at least 2 separate UnresolvedRelation branches to preserve view semantics, "
                 + "but mergeUnresolvedRelationEntries merged them because hasPatternDuplicates only checks whole patterns. "
                 + "VUA entries: "
                 + vua.namedSubqueries(),
@@ -1703,7 +1706,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * Wrapper views (branch 1 at depth &ge; 2) are always compactable, so the ViewResolver can flatten
      * nested ViewUnionAlls through them. The result is a single-level ViewUnionAll that accumulates
      * one branch per diagonal view. The effective FORK branch count grows with min(N, B), hitting the
-     * FORK limit when the total (diagonal count + query-level diagonal + 1 for compactable UR) exceeds 8.
+     * FORK limit when the total (diagonal count + query-level diagonal + 1 for compactable
+     * UnresolvedRelation) exceeds 8.
      * No nested FORK errors occur because flattening eliminates all nesting.
      */
     public void testDiagonalNonCompactableViewNestingBranchingMatrix() {
@@ -1752,12 +1756,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     /**
      * Computes the effective FORK branch count for the diagonal non-compaction pattern.
      * Each diagonal view (depth == branch) becomes a non-compactable branch. Compactable views merge
-     * into a single UR entry. The total is: diagonal count from tree + query-level diagonal + 1 (UR).
+     * into a single {@link UnresolvedRelation} entry. The total is: diagonal count from tree +
+     * query-level diagonal + 1 ({@link UnresolvedRelation}).
      */
     private static int effectiveDiagonalBranches(int nesting, int branching) {
         int diagonal = Math.min(nesting, branching); // v_1_1, v_2_2, ..., v_min(N,B)_min(N,B)
         int queryDiagonal = (nesting + 1 <= branching) ? 1 : 0; // v_(N+1)_(N+1) if it exists
-        return diagonal + queryDiagonal + 1; // +1 for the merged compactable UR
+        return diagonal + queryDiagonal + 1; // +1 for the merged compactable UnresolvedRelation
     }
 
     /**
@@ -1986,25 +1991,27 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     /**
      * Two-view query: the resolver builds a {@link ViewUnionAll} with one entry per resolved view.
-     * Sibling-UR merging happens at construction (to keep branch counts in check), so the entries
-     * here come from the per-level merge in {@code buildPlanFromBranches} — but no further
-     * post-pass compaction has run yet.
+     * Sibling {@link UnresolvedRelation} merging happens at construction (to keep branch counts in
+     * check), so the entries here come from the per-level merge in {@code buildPlanFromBranches} —
+     * but no further post-pass compaction has run yet.
      */
     public void testUncompactedTwoSiblingViews() {
         addView("v_a", "FROM emp1");
         addView("v_b", "FROM emp2");
-        // Per-level merge in buildPlanFromBranches collapses these mergeable URs into one. The
-        // outer ViewUnionAll therefore has a single bare-UR entry; without compaction it would be
-        // unwrapped only by the analyzer's ViewCompaction rule.
+        // Per-level merge in buildPlanFromBranches collapses these mergeable
+        // UnresolvedRelations into one. The outer ViewUnionAll therefore has a single bare-
+        // UnresolvedRelation entry; without compaction it would be unwrapped only by the
+        // analyzer's ViewCompaction rule.
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_a, v_b"));
-        // The resolver returns the merged UR directly when there's only one entry left.
+        // The resolver returns the merged UnresolvedRelation directly when there's only one entry left.
         assertThat(resolved, instanceOf(UnresolvedRelation.class));
         assertThat(((UnresolvedRelation) resolved).indexPattern().indexPattern(), equalTo("emp1,emp2"));
     }
 
     /**
-     * Nested views collapse at each level into bare URs, then nest. Because per-level merging runs
-     * in the resolver, the result here is already a single bare UR; no ViewUnionAll needed.
+     * Nested views collapse at each level into bare {@link UnresolvedRelation}s, then nest. Because
+     * per-level merging runs in the resolver, the result here is already a single bare
+     * {@link UnresolvedRelation}; no ViewUnionAll needed.
      */
     public void testUncompactedNestedViews() {
         addView("inner", "FROM emp1, emp2");
@@ -2017,8 +2024,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     /**
      * View body containing an exclusion is wrapped in a {@link NamedSubquery} by the resolver to
      * defeat sibling-merge — this is the scoping mechanism that prevents the exclusion from
-     * leaking onto sibling URs. {@link ViewCompaction} unwraps the NamedSubquery only at the very
-     * end (after all merging passes have decided to leave it alone).
+     * leaking onto sibling {@link UnresolvedRelation}s. {@link ViewCompaction} unwraps the
+     * NamedSubquery only at the very end (after all merging passes have decided to leave it alone).
      */
     public void testUncompactedViewBodyWithExclusionStaysWrapped() {
         addIndex("idx-a1");
@@ -2026,12 +2033,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("idx-b1");
         addIndex("idx-b2");
         addView("data-view", "FROM idx-b*,-*2");
-        // The outer query has two sibling URs. The view body's exclusion-bearing UR must stay
-        // scoped — represented as a NamedSubquery in the uncompacted output.
+        // The outer query has two sibling UnresolvedRelations. The view body's exclusion-bearing
+        // UnresolvedRelation must stay scoped — represented as a NamedSubquery in the uncompacted output.
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM idx-a*, data-view"));
         assertThat(resolved, instanceOf(ViewUnionAll.class));
         ViewUnionAll vua = (ViewUnionAll) resolved;
-        // One entry is the bare outer UR; the other is the data-view body wrapped in a NamedSubquery.
+        // One entry is the bare outer UnresolvedRelation; the other is the data-view body wrapped in a NamedSubquery.
         assertThat(
             "Expected one entry to be a NamedSubquery wrapping the exclusion-bearing view body. Found: " + vua.namedSubqueries(),
             vua.namedSubqueries().values().stream().anyMatch(p -> p instanceof NamedSubquery),
@@ -2041,9 +2048,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     /**
      * Wildcard-matched siblings of the same view body shape are merged at the resolver level (per
-     * the per-level merge), then collapse to a single UR. The order in the merged pattern follows
-     * the order returned by the view metadata service, which is not guaranteed to be alphabetical
-     * — we just check the final set of patterns matches.
+     * the per-level merge), then collapse to a single {@link UnresolvedRelation}. The order in the
+     * merged pattern follows the order returned by the view metadata service, which is not
+     * guaranteed to be alphabetical — we just check the final set of patterns matches.
      */
     public void testUncompactedWildcardMatchedSiblingsMerge() {
         addView("v_a", "FROM emp1");
@@ -2059,7 +2066,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * resolver does <em>not</em> flatten — that's the analyzer's job. This verifies the nested
      * structure survives the resolver, which is the property #543's lenient-call work depends on.
      * The outer view body shows up as a {@link NamedSubquery} wrapping a {@link UnionAll}, since
-     * the user-written subquery prevents collapsing to a bare UR.
+     * the user-written subquery prevents collapsing to a bare {@link UnresolvedRelation}.
      */
     public void testUncompactedSubqueryInViewBodyKeepsNestedStructure() {
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
@@ -2067,9 +2074,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("inner_b", "FROM emp2 | WHERE emp.age > 30");
         addView("outer", "FROM inner_a, (FROM inner_b)");
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM outer"));
-        // Outer is a NamedSubquery wrapping a UnionAll containing inner_a's UR and inner_b's
-        // resolved Filter. Compaction would later flatten this; we just check the resolver kept it
-        // structured.
+        // Outer is a NamedSubquery wrapping a UnionAll containing inner_a's UnresolvedRelation and
+        // inner_b's resolved Filter. Compaction would later flatten this; we just check the
+        // resolver kept it structured.
         assertThat(resolved, instanceOf(NamedSubquery.class));
         LogicalPlan inner = ((NamedSubquery) resolved).child();
         assertThat(inner, anyOf(instanceOf(ViewUnionAll.class), instanceOf(UnionAll.class)));

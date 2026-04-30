@@ -137,10 +137,10 @@ public class ViewResolver {
             return;
         }
         // Note: this returns the uncompacted nested plan. Compaction (UnionAll/ViewUnionAll
-        // rewriting, sibling-UR merging, NamedSubquery unwrapping) now happens as the first rule
-        // in the analyzer (see {@link org.elasticsearch.xpack.esql.view.ViewCompaction}). Keeping
-        // the resolver's output uncompacted is required so CPS can attach lenient field-caps calls
-        // to specific resolution levels — see esql-planning #543, #472.
+        // rewriting, sibling UnresolvedRelation merging, NamedSubquery unwrapping) now happens as
+        // the first rule in the analyzer (see {@link org.elasticsearch.xpack.esql.view.ViewCompaction}).
+        // Keeping the resolver's output uncompacted is required so CPS can attach lenient
+        // field-caps calls to specific resolution levels — see esql-planning #543, #472.
         replaceViews(
             plan,
             parser,
@@ -162,7 +162,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenInner = new LinkedHashSet<>(seenViews);
         // Tracks wildcard patterns already resolved within this transformDown traversal to prevent duplicate processing
         HashSet<String> seenWildcards = new HashSet<>();
-        // Tracks plans already resolved by view handlers (Fork, UR) to prevent double-processing.
+        // Tracks plans already resolved by view handlers (Fork, UnresolvedRelation) to prevent double-processing.
         // Without this, transformDown recurses into the children of resolved plans, causing wildcards
         // in view subqueries to be re-resolved against sibling view names, producing false circular
         // reference errors and deeply nested duplicate resolution.
@@ -201,7 +201,7 @@ public class ViewResolver {
                         planListener.delegateFailureAndWrap((l, result) -> {
                             plan.forEachDown(resolvedPlans::add);
                             // Also mark the resolved result subtree so transformDown does not
-                            // re-process view-body nodes the UR was replaced with.
+                            // re-process view-body nodes the UnresolvedRelation was replaced with.
                             result.forEachDown(resolvedPlans::add);
                             l.onResponse(result);
                         })
@@ -342,7 +342,7 @@ public class ViewResolver {
     ) {
         List<ViewPlan> result = new ArrayList<>();
         HashSet<String> addedViews = new HashSet<>();
-        // Positive patterns that must remain in the unresolved UR because they contribute non-view
+        // Positive patterns that must remain in the unresolved UnresolvedRelation because they contribute non-view
         // resources or were not visible / unauthorized. We collect them here during the first pass
         // but emit them into unresolvedPatterns in original-query order during the second pass,
         // so exclusion patterns stay at their original positions — reordering them changes the
@@ -380,7 +380,7 @@ public class ViewResolver {
 
             // Add view plans first, then record unresolved position so that resolved view
             // indexes precede the original wildcard pattern in the final merged result.
-            // Sort so simple UR plans come before complex plans — this ensures deterministic
+            // Sort so simple UnresolvedRelation plans come before complex plans — this ensures deterministic
             // ordering regardless of HashSet iteration order in the expression's indices.
             exprViews.sort((a, b) -> {
                 boolean aSimple = a.plan() instanceof UnresolvedRelation;
@@ -412,9 +412,9 @@ public class ViewResolver {
             }
         }
 
-        // Only emit the UR plan if it would contribute at least one positive pattern.
-        // A UR with only exclusions has no positive basis to match against and would be a
-        // semantically empty input — preserve prior behavior of omitting it in that case.
+        // Only emit the UnresolvedRelation plan if it would contribute at least one positive pattern.
+        // An UnresolvedRelation with only exclusions has no positive basis to match against and
+        // would be a semantically empty input — preserve prior behavior of omitting it in that case.
         if (patternsNeedingUnresolved.isEmpty() == false) {
             result.add(unresolvedInsertPos, createUnresolvedRelationPlan(unresolvedRelation, unresolvedPatterns));
         }
@@ -549,7 +549,7 @@ public class ViewResolver {
         for (int i = 1; i < urKeys.size(); i++) {
             String key = urKeys.get(i);
             UnresolvedRelation ur = (UnresolvedRelation) plans.get(key);
-            UnresolvedRelation result = mergeUrIfPossible(merged, ur);
+            UnresolvedRelation result = mergeIfPossible(merged, ur);
             if (result != null) {
                 merged = result;
                 plans.remove(key);
@@ -562,7 +562,7 @@ public class ViewResolver {
     }
 
     /** Merge the unresolved relation unless the index patterns contain matching index names. */
-    private static UnresolvedRelation mergeUrIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
+    private static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
         for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
             for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
                 if (mainPattern.equals(otherPattern)) {
@@ -624,13 +624,16 @@ public class ViewResolver {
         // to be tagged with the view name during parsing
         LogicalPlan subquery = parser.apply(view.query(), view.name());
         if (subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
-            // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them together and avoid branched plans.
-            // But exclusion patterns must stay scoped to the view body — a bare UR with an exclusion that gets merged with sibling
-            // or outer URs would have its exclusion's scope widened across the merged pattern list (see #146XXX), so those are
-            // wrapped in a NamedSubquery via the else branch to prevent merging.
+            // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them
+            // together and avoid branched plans. But exclusion patterns must stay scoped to the
+            // view body — a bare UnresolvedRelation with an exclusion that gets merged with sibling
+            // or outer UnresolvedRelations would have its exclusion's scope widened across the
+            // merged pattern list (see #146XXX), so those are wrapped in a NamedSubquery via the
+            // else branch to prevent merging.
             return ur;
         } else {
-            // More complex subqueries (or simple URs containing exclusions) are maintained with the view name for branch identification
+            // More complex subqueries (or simple UnresolvedRelations containing exclusions) are
+            // maintained with the view name for branch identification.
             return new NamedSubquery(subquery.source(), subquery, view.name());
         }
     }

@@ -171,15 +171,15 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                 }
                 String remoteClusterName = split[0];
                 String indexName = split[1];
+                if (isRemoteIndexName(indexName)) {
+                    // Double cluster prefixes are not allowed
+                    throw new IllegalArgumentException(Strings.format("Index name cannot have multiple cluster prefixes: [%s]", index));
+                }
                 boolean isNegative = remoteClusterName.startsWith("-");
                 List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(
                     remoteClusterNames,
                     isNegative ? remoteClusterName.substring(1) : remoteClusterName
                 );
-                if (isRemoteIndexName(indexName)) {
-                    // Double cluster prefixes are not allowed
-                    throw new IllegalArgumentException(Strings.format("Index name cannot have multiple cluster prefixes: [%s]", index));
-                }
                 if (isNegative) {
                     Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexName);
                     indexName = indexAndSelector.v1();

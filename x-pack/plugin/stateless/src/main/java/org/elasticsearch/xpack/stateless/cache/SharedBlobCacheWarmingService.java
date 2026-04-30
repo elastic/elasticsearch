@@ -985,13 +985,13 @@ public class SharedBlobCacheWarmingService {
             } else if (fileExtension == LuceneFilesExtensions.CFE) {
                 SubscribableListener
                     // warm entire CFE file
-                    .<Void>newForked(listener -> addLocation(blobLocation, listener))
+                    .<Void>newForked(listener -> addLocation(blobLocation, fileName, listener))
                     // parse it and schedule warming of corresponding parts of CFS file
                     .andThenAccept(ignored -> addCfe(fileName))
                     .addListener(listeners.acquire());
             } else if (shouldFullyWarmUp(fileName, fileExtension, preWarmForIdLookup) || blobLocation.fileLength() <= BUFFER_SIZE) {
                 // warm entire file when it is small or required for id lookup
-                addLocation(blobLocation, listeners.acquire());
+                addLocation(blobLocation, fileName, listeners.acquire());
             } else {
                 // header
                 final var length = getHeaderPreWarmSize(
@@ -999,10 +999,11 @@ public class SharedBlobCacheWarmingService {
                     blobLocation.fileLength(),
                     preWarmForIdLookup ? idLookupPrewarmRatio : 0.0
                 );
-                addLocation(blobLocation, blobLocation.offset(), length, listeners.acquire());
+                addLocation(blobLocation, fileName, blobLocation.offset(), length, listeners.acquire());
                 // footer
                 addLocation(
                     blobLocation,
+                    fileName,
                     blobLocation.offset() + blobLocation.fileLength() - CodecUtil.footerLength(),
                     CodecUtil.footerLength(),
                     listeners.acquire()
@@ -1018,20 +1019,20 @@ public class SharedBlobCacheWarmingService {
             return value;
         }
 
-        private void addLocation(BlobLocation location, ActionListener<Void> listener) {
-            addLocation(location, location.offset(), location.fileLength(), listener);
+        private void addLocation(BlobLocation location, String fileName, ActionListener<Void> listener) {
+            addLocation(location, fileName, location.offset(), location.fileLength(), listener);
         }
 
-        private void addLocation(BlobLocation location, long position, long length, ActionListener<Void> listener) {
-            final long start = position;
-            final long end = position + length;
+        private void addLocation(BlobLocation location, String fileName, long position, long length, ActionListener<Void> listener) {
+            final long start = length <= Integer.MAX_VALUE ? directory.getPosition(fileName, position, (int) length) : position;
+            final long end = start + length;
             final int regionSize = cacheService.getRegionSize();
             final int startRegion = cacheService.getRegion(start);
             final int endRegion = cacheService.getEndingRegion(end);
 
             if (startRegion == endRegion) {
                 BlobRegion blobRegion = new BlobRegion(location.blobFile(), startRegion);
-                enqueueLocation(blobRegion, location, position, length, listener);
+                enqueueLocation(blobRegion, location, start, length, listener);
             } else {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {

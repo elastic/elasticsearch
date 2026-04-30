@@ -505,3 +505,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/147988
+- class: org.elasticsearch.xpack.core.inference.action.InferenceActionRequestTests
+  method: testWriteTo_ForHasBeenReroutedChanges
+  issue: https://github.com/elastic/elasticsearch/issues/148000

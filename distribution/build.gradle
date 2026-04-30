@@ -20,8 +20,6 @@ import org.elasticsearch.gradle.transform.FilteringJarTransform
 import java.nio.file.Files
 import java.nio.file.Path
 
-import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestPreReleaseBuild
-
 plugins {
   id 'base'
   id 'elasticsearch.distro'
@@ -84,7 +82,7 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   ]
   additionalLines << rhelUbiFields.join(',')
   doLast {
-    if(target.text.readLines().size() < 100) {
+    if (target.text.readLines().size() < 100) {
       throw new GradleException("Suspiciously low number of dependencies. Double check.")
     }
   }
@@ -229,19 +227,17 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 // use licenses from each of the bundled xpack plugins
 Project xpack = project(':x-pack:plugin')
 xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
-  if (xpackModule.name.contains("stateless") == false && xpackModule.name.contains("secure-settings") == false) {
-    File licenses = new File(xpackModule.projectDir, 'licenses')
-    if (licenses.exists()) {
-      buildDefaultNoticeTaskProvider.configure {
-        licensesDir licenses
-        source xpackModule.file('src/main/java')
-      }
+  File licenses = new File(xpackModule.projectDir, 'licenses')
+  if (licenses.exists()) {
+    buildDefaultNoticeTaskProvider.configure {
+      licensesDir licenses
+      source xpackModule.file('src/main/java')
     }
-    distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
-    dependencies.add('featuresMetadata', xpackModule)
-    if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
-      distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
-    }
+  }
+  distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
+  dependencies.add('featuresMetadata', xpackModule)
+  if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
+    distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
   }
 }
 

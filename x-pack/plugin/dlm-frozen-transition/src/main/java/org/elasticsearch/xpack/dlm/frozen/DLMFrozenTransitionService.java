@@ -23,7 +23,6 @@ import org.elasticsearch.logging.Logger;
 import java.time.Clock;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.indexMarkedForFrozen;
 import static org.elasticsearch.logging.LogManager.getLogger;
@@ -69,13 +68,13 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
     DLMFrozenTransitionService(
         ClusterService clusterService,
         Client client,
-        Supplier<XPackLicenseState> licenseStateSupplier,
+        XPackLicenseState licenseState,
         DLMFrozenTransitionSettings transitionSettings,
         DataStreamLifecycleErrorStore errorStore
     ) {
         this(
             clusterService,
-            (index, pid) -> new DLMConvertToFrozen(index, pid, client, clusterService, licenseStateSupplier, Clock.systemUTC()),
+            (index, pid) -> new DLMConvertToFrozen(index, pid, client, clusterService, licenseState, Clock.systemUTC()),
             POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis(),
             transitionSettings,
             errorStore

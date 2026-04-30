@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
-import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -64,33 +63,6 @@ public final class GlobExpander {
     public static FileList withSchemaInfo(FileList fileList, Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
         if (fileList instanceof GenericFileList generic) {
             return generic.withSchemaInfo(schemaInfo);
-        }
-        return fileList;
-    }
-
-    /**
-     * Returns a copy of the file list with pre-resolved per-file split ranges attached.
-     * Captured during single-pass file layout resolution and consumed by split discovery to
-     * avoid re-reading file footers.
-     * <p>
-     * For compact representations ({@code DictionaryFileList}, {@code HiveFileList}), the ranges
-     * are stored in a {@link CompactRangeStore} that uses CSR indexing and dictionary encoding.
-     * Returns the input unchanged when {@code splitRanges} is null/empty.
-     */
-    public static FileList withFileSplitRanges(FileList fileList, Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> splitRanges) {
-        if (splitRanges == null || splitRanges.isEmpty()) {
-            return fileList;
-        }
-        if (fileList instanceof GenericFileList generic) {
-            return generic.withFileSplitRanges(splitRanges);
-        }
-        if (fileList instanceof DictionaryFileList dict) {
-            CompactRangeStore store = CompactRangeStore.build(dict.fileCount(), dict::path, splitRanges);
-            return store != null ? dict.withRanges(store) : fileList;
-        }
-        if (fileList instanceof HiveFileList hive) {
-            CompactRangeStore store = CompactRangeStore.build(hive.fileCount(), hive::path, splitRanges);
-            return store != null ? hive.withRanges(store) : fileList;
         }
         return fileList;
     }
@@ -243,8 +215,8 @@ public final class GlobExpander {
                 return FileList.UNRESOLVED;
             }
             // Hints resolved all wildcards to a concrete path — resolve via exists()
-            if (provider.exists(storagePath)) {
-                var obj = provider.newObject(storagePath);
+            var obj = provider.newObject(storagePath);
+            if (obj.exists()) {
                 StorageEntry entry = new StorageEntry(storagePath, obj.length(), obj.lastModified());
                 PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), hivePartitioning, partitionConfig, config);
                 return new GenericFileList(List.of(entry), pattern, partitionMetadata);
@@ -263,8 +235,8 @@ public final class GlobExpander {
                 String prefixStr = prefix.toString();
                 for (String candidate : candidates) {
                     StoragePath fullPath = StoragePath.of(prefixStr + candidate);
-                    if (provider.exists(fullPath)) {
-                        var obj = provider.newObject(fullPath);
+                    var obj = provider.newObject(fullPath);
+                    if (obj.exists()) {
                         matched.add(new StorageEntry(fullPath, obj.length(), obj.lastModified()));
                     }
                     checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
@@ -417,8 +389,8 @@ public final class GlobExpander {
                     allEntries.addAll(g.files());
                 }
             } else {
-                if (provider.exists(segmentPath)) {
-                    var obj = provider.newObject(segmentPath);
+                var obj = provider.newObject(segmentPath);
+                if (obj.exists()) {
                     allEntries.add(new StorageEntry(segmentPath, obj.length(), obj.lastModified()));
                     checkDiscoveredFilesLimit(allEntries.size(), maxDiscoveredFiles);
                 }

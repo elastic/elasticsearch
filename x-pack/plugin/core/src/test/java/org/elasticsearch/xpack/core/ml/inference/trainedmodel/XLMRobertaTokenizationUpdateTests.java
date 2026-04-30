@@ -19,7 +19,7 @@ public class XLMRobertaTokenizationUpdateTests extends AbstractBWCWireSerializat
         Integer span = randomBoolean() ? null : randomIntBetween(8, 128);
         Tokenization.Truncate truncate = randomBoolean() ? null : randomFrom(Tokenization.Truncate.values());
 
-        if (truncate != Tokenization.Truncate.NONE) {
+        if (truncate != null && truncate != Tokenization.Truncate.NONE) {
             span = null;
         }
         return new XLMRobertaTokenizationUpdate(truncate, span);

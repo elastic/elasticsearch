@@ -89,15 +89,15 @@ static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_
     return _mm512_reduce_add_epi32(total_sum);
 }
 
-EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_doti7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
     return dot7u_inner(a, b, dims);
 }
 
-EXPORT void vec_dot7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+EXPORT void vec_doti7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     call_i8_bulk<int8_t, sequential_mapper, dot7u_inner, 4>(a, b, dims, dims, NULL, count, results);
 }
 
-EXPORT void vec_dot7u_bulk_offsets_2(
+EXPORT void vec_doti7u_bulk_offsets_2(
     const int8_t* a,
     const int8_t* b,
     const int32_t dims,
@@ -106,6 +106,15 @@ EXPORT void vec_dot7u_bulk_offsets_2(
     const int32_t count,
     f32_t* results) {
     call_i8_bulk<int8_t, offsets_mapper, dot7u_inner, 4>(a, b, dims, pitch, offsets, count, results);
+}
+
+EXPORT void vec_doti7u_bulk_sparse_2(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<const int8_t*, sparse_mapper, dot7u_inner, 4>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
 // Accumulates acc += sqr_distance(pa, pb) for unsigned 7-bit int lanes (64 bytes per step).
@@ -185,15 +194,15 @@ static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_
     return _mm512_reduce_add_epi32(total_sum);
 }
 
-EXPORT int32_t vec_sqr7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_sqri7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
     return sqr7u_inner(a, b, dims);
 }
 
-EXPORT void vec_sqr7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+EXPORT void vec_sqri7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     call_i8_bulk<int8_t, sequential_mapper, sqr7u_inner, 4>(a, b, dims, dims, NULL, count, results);
 }
 
-EXPORT void vec_sqr7u_bulk_offsets_2(
+EXPORT void vec_sqri7u_bulk_offsets_2(
     const int8_t* a,
     const int8_t* b,
     const int32_t dims,
@@ -202,4 +211,13 @@ EXPORT void vec_sqr7u_bulk_offsets_2(
     const int32_t count,
     f32_t* results) {
     call_i8_bulk<int8_t, offsets_mapper, sqr7u_inner, 4>(a, b, dims, pitch, offsets, count, results);
+}
+
+EXPORT void vec_sqri7u_bulk_sparse_2(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<const int8_t*, sparse_mapper, sqr7u_inner, 4>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }

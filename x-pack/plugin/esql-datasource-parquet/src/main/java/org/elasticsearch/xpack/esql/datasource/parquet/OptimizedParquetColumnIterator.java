@@ -639,15 +639,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                     if (info == null) {
                         blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
                     } else {
-                        blocks[col] = readColumnBlock(col, info, rowsToRead);
-                        predicateBlockMap.put(attributes.get(col).name(), blocks[col]);
+                        blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
                     }
+                    predicateBlockMap.put(attributes.get(col).name(), blocks[col]);
                 }
             }
 
             // Phase 2: evaluate filter
             WordMask mask = pushedExpressions.evaluateFilter(predicateBlockMap, rowsToRead, survivorMask);
-            predicateBlockMap = null; // release references to pre-compacted blocks
 
             int survivorCount = rowsToRead;
             int[] positions = null;
@@ -682,13 +681,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                     }
                     blocks[col] = blockFactory.newConstantNullBlock(0);
                 } else if (positions == null) {
-                    // All rows survive -- normal read
-                    blocks[col] = readColumnBlock(col, info, rowsToRead);
+                    blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                     blocks[col] = pageColumnReaders[col].readBatchFiltered(rowsToRead, blockFactory, positions, survivorCount);
                 } else {
-                    // List column or fallback: read full then filter
-                    Block fullBlock = readColumnBlock(col, info, rowsToRead);
+                    Block fullBlock = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
                     blocks[col] = PageColumnReader.filterBlock(fullBlock, positions, survivorCount, blockFactory);
                 }
             }
@@ -701,13 +698,40 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             }
 
             return new Page(blocks);
-        } catch (CircuitBreakingException e) {
+        } catch (ElasticsearchException e) {
             Releasables.closeExpectNoException(blocks);
             throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
             throw new ElasticsearchException(
                 "Failed to create late-materialized Page at row group ["
+                    + (rowGroupOrdinal + 1)
+                    + "] page batch ["
+                    + pageBatchIndexInRowGroup
+                    + "] in file ["
+                    + fileLocation
+                    + "]: "
+                    + e.getMessage(),
+                e
+            );
+        }
+    }
+
+    private Block readColumnBlockWithAttribution(int colIndex, ColumnInfo info, int rowsToRead, Block[] blocks) {
+        try {
+            return readColumnBlock(colIndex, info, rowsToRead);
+        } catch (CircuitBreakingException e) {
+            Releasables.closeExpectNoException(blocks);
+            throw e;
+        } catch (Exception e) {
+            Releasables.closeExpectNoException(blocks);
+            Attribute attr = attributes.get(colIndex);
+            throw new ElasticsearchException(
+                "Failed to read Parquet column ["
+                    + attr.name()
+                    + "] (type "
+                    + attr.dataType()
+                    + ") at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] page batch ["
                     + pageBatchIndexInRowGroup

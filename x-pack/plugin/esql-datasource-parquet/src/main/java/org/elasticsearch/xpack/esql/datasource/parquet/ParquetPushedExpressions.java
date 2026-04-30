@@ -686,41 +686,47 @@ record ParquetPushedExpressions(List<Expression> expressions) {
         if (lower == null && upper == null) {
             return null;
         }
-        boolean includeLower = range.includeLower();
-        boolean includeUpper = range.includeUpper();
+        boolean incLo = range.includeLower();
+        boolean incHi = range.includeUpper();
         WordMask mask = new WordMask();
         mask.reset(rowCount);
         if (block instanceof IntBlock ib) {
-            Integer lo = lower != null ? ((Number) lower).intValue() : null;
-            Integer hi = upper != null ? ((Number) upper).intValue() : null;
+            boolean hasLo = lower != null;
+            boolean hasHi = upper != null;
+            int lo = hasLo ? ((Number) lower).intValue() : 0;
+            int hi = hasHi ? ((Number) upper).intValue() : 0;
             for (int i = 0; i < rowCount; i++) {
                 if (block.isNull(i) == false) {
                     int val = ib.getInt(i);
-                    if (inRange(val, lo, hi, includeLower, includeUpper)) {
-                        mask.set(i);
-                    }
+                    if (hasLo && (incLo ? val < lo : val <= lo)) continue;
+                    if (hasHi && (incHi ? val > hi : val >= hi)) continue;
+                    mask.set(i);
                 }
             }
         } else if (block instanceof LongBlock lb) {
-            Long lo = lower != null ? ((Number) lower).longValue() : null;
-            Long hi = upper != null ? ((Number) upper).longValue() : null;
+            boolean hasLo = lower != null;
+            boolean hasHi = upper != null;
+            long lo = hasLo ? ((Number) lower).longValue() : 0;
+            long hi = hasHi ? ((Number) upper).longValue() : 0;
             for (int i = 0; i < rowCount; i++) {
                 if (block.isNull(i) == false) {
                     long val = lb.getLong(i);
-                    if (inRange(val, lo, hi, includeLower, includeUpper)) {
-                        mask.set(i);
-                    }
+                    if (hasLo && (incLo ? val < lo : val <= lo)) continue;
+                    if (hasHi && (incHi ? val > hi : val >= hi)) continue;
+                    mask.set(i);
                 }
             }
         } else if (block instanceof DoubleBlock db) {
-            Double lo = lower != null ? ((Number) lower).doubleValue() : null;
-            Double hi = upper != null ? ((Number) upper).doubleValue() : null;
+            boolean hasLo = lower != null;
+            boolean hasHi = upper != null;
+            double lo = hasLo ? ((Number) lower).doubleValue() : 0;
+            double hi = hasHi ? ((Number) upper).doubleValue() : 0;
             for (int i = 0; i < rowCount; i++) {
                 if (block.isNull(i) == false) {
                     double val = db.getDouble(i);
-                    if (inRange(val, lo, hi, includeLower, includeUpper)) {
-                        mask.set(i);
-                    }
+                    if (hasLo && (incLo ? val < lo : val <= lo)) continue;
+                    if (hasHi && (incHi ? val > hi : val >= hi)) continue;
+                    mask.set(i);
                 }
             }
         } else {

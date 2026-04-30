@@ -128,6 +128,7 @@ final class WordMask {
         for (int i = 0; i < numWords; i++) {
             words[i] &= other.words[i];
         }
+        maskTrailingBits();
     }
 
     void or(WordMask other) {
@@ -138,6 +139,7 @@ final class WordMask {
         for (int i = 0; i < numWords; i++) {
             words[i] |= other.words[i];
         }
+        maskTrailingBits();
     }
 
     /**
@@ -148,7 +150,11 @@ final class WordMask {
         for (int i = 0; i < numWords; i++) {
             words[i] = ~words[i];
         }
-        // mask off trailing bits in the last word
+        maskTrailingBits();
+    }
+
+    private void maskTrailingBits() {
+        int numWords = wordCount();
         int trailing = numBits & 63;
         if (trailing != 0 && numWords > 0) {
             words[numWords - 1] &= (1L << trailing) - 1;

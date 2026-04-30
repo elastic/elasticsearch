@@ -2326,10 +2326,12 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         List<Long> values = new ArrayList<>();
         var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
         if (randomBoolean()) {
-            config.setIndexSort(new Sort(
-                new SortedNumericSortField(field, SortField.Type.LONG, false),
-                new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
-            ));
+            config.setIndexSort(
+                new Sort(
+                    new SortedNumericSortField(field, SortField.Type.LONG, false),
+                    new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
+                )
+            );
         }
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             for (int i = 0; i < numDocs; i++) {
@@ -2376,10 +2378,12 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         List<Long> values = new ArrayList<>();
         var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
         if (randomBoolean()) {
-            config.setIndexSort(new Sort(
-                new SortedNumericSortField(field, SortField.Type.LONG, false),
-                new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
-            ));
+            config.setIndexSort(
+                new Sort(
+                    new SortedNumericSortField(field, SortField.Type.LONG, false),
+                    new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
+                )
+            );
         }
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             for (int i = 0; i < numDocs; i++) {
@@ -2426,10 +2430,12 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         List<Long> values = new ArrayList<>();
         var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
         if (randomBoolean()) {
-            config.setIndexSort(new Sort(
-                new SortedNumericSortField(field, SortField.Type.LONG, false),
-                new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
-            ));
+            config.setIndexSort(
+                new Sort(
+                    new SortedNumericSortField(field, SortField.Type.LONG, false),
+                    new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
+                )
+            );
         }
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             for (int i = 0; i < numDocs; i++) {

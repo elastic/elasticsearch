@@ -1560,7 +1560,6 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims();
     }
 
-
     @Override
     public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
         // values.length is a multiple of 8, and lane counts (2, 4, 8) all divide it,

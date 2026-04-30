@@ -37,6 +37,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
     @Before
     public void randomizeRoutingStorage() {
         routingDocValues = randomBoolean();
+        logger.info("--> using routing doc_values [{}]", routingDocValues);
     }
 
     /**

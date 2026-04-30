@@ -123,12 +123,9 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
 
         QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
         if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder) {
-            String modelText = textEmbeddingQueryVectorBuilder.getModelText();
-            return modelText != null ? new InferenceStringGroup(modelText) : null;
+            return new InferenceStringGroup(textEmbeddingQueryVectorBuilder.getModelText());
         } else if (queryVectorBuilder instanceof EmbeddingQueryVectorBuilder eqvb) {
-            if (eqvb.getInferenceId() == null && eqvb.getInput().containsMultipleInferenceStrings() == false) {
-                return eqvb.getInput();
-            }
+            return eqvb.getInput();
         } else if (queryVectorBuilder != null) {
             throw new IllegalStateException("Query vector builder should have been rewritten to a query vector");
         }

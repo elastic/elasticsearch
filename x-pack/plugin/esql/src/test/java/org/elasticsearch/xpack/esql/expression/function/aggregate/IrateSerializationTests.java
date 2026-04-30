@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
@@ -22,7 +21,7 @@ public class IrateSerializationTests extends AbstractExpressionSerializationTest
         Expression filter = randomChild();
         Expression window = randomChild();
         Expression timestamp = randomChild();
-        Literal aggregatorVersion = randomFrom(Irate.AGGREGATOR_V1, Irate.AGGREGATOR_V2);
+        Expression aggregatorVersion = randomChild();
         Expression temporality = randomChild();
         return new Irate(source, field, filter, window, timestamp, aggregatorVersion, temporality);
     }
@@ -34,15 +33,16 @@ public class IrateSerializationTests extends AbstractExpressionSerializationTest
         Expression filter = instance.filter();
         Expression window = instance.window();
         Expression timestamp = instance.timestamp();
+        Expression aggregatorVersion = instance.aggregatorVersion();
         Expression temporality = instance.temporality();
-        switch (between(0, 4)) {
+        switch (between(0, 5)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> filter = randomValueOtherThan(filter, AbstractExpressionSerializationTests::randomChild);
             case 2 -> window = randomValueOtherThan(window, AbstractExpressionSerializationTests::randomChild);
             case 3 -> timestamp = randomValueOtherThan(timestamp, AbstractExpressionSerializationTests::randomChild);
+            case 5 -> aggregatorVersion = randomValueOtherThan(aggregatorVersion, AbstractExpressionSerializationTests::randomChild);
             case 4 -> temporality = randomValueOtherThan(temporality, AbstractExpressionSerializationTests::randomChild);
         }
-        Literal aggregatorVersion = randomFrom(Irate.AGGREGATOR_V1, Irate.AGGREGATOR_V2);
         return new Irate(source, field, filter, window, timestamp, aggregatorVersion, temporality);
     }
 }

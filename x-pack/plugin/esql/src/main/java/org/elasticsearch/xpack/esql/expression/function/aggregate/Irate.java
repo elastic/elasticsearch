@@ -274,6 +274,10 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         return temporality;
     }
 
+    Expression aggregatorVersion() {
+        return aggregatorVersion;
+    }
+
     @Override
     public Irate withTemporality(Expression newTemporality) {
         return new Irate(source(), field(), filter(), window(), timestamp, aggregatorVersion, newTemporality);

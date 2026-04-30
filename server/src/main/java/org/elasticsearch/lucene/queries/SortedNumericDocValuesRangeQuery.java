@@ -138,6 +138,13 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                     }
                 }
 
+                if (skipper != null && singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
+                    var rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue, skipper);
+                    if (rangeIterator != null) {
+                        return ConstantScoreScorerSupplier.fromIterator(rangeIterator, score(), scoreMode, maxDoc);
+                    }
+                }
+
                 if (skipper != null) {
                     // Use SkipBlockRangeIterator as the approximation: block-level skip
                     // filtering with no DV decoding. This exposes block skips to
@@ -262,12 +269,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                     scoreMode,
                     maxDoc
                 );
-                if (skipper != null && singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
-                    var rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue, skipper);
-                    if (rangeIterator != null) {
-                        return ConstantScoreScorerSupplier.fromIterator(rangeIterator, score(), scoreMode, maxDoc);
-                    }
-                }
+
                 return supplier;
             }
 

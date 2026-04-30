@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.IrateDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.IrateIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.IrateLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IrateV1DoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IrateV1IntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IrateV1LongAggregatorFunctionSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -165,9 +165,9 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         final DataType tsType = timestamp().dataType();
         final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(source(), isDateNanos);
-            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(source(), isDateNanos);
-            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(source(), isDateNanos);
+            case COUNTER_LONG -> new IrateV1LongAggregatorFunctionSupplier(source(), isDateNanos);
+            case COUNTER_INTEGER -> new IrateV1IntAggregatorFunctionSupplier(source(), isDateNanos);
+            case COUNTER_DOUBLE -> new IrateV1DoubleAggregatorFunctionSupplier(source(), isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

@@ -13,15 +13,15 @@ import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link IrateIntAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link IrateV2DoubleAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class IrateIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class IrateV2DoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   WarningSourceLocation warningsSource;
 
   private final boolean isDateNanos;
 
-  public IrateIntAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
+  public IrateV2DoubleAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
       boolean isDateNanos) {
     this.warningsSource = warningsSource;
     this.isDateNanos = isDateNanos;
@@ -34,7 +34,7 @@ public final class IrateIntAggregatorFunctionSupplier implements AggregatorFunct
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return IrateIntGroupingAggregatorFunction.intermediateStateDesc();
+    return IrateV2DoubleGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -43,14 +43,14 @@ public final class IrateIntAggregatorFunctionSupplier implements AggregatorFunct
   }
 
   @Override
-  public IrateIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public IrateV2DoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
     var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
-    return new IrateIntGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
+    return new IrateV2DoubleGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
   }
 
   @Override
   public String describe() {
-    return IrateIntAggregator.describe();
+    return IrateV2DoubleAggregator.describe();
   }
 }

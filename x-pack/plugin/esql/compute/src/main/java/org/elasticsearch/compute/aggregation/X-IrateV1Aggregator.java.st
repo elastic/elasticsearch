@@ -34,13 +34,13 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * An irate grouping aggregation definition for $type$.
- * This class is generated. Edit `X-IrateAggregator.java.st` instead.
+ * This class is generated. Edit `X-IrateV1Aggregator.java.st` instead.
  */
 @GroupingAggregator(
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") },
     processNulls = true
 )
-public class Irate$Type$Aggregator {
+public class IrateV1$Type$Aggregator {
 
     public static final String DELTA_UNSUPPORTED_WARNING =
         "Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.";

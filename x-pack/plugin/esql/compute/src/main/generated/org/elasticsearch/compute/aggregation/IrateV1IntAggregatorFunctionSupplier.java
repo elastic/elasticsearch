@@ -13,15 +13,15 @@ import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link IrateDoubleAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link IrateV1IntAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class IrateDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class IrateV1IntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   WarningSourceLocation warningsSource;
 
   private final boolean isDateNanos;
 
-  public IrateDoubleAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
+  public IrateV1IntAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
       boolean isDateNanos) {
     this.warningsSource = warningsSource;
     this.isDateNanos = isDateNanos;
@@ -34,7 +34,7 @@ public final class IrateDoubleAggregatorFunctionSupplier implements AggregatorFu
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return IrateDoubleGroupingAggregatorFunction.intermediateStateDesc();
+    return IrateV1IntGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -43,14 +43,14 @@ public final class IrateDoubleAggregatorFunctionSupplier implements AggregatorFu
   }
 
   @Override
-  public IrateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public IrateV1IntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
     var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
-    return new IrateDoubleGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
+    return new IrateV1IntGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
   }
 
   @Override
   public String describe() {
-    return IrateDoubleAggregator.describe();
+    return IrateV1IntAggregator.describe();
   }
 }

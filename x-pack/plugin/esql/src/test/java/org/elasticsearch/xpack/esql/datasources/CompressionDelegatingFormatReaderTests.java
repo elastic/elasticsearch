@@ -106,6 +106,29 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         expectThrows(QlIllegalArgumentException.class, () -> new CompressionDelegatingFormatReader(inner, null));
     }
 
+    public void testUnwrapReturnsInnerReader() {
+        FormatReader inner = new CapturingFormatReader();
+        DecompressionCodec codec = mockCodec();
+        CompressionDelegatingFormatReader delegating = new CompressionDelegatingFormatReader(inner, codec);
+
+        assertSame(inner, delegating.unwrap());
+        assertSame(codec, delegating.codec());
+    }
+
+    public void testUnwrapPreservedThroughWithConfig() {
+        FormatReader inner = new CapturingFormatReader();
+        DecompressionCodec codec = mockCodec();
+        CompressionDelegatingFormatReader delegating = new CompressionDelegatingFormatReader(inner, codec);
+
+        FormatReader configured = delegating.withConfig(java.util.Map.of());
+        assertSame(delegating, configured);
+
+        if (configured instanceof CompressionDelegatingFormatReader cdr) {
+            assertSame(inner, cdr.unwrap());
+            assertSame(codec, cdr.codec());
+        }
+    }
+
     private static byte[] gzip(byte[] input) throws IOException {
         java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
         try (GZIPOutputStream gzipOut = new GZIPOutputStream(baos)) {

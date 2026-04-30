@@ -14,19 +14,16 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -43,13 +40,12 @@ import java.util.Objects;
  * Exact knn query. Will iterate and score all documents that have the provided dense vector field in
  * the index. An optional filter restricts scoring to documents that also match that query.
  *
- * <p>Scoring uses two complementary bulk paths:
+ * <p>{@link ScorerSupplier#get(long)} returns a {@code DenseVectorScorer} that supports two modes:
  * <ul>
- *   <li>{@link ScorerSupplier#bulkScorer()} returns a {@link BulkScorer} backed by
- *       {@link VectorScorer#bulk} for the top-level collection path, letting the similarity
- *       computation run in SIMD-friendly batches without per-document dispatch overhead.</li>
- *   <li>{@link ScorerSupplier#get(long)} returns a standard {@link Scorer} for the
- *       explain and conjunction paths where per-document scoring is required.</li>
+ *   <li>{@code nextDocsAndScores}: drives the top-level collection path via
+ *       {@link VectorScorer#bulk}, letting similarity computation run in SIMD-friendly batches
+ *       without per-document dispatch overhead.</li>
+ *   <li>{@link Scorer#score()}: per-document scoring for the explain and conjunction paths.</li>
  * </ul>
  */
 public abstract class DenseVectorQuery extends Query {
@@ -138,15 +134,7 @@ public abstract class DenseVectorQuery extends Query {
             return new ScorerSupplier() {
                 @Override
                 public Scorer get(long leadCost) throws IOException {
-                    DocIdSetIterator iterator = filterIterator == null
-                        ? vectorScorer.iterator()
-                        : ConjunctionUtils.intersectIterators(List.of(vectorScorer.iterator(), filterIterator));
-                    return new DenseVectorScorer(vectorScorer, iterator, boost);
-                }
-
-                @Override
-                public BulkScorer bulkScorer() throws IOException {
-                    return new DenseVectorBulkScorer(vectorScorer, filterIterator, boost, cost);
+                    return new DenseVectorScorer(vectorScorer, filterIterator, boost);
                 }
 
                 @Override
@@ -281,12 +269,18 @@ public abstract class DenseVectorQuery extends Query {
     static class DenseVectorScorer extends Scorer {
 
         private final VectorScorer vectorScorer;
+        private final VectorScorer.Bulk bulkScorer;
         private final DocIdSetIterator iterator;
         private final float boost;
 
-        DenseVectorScorer(VectorScorer vectorScorer, DocIdSetIterator iterator, float boost) {
+        DenseVectorScorer(VectorScorer vectorScorer, DocIdSetIterator filterIterator, float boost) throws IOException {
             this.vectorScorer = vectorScorer;
-            this.iterator = iterator;
+            // The bulkScorer does not give us access to its internal iterator, so we build our own conjunction here
+            // that is mainly used for advancing and retrieving docID.
+            this.bulkScorer = vectorScorer.bulk(filterIterator);
+            this.iterator = filterIterator == null
+                ? vectorScorer.iterator()
+                : ConjunctionUtils.intersectIterators(List.of(vectorScorer.iterator(), filterIterator));
             this.boost = boost;
         }
 
@@ -311,57 +305,13 @@ public abstract class DenseVectorQuery extends Query {
         public int docID() {
             return iterator.docID();
         }
-    }
-
-    private static class DenseVectorBulkScorer extends BulkScorer {
-        private final DocAndFloatFeatureBuffer buffer;
-        private final VectorScorer.Bulk bulkScorer;
-        private final DocIdSetIterator vectorIterator;
-        private final float boost;
-        private final long cost;
-        private float currentScore = 0f;
-        private final Scorable scorable = new Scorable() {
-            @Override
-            public float score() {
-                return currentScore;
-            }
-        };
-
-        DenseVectorBulkScorer(VectorScorer vectorScorer, DocIdSetIterator filterIterator, float boost, long cost) throws IOException {
-            this.bulkScorer = vectorScorer.bulk(filterIterator);
-            this.vectorIterator = filterIterator == null
-                ? vectorScorer.iterator()
-                : ConjunctionUtils.intersectIterators(List.of(vectorScorer.iterator(), filterIterator));
-            this.buffer = new DocAndFloatFeatureBuffer();
-            this.boost = boost;
-            this.cost = cost;
-        }
 
         @Override
-        public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
-            collector.setScorer(scorable);
-
-            if (vectorIterator.docID() < min) {
-                vectorIterator.advance(min);
+        public void nextDocsAndScores(int upTo, Bits liveDocs, DocAndFloatFeatureBuffer buffer) throws IOException {
+            bulkScorer.nextDocsAndScores(upTo, liveDocs, buffer);
+            for (int i = 0; i < buffer.size; i++) {
+                buffer.features[i] *= boost;
             }
-
-            while (vectorIterator.docID() < max) {
-                bulkScorer.nextDocsAndScores(max, acceptDocs, buffer);
-                for (int i = 0; i < buffer.size; i++) {
-                    int doc = buffer.docs[i];
-                    // currentScore is closed over by scorable
-                    currentScore = buffer.features[i] * boost;
-                    collector.collect(doc);
-                }
-            }
-
-            return vectorIterator.docID();
-        }
-
-        @Override
-        public long cost() {
-            return cost;
         }
     }
-
 }

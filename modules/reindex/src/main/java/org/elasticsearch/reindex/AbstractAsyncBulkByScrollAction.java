@@ -149,7 +149,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected final Version remoteVersion;
 
-    private final SearchContextKeepaliveDeadline searchContextKeepaliveDeadline;
+    protected final SearchContextKeepaliveDeadline searchContextKeepaliveDeadline;
 
     @Nullable
     private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;

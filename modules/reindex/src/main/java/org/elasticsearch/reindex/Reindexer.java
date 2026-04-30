@@ -1003,7 +1003,8 @@ public class Reindexer {
                         restClient,
                         remoteInfo,
                         searchRequest,
-                        remoteVersion
+                        remoteVersion,
+                        searchContextKeepaliveDeadline
                     );
                 }
                 return new RemoteScrollablePaginatedHitSource(
@@ -1016,7 +1017,8 @@ public class Reindexer {
                     restClient,
                     remoteInfo,
                     searchRequest,
-                    remoteVersion
+                    remoteVersion,
+                    searchContextKeepaliveDeadline
                 );
             }
             return super.buildScrollableResultSource(backoffPolicy, searchRequest);

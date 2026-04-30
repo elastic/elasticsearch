@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
@@ -70,10 +72,19 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
 
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices because we do not have stats for these.
-        Predicate<FieldAttribute> shouldBeRetained = f -> f.field() instanceof PotentiallyUnmappedKeywordEsField
+        // The _timeseries metadata attribute is also retained explicitly: it is a synthetic field injected by
+        // TimeSeriesGroupByAll and loaded from _source on the data node by ExtractDimensionFieldsAfterAggregation,
+        // so it is never present in field caps. Without this guard, RuleUtils.aliasedNulls can collapse it onto
+        // another missing keyword dimension under wildcard index patterns, which then prevents the post-aggregation
+        // extraction (the attribute name no longer matches MetadataAttribute.TIMESERIES).
+        Predicate<FieldAttribute> shouldBeRetained = f -> MetadataAttribute.isTimeSeriesAttribute(f)
+            || f.field() instanceof PotentiallyUnmappedKeywordEsField
             // The source (or doc) field is added to the relation output as a hack to enable late materialization in the reduce driver.
             || EsQueryExec.isDocAttribute(f)
-            || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
+            // MissingEsField means the coordinator explicitly nullified this field (unmapped_fields="nullify").
+            // Don't retain it even if the field physically exists (e.g. flattened subfields are mapped in Lucene
+            // but absent from field caps).
+            || (f.field() instanceof MissingEsField == false && localLogicalOptimizerContext.searchStats().exists(f.fieldName()))
             || lookupFields.contains(f);
 
         return plan.transformUp(p -> replaceWithNullOrConstant(p, shouldBeRetained, attrToConstant));

@@ -36,7 +36,9 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigurationBuilder;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class TStepTests extends AbstractConfigurationFunctionTestCase {
     private static final DataType[] TIME_RANGE_TYPES = new DataType[] { DataType.DATETIME, DataType.DATE_NANOS, DataType.KEYWORD };

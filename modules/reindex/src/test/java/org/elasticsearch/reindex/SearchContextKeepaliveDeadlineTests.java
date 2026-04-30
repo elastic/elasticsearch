@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.core.TimeValue.ZERO;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.is;
 
@@ -51,6 +52,41 @@ public class SearchContextKeepaliveDeadlineTests extends ESTestCase {
         clock.set(10_049); // still at or before inferred expiry
         assertThat(d.isPastKeepaliveDeadline(), is(false));
         clock.set(10_051);
+        assertThat(d.isPastKeepaliveDeadline(), is(true));
+    }
+
+    /** Past-deadline uses strict ordering: equal to {@code now + keepAlive} is not yet past. */
+    public void testPastDeadlineUsesStrictGreaterThan() {
+        AtomicLong clock = new AtomicLong(10_000L);
+        SearchContextKeepaliveDeadline d = new SearchContextKeepaliveDeadline(clock::get);
+        d.recordSuccessfulExtension(timeValueMillis(50)); // deadline 10050
+        clock.set(10_050);
+        assertThat(d.isPastKeepaliveDeadline(), is(false));
+        clock.set(10_051);
+        assertThat(d.isPastKeepaliveDeadline(), is(true));
+    }
+
+    /** Zero keep-alive still anchors the deadline at {@code now} (no extension slack). */
+    public void testZeroKeepAliveAnchorsDeadlineAtNow() {
+        AtomicLong clock = new AtomicLong(5L);
+        SearchContextKeepaliveDeadline d = new SearchContextKeepaliveDeadline(clock::get);
+        d.recordSuccessfulExtension(ZERO);
+        clock.set(5L);
+        assertThat(d.isPastKeepaliveDeadline(), is(false));
+        clock.set(6L);
+        assertThat(d.isPastKeepaliveDeadline(), is(true));
+    }
+
+    /** A later successful search can push the inferred deadline beyond an earlier batch's window. */
+    public void testLaterExtensionCanGrowDeadlineBeyondEarlierWindow() {
+        AtomicLong clock = new AtomicLong(0L);
+        SearchContextKeepaliveDeadline d = new SearchContextKeepaliveDeadline(clock::get);
+        d.recordSuccessfulExtension(timeValueMillis(50)); // deadline 50
+        clock.set(40L);
+        d.recordSuccessfulExtension(timeValueMillis(200)); // candidate 240, max(50, 240)
+        clock.set(239L);
+        assertThat(d.isPastKeepaliveDeadline(), is(false));
+        clock.set(241L);
         assertThat(d.isPastKeepaliveDeadline(), is(true));
     }
 
@@ -92,6 +128,15 @@ public class SearchContextKeepaliveDeadlineTests extends ESTestCase {
         assertThat(innerWindow.shouldRecordKeepaliveExpiry(null, shardFailures), is(true));
     }
 
+    /** Past deadline alone does not record; failures must expose {@link SearchContextMissingException}. */
+    public void testDoesNotRecordWhenPastDeadlineWithoutMissingContext() {
+        AtomicLong clock = new AtomicLong(0L);
+        SearchContextKeepaliveDeadline d = new SearchContextKeepaliveDeadline(clock::get);
+        d.recordSuccessfulExtension(timeValueMillis(10));
+        clock.set(100L);
+        assertThat(d.shouldRecordKeepaliveExpiry(null, emptyList()), is(false));
+    }
+
     /** {@link SearchContextMissingException} nested under another root failure still satisfies the heuristic when past deadline. */
     public void testShardFailureWrappedCauseStillDetected() {
         AtomicLong clock = new AtomicLong(500L);
@@ -100,5 +145,17 @@ public class SearchContextKeepaliveDeadlineTests extends ESTestCase {
         clock.set(600L);
         Exception wrapped = new RuntimeException(missingContext());
         assertThat(d.shouldRecordKeepaliveExpiry(wrapped, emptyList()), is(true));
+    }
+
+    /** Shard-level failure reasons are unwrapped like catastrophic failures when past deadline. */
+    public void testPaginatedSearchFailureWrappedMissingContextDetected() {
+        AtomicLong clock = new AtomicLong(100L);
+        SearchContextKeepaliveDeadline d = new SearchContextKeepaliveDeadline(clock::get);
+        d.recordSuccessfulExtension(timeValueMillis(10)); // deadline 110
+        clock.set(200L);
+        List<PaginatedSearchFailure> shardFailures = List.of(
+            new PaginatedSearchFailure(new RuntimeException(missingContext()), null, null, null)
+        );
+        assertThat(d.shouldRecordKeepaliveExpiry(null, shardFailures), is(true));
     }
 }

@@ -9,137 +9,166 @@
 
 package org.elasticsearch.reindex.management;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.NoSuchNodeException;
-import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.tasks.TransportTasksProjectAction;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.List;
+import java.util.Objects;
 
 /** Transport action that cancels an in-flight reindex task and its descendants. */
-public class TransportCancelReindexAction extends TransportTasksProjectAction<
-    CancellableTask,
-    CancelReindexRequest,
-    CancelReindexResponse,
-    CancelReindexTaskResponse> {
+public class TransportCancelReindexAction extends HandledTransportAction<CancelReindexRequest, CancelReindexResponse> {
 
     public static final ActionType<CancelReindexResponse> TYPE = new ActionType<>("cluster:admin/reindex/cancel");
+
+    private static final Logger logger = LogManager.getLogger(TransportCancelReindexAction.class);
 
     private final Client client;
 
     @Inject
-    public TransportCancelReindexAction(
-        final ClusterService clusterService,
-        final TransportService transportService,
-        final ActionFilters actionFilters,
-        final ProjectResolver projectResolver,
-        final Client client
-    ) {
+    public TransportCancelReindexAction(final TransportService transportService, final ActionFilters actionFilters, final Client client) {
         super(
             TYPE.name(),
-            clusterService,
             transportService,
             actionFilters,
             CancelReindexRequest::new,
-            CancelReindexTaskResponse::new,
-            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
-            projectResolver
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
         );
-        this.client = client;
+        this.client = Objects.requireNonNull(client);
     }
 
     @Override
-    protected List<CancellableTask> processTasks(final CancelReindexRequest request) {
-        final CancellableTask requestedTask = taskManager.getCancellableTask(request.getTargetTaskId().getId());
-        if (requestedTask != null && super.match(requestedTask) && request.match(requestedTask)) {
-            return List.of(requestedTask);
-        }
-        return List.of();
-    }
-
-    @Override
-    protected void taskOperation(
-        final CancellableTask actionTask,
+    protected void doExecute(
+        final Task thisTask,
         final CancelReindexRequest request,
-        final CancellableTask task,
-        final ActionListener<CancelReindexTaskResponse> listener
+        final ActionListener<CancelReindexResponse> listener
     ) {
-        assert task instanceof BulkByScrollTask : "Task should be a BulkByScrollTask";
+        final TaskId taskId = request.getTaskId();
 
-        // cancel the task asynchronously, and if waitForCompletion=true, then wait for it to finish to have the full correct response.
-        taskManager.cancelTaskAndDescendants(
-            task,
-            CancelTasksRequest.DEFAULT_REASON,
-            false,
-            listener.delegateFailureAndWrap((cancelListener, r) -> {
-                if (request.waitForCompletion()) {
-                    final TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
-                    final GetReindexRequest getRequest = new GetReindexRequest(taskId, true, null);
-                    client.execute(
-                        TransportGetReindexAction.TYPE,
-                        getRequest,
-                        cancelListener.delegateFailureAndWrap(
-                            (l, getResp) -> l.onResponse(
-                                // return cancelled=true. GET will return false since it's not *currently* cancelled.
-                                new CancelReindexTaskResponse(taskResultWithCancelledTrue(getResp.getTaskResult()))
-                            )
+        final CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+        cancelTasksRequest.setTargetTaskId(taskId);
+        cancelTasksRequest.setActions(ReindexAction.NAME);
+        cancelTasksRequest.setExcludeChildTasks(true);
+        cancelTasksRequest.setWaitForCompletion(false);
+
+        client.execute(TransportCancelTasksAction.TYPE, cancelTasksRequest, listener.delegateFailureAndWrap((l, cancelResponse) -> {
+            // Maps validation and resource not found failures to reindex specific error
+            if (shouldTreatAsNotFound(cancelResponse)) {
+                logger.debug("cancel-tasks rejected task [{}]; reporting as reindex not found", taskId);
+                l.onFailure(notFoundException(taskId));
+                return;
+            }
+            // Surface other failures as-is
+            final Exception cancelFailure = cancelFailureFrom(cancelResponse);
+            if (cancelFailure != null) {
+                l.onFailure(cancelFailure);
+                return;
+            }
+            // No failure was reported but no task was matched either
+            if (cancelResponse.getTasks().isEmpty()) {
+                l.onFailure(notFoundException(taskId));
+                return;
+            }
+
+            if (request.waitForCompletion()) {
+                // Fetch the completed reindex result with relocation following so the response reflects the original task identity.
+                final GetReindexRequest getRequest = new GetReindexRequest(taskId, true, null);
+                client.execute(
+                    TransportGetReindexAction.TYPE,
+                    getRequest,
+                    l.delegateFailureAndWrap(
+                        // Force cancelled=true: the stored TaskInfo may not reflect the cancellation flag.
+                        (l2, getResp) -> l2.onResponse(
+                            new CancelReindexResponse(new GetReindexResponse(taskResultWithCancelledTrue(getResp.getTaskResult())))
                         )
-                    );
-                } else {
-                    cancelListener.onResponse(new CancelReindexTaskResponse((TaskResult) null));
-                }
-            })
-        );
+                    )
+                );
+            } else {
+                l.onResponse(new CancelReindexResponse((GetReindexResponse) null));
+            }
+        }));
     }
 
-    @Override
-    protected CancelReindexResponse newResponse(
-        final CancelReindexRequest request,
-        final List<CancelReindexTaskResponse> tasks,
-        final List<TaskOperationFailure> taskFailures,
-        final List<FailedNodeException> nodeExceptions
-    ) {
-        assert tasks.size() + taskFailures.size() + nodeExceptions.size() <= 1 : "currently only supports cancelling one task max";
-        // check whether node in requested TaskId doesn't exist and throw 404
-        for (final FailedNodeException e : nodeExceptions) {
-            if (ExceptionsHelper.unwrap(e, NoSuchNodeException.class) != null) {
-                throw reindexWithTaskIdNotFoundException(request.getTargetTaskId());
+    /**
+     * Returns the real failure to surface from a cancel-tasks response, with any additional real failures attached as suppressed
+     * exceptions, or {@code null} when there are none. Validation-style node failures (handled separately by
+     * {@link #shouldTreatAsNotFound}) are skipped.
+     */
+    private static Exception cancelFailureFrom(final ListTasksResponse response) {
+        Exception head = null;
+        for (var nodeFailure : response.getNodeFailures()) {
+            if (isTaskValidationFailure(nodeFailure)) {
+                continue;
+            }
+            head = ExceptionsHelper.useOrSuppress(head, nodeFailure);
+        }
+        for (var taskFailure : response.getTaskFailures()) {
+            head = ExceptionsHelper.useOrSuppress(head, taskFailure.getCause());
+        }
+        return head;
+    }
+
+    /**
+     * Returns {@code true} when the cancel-tasks response indicates the target reindex task could not be located or did not qualify
+     * (non-reindex action, sub-task, non-cancellable). Such failures arrive as node failures whose cause is
+     * {@link ResourceNotFoundException} or {@link IllegalArgumentException} thrown by {@link TransportCancelTasksAction}.
+     * <p>
+     * We also require that no task failures are present, because a task failure signals a real cancel failure that must be surfaced
+     * to the caller.
+     */
+    private static boolean shouldTreatAsNotFound(final ListTasksResponse response) {
+        if (response.getTaskFailures().isEmpty() == false) {
+            return false;
+        }
+        if (response.getNodeFailures().isEmpty()) {
+            return false;
+        }
+        for (var failure : response.getNodeFailures()) {
+            if (isTaskValidationFailure(failure) == false) {
+                return false;
             }
         }
+        return true;
+    }
 
-        final GetReindexResponse completedReindexResponse = tasks.isEmpty()
-            ? null
-            : tasks.getFirst().getCompletedTaskResult().map(GetReindexResponse::new).orElse(null);
-        final var response = new CancelReindexResponse(taskFailures, nodeExceptions, completedReindexResponse);
-        response.rethrowFailures("cancel_reindex"); // if we haven't handled any exception already, throw here
-        if (tasks.isEmpty()) {
-            throw reindexWithTaskIdNotFoundException(request.getTargetTaskId());
+    /**
+     * True iff the given node failure unwraps to one of the validation-style exceptions
+     * {@link TransportCancelTasksAction#processTasks} throws when the request targets a single task that doesn't qualify.
+     */
+    private static boolean isTaskValidationFailure(final ElasticsearchException failure) {
+        if (ExceptionsHelper.unwrap(failure, ResourceNotFoundException.class) != null) {
+            return true;
         }
-        return response;
+        final IllegalArgumentException iae = (IllegalArgumentException) ExceptionsHelper.unwrap(failure, IllegalArgumentException.class);
+        if (iae == null) {
+            return false;
+        }
+        final String message = iae.getMessage();
+        return message != null && (message.contains("doesn't support this operation") || message.contains("doesn't support cancellation"));
     }
 
-    private static ResourceNotFoundException reindexWithTaskIdNotFoundException(final TaskId requestedTaskId) {
-        return new ResourceNotFoundException("reindex task [{}] either not found or completed", requestedTaskId);
+    static ResourceNotFoundException notFoundException(final TaskId taskId) {
+        return new ResourceNotFoundException("reindex task [{}] either not found or completed", taskId);
     }
 
-    private TaskResult taskResultWithCancelledTrue(final TaskResult r) {
+    private static TaskResult taskResultWithCancelledTrue(final TaskResult r) {
         final TaskInfo taskInfo = r.getTask();
         final TaskInfo newTaskInfo = new TaskInfo(
             taskInfo.taskId(),
@@ -157,4 +186,5 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
         );
         return new TaskResult(r.isCompleted(), newTaskInfo, r.getError(), r.getResponse());
     }
+
 }

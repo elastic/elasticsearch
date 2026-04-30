@@ -644,61 +644,55 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(previous, nullValue());
         }
 
-        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            for (IndexService indexService : indicesService) {
-                if (docsIndices.contains(indexService.index().getName())) {
-                    for (IndexShard indexShard : indexService) {
-                        final Map<Long, String> docsIdsBySeqNo = docsIdsBySeqNoAndShardId.getOrDefault(indexShard.shardId(), Map.of());
+        internalCluster().forEveryIndexShard(docsIndices, indexShard -> {
+            final Map<Long, String> docsIdsBySeqNo = docsIdsBySeqNoAndShardId.getOrDefault(indexShard.shardId(), Map.of());
 
-                        // Read operations from the Translog
-                        try (var translogSnapshot = getTranslog(indexShard).newSnapshot()) {
-                            assertThat(translogSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
+            // Read operations from the Translog
+            try (var translogSnapshot = getTranslog(indexShard).newSnapshot()) {
+                assertThat(translogSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
 
-                            Translog.Operation operation;
-                            while ((operation = translogSnapshot.next()) != null) {
-                                assertTranslogOperation(
-                                    indexService.index().getName(),
-                                    indexShard.mapperService().documentMapper(),
-                                    operation,
-                                    docsIdsBySeqNo::get,
-                                    docsIndicesById::get,
-                                    useNestedDocs
-                                );
-                            }
-                        }
+                Translog.Operation operation;
+                while ((operation = translogSnapshot.next()) != null) {
+                    assertTranslogOperation(
+                        indexShard.shardId().getIndexName(),
+                        indexShard.mapperService().documentMapper(),
+                        operation,
+                        docsIdsBySeqNo::get,
+                        docsIndicesById::get,
+                        useNestedDocs
+                    );
+                }
+            }
 
-                        // Read operations from the Lucene index
-                        try (
-                            var luceneSnapshot = indexShard.newChangesSnapshot(
-                                getTestName(),
-                                0,
-                                Long.MAX_VALUE,
-                                false,
-                                true,
-                                true,
-                                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
-                            )
-                        ) {
-                            assertThat(luceneSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
+            // Read operations from the Lucene index
+            try (
+                var luceneSnapshot = indexShard.newChangesSnapshot(
+                    getTestName(),
+                    0,
+                    Long.MAX_VALUE,
+                    false,
+                    true,
+                    true,
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+                )
+            ) {
+                assertThat(luceneSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
 
-                            if (docsIdsBySeqNo.isEmpty() == false) {
-                                Translog.Operation operation;
-                                while ((operation = luceneSnapshot.next()) != null) {
-                                    assertTranslogOperation(
-                                        indexService.index().getName(),
-                                        indexShard.mapperService().documentMapper(),
-                                        operation,
-                                        docsIdsBySeqNo::get,
-                                        docsIndicesById::get,
-                                        useNestedDocs
-                                    );
-                                }
-                            }
-                        }
+                if (docsIdsBySeqNo.isEmpty() == false) {
+                    Translog.Operation operation;
+                    while ((operation = luceneSnapshot.next()) != null) {
+                        assertTranslogOperation(
+                            indexShard.shardId().getIndexName(),
+                            indexShard.mapperService().documentMapper(),
+                            operation,
+                            docsIdsBySeqNo::get,
+                            docsIndicesById::get,
+                            useNestedDocs
+                        );
                     }
                 }
             }
-        }
+        });
 
         enum Operation {
             FLUSH,
@@ -2070,79 +2064,65 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assertGetAndSearchById(docsIndicesById, backingIndex, useNestedDocs);
     }
 
-    private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) {
-        int nbVisitedShards = 0;
-        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            for (var indexService : indicesServices) {
-                if (indices.contains(indexService.index().getName())) {
-                    for (var indexShard : indexService) {
-                        long size = indexShard.withEngineOrNull(engine -> {
-                            if (engine != null) {
-                                try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
-                                    long segmentsTotalSize = 0L;
+    private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) throws Exception {
+        final int nbVisitedShards = internalCluster().forEveryIndexShard(indices, indexShard -> {
+            long size = indexShard.withEngineOrNull(engine -> {
+                if (engine != null) {
+                    try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
+                        long segmentsTotalSize = 0L;
 
-                                    for (var leaf : searcher.getLeafContexts()) {
-                                        var leafReader = leaf.reader();
-                                        // Get the underlying stored fields reader
-                                        var tsdbStoredFieldsReader = asInstanceOf(
-                                            TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class,
-                                            Lucene.segmentReader(leafReader).getFieldsReader()
-                                        );
+                        for (var leaf : searcher.getLeafContexts()) {
+                            var leafReader = leaf.reader();
+                            // Get the underlying stored fields reader
+                            var tsdbStoredFieldsReader = asInstanceOf(
+                                TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class,
+                                Lucene.segmentReader(leafReader).getFieldsReader()
+                            );
 
-                                        // Extract the real (ie, non-synthetic id) stored field reader
-                                        final var defaultStoredFields = tsdbStoredFieldsReader.getStoredFieldsReader();
-                                        assertThat(defaultStoredFields, not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+                            // Extract the real (ie, non-synthetic id) stored field reader
+                            final var defaultStoredFields = tsdbStoredFieldsReader.getStoredFieldsReader();
+                            assertThat(defaultStoredFields, not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
 
-                                        final var fieldInfo = leafReader.getFieldInfos().fieldInfo(IdFieldMapper.NAME);
-                                        assertThat(fieldInfo, notNullValue());
+                            final var fieldInfo = leafReader.getFieldInfos().fieldInfo(IdFieldMapper.NAME);
+                            assertThat(fieldInfo, notNullValue());
 
-                                        // Visit the "_id" field and compute its total size accross all documents
-                                        final var visitor = new StoredFieldVisitor() {
-                                            long segmentSize = 0L;
-                                            int visitedDocs = -1;
+                            // Visit the "_id" field and compute its total size accross all documents
+                            final var visitor = new StoredFieldVisitor() {
+                                long segmentSize = 0L;
+                                int visitedDocs = -1;
 
-                                            @Override
-                                            public Status needsField(FieldInfo fieldInfo) throws IOException {
-                                                return IdFieldMapper.NAME.equals(fieldInfo.getName())
-                                                    ? StoredFieldVisitor.Status.YES
-                                                    : Status.NO;
-                                            }
-
-                                            @Override
-                                            public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-                                                segmentSize += value.length;
-                                                if (visitedDocs == -1) {
-                                                    visitedDocs = 1;
-                                                } else {
-                                                    visitedDocs++;
-                                                }
-                                            }
-                                        };
-
-                                        for (int docID = 0; docID < leafReader.maxDoc(); docID++) {
-                                            defaultStoredFields.document(docID, visitor);
-                                        }
-                                        assertThat(visitor.visitedDocs, anyOf(equalTo(leafReader.maxDoc() - 1), equalTo(-1)));
-                                        segmentsTotalSize += visitor.segmentSize;
-                                    }
-                                    return segmentsTotalSize;
-                                } catch (IOException ioe) {
-                                    throw new AssertionError(ioe);
+                                @Override
+                                public Status needsField(FieldInfo fieldInfo) throws IOException {
+                                    return IdFieldMapper.NAME.equals(fieldInfo.getName()) ? StoredFieldVisitor.Status.YES : Status.NO;
                                 }
-                            }
-                            return 0L;
-                        });
 
-                        assertThat(
-                            "Found non-zero total size for [_id] stored field values on shard " + indexShard.routingEntry(),
-                            size,
-                            equalTo(0L)
-                        );
-                        nbVisitedShards++;
+                                @Override
+                                public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
+                                    segmentSize += value.length;
+                                    if (visitedDocs == -1) {
+                                        visitedDocs = 1;
+                                    } else {
+                                        visitedDocs++;
+                                    }
+                                }
+                            };
+
+                            for (int docID = 0; docID < leafReader.maxDoc(); docID++) {
+                                defaultStoredFields.document(docID, visitor);
+                            }
+                            assertThat(visitor.visitedDocs, anyOf(equalTo(leafReader.maxDoc() - 1), equalTo(-1)));
+                            segmentsTotalSize += visitor.segmentSize;
+                        }
+                        return segmentsTotalSize;
+                    } catch (IOException ioe) {
+                        throw new AssertionError(ioe);
                     }
                 }
-            }
-        }
+                return 0L;
+            });
+
+            assertThat("Found non-zero total size for [_id] stored field values on shard " + indexShard.routingEntry(), size, equalTo(0L));
+        });
         assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
     }
 

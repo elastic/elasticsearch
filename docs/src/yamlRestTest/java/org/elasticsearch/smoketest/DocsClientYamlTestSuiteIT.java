@@ -25,6 +25,10 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -42,8 +46,13 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -60,6 +69,98 @@ import static org.hamcrest.Matchers.is;
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
+    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
+
+    /**
+     * Resolve a path against the docs project directory. The {@code tests.docs.dir} system
+     * property is wired up in {@code docs/build.gradle} and points to the docs project's
+     * {@code projectDir}, so we can keep referencing the existing files in {@code src/test/cluster/config}
+     * and friends without copying them onto the test classpath.
+     */
+    private static Path docsFile(String relative) {
+        return Path.of(System.getProperty("tests.docs.dir"), relative);
+    }
+
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .feature(FeatureFlag.TIME_SERIES_MODE)
+        .keystorePassword("keystore-password")
+        // debug ccr test failures:
+        // https://github.com/elastic/elasticsearch/issues/95678
+        // https://github.com/elastic/elasticsearch/issues/94359
+        // https://github.com/elastic/elasticsearch/issues/96561
+        .setting("logger.org.elasticsearch.transport.SniffConnectionStrategy", "DEBUG")
+        .setting("logger.org.elasticsearch.transport.RemoteClusterService", "DEBUG")
+        // enable regexes in painless so our tests don't complain about example snippets that use them
+        .setting("script.painless.regex.enabled", "true")
+        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+        // Whitelist reindexing from the local node so we can test it.
+        .setting("reindex.remote.whitelist", "127.0.0.1:*")
+        // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
+        .systemProperty("es.transport.cname_in_publish_address", "true")
+        .systemProperty("es.queryable_built_in_roles_enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        // disable the ILM and SLM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
+        .setting("indices.lifecycle.history_index_enabled", "false")
+        .setting("slm.history_index_enabled", "false")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.authc.api_key.enabled", "true")
+        .setting("xpack.security.authc.token.enabled", "true")
+        .setting("xpack.security.authc.realms.file.file.order", "0")
+        .setting("xpack.security.authc.realms.native.native.order", "1")
+        .setting("xpack.security.authc.realms.oidc.oidc1.order", "2")
+        .setting("xpack.security.authc.realms.oidc.oidc1.op.issuer", "http://127.0.0.1:8080")
+        .setting("xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint", "http://127.0.0.1:8080/c2id-login")
+        .setting("xpack.security.authc.realms.oidc.oidc1.op.token_endpoint", "http://127.0.0.1:8080/c2id/token")
+        .setting("xpack.security.authc.realms.oidc.oidc1.op.jwkset_path", "op-jwks.json")
+        .setting("xpack.security.authc.realms.oidc.oidc1.rp.redirect_uri", "https://my.fantastic.rp/cb")
+        .setting("xpack.security.authc.realms.oidc.oidc1.rp.client_id", "elasticsearch-rp")
+        .keystore(
+            "xpack.security.authc.realms.oidc.oidc1.rp.client_secret",
+            "b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2"
+        )
+        .setting("xpack.security.authc.realms.oidc.oidc1.rp.response_type", "id_token")
+        .setting("xpack.security.authc.realms.oidc.oidc1.claims.principal", "sub")
+        .setting("xpack.security.authc.realms.pki.pki1.order", "3")
+        .setting("xpack.security.authc.realms.pki.pki1.certificate_authorities", "[ \"testClient.crt\" ]")
+        .setting("xpack.security.authc.realms.pki.pki1.delegation.enabled", "true")
+        .setting("xpack.security.authc.realms.saml.saml1.order", "4")
+        .setting("xpack.security.authc.realms.saml.saml1.sp.logout", "https://kibana.org/logout")
+        .setting("xpack.security.authc.realms.saml.saml1.idp.entity_id", "https://my-idp.org")
+        .setting("xpack.security.authc.realms.saml.saml1.idp.metadata.path", "idp-docs-metadata.xml")
+        .setting("xpack.security.authc.realms.saml.saml1.sp.entity_id", "https://kibana.org")
+        .setting("xpack.security.authc.realms.saml.saml1.sp.acs", "https://kibana.org/api/security/saml/callback")
+        .setting("xpack.security.authc.realms.saml.saml1.attributes.principal", "uid")
+        .setting("xpack.security.authc.realms.saml.saml1.attributes.name", "urn:oid:2.5.4.3")
+        .configFile("analysis/example_word_list.txt", Resource.fromFile(docsFile("src/test/cluster/config/analysis/example_word_list.txt")))
+        .configFile(
+            "analysis/hyphenation_patterns.xml",
+            Resource.fromFile(docsFile("src/test/cluster/config/analysis/hyphenation_patterns.xml"))
+        )
+        .configFile("analysis/synonym.txt", Resource.fromFile(docsFile("src/test/cluster/config/analysis/synonym.txt")))
+        .configFile("analysis/stemmer_override.txt", Resource.fromFile(docsFile("src/test/cluster/config/analysis/stemmer_override.txt")))
+        .configFile("userdict_ja.txt", Resource.fromFile(docsFile("src/test/cluster/config/userdict_ja.txt")))
+        .configFile("userdict_ko.txt", Resource.fromFile(docsFile("src/test/cluster/config/userdict_ko.txt")))
+        .configFile("KeywordTokenizer.rbbi", Resource.fromFile(docsFile("src/test/cluster/config/KeywordTokenizer.rbbi")))
+        .configFile("hunspell/en_US/en_US.aff", Resource.fromClasspath("indices/analyze/conf_dir/hunspell/en_US/en_US.aff"))
+        .configFile("hunspell/en_US/en_US.dic", Resource.fromClasspath("indices/analyze/conf_dir/hunspell/en_US/en_US.dic"))
+        .configFile("httpCa.p12", Resource.fromFile(docsFile("httpCa.p12")))
+        .configFile("transport.p12", Resource.fromFile(docsFile("transport.p12")))
+        .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
+        .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
+        .configFile("op-jwks.json", Resource.fromClasspath("oidc/op-jwks.json"))
+        .configFile("idp-docs-metadata.xml", Resource.fromClasspath("idp/shibboleth-idp/metadata/idp-docs-metadata.xml"))
+        .configFile("testClient.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt"))
+        .user(USER, PASS)
+        .user("test_user", PASS)
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+
     public DocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
@@ -73,6 +174,11 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             )
         );
         return ESClientYamlSuiteTestCase.createParameters(executableSectionRegistry);
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     @Override
@@ -216,7 +322,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return testName != null && (testName.contains("/info/") || testName.contains("\\info\\"));
     }
 
-    private static final String USER_TOKEN = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
+    private static final String USER_TOKEN = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
 
     /**
      * All tests run as a an administrative user but use <code>es-shield-runas-user</code> to become a less privileged user.

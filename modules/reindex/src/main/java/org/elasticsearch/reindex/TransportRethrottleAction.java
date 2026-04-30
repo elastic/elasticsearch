@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -94,6 +95,14 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         ActionListener<TaskInfo> listener
     ) {
         final LeaderBulkByScrollTaskState leaderState = task.getLeaderState();
+
+        try {
+            leaderState.setRequestsPerSecondWithRelocationGuard(newRequestsPerSecond);
+        } catch (ElasticsearchStatusException e) {
+            listener.onFailure(e);
+            return;
+        }
+
         final int runningSubtasks = leaderState.runningSliceSubTasks();
 
         if (runningSubtasks > 0) {
@@ -119,7 +128,12 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         ActionListener<TaskInfo> listener
     ) {
         logger.debug("rethrottling local task [{}] to [{}] requests per second", task.getId(), newRequestsPerSecond);
-        task.getWorkerState().rethrottle(newRequestsPerSecond);
+        try {
+            task.getWorkerState().rethrottleWithRelocationGuard(newRequestsPerSecond);
+        } catch (ElasticsearchStatusException e) {
+            listener.onFailure(e);
+            return;
+        }
         listener.onResponse(task.taskInfo(localNodeId, true));
     }
 

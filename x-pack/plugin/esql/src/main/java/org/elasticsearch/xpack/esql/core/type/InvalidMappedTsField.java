@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,6 +32,11 @@ import java.util.Objects;
  * Used during mapping discovery only. The analyzer converts this to an
  * {@link UnsupportedEsField}-backed {@link org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute}
  * via {@code mappingAsAttributes}.
+ * <p>
+ * {@link #writeContent(StreamOutput)} deliberately throws {@link UnsupportedOperationException}: serializing an
+ * {@link InvalidMappedTsField} is a programming error because these objects must never be sent to data nodes.
+ * The {@link StreamInput} constructor is kept solely for backward-compatibility deserialization of any data
+ * written before this restriction was enforced.
  */
 public class InvalidMappedTsField extends EsField {
 
@@ -55,11 +59,10 @@ public class InvalidMappedTsField extends EsField {
     }
 
     @Override
-    public void writeContent(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(getName());
-        out.writeString(role1);
-        out.writeString(role2);
-        out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
+    public void writeContent(StreamOutput out) {
+        throw new UnsupportedOperationException(
+            "InvalidMappedTsField must be converted to UnsupportedEsField by mappingAsAttributes before the plan is serialized"
+        );
     }
 
     @Override

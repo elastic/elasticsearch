@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -24,7 +23,8 @@ import java.util.stream.Collectors;
 /**
  * Representation of a field mapped differently across indices, or potentially unmapped in some, in which case it is treated as
  * {@link DataType#KEYWORD} in the indices where it is unmapped.
- * Used during mapping discovery only.
+ * Used during mapping discovery only; the analyzer's {@code UnionTypesCleanup} converts any {@link InvalidMappedField} into an
+ * {@link UnsupportedEsField}-backed attribute before the plan leaves the coordinator.
  * <p>
  * The two intrinsic pieces of state are {@link #getTypesToIndices()} and {@link #isPotentiallyUnmapped()}; together with the inherited
  * name/properties they fully determine the field's identity ({@link #equals(Object)} / {@link #hashCode()}).
@@ -32,10 +32,9 @@ import java.util.stream.Collectors;
  * The user-facing error message is derived lazily from those two fields on first access via {@link #errorMessage()} and is therefore not
  * part of equality/hashing.
  * <p>
- * Note that {@code typesToIndices} and {@code isPotentiallyUnmapped} are not serialized because that information is not required across
- * the cluster, only surviving as long as the Analyser phase of query planning. The derived error message is serialized so the receiving
- * side can still display it; the analyzer's {@code UnionTypesCleanup} normally converts any {@link InvalidMappedField} into an
- * {@link UnsupportedEsField}-backed attribute before the plan is serialized.
+ * {@link #writeContent(StreamOutput)} deliberately throws {@link UnsupportedOperationException}: serializing an
+ * {@link InvalidMappedField} is a programming error because these objects must never be sent to data nodes. The {@link StreamInput}
+ * constructor is kept solely for backward-compatibility deserialization of any data written before this restriction was enforced.
  * <p>
  * It is used specifically for the 'union types' and 'unmapped fields' feature in ES|QL.
  */
@@ -45,8 +44,8 @@ public class InvalidMappedField extends EsField {
     private final boolean isPotentiallyUnmapped;
     /**
      * Lazily derived from {@link #typesToIndices} and {@link #isPotentiallyUnmapped} on first access; not part of
-     * {@link #equals(Object)} / {@link #hashCode()}. Pre-populated by {@link #InvalidMappedField(StreamInput)} so the message survives
-     * a wire round-trip even though {@link #typesToIndices} does not.
+     * {@link #equals(Object)} / {@link #hashCode()}. Pre-populated by {@link #InvalidMappedField(StreamInput)} so the message is
+     * available immediately after deserialization without recomputing it.
      */
     private String cachedErrorMessage;
 
@@ -84,8 +83,8 @@ public class InvalidMappedField extends EsField {
     }
 
     protected InvalidMappedField(StreamInput in) throws IOException {
-        // Wire field order: name, errorMessage, properties, timeSeriesFieldType. typesToIndices/isPotentiallyUnmapped are intentionally
-        // not on the wire (see class Javadoc); we restore the lazy error message from the serialized string.
+        // Wire field order: name, errorMessage, properties, timeSeriesFieldType.
+        // typesToIndices/isPotentiallyUnmapped are not on the wire; the error message is pre-populated so it survives the round-trip.
         this(
             ((PlanStreamInput) in).readCachedString(),
             in.readString(),
@@ -99,11 +98,10 @@ public class InvalidMappedField extends EsField {
     }
 
     @Override
-    public void writeContent(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(getName());
-        out.writeString(errorMessage());
-        out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
-        writeTimeSeriesFieldType(out);
+    public void writeContent(StreamOutput out) {
+        throw new UnsupportedOperationException(
+            "InvalidMappedField must be converted to UnsupportedEsField by UnionTypesCleanup before the plan is serialized"
+        );
     }
 
     public String getWriteableName(TransportVersion transportVersion) {

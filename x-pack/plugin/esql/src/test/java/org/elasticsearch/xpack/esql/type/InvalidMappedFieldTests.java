@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
@@ -47,6 +48,15 @@ public class InvalidMappedFieldTests extends AbstractEsFieldTypeTests<InvalidMap
     @Override
     protected InvalidMappedField createTestInstance() {
         return randomInvalidMappedField(4);
+    }
+
+    @Override
+    protected InvalidMappedField copyInstance(InvalidMappedField instance, TransportVersion version) {
+        // writeContent throws UnsupportedOperationException; copy directly without going through the wire.
+        if (instance.isPotentiallyUnmapped()) {
+            return InvalidMappedField.potentiallyUnmapped(instance.getName(), instance.getTypesToIndices());
+        }
+        return new InvalidMappedField(instance.getName(), instance.getTypesToIndices(), instance.getProperties());
     }
 
     @Override

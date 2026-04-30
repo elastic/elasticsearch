@@ -21,9 +21,6 @@ import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBU
 import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBUTE_NAME_TASK_KIND;
 import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL;
 import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_REMOTE;
-import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_TASK_KIND_DELETE_BY_QUERY;
-import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_TASK_KIND_REINDEX;
-import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_TASK_KIND_UPDATE_BY_QUERY;
 import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER;
 
 /**
@@ -49,7 +46,10 @@ public class BulkByScrollSearchContextMetricsTests extends ESTestCase {
             .getMeasurements(InstrumentType.LONG_COUNTER, SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER);
         assertEquals(1, measurements.size());
         assertEquals(1, measurements.getFirst().getLong());
-        assertEquals(ATTRIBUTE_VALUE_TASK_KIND_REINDEX, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_TASK_KIND));
+        assertEquals(
+            BulkByScrollSearchContextMetrics.TaskKind.REINDEX.attributeValue(),
+            measurements.getFirst().attributes().get(ATTRIBUTE_NAME_TASK_KIND)
+        );
         assertEquals(ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SEARCH_SOURCE));
     }
 
@@ -61,7 +61,10 @@ public class BulkByScrollSearchContextMetricsTests extends ESTestCase {
             .getMeasurements(InstrumentType.LONG_COUNTER, SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER);
         assertEquals(1, measurements.size());
         assertEquals(1, measurements.getFirst().getLong());
-        assertEquals(ATTRIBUTE_VALUE_TASK_KIND_REINDEX, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_TASK_KIND));
+        assertEquals(
+            BulkByScrollSearchContextMetrics.TaskKind.REINDEX.attributeValue(),
+            measurements.getFirst().attributes().get(ATTRIBUTE_NAME_TASK_KIND)
+        );
         assertEquals(ATTRIBUTE_VALUE_SEARCH_SOURCE_REMOTE, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SEARCH_SOURCE));
     }
 
@@ -73,8 +76,14 @@ public class BulkByScrollSearchContextMetricsTests extends ESTestCase {
         List<Measurement> measurements = registry.getRecorder()
             .getMeasurements(InstrumentType.LONG_COUNTER, SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER);
         assertEquals(2, measurements.size());
-        assertEquals(ATTRIBUTE_VALUE_TASK_KIND_UPDATE_BY_QUERY, measurements.get(0).attributes().get(ATTRIBUTE_NAME_TASK_KIND));
-        assertEquals(ATTRIBUTE_VALUE_TASK_KIND_DELETE_BY_QUERY, measurements.get(1).attributes().get(ATTRIBUTE_NAME_TASK_KIND));
+        assertEquals(
+            BulkByScrollSearchContextMetrics.TaskKind.UPDATE_BY_QUERY.attributeValue(),
+            measurements.get(0).attributes().get(ATTRIBUTE_NAME_TASK_KIND)
+        );
+        assertEquals(
+            BulkByScrollSearchContextMetrics.TaskKind.DELETE_BY_QUERY.attributeValue(),
+            measurements.get(1).attributes().get(ATTRIBUTE_NAME_TASK_KIND)
+        );
         assertEquals(ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL, measurements.get(0).attributes().get(ATTRIBUTE_NAME_SEARCH_SOURCE));
         assertEquals(ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SEARCH_SOURCE));
     }

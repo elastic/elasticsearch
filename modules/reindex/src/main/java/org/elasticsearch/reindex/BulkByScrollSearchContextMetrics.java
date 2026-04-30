@@ -13,6 +13,7 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -26,9 +27,6 @@ public class BulkByScrollSearchContextMetrics {
      * The kind of async bulk-by-scroll operation running
      */
     public static final String ATTRIBUTE_NAME_TASK_KIND = "es_bulk_by_scroll_task_kind";
-    public static final String ATTRIBUTE_VALUE_TASK_KIND_REINDEX = "reindex";
-    public static final String ATTRIBUTE_VALUE_TASK_KIND_UPDATE_BY_QUERY = "update_by_query";
-    public static final String ATTRIBUTE_VALUE_TASK_KIND_DELETE_BY_QUERY = "delete_by_query";
 
     /**
      * Local cluster vs remote source cluster for reindex.
@@ -49,18 +47,13 @@ public class BulkByScrollSearchContextMetrics {
 
     /** Which API started the bulk-by-scroll worker */
     public enum TaskKind {
-        REINDEX(ATTRIBUTE_VALUE_TASK_KIND_REINDEX),
-        UPDATE_BY_QUERY(ATTRIBUTE_VALUE_TASK_KIND_UPDATE_BY_QUERY),
-        DELETE_BY_QUERY(ATTRIBUTE_VALUE_TASK_KIND_DELETE_BY_QUERY);
+        REINDEX,
+        UPDATE_BY_QUERY,
+        DELETE_BY_QUERY;
 
-        private final String attributeValue;
-
-        TaskKind(String attributeValue) {
-            this.attributeValue = attributeValue;
-        }
-
+        /** Lowercase enum name for metric attributes ({@code reindex}, {@code update_by_query}, …). */
         public String attributeValue() {
-            return attributeValue;
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 

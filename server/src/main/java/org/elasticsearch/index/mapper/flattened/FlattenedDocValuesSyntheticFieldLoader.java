@@ -249,7 +249,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         b.startObject(leafName);
         if (hasFlattenedValues) {
             var writer = getWriter();
-            writer.write(b);
+            writer.write(b, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED);
         }
         for (SourceLoader.SyntheticFieldLoader loader : mappedSubFieldLoaders) {
             if (loader.hasValue()) {

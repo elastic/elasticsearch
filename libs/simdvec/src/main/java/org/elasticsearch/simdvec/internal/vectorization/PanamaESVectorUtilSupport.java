@@ -1563,10 +1563,10 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
-        // values.length is always a power of 2 >= 128 (TSDB numeric block size), and lane counts
-        // (2, 4, 8) all divide any such power of 2, so no scalar prefix or tail is ever needed.
+        // values.length is a multiple of 8, and lane counts (2, 4, 8) all divide it,
+        // so no scalar prefix or tail is ever needed.
         // Each aligned chunk of laneCount longs produces a laneCount-bit mask that fits cleanly
-        // within one matches word — no cross-word spillover since laneCount divides 64.
+        // within one matches word.
         int laneCount = LONG_SPECIES.length();
         LongVector lowerVec = LongVector.broadcast(LONG_SPECIES, lowerValue);
         LongVector upperVec = LongVector.broadcast(LONG_SPECIES, upperValue);

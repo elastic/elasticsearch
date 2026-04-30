@@ -829,7 +829,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     private IndexOrDocValuesQuery calculateExpectedDateQuery(long lower, long upper) {
         Query query = LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper);
-        Query dv = new SortedNumericDocValuesRangeQuery(DATE_FIELD_NAME, lower, upper);
+        Query dv = SortedNumericDocValuesRangeQuery.newRangeQuery(DATE_FIELD_NAME, lower, upper);
         return new IndexOrDocValuesQuery(query, dv);
     }
 

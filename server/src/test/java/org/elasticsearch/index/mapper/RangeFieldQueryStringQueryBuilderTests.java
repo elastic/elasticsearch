@@ -163,7 +163,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
             new long[] { parser.parse(upperBoundExact, () -> 0).toEpochMilli() }
         );
 
-        Query controlDv = new SortedNumericDocValuesRangeQuery(
+        Query controlDv = SortedNumericDocValuesRangeQuery.newRangeQuery(
             DATE_FIELD_NAME,
             parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
             parser.parse(upperBoundExact, () -> 0).toEpochMilli()

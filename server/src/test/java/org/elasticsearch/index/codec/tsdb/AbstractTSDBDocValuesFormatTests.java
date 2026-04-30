@@ -2584,7 +2584,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         throws IOException {
         Set<Integer> expected = bruteForceRange(leafReader, field, lower, upper);
 
-        var query = new SortedNumericDocValuesRangeQuery(field, lower, upper);
+        var query = SortedNumericDocValuesRangeQuery.newRangeQuery(field, lower, upper);
         var topDocs = searcher.search(query, numDocs + 1);
 
         assertEquals("hit count for range [" + lower + "," + upper + "]", expected.size(), (int) topDocs.totalHits.value());

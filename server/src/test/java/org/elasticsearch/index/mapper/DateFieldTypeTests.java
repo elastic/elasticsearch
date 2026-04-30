@@ -288,12 +288,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant, instant + 999),
-            new SortedNumericDocValuesRangeQuery("field", instant, instant + 999)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant + 999)
         );
         assertEquals(expected, ft.termQuery(date, context));
 
         ft = new DateFieldType("field", false);
-        expected = new SortedNumericDocValuesRangeQuery("field", instant, instant + 999);
+        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant + 999);
         assertEquals(expected, ft.termQuery(date, context));
 
         assertIndexUnsearchable(Resolution.MILLISECONDS, (unsearchable) -> unsearchable.termQuery(date, context));
@@ -309,12 +309,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant, instant),
-            new SortedNumericDocValuesRangeQuery("field", instant, instant)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant)
         );
         assertEquals(expected, ft.termQuery(date, context));
 
         ft = new DateFieldType("field", false);
-        expected = new SortedNumericDocValuesRangeQuery("field", instant, instant);
+        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant);
         assertEquals(expected, ft.termQuery(date, context));
 
         assertIndexUnsearchable(Resolution.MILLISECONDS, (unsearchable) -> unsearchable.termQuery(date, context));
@@ -330,12 +330,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant, instant),
-            new SortedNumericDocValuesRangeQuery("field", instant, instant)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant)
         );
         assertEquals(expected, ft.termQuery(instant, context));
 
         ft = new DateFieldType("field", false);
-        expected = new SortedNumericDocValuesRangeQuery("field", instant, instant);
+        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant);
         assertEquals(expected, ft.termQuery(instant, context));
 
         assertIndexUnsearchable(Resolution.MILLISECONDS, (unsearchable) -> unsearchable.termQuery(instant, context));
@@ -351,12 +351,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant, instant),
-            new SortedNumericDocValuesRangeQuery("field", instant, instant)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant)
         );
         assertEquals(expected, ft.equalityQuery(instant, context));
 
         ft = new DateFieldType("field", false);
-        expected = new SortedNumericDocValuesRangeQuery("field", instant, instant);
+        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant);
         assertEquals(expected, ft.equalityQuery(instant, context));
 
         assertIndexUnsearchable(Resolution.MILLISECONDS, (unsearchable) -> unsearchable.equalityQuery(instant, context));
@@ -372,12 +372,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli() * 1000000L;
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant, instant),
-            new SortedNumericDocValuesRangeQuery("field", instant, instant)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant)
         );
         assertEquals(expected, ft.equalityQuery(instant, context));
 
         ft = new DateFieldType("field", false);
-        expected = new SortedNumericDocValuesRangeQuery("field", instant, instant);
+        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant);
         assertEquals(expected, ft.equalityQuery(instant, context));
 
         assertIndexUnsearchable(Resolution.NANOSECONDS, (unsearchable) -> unsearchable.equalityQuery(instant, context));
@@ -396,12 +396,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli() + 999;
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant1, instant2),
-            new SortedNumericDocValuesRangeQuery("field", instant1, instant2)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2)
         ).rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(newSearcher(new MultiReader())));
 
         MappedFieldType ft2 = new DateFieldType("field", false);
-        Query expected2 = new SortedNumericDocValuesRangeQuery("field", instant1, instant2);
+        Query expected2 = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2);
         assertEquals(expected2, ft2.rangeQuery(date1, date2, true, true, null, null, null, context));
 
         instant1 = nowInMillis;
@@ -409,12 +409,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         expected = new DateRangeIncludingNowQuery(
             new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", instant1, instant2),
-                new SortedNumericDocValuesRangeQuery("field", instant1, instant2)
+                SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2)
             )
         );
         assertEquals(expected, ft.rangeQuery("now", instant2, true, true, null, null, null, context));
 
-        expected2 = new DateRangeIncludingNowQuery(new SortedNumericDocValuesRangeQuery("field", instant1, instant2));
+        expected2 = new DateRangeIncludingNowQuery(SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2));
         assertEquals(expected2, ft2.rangeQuery("now", instant2, true, true, null, null, null, context));
 
         assertIndexUnsearchable(
@@ -436,12 +436,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant1, instant2),
-            new SortedNumericDocValuesRangeQuery("field", instant1, instant2)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2)
         ).rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(newSearcher(new MultiReader())));
 
         MappedFieldType ft2 = new DateFieldType("field", false);
-        Query expected2 = new SortedNumericDocValuesRangeQuery("field", instant1, instant2);
+        Query expected2 = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2);
         assertEquals(expected2, ft2.rangeQuery(date1, date2, true, true, null, null, null, context));
 
         instant1 = nowInMillis;
@@ -449,12 +449,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         expected = new DateRangeIncludingNowQuery(
             new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", instant1, instant2),
-                new SortedNumericDocValuesRangeQuery("field", instant1, instant2)
+                SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2)
             )
         );
         assertEquals(expected, ft.rangeQuery("now", instant2, true, true, null, null, null, context));
 
-        expected2 = new DateRangeIncludingNowQuery(new SortedNumericDocValuesRangeQuery("field", instant1, instant2));
+        expected2 = new DateRangeIncludingNowQuery(SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2));
         assertEquals(expected2, ft2.rangeQuery("now", instant2, true, true, null, null, null, context));
 
         assertIndexUnsearchable(
@@ -475,12 +475,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant1, instant2),
-            new SortedNumericDocValuesRangeQuery("field", instant1, instant2)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2)
         ).rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, ft.rangeQuery(instant1, instant2, true, true, context).rewrite(newSearcher(new MultiReader())));
 
         DateFieldType ft2 = new DateFieldType("field", false);
-        Query expected2 = new SortedNumericDocValuesRangeQuery("field", instant1, instant2);
+        Query expected2 = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2);
         assertEquals(expected2, ft2.rangeQuery(instant1, instant2, true, true, context));
 
         assertIndexUnsearchable(
@@ -501,12 +501,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli() * 1000000L;
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant1, instant2),
-            new SortedNumericDocValuesRangeQuery("field", instant1, instant2)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2)
         ).rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, ft.rangeQuery(instant1, instant2, true, true, context).rewrite(newSearcher(new MultiReader())));
 
         DateFieldType ft2 = new DateFieldType("field", false, Resolution.NANOSECONDS);
-        Query expected2 = new SortedNumericDocValuesRangeQuery("field", instant1, instant2);
+        Query expected2 = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2);
         assertEquals(expected2, ft2.rangeQuery(date1, date2, true, true, null, null, null, context));
 
         assertIndexUnsearchable(Resolution.NANOSECONDS, (unsearchable) -> unsearchable.rangeQuery(instant1, instant2, true, true, context));
@@ -527,7 +527,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli() + 999;
 
         Query pointQuery = LongPoint.newRangeQuery("field", instant1, instant2);
-        Query dvQuery = new SortedNumericDocValuesRangeQuery("field", instant1, instant2);
+        Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2);
         Query expected = new IndexSortSortedNumericDocValuesRangeQuery(
             "field",
             instant1,

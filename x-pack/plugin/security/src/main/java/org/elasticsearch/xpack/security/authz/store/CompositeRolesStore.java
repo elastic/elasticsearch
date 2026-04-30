@@ -768,6 +768,7 @@ public class CompositeRolesStore {
             List<IndicesPrivileges> implicitPrivileges = implicitPrivilegesProviders.stream()
                 .flatMap(p -> p.getImplicitIndicesPrivileges(rd, roleAppPrivs).stream())
                 .<IndicesPrivileges>map(IndicesPrivileges.ImplicitlyGranted::new)
+                // always include implicit permissions that do not rely on DLS/FLS; omit ones that do if DLS/FLS is disabled
                 .filter(ip -> dlsFlsEnabled || !ip.isUsingDocumentOrFieldLevelSecurity())
                 .toList();
             if (implicitPrivileges.isEmpty()) {

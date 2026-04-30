@@ -1210,6 +1210,50 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(indices[0].getPrivileges(), arrayContaining("read"));
     }
 
+    /**
+     * When a role already holds an explicit indices privilege that exactly matches one
+     * emitted by the implicit-privilege provider, both entries must appear in the response:
+     * the explicit one verbatim (a plain {@link IndicesPrivileges}) and the implicit one
+     * wrapped in {@link IndicesPrivileges.ImplicitlyGranted}. Deduplication is intentionally
+     * not performed at this layer. The response is meant to faithfully convey both how the
+     * user was granted access (explicitly by the role) and what the cluster will additionally
+     * implicitly grant on top of it.
+     */
+    public void testAddImplicitPrivilegesToRolesKeepsExplicitAndImplicitWhenIdentical() {
+        final IndicesPrivileges sharedPrivilege = IndicesPrivileges.builder().indices("helicarrier-*").privileges("read").build();
+        final RoleDescriptor rd = new RoleDescriptor(
+            "r1",
+            null,
+            new IndicesPrivileges[] { sharedPrivilege },
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder().application("shield").privileges("agent").resources("*").build() },
+            null,
+            null,
+            null,
+            null
+        );
+        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
+        final NativePrivilegeStore privilegeStore = mockPrivilegeStore(Set.of(agent));
+        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(
+            privilegeStore,
+            List.of((r, apds) -> List.of(sharedPrivilege))
+        );
+
+        final RoleDescriptor decorated = invokeAddImplicitPrivileges(store, List.of(rd)).iterator().next();
+
+        final IndicesPrivileges[] indices = decorated.getIndicesPrivileges();
+        assertThat(indices, arrayWithSize(2));
+        // Explicit entry preserved as-is and listed first; it must NOT be promoted to the
+        // ImplicitlyGranted marker even though an identical implicit grant follows.
+        assertThat(indices[0], sameInstance(sharedPrivilege));
+        assertThat(indices[0], not(instanceOf(IndicesPrivileges.ImplicitlyGranted.class)));
+        // Implicit entry appended as an ImplicitlyGranted marker, even though it duplicates
+        // the explicit one — clients can detect the overlap by comparing indices/privileges.
+        assertThat(indices[1], instanceOf(IndicesPrivileges.ImplicitlyGranted.class));
+        assertThat(indices[1].getIndices(), arrayContaining("helicarrier-*"));
+        assertThat(indices[1].getPrivileges(), arrayContaining("read"));
+    }
+
     public void testAddImplicitPrivilegesToRolesShortCircuitsWhenNoProvidersRegistered() {
         final RoleDescriptor rd = roleWithApplicationPrivilege("r1", "shield", "agent");
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
@@ -1375,6 +1419,30 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         assertThat(seen, hasSize(1));
         assertThat(seen.get(0), contains(agent));
+    }
+
+    public void testAddImplicitPrivilegesToRolesPropagatesPrivilegeStoreFailure() {
+        final RoleDescriptor rd = roleWithApplicationPrivilege("r1", "shield", "agent");
+        final RuntimeException failure = new RuntimeException("simulated privilege store failure");
+        final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
+        doAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
+                Collection<ApplicationPrivilegeDescriptor>>) inv.getArguments()[3];
+            listener.onFailure(failure);
+            return null;
+        }).when(privilegeStore).getPrivileges(anyCollection(), anyCollection(), eq(false), anyActionListener());
+        final AtomicInteger providerInvocations = new AtomicInteger();
+        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(privilegeStore, List.of((r, apds) -> {
+            providerInvocations.incrementAndGet();
+            return List.of();
+        }));
+
+        final PlainActionFuture<Collection<RoleDescriptor>> future = new PlainActionFuture<>();
+        store.addImplicitPrivilegesToRoles(List.of(rd), future);
+        final RuntimeException thrown = expectThrows(RuntimeException.class, future::actionGet);
+        assertThat(thrown, sameInstance(failure));
+        assertThat(providerInvocations.get(), equalTo(0));
     }
 
     /**

@@ -109,6 +109,23 @@ public class ImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(response.indices().get(0).names(), equalTo(List.of("logs-*")));
     }
 
+    /**
+     * The role holds an application privilege, but not the one the provider keys off of.
+     * This exercises the full resolution path that the previous "no application privileges"
+     * test short-circuits past.
+     */
+    public void testIncludeImplicitTrueWithNonQualifyingApplicationPrivilegeLeavesResponseUnchanged() throws Exception {
+        final String nonQualifyingPriv = "director";
+        putShieldApplicationPrivilege(nonQualifyingPriv);
+        final String roleName = "field-agent";
+        putRoleWithApplicationPrivilege(roleName, SHIELD_APP, nonQualifyingPriv);
+
+        final RoleResponse response = getRole(roleName, true);
+        assertThat(response.indices(), hasSize(1));
+        response.assertNoImplicitlyGrantedEntries();
+        assertThat(response.indices().get(0).names(), equalTo(List.of("logs-*")));
+    }
+
     public void testPutRoleRejectsImplicitlyGrantedField() throws Exception {
         // PUT bodies must never contain the response-only marker. Without this rejection a client
         // could accidentally persist the implicit grant as if it had been explicitly configured.
@@ -131,6 +148,10 @@ public class ImplicitPrivilegesIT extends ESRestTestCase {
     }
 
     private void putShieldAgentApplicationPrivilege() throws Exception {
+        putShieldApplicationPrivilege(AGENT_PRIV);
+    }
+
+    private void putShieldApplicationPrivilege(String privilegeName) throws Exception {
         final Request request = new Request("PUT", "/_security/privilege");
         request.setJsonEntity(String.format(Locale.ROOT, """
             {
@@ -140,11 +161,15 @@ public class ImplicitPrivilegesIT extends ESRestTestCase {
                 }
               }
             }
-            """, SHIELD_APP, AGENT_PRIV));
+            """, SHIELD_APP, privilegeName));
         assertOK(client().performRequest(request));
     }
 
     private void putRoleWithApplicationPrivilege(String roleName) throws Exception {
+        putRoleWithApplicationPrivilege(roleName, SHIELD_APP, AGENT_PRIV);
+    }
+
+    private void putRoleWithApplicationPrivilege(String roleName, String application, String privilege) throws Exception {
         final Request request = new Request("PUT", "/_security/role/" + roleName);
         request.setJsonEntity(String.format(Locale.ROOT, """
             {
@@ -156,7 +181,7 @@ public class ImplicitPrivilegesIT extends ESRestTestCase {
                 { "application": "%s", "privileges": ["%s"], "resources": ["*"] }
               ]
             }
-            """, SHIELD_APP, AGENT_PRIV));
+            """, application, privilege));
         assertOK(client().performRequest(request));
     }
 

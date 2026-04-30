@@ -3200,7 +3200,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             KnnSearchStrategy knnSearchStrategy,
             boolean hnswEarlyTermination,
             IndexReader indexReader
-        ) throws IOException {
+        ) {
             element.checkDimensions(dims, queryVector.length);
             element.checkVectorBounds(queryVector);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
@@ -3216,7 +3216,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             int adjustedK = k;
-            // precedence: query oversample > persisted (per-segment, max for global cap) > mapping rescore_vector
+            // precedence: query oversample > persisted (per-segment) > mapping rescore_vector
             Float oversample = queryOversample;
             if (oversample == null && indexOptions instanceof BBQIVFIndexOptions && indexReader != null) {
                 float stored = readStoredBbqIvfRescoreOversample(indexReader, name());
@@ -3224,8 +3224,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     oversample = stored;
                 }
             }
-            // Mapping default used as fallback for segments without a finite persisted value when
-            // the BBQ-IVF per-segment oversample path is active (i.e. queryOversample is unset).
             Float mappingOversampleDefault = indexOptions instanceof QuantizedIndexOptions qio && qio.rescoreVector != null
                 ? qio.rescoreVector.oversample
                 : null;
@@ -3251,10 +3249,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                // Activate the per-segment oversample path only when the user did not pass a query
-                // oversample (which acts as a uniform override) and we actually requested an
-                // expanded adjustedK > k. The mapping default is forwarded as the fallback so a
-                // segment without a finite persisted value still oversamples per its mapping.
+                // when query oversample is null, read per segment persisted oversample
+                // mapping oversample works as fallback for segments without persisted oversample
                 boolean perSegment = rescore && queryOversample == null && adjustedK > k;
                 int kRequest = perSegment ? k : adjustedK;
                 float oversampleFallback = perSegment && mappingOversampleDefault != null ? mappingOversampleDefault : Float.NaN;

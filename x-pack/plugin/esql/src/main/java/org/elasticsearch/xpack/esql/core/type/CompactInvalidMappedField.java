@@ -20,24 +20,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
-// FIXME(gal, NOCOMMIT) Go over these docs
 /**
  * Memory-frugal counterpart to {@link InvalidMappedField}: stores at most {@value #MAX_INDICES_PER_TYPE} concrete index names per source
- * type instead of the full per-type index list. Wide union-typed fields routinely span thousands of indices but the only consumers that
- * need the full list are the legacy index-keyed conversion structures, and they aren't used on transport versions that support
- * {@link CompactMultiTypeEsField}. Truncating here lets the analyzed plan stay small while still producing a good "[a, b, c, ...]" error
- * message: the message itself is rendered from the full input map at construction time and then stored as a string, so we lose only the
- * post-construction ability to enumerate every index.
- *
- * <p>The two classes share the {@link TypeConflictField} interface so consumers (the analyzer, the verifier, type resolution) can branch
- * on it instead of either concrete class. {@link CompactInvalidMappedField} deliberately does <em>not</em> extend
- * {@link InvalidMappedField}: their on-the-wire form is identical (the truncated/full {@code typesToIndices} map is never serialized) so
- * sharing implementation via inheritance would only obscure the fact that they're peer flavors of the same field shape.
- *
- * <p>The internal {@code typesToIndices} map is keyed by {@link DataType} (rather than {@link String}) so that the type-safe
- * {@link DataType} flows all the way down to construction; the {@link TypeConflictField#getTypesToIndices()} contract is honored by
- * converting back to string keys on access. Since the map is post-truncation (a few entries per field), the conversion is cheap and the
- * accessor is on a cold path anyway.
+ * type instead of the full per-type index list.
  */
 public final class CompactInvalidMappedField extends EsField implements TypeConflictField {
     private static final int MAX_INDICES_PER_TYPE = 3;

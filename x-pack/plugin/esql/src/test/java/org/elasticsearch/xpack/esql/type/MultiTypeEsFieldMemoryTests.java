@@ -40,16 +40,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * End-to-end check that an analyzed plan over many union-typed fields, each conflicting across thousands of indices, retains substantially
  * less memory under {@link CompactMultiTypeEsField} (paired with {@link CompactInvalidMappedField}'s truncated index lists) than under
- * the legacy {@link org.elasticsearch.xpack.esql.core.type.MultiTypeEsField} (keyed per-index) paired with a full {@link InvalidMappedField}.
- *
- * <p>The cost we're targeting is {@code O(num_fields * num_indices)}: each conflicting field expands into its own per-index conversion
- * map under legacy, and per-type under v2. With many fields the constant overhead from {@link EsIndex#indexNameWithModes} becomes a
- * small fixed tax, and the savings show up cleanly at plan-total scope.
- *
- * <p>One subtlety in the fixture: each conflicting field gets its <em>own</em> {@code typesToIndices} map. Sharing one across all fields
- * (even though it's logically the same content) makes {@link RamUsageTester}'s identity-based dedup collapse all 50 analyzer-derived
- * conversion structures down to roughly one field's worth, which masks the savings. Production index resolutions don't share these maps
- * across fields - they're built per-field from {@code FieldCapabilitiesResponse} - so the per-field copy here is the realistic case.
+ * the legacy {@link InvalidMappedField} (keyed per-index).
  */
 public class MultiTypeEsFieldMemoryTests extends ESTestCase {
     private static final int NUM_INDICES = 5_000;
@@ -58,7 +49,7 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
     /**
      * {@link RamUsageTester} walks reflectively, which fails on JDK-internal classes (e.g. {@code sun.util.locale.BaseLocale}) that
      * aren't opened to unnamed modules. The plan transitively references a {@link Locale} and a {@link ZoneId} via the analyzer's
-     * {@code Configuration}, so we treat those as opaque - they're irrelevant to the union-type memory we care about here.
+     * {@code Configuration}, so we treat those as opaque as they're irrelevant to the union-type memory we care about here.
      */
     private static final RamUsageTester.Accumulator ACCUMULATOR = new RamUsageTester.Accumulator() {
         @Override
@@ -87,12 +78,6 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
         return RamUsageTester.ramUsed(plan, ACCUMULATOR);
     }
 
-    /**
-     * Build a fake "idx*" pattern with {@code numIndices} concrete indices and {@code numConflictingFields} fields {@code id_0..id_<n>},
-     * each with type {@code keyword} in half of the indices and {@code integer} in the other half. When {@code compact} is true the
-     * conflicting fields are built from {@link CompactInvalidMappedField} (truncated index lists), matching what a v2-capable coordinator
-     * produces; otherwise the full {@link InvalidMappedField} is used.
-     */
     private static IndexResolution unionTypedIndex(boolean compact) {
         Map<String, IndexMode> indexNamesWithModes = new HashMap<>();
         for (int i = 0; i < MultiTypeEsFieldMemoryTests.NUM_INDICES; i++) {

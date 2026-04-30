@@ -12,16 +12,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 // FIXME(gal, NOCOMMIT) Go over these docs
-/**
- * Common surface for the two ESQL field flavors that carry per-index type-conflict information: the legacy
- * {@link InvalidMappedField} (full per-type index lists) and the memory-frugal {@link CompactInvalidMappedField} (truncated lists).
- * Production code that consumes these fields (analyzer rules, the verifier, type resolution) should branch on this interface so it
- * stays oblivious to which flavor a particular {@link EsField} happens to be.
- *
- * <p>The {@code getName} / {@code getProperties} / {@code isAggregatable} / {@code getTimeSeriesFieldType} accessors are all
- * provided for free by {@link EsField}, which both implementations extend; they're declared here so consumers can pull everything
- * they need off a single typed reference.
- */
 public sealed interface TypeConflictField permits InvalidMappedField, CompactInvalidMappedField {
     String getName();
 
@@ -44,18 +34,11 @@ public sealed interface TypeConflictField permits InvalidMappedField, CompactInv
      */
     Map<String, Set<String>> getTypesToIndices();
 
-    /**
-     * Whether the field is unmapped in at least one index, in which case it is treated as {@link DataType#KEYWORD} for the unmapped
-     * indices.
-     */
+    /** Whether the field is unmapped in at least one index, in which case it's treated as {@link DataType#KEYWORD} where it is unmapped. */
     boolean isPotentiallyUnmapped();
 
-    /**
-     * Source data types observed for this field across all indices.
-     */
-    default Set<DataType> types() {
-        return getTypesToIndices().keySet().stream().map(DataType::fromTypeName).collect(Collectors.toSet());
-    }
+    /** Source data types observed for this field across all indices. */
+    Set<DataType> types();
 
     /**
      * Build the user-facing error message for a per-type-to-indices map. Shared between both implementations so they stay in sync.

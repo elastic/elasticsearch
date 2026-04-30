@@ -23,18 +23,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-// FIXME(gal, NOCOMMIT) Go over these javadocs
 // FIXME(gal, NOCOMMIT) Reduce duplication with MultiTypeEsField
 /**
  * Memory-efficient variant of {@link MultiTypeEsField} that stores the per-source-type conversion
- * expressions directly, rather than expanding them to one entry per index. Plus an optional
- * {@code unmappedConversionExpression} for indices in which the field is unmapped (treated as
- * {@link DataType#KEYWORD}). On a data node, the conversion expression is looked up by the field's
- * locally-resolved data type.
- *
- * <p>This is the on-the-wire successor to {@link MultiTypeEsField}; the analyzer falls back to the
- * legacy {@link MultiTypeEsField} when the cluster minimum transport version does not yet support
- * {@code esql_multi_type_es_field_2}.
+ * expressions directly, rather than expanding them to one entry per index.
  */
 public final class CompactMultiTypeEsField extends EsField implements UnionTypeEsField {
     // FIXME(gal, NOCOMMIT) rename

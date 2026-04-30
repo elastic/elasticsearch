@@ -80,6 +80,15 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     int max();
 
     /**
+     * Returns {@code true} if the values in this vector has a contiguous range from {@link #min()} to {@link #max()}.
+     * Implementations may return {@code false} even when the range is contiguous, but a {@code true} result is guaranteed
+     * to be correct.
+     */
+    default boolean contiguousRange() {
+        return false;
+    }
+
+    /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
      * given object is a IntVector, and both vectors are {@link #equals(IntVector, IntVector) equal}.
      */

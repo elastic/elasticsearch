@@ -137,6 +137,15 @@ $if(int)$
      */
     int max();
 
+    /**
+     * Returns {@code true} if the values in this vector has a contiguous range from {@link #min()} to {@link #max()}.
+     * Implementations may return {@code false} even when the range is contiguous, but a {@code true} result is guaranteed
+     * to be correct.
+     */
+    default boolean contiguousRange() {
+        return false;
+    }
+
 $elseif(boolean)$
     /**
      * Are all values {@code true}? This will scan all values to check and always answer accurately.

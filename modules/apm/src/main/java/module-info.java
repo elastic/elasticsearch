@@ -24,5 +24,4 @@ module org.elasticsearch.telemetry.apm {
     requires org.elasticsearch.logging;
 
     exports org.elasticsearch.telemetry.apm;
-    exports org.elasticsearch.telemetry.apm.metrics;
 }

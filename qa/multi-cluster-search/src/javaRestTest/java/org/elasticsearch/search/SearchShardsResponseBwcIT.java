@@ -9,53 +9,50 @@
 
 package org.elasticsearch.search;
 
-import org.apache.http.HttpHost;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-
-import java.util.ArrayList;
-import java.util.List;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.TestRule;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class SearchShardsResponseBwcIT extends ESRestTestCase {
 
+    @ClassRule
+    public static TestRule clusterRule = MultiClusterSearchClusters.CLUSTER_RULE;
+
+    @BeforeClass
+    public static void seedCcsRemoteClusterData() throws Exception {
+        MultiClusterSearchClusters.beforeSuite();
+    }
+
     private static final String REMOTE_CLUSTER_ALIAS = "my_remote_cluster";
+
+    @Override
+    protected String getTestRestCluster() {
+        return MultiClusterSearchClusters.localClusterHosts();
+    }
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;
     }
 
-    static List<HttpHost> parseRemoteHosts() {
-        String address = System.getProperty("tests.rest.remote_cluster");
-        assertNotNull("[tests.rest.remote_cluster] is not configured", address);
-        String[] stringUrls = address.split(",");
-        List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
-        for (String stringUrl : stringUrls) {
-            int portSeparator = stringUrl.lastIndexOf(':');
-            if (portSeparator < 0) {
-                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
-            }
-            String host = stringUrl.substring(0, portSeparator);
-            int port = Integer.parseInt(stringUrl.substring(portSeparator + 1));
-            hosts.add(new HttpHost(host, port, "http"));
-        }
-        return hosts;
-    }
-
     static RestClient newRemoteClient() {
-        return RestClient.builder(randomFrom(parseRemoteHosts())).build();
+        return RestClient.builder(randomFrom(MultiClusterSearchClusters.remoteClusterHosts())).build();
     }
 
     public void testSkippedShardsPreservedAcrossVersions() throws Exception {
-        assumeTrue("requires multi-cluster CCS setup", "multi_cluster".equals(System.getProperty("tests.rest.suite")));
-
         try (RestClient remoteClient = newRemoteClient()) {
             // Create 5 single-shard indices on the new remote, each with docs in a distinct day
             for (int day = 1; day <= 5; day++) {

@@ -12,6 +12,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -40,6 +41,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
@@ -96,6 +99,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiFunction;
@@ -268,6 +272,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private final ThreadPool threadPool;
     private final PrioritizedThrottledTaskRunner<TranslogFileUploadTask> uploadTranslogTaskRunner;
     private final PrioritizedThrottledTaskRunner<ObjectStoreTask> uploadTaskRunner;
+    private final ThrottledTaskRunner copyTaskRunner;
     private final ConcurrentLinkedQueue<String> translogBlobsToDelete = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<StaleCompoundCommit> commitBlobsToDelete = new ConcurrentLinkedQueue<>();
     private final Map<ShardId, Set<StaleCompoundCommit>> commitBlobsDeletionsInProgress = ConcurrentCollections.newConcurrentMap();
@@ -306,6 +311,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             getClass().getSimpleName() + "#upload-task-runner",
             threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax(),
             threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+        );
+        this.copyTaskRunner = new ThrottledTaskRunner(
+            getClass().getSimpleName() + "#copy-task-runner",
+            threadPool.info(StatelessPlugin.BLOB_COPY_THREAD_POOL).getMax(),
+            threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL)
         );
         this.projectResolver = projectResolver;
         if (projectResolver.supportsMultipleProjects()) {
@@ -1117,49 +1127,50 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     public void copyShard(CancellableTask task, ShardId source, ShardId destination, long primaryTerm) throws IOException {
-        // TODO
-        // This implementation synchronously copies all files on a GENERIC thread pool for simplicity.
-        // This method is called early in the resharding sequence and indexing is not blocked at this point
-        // making execution speed less critical.
-        // It can be sped up by executing individual file copies concurrently.
-        // In that case we need to be careful to not impact other workflows if using shared thread pools
-        // by limiting the amount of concurrent file copies or using a dedicated thread pool.
-
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         assert projectResolver.supportsMultipleProjects() == false || assertShardsAreInSameProject(source, destination);
 
         var sourceShardContainer = getProjectBlobContainer(source);
 
         var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, primaryTerm);
-
-        for (var blobContainerWithTerm : blobContainersWithTerms) {
-            var sourceContainerForTerm = blobContainerWithTerm.v2();
-
-            Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
-            var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
-            for (BlobMetadata blob : blobs.values()) {
-                // A new split request can cancel the ongoing copy
-                task.ensureNotCancelled();
-                // this may race with ongoing deletes as old commits become unreferenced. This is safe because we're
-                // already copying new commits, so we can swallow missing file exceptions here
-                try {
-                    logger.debug(
-                        "CopyShard copying {} from {} to {}",
-                        blob.name(),
-                        sourceContainerForTerm.path(),
-                        destinationContainerForTerm.path()
-                    );
-                    destinationContainerForTerm.copyBlob(
-                        OperationPurpose.RESHARDING,
-                        sourceContainerForTerm,
-                        blob.name(),
-                        blob.name(),
-                        blob.length()
-                    );
-                } catch (NoSuchFileException ignored) {
-                    logger.warn("missing blob during copyShard, assuming benign race [{}]", blob.name());
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        try (var listeners = new RefCountingListener(future)) {
+            for (var blobContainerWithTerm : blobContainersWithTerms) {
+                var sourceContainerForTerm = blobContainerWithTerm.v2();
+                Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
+                var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
+                for (BlobMetadata blob : blobs.values()) {
+                    copyTaskRunner.asExecutor().execute(ActionRunnable.run(listeners.acquire(), () -> {
+                        try {
+                            task.ensureNotCancelled();
+                            logger.debug(
+                                "CopyShard copying {} from {} to {}",
+                                blob.name(),
+                                sourceContainerForTerm.path(),
+                                destinationContainerForTerm.path()
+                            );
+                            destinationContainerForTerm.copyBlob(
+                                OperationPurpose.RESHARDING,
+                                sourceContainerForTerm,
+                                blob.name(),
+                                blob.name(),
+                                blob.length()
+                            );
+                        } catch (NoSuchFileException e) {
+                            logger.warn("missing blob during copyShard, assuming benign race [{}]", blob.name());
+                        }
+                    }));
                 }
             }
+        }
+        try {
+            future.actionGet();
+        } catch (UncategorizedExecutionException uee) {
+            // Only runtime exceptions get properly unwrapped
+            if (uee.getCause() instanceof ExecutionException ee && ee.getCause() instanceof IOException ioe) {
+                throw ioe;
+            }
+            throw uee;
         }
     }
 

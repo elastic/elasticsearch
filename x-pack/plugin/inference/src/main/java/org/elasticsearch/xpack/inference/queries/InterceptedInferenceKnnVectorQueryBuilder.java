@@ -117,7 +117,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     protected InferenceStringGroup getInput() {
         if (queryVectorSupplier != null) {
             // We are in the process of rewriting a standalone query vector builder to generate a query vector. Return null to prevent
-            // InferenceQueryUtils from attempting to generate inference results based on the query text.
+            // InferenceQueryUtils from attempting to generate inference results based on the input.
             return null;
         }
 

@@ -115,11 +115,13 @@ public class VoyageAICommonServiceSettingsTests extends AbstractBWCWireSerializa
         assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
-    public void testToXContent_WritesAllValues() throws IOException {
+    public void testToXContent_WritesAllValuesAsFragment() throws IOException {
         var serviceSettings = new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject();
         serviceSettings.toXContent(builder, null);
+        builder.endObject();
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""

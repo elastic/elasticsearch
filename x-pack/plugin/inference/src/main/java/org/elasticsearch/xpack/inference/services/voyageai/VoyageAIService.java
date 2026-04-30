@@ -46,6 +46,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -205,17 +206,15 @@ public class VoyageAIService extends SenderService<VoyageAIModel> implements Rer
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof VoyageAIEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
-            var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
+            var commonSettings = serviceSettings.commonSettings();
+            var embeddingType = serviceSettings.embeddingType();
+            var similarityToUse = Objects.requireNonNullElse(serviceSettings.similarity(), defaultSimilarity());
             var maxInputTokens = serviceSettings.maxInputTokens();
             var dimensionSetByUser = serviceSettings.dimensionsSetByUser();
 
             var updatedServiceSettings = new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAICommonServiceSettings(
-                    serviceSettings.getCommonSettings().modelId(),
-                    serviceSettings.getCommonSettings().rateLimitSettings()
-                ),
-                serviceSettings.getEmbeddingType(),
+                commonSettings,
+                embeddingType,
                 similarityToUse,
                 embeddingSize,
                 maxInputTokens,

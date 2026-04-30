@@ -276,13 +276,60 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
+        boolean dimensionsSetByUser = randomBoolean();
         var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
             new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
             TEST_EMBEDDING_TYPE,
             TEST_SIMILARITY_MEASURE,
             TEST_DIMENSIONS,
             TEST_MAX_INPUT_TOKENS,
-            randomBoolean()
+            dimensionsSetByUser
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        serviceSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(
+            xContentResult,
+            is(
+                XContentHelper.stripWhitespace(
+                    Strings.format(
+                        """
+                            {
+                                "model_id": "%s",
+                                "rate_limit": {
+                                    "requests_per_minute": %d
+                                },
+                                "similarity": "%s",
+                                "dimensions": %d,
+                                "max_input_tokens": %d,
+                                "embedding_type": "%s",
+                                "dimensions_set_by_user": %b
+                            }
+                            """,
+                        TEST_MODEL_ID,
+                        TEST_RATE_LIMIT,
+                        TEST_SIMILARITY_MEASURE,
+                        TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS,
+                        TEST_EMBEDDING_TYPE,
+                        dimensionsSetByUser
+                    )
+                )
+            )
+        );
+    }
+
+    public void testToXContent_OnlyMandatoryFields_WritesOnlyMandatoryFieldsAndDefaults() throws IOException {
+        boolean dimensionsSetByUser = randomBoolean();
+        var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
+            new VoyageAICommonServiceSettings(TEST_MODEL_ID, null),
+            TEST_EMBEDDING_TYPE,
+            null,
+            null,
+            null,
+            dimensionsSetByUser
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -295,36 +342,10 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
                 "rate_limit": {
                     "requests_per_minute": %d
                 },
-                "similarity": "%s",
-                "dimensions": %d,
-                "max_input_tokens": %d,
-                "embedding_type": "%s"
+                "embedding_type": "%s",
+                "dimensions_set_by_user": %b
             }
-            """, TEST_MODEL_ID, TEST_RATE_LIMIT, TEST_SIMILARITY_MEASURE, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_EMBEDDING_TYPE))));
-    }
-
-    public void testToXContent_OnlyMandatoryFields_WritesOnlyMandatoryFieldsAndDefaults() throws IOException {
-        var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
-            new VoyageAICommonServiceSettings(TEST_MODEL_ID, null),
-            null,
-            null,
-            null,
-            null,
-            randomBoolean()
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        serviceSettings.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
-            {
-                "model_id": "%s",
-                "rate_limit": {
-                    "requests_per_minute": %d
-                }
-            }
-            """, TEST_MODEL_ID, DEFAULT_RATE_LIMIT))));
+            """, TEST_MODEL_ID, DEFAULT_RATE_LIMIT, TEST_EMBEDDING_TYPE.toString(), dimensionsSetByUser))));
     }
 
     @Override
@@ -339,8 +360,8 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
 
     @Override
     protected VoyageAIEmbeddingsServiceSettings mutateInstance(VoyageAIEmbeddingsServiceSettings instance) throws IOException {
-        var commonSettings = instance.getCommonSettings();
-        var embeddingType = instance.getEmbeddingType();
+        var commonSettings = instance.commonSettings();
+        var embeddingType = instance.embeddingType();
         var similarity = instance.similarity();
         var dimensions = instance.dimensions();
         var maxInputTokens = instance.maxInputTokens();

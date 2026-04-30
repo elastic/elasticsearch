@@ -24,7 +24,7 @@ The repository is organized into several key directories:
 *   `docs`: Project documentation.
 *   `distribution`: Logic for building distribution packages.
 *   `x-pack`: Additional code modules and plugins under Elastic License.
-*   **Stateless (self-managed)**: `x-pack/plugin/stateless`, `x-pack/plugin/stateless-sigterm`, and related x-pack plugins implement **Stateless Elasticsearch** — the self-managed, stateless distribution. Use package `org.elasticsearch.xpack.stateless.*`. Typical Gradle paths include `:x-pack:plugin:stateless` and `:x-pack:plugin:stateless-sigterm`. These plugins must **not** depend on the separate **Elasticsearch Serverless**.
+*   **Stateless (self-managed)**: stateless-named plugins under `x-pack/plugin/` implement **Stateless Elasticsearch** — the self-managed, stateless distribution. Use package `org.elasticsearch.xpack.stateless.*`. These plugins must **not** depend on the separate **Elasticsearch Serverless**.
 *   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic. Refer to BUILDING.md for details on how these are structured and used.
 
 ## Testing Cheatsheet

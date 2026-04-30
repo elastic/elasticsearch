@@ -8,8 +8,6 @@ which aligns buckets to calendar boundaries, TSTEP uses a fixed-width UTC grid a
 of the query range. Each bucket is labeled by its right boundary.
 When a target bucket count is provided, TSTEP derives a fixed step width from the query range.
 The derived step is rounded up so that the result uses no more than the target number of buckets.
-Derived steps of one second or longer are rounded up to whole-second increments; sub-second steps
-keep millisecond precision.
 
 When using ES|QL in Kibana, the range can be derived automatically from the
 [`@timestamp` filter](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter)

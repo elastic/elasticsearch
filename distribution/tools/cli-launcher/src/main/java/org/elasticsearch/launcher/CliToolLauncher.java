@@ -71,6 +71,7 @@ class CliToolLauncher {
         Terminal terminal = originalStdOut != null
             ? Terminal.DEFAULT.delegateTo(new RedirectedStdoutTerminal(originalStdOut))
             : Terminal.DEFAULT;
+        terminal.wrapSystemStreams();
         Runtime.getRuntime().addShutdownHook(createShutdownHook(terminal, command));
 
         int exitCode = command.main(args, terminal, pinfo);

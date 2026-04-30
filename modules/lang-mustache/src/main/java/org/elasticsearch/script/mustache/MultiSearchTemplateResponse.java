@@ -181,6 +181,6 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 }

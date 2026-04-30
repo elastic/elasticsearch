@@ -648,7 +648,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         ShardRouting shardRouting = newShardRouting(ShardRouting.Role.DEFAULT);
         when(shard.routingEntry()).thenReturn(shardRouting);
 
-
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
             new UpdateHelper.Result(

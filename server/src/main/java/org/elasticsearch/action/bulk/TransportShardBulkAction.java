@@ -778,7 +778,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     // visible for testing
-    static long getMaxOperationMemoryOverhead(BulkShardRequest request) {
+    public static long getMaxOperationMemoryOverhead(BulkShardRequest request) {
         return request.maxOperationSizeInBytes() * MAX_EXPANDED_OPERATION_MEMORY_OVERHEAD_FACTOR;
     }
 

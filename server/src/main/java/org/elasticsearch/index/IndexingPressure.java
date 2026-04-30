@@ -461,16 +461,13 @@ public class IndexingPressure implements IndexingPressureMonitor {
             return new PrimaryExpansionTracker() {
 
                 @Override
-                public void addExpandedBytes(long expandedBytes) {
-                }
+                public void addExpandedBytes(long expandedBytes) {}
 
                 @Override
-                public void removeExpandedBytes(long expandedBytes) {
-                }
+                public void removeExpandedBytes(long expandedBytes) {}
 
                 @Override
-                public void close() {
-                }
+                public void close() {}
             };
         }
 
@@ -493,15 +490,41 @@ public class IndexingPressure implements IndexingPressureMonitor {
         }
 
         public void addExpandedBytes(long expandedBytes) {
-            assert this.closed.get() == false : "the PrimaryOperationPressureExpansionTracker has been closed";
-            IndexingPressure.this.updatePrimaryOperationsAndBytes(0, expandedBytes, forceExecution, true);
-            this.expandedBytes.addAndGet(expandedBytes);
+            if (closed.get() == false) {
+                IndexingPressure.this.updatePrimaryOperationsAndBytes(0, expandedBytes, forceExecution, true);
+                if (closed.get()) {
+                    final String msg = "PrimaryExpansionTracker has been closed while performing an index pressure expansion";
+                    logger.error(msg, new IllegalStateException(msg));
+                    // Reverting the increase to avoid any impact on the index pressure
+                    IndexingPressure.this.releasePrimaryOperationsAndBytes(0, expandedBytes, true);
+                    assert false : msg;
+                } else {
+                    this.expandedBytes.addAndGet(expandedBytes);
+                }
+            } else {
+                final String msg = "Expanding IndexingPressure memory on a closed tracker";
+                logger.error(msg, new IllegalStateException(msg));
+                assert false : msg;
+            }
         }
 
         public void removeExpandedBytes(long expandedBytes) {
-            assert this.closed.get() == false : "the PrimaryOperationPressureExpansionTracker has been closed";
-            IndexingPressure.this.releasePrimaryOperationsAndBytes(0, expandedBytes, true);
-            this.expandedBytes.getAndAdd(-expandedBytes);
+            if (closed.get() == false) {
+                IndexingPressure.this.releasePrimaryOperationsAndBytes(0, expandedBytes, true);
+                if (closed.get()) {
+                    final String msg = "PrimaryExpansionTracker has been closed while performing an index pressure reduction";
+                    logger.error(msg, new IllegalStateException(msg));
+                    // Reverting the decrease as it should have already been done by the call to close.
+                    IndexingPressure.this.updatePrimaryOperationsAndBytes(0, expandedBytes, forceExecution, true);
+                    assert false : msg;
+                } else {
+                    this.expandedBytes.getAndAdd(-expandedBytes);
+                }
+            } else {
+                final String msg = "Releasing some IndexingPressure memory on a closed tracker";
+                logger.error(msg, new IllegalStateException(msg));
+                assert false : msg;
+            }
         }
 
         @Override

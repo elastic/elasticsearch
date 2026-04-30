@@ -105,11 +105,11 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
     }
 
     /**
-     * Resume remote reindex using scroll when {@link ReindexPlugin#REINDEX_PIT_SEARCH_ENABLED} is off.
+     * Resume remote reindex using scroll when {@link ReindexPlugin#REINDEX_RESILIENCE_ENABLED} is off.
      * The remote URL is this cluster's HTTP endpoint (real Elasticsearch), matching the scroll id obtained locally.
      */
     public void testResumeReindexFromScroll() {
-        assumeFalse("reindex with point-in-time search must not be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+        assumeFalse("reindex with point-in-time search must not be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         int totalDocs = randomIntBetween(20, 100);
@@ -174,12 +174,12 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
     }
 
     /**
-     * Resume remote reindex using PIT when {@link ReindexPlugin#REINDEX_PIT_SEARCH_ENABLED} is on.
+     * Resume remote reindex using PIT when {@link ReindexPlugin#REINDEX_RESILIENCE_ENABLED} is on.
      * A mock HTTP server reports a remote {@link Version} on {@code GET /} that is 7.10 or later so
      * {@link org.elasticsearch.reindex.Reindexer} takes the remote PIT path
      */
     public void testResumeReindexFromPit_mockRemoteVersionSupportsPit() throws Exception {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final Version reportedRemoteVersion = randomFrom(Version.V_7_10_0, Version.V_8_0_0, Version.V_8_15_0);
         String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
@@ -265,7 +265,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
      * With PIT enabled locally, a remote still reports {@link Version} &lt; 7.10.0 so reindex falls back to scroll against that cluster.
      */
     public void testResumeReindexFromPit_mockRemoteVersionDoesNotSupportPit() throws Exception {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final Version reportedRemoteVersion = randomFrom(Version.V_7_9_0, Version.V_7_8_0, Version.V_7_0_0);
         assertTrue(reportedRemoteVersion.before(Version.V_7_10_0));
 

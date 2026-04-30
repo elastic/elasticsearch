@@ -338,7 +338,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
      * (e.g. connection refused, host unreachable).
      */
     public void testRemoteReindexVersionLookupFailureMetrics() throws Exception {
-        assumeTrue("PIT search must be enabled for remote version lookup path", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+        assumeTrue("PIT search must be enabled for remote version lookup path", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
 
         final String dataNodeName = internalCluster().startNode();
 
@@ -396,7 +396,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
      * Verifies that local reindex metrics record failures when PIT open fails (e.g. source index is closed).
      */
     public void testLocalReindexPitOpenFailureMetrics() throws Exception {
-        assumeTrue("PIT search must be enabled for local PIT path", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+        assumeTrue("PIT search must be enabled for local PIT path", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
 
         final String dataNodeName = internalCluster().startNode();
 

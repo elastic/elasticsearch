@@ -13,26 +13,16 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.reindex.ReindexPlugin;
 
-import java.util.HashSet;
 import java.util.Set;
 
 public class ReindexManagementFeatures implements FeatureSpecification {
 
-    public static final NodeFeature NEW_ENDPOINTS = new NodeFeature("reindex_management_endpoints");
-
     @Override
     public Set<NodeFeature> getFeatures() {
-        final Set<NodeFeature> features = new HashSet<>();
-        // TODO: Before we release any functionality behind FeatureFlags, we should see whether we can
-        // consolidate the node features. These are a constrained resource, so we should combine the features for anything that is being
-        // released at the same time while we still can.
         if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED) {
-            features.add(NEW_ENDPOINTS);
-            features.add(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE);
+            return Set.of(ReindexPlugin.REINDEX_RESILIENCE_NODE_FEATURE);
+        } else {
+            return Set.of();
         }
-        if (ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED) {
-            features.add(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE);
-        }
-        return Set.copyOf(features);
     }
 }

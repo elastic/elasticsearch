@@ -111,7 +111,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
 import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.index.VersionType.INTERNAL;
-import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE;
 import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.closePit;
 import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.openPit;
 
@@ -228,7 +227,7 @@ public class Reindexer {
         Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, responseListener);
 
         // Point-in-time searching is disabled, so default to scroll
-        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false) {
+        if (featureService.clusterHasFeature(clusterService.state(), ReindexPlugin.REINDEX_RESILIENCE_NODE_FEATURE) == false) {
             executePaginatedSearch(task, request, responseListener, workerAction, null);
         }
         /**

@@ -12,6 +12,7 @@ package org.elasticsearch.reindex.management;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -49,7 +50,7 @@ public class RestGetReindexAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        if (clusterSupportsFeature.test(ReindexManagementFeatures.NEW_ENDPOINTS) == false) {
+        if (clusterSupportsFeature.test(ReindexPlugin.REINDEX_RESILIENCE_NODE_FEATURE) == false) {
             throw new IllegalArgumentException("endpoint not supported on all nodes in the cluster");
         }
 

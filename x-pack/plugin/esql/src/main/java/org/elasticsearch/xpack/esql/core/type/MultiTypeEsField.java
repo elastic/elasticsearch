@@ -111,6 +111,18 @@ public final class MultiTypeEsField extends EsField implements UnionTypeEsField 
         return indexToConversionExpressions.values();
     }
 
+    @Override
+    public EsField rewrapWithCast(Expression convertExpression) {
+        return new MultiTypeEsField(
+            getName(),
+            convertExpression.dataType(),
+            isAggregatable(),
+            UnionTypeEsField.replaceChildrenWithExpressionField(indexToConversionExpressions, convertExpression),
+            getTimeSeriesFieldType(),
+            potentiallyUnmappedExpression
+        );
+    }
+
     public @Nullable Expression getConversionExpressionForIndex(String indexName) {
         return indexToConversionExpressions.get(indexName);
     }

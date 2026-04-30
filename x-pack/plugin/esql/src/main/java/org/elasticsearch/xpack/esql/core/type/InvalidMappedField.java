@@ -21,7 +21,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-// FIXME(gal, NOCOMMIT) Redocument that this is for BWC
 /**
  * <p>
  * N.B.: This class exists only as a backward-compatible version of {@link CompactInvalidMappedField}.

@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-// FIXME(gal, NOCOMMIT) Go over these docs
 public sealed interface TypeConflictField permits InvalidMappedField, CompactInvalidMappedField {
     String getName();
 

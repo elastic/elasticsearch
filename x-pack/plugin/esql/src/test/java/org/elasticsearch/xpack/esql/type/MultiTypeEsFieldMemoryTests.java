@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.lang.reflect.Field;
 import java.time.ZoneId;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -33,7 +32,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField.ESQL_MULTI_TYPE_ES_FIELD_2;
+import static org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField.CompactMultiTypeEsField;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -58,12 +57,10 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
     };
 
     public void testV2AnalyzedPlanIsAtLeastTenTimesSmallerThanLegacy() {
-        String evalAssignments = IntStream.range(0, MultiTypeEsFieldMemoryTests.NUM_CONFLICTING_FIELDS)
+        String evalAssignments = IntStream.range(0, NUM_CONFLICTING_FIELDS)
             .mapToObj(i -> "id_" + i + "_kw = id_" + i + "::keyword")
             .collect(Collectors.joining(", "));
-        String keepFields = IntStream.range(0, MultiTypeEsFieldMemoryTests.NUM_CONFLICTING_FIELDS)
-            .mapToObj(i -> "id_" + i + "_kw")
-            .collect(Collectors.joining(", "));
+        String keepFields = IntStream.range(0, NUM_CONFLICTING_FIELDS).mapToObj(i -> "id_" + i + "_kw").collect(Collectors.joining(", "));
         String query = "FROM idx* | EVAL " + evalAssignments + " | KEEP " + keepFields + " | LIMIT 1";
 
         assertThat(getBytesUsed(true, query) * 10L, lessThan(getBytesUsed(false, query)));
@@ -71,35 +68,33 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
 
     private static long getBytesUsed(boolean compact, String query) {
         TransportVersion transportVersion = compact
-            ? TransportVersionUtils.randomVersionSupporting(ESQL_MULTI_TYPE_ES_FIELD_2)
-            : TransportVersionUtils.randomVersionNotSupporting(ESQL_MULTI_TYPE_ES_FIELD_2);
+            ? TransportVersionUtils.randomVersionSupporting(CompactMultiTypeEsField)
+            : TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField);
         LogicalPlan plan = analyzer().addIndex(unionTypedIndex(compact)).minimumTransportVersion(transportVersion).query(query);
         return RamUsageTester.ramUsed(plan, ACCUMULATOR);
     }
 
     private static IndexResolution unionTypedIndex(boolean compact) {
-        Map<String, IndexMode> indexNamesWithModes = new HashMap<>();
-        for (int i = 0; i < MultiTypeEsFieldMemoryTests.NUM_INDICES; i++) {
-            indexNamesWithModes.put("idx_" + i, IndexMode.STANDARD);
-        }
-        Map<String, EsField> mapping = new HashMap<>();
-        for (int i = 0; i < MultiTypeEsFieldMemoryTests.NUM_CONFLICTING_FIELDS; i++) {
-            String fieldName = "id_" + i;
-            Set<String> kwIndices = new HashSet<>();
-            Set<String> intIndices = new HashSet<>();
-            for (int j = 0; j < MultiTypeEsFieldMemoryTests.NUM_INDICES; j++) {
-                (j % 2 == 0 ? kwIndices : intIndices).add("idx_" + j);
-            }
-            mapping.put(
-                fieldName,
-                compact
-                    ? new CompactInvalidMappedField(fieldName, Map.of(DataType.KEYWORD, kwIndices, DataType.INTEGER, intIndices))
-                    : new InvalidMappedField(
-                        fieldName,
-                        Map.of(DataType.KEYWORD.typeName(), kwIndices, DataType.INTEGER.typeName(), intIndices)
-                    )
-            );
-        }
+        Map<String, IndexMode> indexNamesWithModes = IntStream.range(0, NUM_INDICES)
+            .boxed()
+            .collect(Collectors.toMap(i -> "idx_" + i, i -> IndexMode.STANDARD));
+        Map<String, EsField> mapping = IntStream.range(0, NUM_CONFLICTING_FIELDS)
+            .boxed()
+            .collect(Collectors.toMap(i -> "id_" + i, i -> getEsField(compact, "id_" + i)));
         return IndexResolution.valid(new EsIndex("idx*", mapping, indexNamesWithModes, Map.of(), Map.of()));
+    }
+
+    private static EsField getEsField(boolean compact, String fieldName) {
+        Set<String> keywordIndices = new HashSet<>();
+        Set<String> intIndices = new HashSet<>();
+        for (int j = 0; j < NUM_INDICES; j++) {
+            (j % 2 == 0 ? keywordIndices : intIndices).add("idx_" + j);
+        }
+        return compact
+            ? new CompactInvalidMappedField(fieldName, Map.of(DataType.KEYWORD, keywordIndices, DataType.INTEGER, intIndices))
+            : new InvalidMappedField(
+                fieldName,
+                Map.of(DataType.KEYWORD.typeName(), keywordIndices, DataType.INTEGER.typeName(), intIndices)
+            );
     }
 }

@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -29,6 +32,16 @@ public sealed interface UnionTypeEsField permits MultiTypeEsField, CompactMultiT
     Expression getUnmappedConversionExpression();
 
     Collection<Expression> getConversionExpressions();
+
+    /**
+     * Wraps an existing union-type field's per-(index|type) conversions with another conversion expression on top, so the
+     * composite expression first does the original cast then the additional cast.
+     */
+    EsField rewrapWithCast(Expression convertExpression);
+
+    static <K> Map<K, Expression> replaceChildrenWithExpressionField(Map<K, Expression> map, Expression expression) {
+        return CollectionUtils.mapValues(map, e -> expression.replaceChildren(List.of(((AbstractConvertFunction) e).field())));
+    }
 
     static Resolution resolve(TypeConflictField field, Map<String, Expression> typesToConversionExpressions) {
         DataType resolvedDataType = DataType.UNSUPPORTED;

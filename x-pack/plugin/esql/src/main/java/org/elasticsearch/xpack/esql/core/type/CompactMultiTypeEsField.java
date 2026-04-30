@@ -21,15 +21,14 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
-// FIXME(gal, NOCOMMIT) Reduce duplication with MultiTypeEsField
 /**
  * Memory-efficient variant of {@link MultiTypeEsField} that stores the per-source-type conversion
  * expressions directly, rather than expanding them to one entry per index.
  */
 public final class CompactMultiTypeEsField extends EsField implements UnionTypeEsField {
-    // FIXME(gal, NOCOMMIT) rename
-    public static final TransportVersion ESQL_MULTI_TYPE_ES_FIELD_2 = TransportVersion.fromName("esql_multi_type_es_field_2");
+    public static final TransportVersion CompactMultiTypeEsField = TransportVersion.fromName("compact_multi_type_es_field");
 
+    // TODO these Expressions should be an AbstractConvertFunction.
     private final Map<DataType, Expression> typeToConversionExpressions;
 
     /**
@@ -52,7 +51,7 @@ public final class CompactMultiTypeEsField extends EsField implements UnionTypeE
         this.unmappedConversionExpression = unmappedConversionExpression;
     }
 
-    protected CompactMultiTypeEsField(StreamInput in) throws IOException {
+    CompactMultiTypeEsField(StreamInput in) throws IOException {
         this(
             ((PlanStreamInput) in).readCachedString(),
             DataType.readFrom(in),
@@ -68,7 +67,7 @@ public final class CompactMultiTypeEsField extends EsField implements UnionTypeE
         ((PlanStreamOutput) out).writeCachedString(getName());
         getDataType().writeTo(out);
         out.writeBoolean(isAggregatable());
-        out.writeMap(typeToConversionExpressions, (o, k) -> k.writeTo(o), (o, v) -> o.writeNamedWriteable(v));
+        out.writeMap(typeToConversionExpressions, (o, k) -> k.writeTo(o), StreamOutput::writeNamedWriteable);
         writeTimeSeriesFieldType(out);
         out.writeOptionalNamedWriteable(unmappedConversionExpression);
     }
@@ -90,6 +89,18 @@ public final class CompactMultiTypeEsField extends EsField implements UnionTypeE
     @Override
     public Collection<Expression> getConversionExpressions() {
         return typeToConversionExpressions.values();
+    }
+
+    @Override
+    public EsField rewrapWithCast(Expression convertExpression) {
+        return new CompactMultiTypeEsField(
+            getName(),
+            convertExpression.dataType(),
+            isAggregatable(),
+            UnionTypeEsField.replaceChildrenWithExpressionField(typeToConversionExpressions, convertExpression),
+            getTimeSeriesFieldType(),
+            unmappedConversionExpression
+        );
     }
 
     /**

@@ -2451,8 +2451,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         if (((UnionTypeEsField) fa.field()).getUnmappedConversionExpression() != null) {
                             throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
                         }
-                        EsField multiTypeEsField = rewrapWithCast(fa, convertExpression);
-                        return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
+                        return createIfDoesNotAlreadyExist(fa, unionTypeEsField.rewrapWithCast(convertExpression), unionFieldAttributes);
                     }
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
                     return convertExpression.replaceChildren(
@@ -2468,47 +2467,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<DataType> supportedTypes
         ) {
             return loadUnmappedFields && imf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD) == false;
-        }
-
-        // Wraps an existing union-type field's per-(index|type) conversions with another conversion expression on top, so the
-        // composite expression first does the original cast then the additional cast.
-        private static EsField rewrapWithCast(FieldAttribute fa, Expression convertExpression) {
-            // FIXME(gal, NOCOMMIT) reduce duplication
-            switch ((UnionTypeEsField) fa.field()) {
-                case CompactMultiTypeEsField compact -> {
-                    Map<DataType, Expression> typeToConversionExpressions = new HashMap<>();
-                    for (Map.Entry<DataType, Expression> entry : compact.getTypeToConversionExpressions().entrySet()) {
-                        typeToConversionExpressions.put(entry.getKey(), wrapWith(convertExpression, entry.getValue()));
-                    }
-                    return new CompactMultiTypeEsField(
-                        fa.fieldName().string(),
-                        convertExpression.dataType(),
-                        false,
-                        typeToConversionExpressions,
-                        fa.field().getTimeSeriesFieldType(),
-                        null
-                    );
-                }
-                case MultiTypeEsField legacy -> {
-                    Map<String, Expression> indexToConversionExpressions = new HashMap<>();
-                    for (Map.Entry<String, Expression> entry : legacy.getIndexToConversionExpressions().entrySet()) {
-                        indexToConversionExpressions.put(entry.getKey(), wrapWith(convertExpression, entry.getValue()));
-                    }
-                    return new MultiTypeEsField(
-                        fa.fieldName().string(),
-                        convertExpression.dataType(),
-                        false,
-                        indexToConversionExpressions,
-                        fa.field().getTimeSeriesFieldType(),
-                        null
-                    );
-                }
-            }
-        }
-
-        private static Expression wrapWith(Expression convertExpression, Expression originalConvertFunction) {
-            AbstractConvertFunction inner = (AbstractConvertFunction) originalConvertFunction;
-            return convertExpression.replaceChildren(singletonList(inner.field()));
         }
 
         private static Expression createIfDoesNotAlreadyExist(
@@ -2568,7 +2526,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             @Nullable Expression unmappedConversionExpression,
             AnalyzerContext context
         ) {
-            return context.minimumVersion().supports(CompactMultiTypeEsField.ESQL_MULTI_TYPE_ES_FIELD_2)
+            return context.minimumVersion().supports(CompactMultiTypeEsField.CompactMultiTypeEsField)
                 ? CompactMultiTypeEsField.resolveFrom(imf, typesToConversionExpressions, unmappedConversionExpression)
                 : MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions)
                     .withPotentiallyUnmappedExpression(unmappedConversionExpression);

@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.core.util;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 
@@ -89,5 +92,13 @@ public abstract class CollectionUtils {
             }
         }
         return List.of(result);
+    }
+
+    public static <K, V1, V2> Map<K, V2> mapValues(Map<K, V1> map, Function<? super V1, ? extends V2> f) {
+        var res = new HashMap<K, V2>();
+        for (var entry : map.entrySet()) {
+            res.put(entry.getKey(), f.apply(entry.getValue()));
+        }
+        return res;
     }
 }

@@ -466,12 +466,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testOldCommitsAreRetainedIfSearchNodesUseThem
   issue: https://github.com/elastic/elasticsearch/issues/147888
-- class: org.elasticsearch.xpack.security.authc.HttOptionsNoAuthnIntegTests
-  method: testNoAuthnForPreFlightRequest
-  issue: https://github.com/elastic/elasticsearch/issues/147898
-- class: org.elasticsearch.xpack.security.authc.HttOptionsNoAuthnIntegTests
-  method: testNoAuthnForResourceOptionsMethod
-  issue: https://github.com/elastic/elasticsearch/issues/147899
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=synonyms/110_synonyms_invalid/Load index with an invalid synonym rule with lenient set to false}
   issue: https://github.com/elastic/elasticsearch/issues/147907
@@ -505,3 +499,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testDataStreamStatsActionBroadcastedToSearchNodesOnly
   issue: https://github.com/elastic/elasticsearch/issues/147973
+- class: org.elasticsearch.search.suggest.completion.CategoryQueryContextTests
+  method: testToXContext
+  issue: https://github.com/elastic/elasticsearch/issues/147974
+- class: org.elasticsearch.search.rescore.QueryRescoreModeTests
+  method: testQueryRescoreMode
+  issue: https://github.com/elastic/elasticsearch/issues/147812

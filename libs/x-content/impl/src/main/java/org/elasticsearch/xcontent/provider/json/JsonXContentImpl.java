@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.json.JsonWriteFeature;
 
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -48,7 +49,7 @@ public class JsonXContentImpl implements XContent {
     }
 
     static {
-        jsonFactory = XContentImplUtils.configure(new ESJsonFactoryBuilder());
+        jsonFactory = XContentImplUtils.configure(new ESJsonFactoryBuilder().enable(JsonWriteFeature.COMBINE_UNICODE_SURROGATES_IN_UTF8));
         jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
         jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...

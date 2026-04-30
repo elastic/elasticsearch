@@ -204,10 +204,10 @@ public class IrateTests extends AbstractAggregationTestCase {
         double lastValue = ((Number) nonNullDataRows.getFirst()).doubleValue();
         double secondLastValue = ((Number) nonNullDataRows.get(1)).doubleValue();
         double increase;
-        if (temporality == RateTests.TemporalityParameter.CUMULATIVE && lastValue >= secondLastValue) {
+        if (temporality != RateTests.TemporalityParameter.DELTA && lastValue >= secondLastValue) {
             increase = lastValue - secondLastValue;
         } else {
-            increase = lastValue;
+            increase = lastValue == -0.0 ? 0 : lastValue;
         }
         long largestTimestamp = timestamps.get(0);
         long secondLargestTimestamp = timestamps.get(1);

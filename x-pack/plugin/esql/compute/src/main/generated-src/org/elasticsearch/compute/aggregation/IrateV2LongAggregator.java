@@ -276,7 +276,7 @@ public class IrateV2LongAggregator {
                         ydiff = state.lastValue - state.secondLastValue;
                     } else {
                         // We either have cumulative temporality and detected a reset or we have delta temporality
-                        ydiff = state.lastValue;
+                        ydiff = state.lastValue == -0.0 ? 0 : state.lastValue;
                     }
                     final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
                     rates.appendDouble(ydiff / xdiff * dateFactor);

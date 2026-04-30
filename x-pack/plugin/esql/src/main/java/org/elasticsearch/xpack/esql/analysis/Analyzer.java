@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictField;
@@ -178,6 +177,7 @@ import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -2311,23 +2311,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
 
-        /**
-         * Picks between the legacy {@link MultiTypeEsField} (index-keyed) and the new {@link CompactMultiTypeEsField}
-         * (type-keyed) based on the cluster minimum transport version, so that newly-built plans remain
-         * deserializable on older nodes during a rolling upgrade.
-         */
-        private static EsField buildMultiTypeEsField(
-            TypeConflictField imf,
-            Map<String, Expression> typesToConversionExpressions,
-            @Nullable Expression unmappedConversionExpression,
-            AnalyzerContext context
-        ) {
-            return context.minimumVersion().supports(CompactMultiTypeEsField.ESQL_MULTI_TYPE_ES_FIELD_2)
-                ? CompactMultiTypeEsField.resolveFrom(imf, typesToConversionExpressions, unmappedConversionExpression)
-                : MultiTypeEsField.resolveFrom((InvalidMappedField) imf, typesToConversionExpressions)
-                    .withPotentiallyUnmappedExpression(unmappedConversionExpression);
-        }
-
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             List<Attribute.IdIgnoringWrapper> unionFieldAttributes = new ArrayList<>();
@@ -2573,6 +2556,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             });
             return buildMultiTypeEsField(imf, typesToConversionExpressions, potentiallyUnmappedConversion, context);
+        }
+
+        /**
+         * Picks between the legacy {@link MultiTypeEsField} and the new {@link CompactMultiTypeEsField} based on the cluster minimum
+         * transport version, so that newly-built plans remain deserializable on older nodes.
+         */
+        private static EsField buildMultiTypeEsField(
+            TypeConflictField imf,
+            Map<String, Expression> typesToConversionExpressions,
+            @Nullable Expression unmappedConversionExpression,
+            AnalyzerContext context
+        ) {
+            return context.minimumVersion().supports(CompactMultiTypeEsField.ESQL_MULTI_TYPE_ES_FIELD_2)
+                ? CompactMultiTypeEsField.resolveFrom(imf, typesToConversionExpressions, unmappedConversionExpression)
+                : MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions)
+                    .withPotentiallyUnmappedExpression(unmappedConversionExpression);
         }
 
         private static boolean canConvertOriginalTypes(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {

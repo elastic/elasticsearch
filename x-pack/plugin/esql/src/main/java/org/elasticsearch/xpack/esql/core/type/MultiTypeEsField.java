@@ -126,10 +126,10 @@ public final class MultiTypeEsField extends EsField implements UnionTypeEsField 
     }
 
     public static MultiTypeEsField resolveFrom(
-        InvalidMappedField invalidMappedField,
+        TypeConflictField typeConflictedField,
         Map<String, Expression> typesToConversionExpressions
     ) {
-        Map<String, Set<String>> typesToIndices = invalidMappedField.getTypesToIndices();
+        Map<String, Set<String>> typesToIndices = typeConflictedField.getTypesToIndices();
         DataType resolvedDataType = DataType.UNSUPPORTED;
         Map<String, Expression> indexToConversionExpressions = new HashMap<>();
         for (String typeName : typesToIndices.keySet()) {
@@ -145,11 +145,11 @@ public final class MultiTypeEsField extends EsField implements UnionTypeEsField 
             }
         }
         return new MultiTypeEsField(
-            invalidMappedField.getName(),
+            typeConflictedField.getName(),
             resolvedDataType,
             false,
             indexToConversionExpressions,
-            invalidMappedField.getTimeSeriesFieldType(),
+            typeConflictedField.getTimeSeriesFieldType(),
             null
         );
     }

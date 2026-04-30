@@ -19,9 +19,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 // FIXME(gal, NOCOMMIT) Redocument that this is for BWC
 /**
+ * <p>
+ * N.B.: This class exists only as a backward-compatible version of {@link CompactInvalidMappedField}.
+ * </p>
  * Representation of field mapped differently across indices; or being potentially unmapped in some, in which case it is treated as
  * {@link DataType#KEYWORD} in the indices where it is unmapped.
  * Used during mapping discovery only.
@@ -84,7 +88,7 @@ public final class InvalidMappedField extends EsField implements TypeConflictFie
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }
 
-    protected InvalidMappedField(StreamInput in) throws IOException {
+    InvalidMappedField(StreamInput in) throws IOException {
         this(
             ((PlanStreamInput) in).readCachedString(),
             in.readString(),
@@ -146,5 +150,10 @@ public final class InvalidMappedField extends EsField implements TypeConflictFie
     @Override
     public boolean isPotentiallyUnmapped() {
         return isPotentiallyUnmapped;
+    }
+
+    @Override
+    public Set<DataType> types() {
+        return getTypesToIndices().keySet().stream().map(DataType::fromTypeName).collect(Collectors.toSet());
     }
 }

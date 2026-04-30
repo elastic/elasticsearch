@@ -79,6 +79,11 @@ public final class CompactInvalidMappedField extends EsField implements TypeConf
     }
 
     @Override
+    public Set<DataType> types() {
+        return typesToIndices.keySet();
+    }
+
+    @Override
     public EsField getExactField() {
         throw new QlIllegalArgumentException("Field [" + getName() + "] is invalid, cannot access it");
     }

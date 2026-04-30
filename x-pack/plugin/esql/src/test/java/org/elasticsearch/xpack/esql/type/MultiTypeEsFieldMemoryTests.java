@@ -36,7 +36,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField.ESQL_MULTI_TYPE_ES_FIELD_2;
 import static org.hamcrest.Matchers.lessThan;
 
-// FIXME(gal, NOCOMMIT) Go over these docs
 /**
  * End-to-end check that an analyzed plan over many union-typed fields, each conflicting across thousands of indices, retains substantially
  * less memory under {@link CompactMultiTypeEsField} (paired with {@link CompactInvalidMappedField}'s truncated index lists) than under

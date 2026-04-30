@@ -23,15 +23,19 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 
@@ -174,11 +178,45 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
             })
         );
 
-        List<InferenceAction.Request> inferenceRequests = inferenceIds.stream()
-            .map(
-                i -> new InferenceAction.Request(
-                    TaskType.ANY,
-                    i,
+        for (String inferenceId : inferenceIds) {
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                GetInferenceModelAction.INSTANCE,
+                new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
+                gal.delegateFailureAndWrap((l, modelResponse) -> {
+                    var endpoints = modelResponse.getEndpoints();
+                    if (endpoints.size() > 1) {
+                        throw new IllegalStateException(
+                            endpoints.size() + " inference endpoints found for inference ID [" + inferenceId + "]"
+                        );
+                    }
+                    TaskType taskType = endpoints.getFirst().getTaskType();
+                    executeInferenceForTaskType(query, inferenceId, taskType, l);
+                })
+            );
+        }
+    }
+
+    private void executeInferenceForTaskType(
+        String query,
+        String inferenceId,
+        TaskType taskType,
+        ActionListener<Tuple<String, InferenceResults>> listener
+    ) {
+        ActionListener<InferenceAction.Response> responseListener = listener.delegateFailureAndWrap((l, r) -> {
+            InferenceResults inferenceResults = validateAndConvertInferenceResults(r.getResults(), inferenceId);
+            l.onResponse(Tuple.tuple(inferenceId, inferenceResults));
+        });
+
+        switch (taskType) {
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                InferenceAction.INSTANCE,
+                new InferenceAction.Request(
+                    taskType,
+                    inferenceId,
                     null,
                     null,
                     null,
@@ -187,17 +225,25 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
                     InputType.INTERNAL_SEARCH,
                     null,
                     false
-                )
-            )
-            .toList();
-
-        inferenceRequests.forEach(
-            request -> executeAsyncWithOrigin(client, ML_ORIGIN, InferenceAction.INSTANCE, request, gal.delegateFailureAndWrap((l, r) -> {
-                String inferenceId = request.getInferenceEntityId();
-                InferenceResults inferenceResults = validateAndConvertInferenceResults(r.getResults(), inferenceId);
-                l.onResponse(Tuple.tuple(inferenceId, inferenceResults));
-            }))
-        );
+                ),
+                responseListener
+            );
+            case EMBEDDING -> executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                EmbeddingAction.INSTANCE,
+                new EmbeddingAction.Request(
+                    inferenceId,
+                    taskType,
+                    new EmbeddingRequest(List.of(new InferenceStringGroup(query)), InputType.INTERNAL_SEARCH, Map.of()),
+                    null
+                ),
+                responseListener
+            );
+            default -> listener.onFailure(
+                new IllegalArgumentException("The [" + taskType + "] task type is not supported on inference fields")
+            );
+        }
     }
 
     private static InferenceResults validateAndConvertInferenceResults(

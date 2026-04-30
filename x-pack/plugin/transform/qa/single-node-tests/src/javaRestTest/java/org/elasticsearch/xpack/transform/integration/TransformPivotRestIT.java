@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -960,10 +960,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             searchResult
         )).get(0);
         assertThat(commonUsersDesc, is(not(nullValue())));
-        // 3 user names latest in lexicographic order (user_9, user_8, user_7) are selected properly. We do not assert the
-        // order of keys in the indexed _source — that the right three were retained is what the descending size:3 terms
-        // agg guarantees.
-        assertThat(commonUsersDesc.keySet(), containsInAnyOrder("user_9", "user_8", "user_7"));
+        // 3 user names latest in lexicographic order (user_9, user_8, user_7) are selected properly and their order is preserved.
+        assertThat(commonUsersDesc.keySet(), containsInRelativeOrder("user_9", "user_8", "user_7"));
         Map<String, Integer> rareUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
             "hits.hits._source.rare_users",
             searchResult

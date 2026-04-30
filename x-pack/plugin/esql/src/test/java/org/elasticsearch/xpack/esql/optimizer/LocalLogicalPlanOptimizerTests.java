@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -2663,6 +2665,64 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         // Right side of join: EsRelation[languages_lookup][LOOKUP][language_code{f}#149, language_name{f}#150, $$last_..]
         var rightRelation = as(join.right(), EsRelation.class);
         assertThat(rightRelation.output().stream().map(Attribute::name).toList(), contains("language_code", "language_name"));
+    }
+
+    /**
+     * Pins the contract that {@link
+     * org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull}
+     * must retain the synthetic {@code _timeseries} metadata attribute on the data node, even when another
+     * keyword {@code time_series_dimension} field visible in the merged field caps (e.g. coming from a
+     * sibling backing index under a wildcard pattern) is missing on the local shard.
+     * <p>
+     * Without this guarantee, the brittle aliasing in
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils#aliasedNulls} collapses
+     * {@code _timeseries} onto the first missing keyword dimension (both share {@code KEYWORD}), which causes
+     * downstream propagation to rewrite {@code DimensionValues(_timeseries)} into
+     * {@code DimensionValues(<foreign-dimension>)}.
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation}
+     * then skips the {@code _source} materialization because the attribute name no longer matches
+     * {@link MetadataAttribute#TIMESERIES}, and the {@code _timeseries} column comes back as null at execution
+     * time.
+     */
+    public void testTimeSeriesAttributeRetainedWhenForeignKeywordDimensionMissing() {
+        String query = """
+            TS k8s
+            | STATS r = RATE(network.total_bytes_in) BY tbucket = TBUCKET(5minute)
+            """;
+        // Force both _timeseries and the keyword dimension `cluster` to look "missing" on this data node.
+        // This simulates the wildcard scenario where IndexResolver merged in `cluster` from a sibling backing
+        // index that the local shard does not map, while _timeseries is virtual and never present in field caps.
+        var stats = statsForMissingField(MetadataAttribute.TIMESERIES, "cluster");
+        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), stats);
+        List<Alias> timeseriesAggregateAliases = new ArrayList<>();
+        plan.forEachDown(LogicalPlan.class, p -> p.forEachExpressionDown(Alias.class, alias -> {
+            if (alias.name().equals(MetadataAttribute.TIMESERIES) && alias.child() instanceof AggregateFunction) {
+                timeseriesAggregateAliases.add(alias);
+            }
+        }));
+        assertFalse(
+            "expected at least one <aggregate>(_timeseries) AS _timeseries alias in the local plan, but found none in plan:\n" + plan,
+            timeseriesAggregateAliases.isEmpty()
+        );
+        for (Alias alias : timeseriesAggregateAliases) {
+            AggregateFunction agg = (AggregateFunction) alias.child();
+            Expression field = agg.field();
+            assertThat(
+                "aggregator output named _timeseries must have an Attribute as its field; got " + field + " in plan:\n" + plan,
+                field,
+                instanceOf(Attribute.class)
+            );
+            Attribute fieldAttr = (Attribute) field;
+            assertThat(
+                "aggregator output named _timeseries must read from _timeseries, not " + fieldAttr.name() + " in plan:\n" + plan,
+                fieldAttr.name(),
+                equalTo(MetadataAttribute.TIMESERIES)
+            );
+            assertTrue(
+                "aggregator's _timeseries input must satisfy MetadataAttribute.isTimeSeriesAttribute()",
+                MetadataAttribute.isTimeSeriesAttribute(fieldAttr)
+            );
+        }
     }
 
     private IsNotNull isNotNull(Expression field) {

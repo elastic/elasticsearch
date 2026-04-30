@@ -9,14 +9,17 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.FloatBlock;
@@ -24,6 +27,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 // end generated imports
@@ -33,17 +37,43 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-IrateAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "INT_BLOCK") }
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "INT_BLOCK") },
+    processNulls = true
 )
 public class IrateIntAggregator {
-    public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos) {
+
+    public static final String DELTA_UNSUPPORTED_WARNING =
+        "Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.";
+
+    public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos, Warnings warnings) {
         final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
-        return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor);
+        return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor, warnings);
     }
 
-    public static void combine(IntIrateGroupingState current, int groupId, int value, long timestamp) {
-        current.ensureCapacity(groupId);
-        current.append(groupId, timestamp, value);
+    public static void combine(
+        IntIrateGroupingState current,
+        int groupId,
+        int value,
+        long timestamp,
+        @Position int position,
+        BytesRefBlock temporality
+    ) {
+        if (current.cachedTemporalityAccessor == null || current.cachedTemporalityAccessor.block() != temporality) {
+            current.cachedTemporalityAccessor = TemporalityAccessor.create(temporality, Temporality.CUMULATIVE);
+            assert current.cachedTemporalityAccessor.block() == temporality;
+        }
+        try {
+            if (current.cachedTemporalityAccessor.get(position) == Temporality.CUMULATIVE) {
+                current.ensureCapacity(groupId);
+                current.append(groupId, timestamp, value);
+            } else {
+                current.warnings.registerException(IllegalArgumentException.class, DELTA_UNSUPPORTED_WARNING);
+            }
+        } catch (InvalidTemporalityException e) {
+            // We can't use @GroupingAggregator(warnExceptions=..) here because that would require a breaking change to the
+            // intermediate state
+            current.warnings.registerException(e);
+        }
     }
 
     public static String describe() {
@@ -84,17 +114,20 @@ public class IrateIntAggregator {
     }
 
     public static final class IntIrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
+        private TemporalityAccessor cachedTemporalityAccessor;
         private ObjectArray<IntIrateState> states;
+        private final Warnings warnings;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
         private final int dateFactor;
 
-        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor) {
+        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor, Warnings warnings) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
             this.dateFactor = dateFactor;
+            this.warnings = warnings;
         }
 
         void ensureCapacity(int groupId) {

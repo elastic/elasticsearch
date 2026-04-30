@@ -110,12 +110,7 @@ public final class SimplifyAggregateOverArithmetic extends OptimizerRules.Optimi
                     // if we need a COUNT(*) for SUM+Add/Sub correction, create or reuse it
                     Attribute countAttr = null;
                     if (result.needsCount) {
-                        Count countStar = new Count(
-                            source,
-                            Literal.keyword(source, StringUtils.WILDCARD),
-                            af.filter(),
-                            af.window()
-                        );
+                        Count countStar = new Count(source, Literal.keyword(source, StringUtils.WILDCARD), af.filter(), af.window());
                         Expression countCanonical = countStar.canonical();
                         countAttr = simplifiedAggToAttr.get(countCanonical);
                         if (countAttr == null) {
@@ -259,12 +254,7 @@ public final class SimplifyAggregateOverArithmetic extends OptimizerRules.Optimi
     /**
      * Handles SUM(col * K), MIN(col * K), MAX(col * K).
      */
-    private static SimplificationResult simplifyMul(
-        AggregateFunction af,
-        ArithmeticOperation arith,
-        Expression colExpr,
-        Literal literal
-    ) {
+    private static SimplificationResult simplifyMul(AggregateFunction af, ArithmeticOperation arith, Expression colExpr, Literal literal) {
         double k = ((Number) literal.value()).doubleValue();
         // K == 0: skip (SUM(col * 0) is always 0 but that's a different optimization)
         if (k == 0) {

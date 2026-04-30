@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -22,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -57,7 +54,7 @@ public class SimplifyAggregateOverArithmeticTests extends AbstractLogicalPlanOpt
         as(add.left(), ReferenceAttribute.class);
         // right side: 100 * COUNT(*) (children may be in either order)
         var mul = as(add.right(), Mul.class);
-        assertMulLiteralRight(mul,100);
+        assertMulLiteralRight(mul, 100);
 
         var limit = as(eval.child(), Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -85,7 +82,7 @@ public class SimplifyAggregateOverArithmeticTests extends AbstractLogicalPlanOpt
         var sub = as(correctionAlias.child(), Sub.class);
         as(sub.left(), ReferenceAttribute.class);
         var mul = as(sub.right(), Mul.class);
-        assertMulLiteralRight(mul,50);
+        assertMulLiteralRight(mul, 50);
 
         var limit = as(eval.child(), Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -397,7 +394,7 @@ public class SimplifyAggregateOverArithmeticTests extends AbstractLogicalPlanOpt
         var correctionAlias = as(eval.fields().get(0), Alias.class);
         var add = as(correctionAlias.child(), Add.class);
         var mul = as(add.right(), Mul.class);
-        assertMulLiteralRight(mul,k);
+        assertMulLiteralRight(mul, k);
 
         var limit = as(eval.child(), Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -419,7 +416,7 @@ public class SimplifyAggregateOverArithmeticTests extends AbstractLogicalPlanOpt
         var correctionAlias = as(eval.fields().get(0), Alias.class);
         var add = as(correctionAlias.child(), Add.class);
         var mul = as(add.right(), Mul.class);
-        assertMulLiteralRight(mul,1.5);
+        assertMulLiteralRight(mul, 1.5);
 
         var limit = as(eval.child(), Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -445,7 +442,8 @@ public class SimplifyAggregateOverArithmeticTests extends AbstractLogicalPlanOpt
     private static void assertPlanDoesNotContainArithmeticInsideAgg(LogicalPlan plan) {
         plan.forEachDown(Aggregate.class, agg -> {
             for (var aggExpr : agg.aggregates()) {
-                if (aggExpr instanceof Alias alias && alias.child() instanceof org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction af) {
+                if (aggExpr instanceof Alias alias
+                    && alias.child() instanceof org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction af) {
                     // COUNT(*) has field() = Literal("*"), which is expected — skip it
                     if (af instanceof Count) continue;
                     assertThat(

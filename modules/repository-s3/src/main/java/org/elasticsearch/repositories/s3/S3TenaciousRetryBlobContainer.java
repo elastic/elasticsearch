@@ -48,20 +48,34 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 
     @Override
     protected Map<String, Object> getMetricsAttributes(RetryMethod method) {
-        return Map.of(
-            "repo_type",
-            S3Repository.TYPE,
-            "blob_path",
-            delegate.path().buildAsString(),
-            "operation",
-            S3BlobStore.Operation.LIST_OBJECTS.getKey(),
-            "method",
-            method.getName()
-        );
+        return Map.of("repo_type", S3Repository.TYPE, "blob_path", blobPath, "operation", lookUpOperationNameByMethod(method));
     }
 
     @Override
     protected BlobContainer wrapChild(BlobContainer child) {
         return new S3TenaciousRetryBlobContainer(child, repositoriesMetrics);
     }
+
+    private String lookUpOperationNameByMethod(RetryMethod method) {
+        assert METHODS_TO_OPERATIONS.containsKey(method.getName());
+        return METHODS_TO_OPERATIONS.get(method.getName()).getKey();
+    }
+
+    private static final Map<String, S3BlobStore.Operation> METHODS_TO_OPERATIONS = Map.ofEntries(
+        Map.entry("blobExists", S3BlobStore.Operation.HEAD_OBJECT),
+        Map.entry("readBlob", S3BlobStore.Operation.GET_OBJECT),
+        Map.entry("readBlobPreferredLength", S3BlobStore.Operation.GET_OBJECT),
+        Map.entry("writeBlob", S3BlobStore.Operation.PUT_OBJECT),
+        Map.entry("writeMetadataBlob", S3BlobStore.Operation.PUT_OBJECT),
+        Map.entry("writeBlobAtomic", S3BlobStore.Operation.PUT_OBJECT), // stream/bytes overloads; see note below
+        Map.entry("copyBlob", S3BlobStore.Operation.COPY_OBJECT),
+        Map.entry("delete", S3BlobStore.Operation.DELETE_OBJECTS),
+        Map.entry("deleteBlobsIgnoringIfNotExists", S3BlobStore.Operation.DELETE_OBJECTS),
+        Map.entry("listBlobs", S3BlobStore.Operation.LIST_OBJECTS),
+        Map.entry("listBlobsByPrefix", S3BlobStore.Operation.LIST_OBJECTS),
+        Map.entry("children", S3BlobStore.Operation.LIST_OBJECTS),
+        Map.entry("getRegister", S3BlobStore.Operation.GET_OBJECT),
+        Map.entry("compareAndSetRegister", S3BlobStore.Operation.PUT_OBJECT),
+        Map.entry("compareAndExchangeRegister", S3BlobStore.Operation.PUT_OBJECT)
+    );
 }

@@ -37,9 +37,9 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
             "repo_type",
             GoogleCloudStorageRepository.TYPE,
             "blob_path",
-            delegate.path().buildAsString(),
-            "method",
-            method.getName()
+            blobPath,
+            "operation",
+            lookUpOperationNameByMethod(method)
         );
     }
 
@@ -47,4 +47,25 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
     protected BlobContainer wrapChild(BlobContainer child) {
         return new GcsTenaciousRetryBlobContainer(child, repositoriesMetrics);
     }
+
+    private String lookUpOperationNameByMethod(RetryMethod method) {
+        assert METHODS_TO_OPERATIONS.containsKey(method.getName());
+        return METHODS_TO_OPERATIONS.get(method.getName()).key();
+    }
+
+    private static final Map<String, StorageOperation> METHODS_TO_OPERATIONS = Map.ofEntries(
+        Map.entry("blobExists", StorageOperation.GET),
+        Map.entry("readBlob", StorageOperation.GET),
+        Map.entry("writeBlob", StorageOperation.INSERT),
+        Map.entry("writeMetadataBlob", StorageOperation.INSERT),
+        Map.entry("writeBlobAtomic", StorageOperation.INSERT),
+        Map.entry("copyBlob", StorageOperation.COPY),
+        Map.entry("delete", StorageOperation.DELETE),
+        Map.entry("deleteBlobsIgnoringIfNotExists", StorageOperation.DELETE),
+        Map.entry("listBlobs", StorageOperation.LIST),
+        Map.entry("listBlobsByPrefix", StorageOperation.LIST),
+        Map.entry("children", StorageOperation.LIST),
+        Map.entry("getRegister", StorageOperation.GET)
+    );
+
 }

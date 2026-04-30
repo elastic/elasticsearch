@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.blobstore.support;
 
+import joptsimple.internal.Strings;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,14 +37,14 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
     private static final Logger logger = LogManager.getLogger(TenaciousRetryBlobContainer.class);
     private final RepositoriesMetrics repositoriesMetrics;
     private static final int INITIAL_ATTEMPT = 1;
-    private static final String REPOSITORY_TYPE = "cloud_provider";
     public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
     protected final BlobContainer delegate;
+    protected final String blobPath;
 
     public enum RetryMethod {
-        LIST_BLOBS("listBlobs()"),
-        LIST_BLOBS_BY_PREFIX("listBlobsByPrefix()"),
-        CHILDREN("children()");
+        LIST_BLOBS("listBlobs"),
+        LIST_BLOBS_BY_PREFIX("listBlobsByPrefix"),
+        CHILDREN("children");
 
         private final String name;
 
@@ -59,6 +61,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
         super(delegate);
         this.repositoriesMetrics = repositoriesMetrics;
         this.delegate = delegate;
+        this.blobPath = delegate.path() == null ? Strings.EMPTY : delegate.path().buildAsString();
     }
 
     protected abstract boolean isExceptionRetryable(Exception e);
@@ -92,9 +95,10 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
         return super.children(purpose);
     }
 
-    private <T, E extends Exception> T execute(CheckedSupplier<T, E> operation, RetryMethod method) throws E {
+    // Visible for testing
+    protected <T, E extends Exception> T execute(CheckedSupplier<T, E> operation, RetryMethod method) throws E {
         final List<Exception> failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
-        ;
+
         int attempts = INITIAL_ATTEMPT;
 
         while (true) {
@@ -132,13 +136,9 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
     private void maybeLogSuccessfulRetry(RetryMethod method, int attempts) {
         if (attempts > INITIAL_ATTEMPT) {
             repositoriesMetrics.allocationTransientErrorRetrySuccessCounter().incrementBy(1, getMetricsAttributes(method));
-            logger.log(
-                // Log at info level for the 1st retry and then exponentially less
-                Integer.bitCount(attempts) == 1 ? Level.INFO : Level.DEBUG,
-                () -> format("""
-                    Blobstore [%s] operation [%s] succeeded after [%d] attempts.
-                    """, delegate.path().buildAsString(), method.name(), attempts)
-            );
+            logger.info("""
+                Blobstore [{}] operation [{}] succeeded after [{}] attempts.
+                """, delegate.path().buildAsString(), method.name(), attempts);
         }
     }
 
@@ -147,7 +147,8 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
     }
 
     private void logRetryFailure(Exception ex, RetryMethod method, int attempts) {
-        logger.warn(
+        logger.log(
+            Integer.bitCount(attempts) == 1 ? Level.INFO : Level.DEBUG,
             () -> format(
                 "Blobstore [%s] operation [%s] failed after [%d] attempts.",
                 delegate.path().buildAsString(),

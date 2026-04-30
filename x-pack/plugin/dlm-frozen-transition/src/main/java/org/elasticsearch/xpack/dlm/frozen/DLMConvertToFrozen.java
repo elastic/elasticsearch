@@ -259,6 +259,9 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             logger.debug("Index [{}] is already marked as read-only, skipping to clone step", indexName);
             return;
         }
+
+        waitForIndexYellowStatus(indexName);
+
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
             INFINITE_MASTER_NODE_TIMEOUT
         );
@@ -290,6 +293,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         if (isCloneNeeded() == false) {
             return getIndexForForceMerge();
         }
+
+        waitForIndexYellowStatus(indexName);
 
         String cloneIndexName = getDLMCloneIndexName();
 
@@ -332,6 +337,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             logger.debug("Index [{}] has already been force merged by DLM, skipping force merge step", forceMergeIndex);
             return;
         }
+
+        waitForIndexYellowStatus(forceMergeIndex);
 
         ForceMergeRequest req = new ForceMergeRequest(forceMergeIndex);
         req.maxNumSegments(1);
@@ -628,6 +635,33 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             indexName
         );
         return indexName;
+    }
+
+    /**
+     * Waits up to 1 minute for the given index to reach yellow status (all primary shards allocated).
+     * Throws an {@link ElasticsearchException} if the timeout is breached.
+     */
+    private void waitForIndexYellowStatus(String index) {
+        TimeValue timeout = TimeValue.timeValueMinutes(1);
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(INFINITE_MASTER_NODE_TIMEOUT, index).waitForYellowStatus()
+            .timeout(timeout);
+        ClusterHealthResponse response;
+        try {
+            response = client.projectClient(projectId).admin().cluster().health(healthRequest).get();
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new ElasticsearchException("DLM failed while waiting for index [{}] shards to be allocated", e, index);
+        }
+        if (response.isTimedOut()) {
+            throw new ElasticsearchException(
+                "DLM timed out after [{}]m waiting for index [{}] shards to be allocated",
+                timeout.getMinutes(),
+                index
+            );
+        }
+        logger.debug("DLM index [{}] has reached yellow status, proceeding", index);
     }
 
     /**
@@ -957,6 +991,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * Throws an exception if the snapshot fails to complete successfully for any reason.
      */
     void createSnapshot(String indexName, String repositoryName, String snapshotName) {
+        waitForIndexYellowStatus(indexName);
         CreateSnapshotRequest createRequest = buildCreateSnapshotRequest(repositoryName, indexName, snapshotName);
         try {
             var response = client.projectClient(projectId)

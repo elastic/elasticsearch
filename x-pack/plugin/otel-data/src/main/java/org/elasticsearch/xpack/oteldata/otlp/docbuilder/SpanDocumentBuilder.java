@@ -63,10 +63,10 @@ public class SpanDocumentBuilder extends OTelDocumentBuilder {
         if (span.getDroppedLinksCount() > 0) {
             builder.field("dropped_links_count", span.getDroppedLinksCount());
         }
-        buildResource(resource, resourceSchemaUrl, builder);
+        buildResourceWithGeoPoints(resource, resourceSchemaUrl, builder);
         buildDataStream(builder, targetIndex);
-        buildScope(builder, scope, scopeSchemaUrl);
-        buildAttributes(builder, span.getAttributesList(), span.getDroppedAttributesCount());
+        buildScopeWithGeoPoints(builder, scope, scopeSchemaUrl);
+        buildAttributesWithGeoPoints(builder, span.getAttributesList(), span.getDroppedAttributesCount());
         buildLinks(builder, span.getLinksList());
         buildStatus(builder, span);
         builder.endObject();
@@ -83,7 +83,7 @@ public class SpanDocumentBuilder extends OTelDocumentBuilder {
             addHexFieldIfNotEmpty(builder, "trace_id", link.getTraceId());
             addHexFieldIfNotEmpty(builder, "span_id", link.getSpanId());
             addFieldIfNotEmpty(builder, "trace_state", link.getTraceStateBytes());
-            buildAttributes(builder, link.getAttributesList(), link.getDroppedAttributesCount());
+            buildAttributesWithGeoPoints(builder, link.getAttributesList(), link.getDroppedAttributesCount());
             builder.endObject();
         }
         builder.endArray();

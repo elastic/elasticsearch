@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 147267
+summary: Fix potential OOME on `SearchResponse#toString()` for extemely large responses
+type: bug

@@ -97,6 +97,41 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testEnrichOnByteLongConflictedMatchField() {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("byte", Set.of("test1"));
+        typesToIndices.put("long", Set.of("test2"));
+
+        Map<String, EsField> mapping = Map.of("multi_typed_int", new InvalidMappedField("multi_typed_int", typesToIndices));
+        TestAnalyzer analyzer = analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping)))
+            .addEnrichPolicy(EnrichPolicy.RANGE_TYPE, "ages_policy", "age_range", "ages", "mapping-ages.json")
+            .stripErrorPrefix(true);
+
+        analyzer.error(
+            "from test* | enrich ages_policy on multi_typed_int",
+            equalTo(
+                "1:36: Cannot use field [multi_typed_int] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [byte] in [test1], [long] in [test2]"
+            )
+        );
+    }
+
+    public void testEnrichOnDateNanosConflictedMatchField() {
+        EsField field = new InvalidMappedField("multi_typed_date", Map.of("date", Set.of("test1"), "date_nanos", Set.of("test2")));
+        Map<String, EsField> mapping = Map.of("multi_typed_date", field);
+        TestAnalyzer analyzer = analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping)))
+            .addEnrichPolicy(EnrichPolicy.RANGE_TYPE, "decades_policy", "date_range", "decades", "mapping-decades.json")
+            .stripErrorPrefix(true);
+
+        analyzer.error(
+            "from test* | enrich decades_policy on multi_typed_date",
+            equalTo(
+                "1:39: Unsupported type [date_nanos] for enrich matching field [multi_typed_date];"
+                    + " only [keyword, text, ip, long, integer, float, double, datetime] allowed for type [range]"
+            )
+        );
+    }
+
     public void testUnsupportedAndMultiTypedFields() {
         final String unsupported = "unsupported";
         final String multiTyped = "multi_typed";
@@ -157,8 +192,8 @@ public class VerifierTests extends ESTestCase {
         analyzer.error(
             "from test* | enrich client_cidr on multi_typed",
             equalTo(
-                "1:36: Unsupported type [unsupported] for enrich matching field [multi_typed];"
-                    + " only [keyword, text, ip, long, integer, float, double, datetime] allowed for type [range]"
+                "1:36: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
             )
         );
 
@@ -1644,6 +1679,58 @@ public class VerifierTests extends ESTestCase {
             "from test | mv_expand id | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
         );
+        fullText().error(
+            "from test | limit 1 by id | where " + functionInvocation,
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
+        );
+        fullText().error(
+            "from test | sort id | limit 1 by id | where " + functionInvocation,
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
+        );
+        fullText().stripErrorPrefix(false)
+            .error(
+                "from test | mv_expand " + fieldName + " | where " + functionInvocation,
+                allOf(
+                    containsString("Found 1 problem"),
+                    containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
+                )
+            );
+    }
+
+    public void testFullTextFunctionsAfterFork() {
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where title : \"data\"",
+            containsString("[:] operator cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
+            containsString("[MATCH] function cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")",
+            containsString("[MatchPhrase] function cannot be used after FORK")
+        );
+        fullText().stripErrorPrefix(false)
+            .error(
+                "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
+                allOf(containsString("Found 1 problem"), containsString("[MATCH] function cannot be used after FORK"))
+            );
+    }
+
+    public void testFullTextFunctionsAfterForkWithEvalInBranch() {
+        fullText().stripErrorPrefix(false)
+            .error(
+                "from test metadata _id, _index, _score "
+                    + "| fork (where true) (where true | EVAL title = \"abc\") "
+                    + "| keep title "
+                    + "| where title : \"data\"",
+                allOf(
+                    containsString("Found 3 problems"),
+                    containsString("[:] operator cannot be used after FORK"),
+                    containsString("[:] operator cannot operate on [title], which is not a field from an index mapping"),
+                    containsString("Column [title] has conflicting data types in FORK branches: [KEYWORD] and [TEXT]")
+                )
+            );
     }
 
     // These should pass eventually once we lift some restrictions on match function
@@ -3826,6 +3913,10 @@ public class VerifierTests extends ESTestCase {
                 "1:29: Invalid option [num_words] in [TOP_SNIPPETS(body, \"query\", {\"num_words\": true})], "
                     + "cannot cast [true] to [integer]"
             )
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"order\": \"invalid\"})",
+            equalTo("1:29: 'order' option must be 'score' or 'none', found [invalid]")
         );
     }
 

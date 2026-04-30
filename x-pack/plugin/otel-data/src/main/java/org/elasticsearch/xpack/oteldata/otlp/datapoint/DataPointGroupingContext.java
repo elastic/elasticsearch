@@ -113,22 +113,22 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
     }
 
     @Override
-    public int totalDataPoints() {
+    public int totalItems() {
         return totalDataPoints;
     }
 
     @Override
-    public int getIgnoredDataPoints() {
+    public int getIgnoredItems() {
         return ignoredDataPoints;
     }
 
     @Override
-    public String getIgnoredDataPointsMessage(int limit) {
+    public String getIgnoredItemsMessage(int limit) {
         if (ignoredDataPointMessages.isEmpty()) {
             return "";
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("Ignored ").append(getIgnoredDataPoints()).append(" data points due to the following reasons:\n");
+        sb.append("Ignored ").append(getIgnoredItems()).append(" data points due to the following reasons:\n");
         int count = 0;
         for (String message : ignoredDataPointMessages) {
             sb.append(" - ").append(message).append("\n");
@@ -190,8 +190,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         private final InstrumentationScope scope;
         private final ByteString scopeSchemaUrl;
         private final TsidBuilder scopeTsidBuilder;
-        @Nullable
-        private final String receiverName;
+        private final @Nullable String scopeRoutingDataset;
         // index -> timestamp -> dataPointGroupHash -> DataPointGroup
         private final Map<TargetIndex, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroupsByIndexAndTimestamp;
 
@@ -200,8 +199,8 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             this.scope = scope;
             this.scopeSchemaUrl = scopeSchemaUrl;
             this.scopeTsidBuilder = scopeTsidBuilder;
+            this.scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
             this.dataPointGroupsByIndexAndTimestamp = new HashMap<>();
-            this.receiverName = TargetIndex.extractReceiverName(scope);
         }
 
         public <T> void addDataPoints(Metric metric, List<T> dataPoints, BiFunction<T, Metric, DataPoint> createDataPoint) {
@@ -236,7 +235,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             TargetIndex targetIndex = TargetIndex.evaluate(
                 TargetIndex.TYPE_METRICS,
                 dataPoint.getAttributes(),
-                receiverName,
+                scopeRoutingDataset,
                 scope.getAttributesList(),
                 resourceGroup.resource.getAttributesList()
             );

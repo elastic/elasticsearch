@@ -9,6 +9,7 @@ esplugin {
     description = 'Elasticsearch Expanded Pack Plugin - Stateless self managed'
     classname = 'org.elasticsearch.xpack.stateless.StatelessPlugin'
     extendedPlugins = ['x-pack-core', 'blob-cache']
+    deploymentTarget = "STATELESS_ONLY"
 }
 
 configurations {

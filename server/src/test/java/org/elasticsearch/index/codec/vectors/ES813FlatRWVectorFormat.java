@@ -16,6 +16,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
+import org.apache.lucene.util.IORunnable;
 
 import java.io.IOException;
 
@@ -61,8 +62,8 @@ class ES813FlatRWVectorFormat extends ES813FlatVectorFormat {
         }
 
         @Override
-        public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-            writer.mergeOneField(fieldInfo, mergeState);
+        public IORunnable mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+            return writer.mergeOneField(fieldInfo, mergeState);
         }
     }
 

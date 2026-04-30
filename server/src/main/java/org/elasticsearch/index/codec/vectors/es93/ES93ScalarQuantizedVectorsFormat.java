@@ -24,6 +24,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
@@ -202,6 +203,14 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
             return reader.getRandomVectorScorer(field, target);
+        }
+
+        @Override
+        public CloseableRandomVectorScorerSupplier getRandomVectorScorerSupplierForMerge(
+            FieldInfo fieldInfo,
+            SegmentWriteState segmentWriteState
+        ) throws IOException {
+            return reader.getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState);
         }
 
         @Override

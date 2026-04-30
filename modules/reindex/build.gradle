@@ -190,13 +190,16 @@ if (OS.current() == OS.WINDOWS) {
       if (Architecture.current() == Architecture.AARCH64) {
         env 'ES_JAVA_OPTS', '-Xss512k'
       }
+      // Keep data and logs under the writable fixture baseDir, not inside the Gradle transform (avoids node.lock
+      // conflicts and polluting the immutable transform tree).
+      def esDataDir = new File(baseDir, 'es-data')
+      def esLogsDir = new File(baseDir, 'es-logs')
       args 'oldes.OldElasticsearch',
         baseDir,
         "${ -> oldEsDependency.singleFile.getPath()}",
-        version == '090'
-      if ((version == '62' || version == '63') && Architecture.current() == Architecture.AARCH64) {
-        args 'xpack.ml.enabled: false'
-      }
+        version == '090',
+        'path.data: "' + esDataDir.absolutePath + '"',
+        'path.logs: "' + esLogsDir.absolutePath + '"'
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service
         // is ready, so we can just wait for the file to exist
@@ -290,41 +293,24 @@ if (OS.current() == OS.WINDOWS) {
   registerDownloadedRemote('8.16.4', 'remote_reindex_es816', 'remoteEs816Fixture', 'es816', 'tests.fromRemoteEs816')
   registerDownloadedRemote('9.3.0', 'remote_reindex_es93', 'remoteEs93Fixture', 'es93', 'tests.fromRemoteEs93')
 
-  /* AntFixture registers a *#stop task in its constructor. Passing string paths to finalizedBy(...) breaks Gradle 9
-   * configuration: # is interpreted as part of task-path syntax, and stop tasks are absent until the fixture task is
-   * realized. Realize each fixture so *#stop exists, then use TaskProvider-based finalizedBy. */
-  versions.each { version ->
-    tasks.named("oldEs${version}Fixture").get()
-  }
-  ['remoteEs812Fixture', 'remoteEs816Fixture', 'remoteEs93Fixture'].each { name ->
-    tasks.named(name).get()
-  }
-  if (macOsAarch64 == false) {
-    tasks.named('remoteEs79Fixture').get()
-    tasks.named('remoteEs710Fixture').get()
-  }
-
-  def oldElasticsearchFixtureStopTaskProviders = []
-  versions.each { version ->
-    oldElasticsearchFixtureStopTaskProviders.add(tasks.named("oldEs${version}Fixture#stop"))
-  }
-  oldElasticsearchFixtureStopTaskProviders.addAll([
-    tasks.named('remoteEs812Fixture#stop'),
-    tasks.named('remoteEs816Fixture#stop'),
-    tasks.named('remoteEs93Fixture#stop')
-  ])
-  if (macOsAarch64 == false) {
-    oldElasticsearchFixtureStopTaskProviders.addAll([
-      tasks.named('remoteEs79Fixture#stop'),
-      tasks.named('remoteEs710Fixture#stop')
-    ])
-  }
-
-  tasks.named("javaRestTest").configure { task ->
-    oldElasticsearchFixtureStopTaskProviders.each { stopProvider ->
-      task.finalizedBy(stopProvider)
+  /* AntFixture registers a matching *#stop finalizer task in its constructor. Do not pass raw strings to finalizedBy:
+   * Gradle 9 parses # in task paths incorrectly, and the stop task does not exist until the fixture task is realized.
+   * Use Provider.flatMap so wiring stays lazy until execution (avoid realizing fixtures during configuration). */
+  tasks.named("javaRestTest").configure { t ->
+    versions.each { version ->
+      t.finalizedBy(
+        tasks.named("oldEs${version}Fixture").flatMap { fixtureTask -> tasks.named("${fixtureTask.name}#stop") }
+      )
     }
-    task.systemProperty "tests.fromRemote7x", "true"
+    ['remoteEs812Fixture', 'remoteEs816Fixture', 'remoteEs93Fixture'].each { fixtureName ->
+      t.finalizedBy(tasks.named(fixtureName).flatMap { fixtureTask -> tasks.named("${fixtureTask.name}#stop") })
+    }
+    if (macOsAarch64 == false) {
+      ['remoteEs79Fixture', 'remoteEs710Fixture'].each { fixtureName ->
+        t.finalizedBy(tasks.named(fixtureName).flatMap { fixtureTask -> tasks.named("${fixtureTask.name}#stop") })
+      }
+    }
+    t.systemProperty "tests.fromRemote7x", "true"
   }
 }
 

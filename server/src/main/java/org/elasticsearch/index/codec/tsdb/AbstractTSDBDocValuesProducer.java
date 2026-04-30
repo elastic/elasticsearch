@@ -2410,6 +2410,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper) {
+                    // Two-level skipping strategy:
+                    //   Skipper level  — skip entire skipper blocks whose [min,max] doesn't overlap [lower,upper].
+                    //   Numeric block  — within candidate skipper blocks, use SIMD (inRangeBitmask) to build a
+                    //                    per-doc bitmask for each 128/512-doc numeric block, then scan the bitmask.
+                    // The iterator owns the shared currentBlock / decoder state, so callers must not
+                    // use the originating NumericDocValues reader after calling this method.
                     return new DocIdSetIterator() {
                         private final FixedBitSet matches = new FixedBitSet(numericBlockSize);
                         private int iterDoc = -1;
@@ -2429,6 +2435,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         public int advance(int target) throws IOException {
                             iterDoc = target;
                             while (iterDoc < maxDoc) {
+                                // Advance the skipper to cover iterDoc if needed.
                                 if (skipper.maxDocID(0) < iterDoc) {
                                     skipper.advance(iterDoc);
                                     if (skipper.maxDocID(0) == NO_MORE_DOCS) {
@@ -2437,11 +2444,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 }
                                 long minVal = skipper.minValue(0);
                                 long maxVal = skipper.maxValue(0);
+                                // firstDocInSkipper may be > skipper.minDocID(0) when advance() was called
+                                // with a target in the middle of an already-current skipper block.
                                 int firstDocInSkipper = Math.max(iterDoc, skipper.minDocID(0));
                                 int lastDocInSkipper = skipper.maxDocID(0);
                                 if (lowerValue <= minVal && maxVal <= upperValue) {
+                                    // Entire skipper block is in range: return first doc without decoding values.
                                     return iterDoc = firstDocInSkipper;
                                 } else if (minVal <= upperValue && lowerValue <= maxVal) {
+                                    // Partial overlap: scan the SIMD bitmask for each numeric block.
                                     int firstBlock = firstDocInSkipper >>> numericBlockShift;
                                     int lastBlock = lastDocInSkipper >>> numericBlockShift;
                                     for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
@@ -2454,6 +2465,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                         }
                                     }
                                 }
+                                // No match in this skipper block; jump past it.
                                 iterDoc = lastDocInSkipper + 1;
                             }
                             return iterDoc = NO_MORE_DOCS;
@@ -2470,10 +2482,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                     }
                                 }
                                 int firstDocInSkipper = Math.max(iterDoc, skipper.minDocID(0));
+                                // Cap lastDocInSkipper at upTo-1 so we never write bits past the caller's window.
                                 int lastDocInSkipper = Math.min(skipper.maxDocID(0), upTo - 1);
                                 long minVal = skipper.minValue(0);
                                 long maxVal = skipper.maxValue(0);
                                 if (lowerValue <= minVal && maxVal <= upperValue) {
+                                    // All docs in the (clipped) skipper block match; bulk-set without decoding.
                                     bitSet.set(firstDocInSkipper - offset, lastDocInSkipper + 1 - offset);
                                 } else if (minVal <= upperValue && lowerValue <= maxVal) {
                                     int firstBlock = firstDocInSkipper >>> numericBlockShift;
@@ -2482,6 +2496,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                         ensureFilterBlockCached(blockId);
                                         int firstInBlock = blockId == firstBlock ? firstDocInSkipper & numericBlockMask : 0;
                                         int lastInBlock = blockId == lastBlock ? lastDocInSkipper & numericBlockMask : numericBlockMask;
+                                        // forEach applies a shift so that bit positions become absolute doc IDs
+                                        // minus the caller-supplied offset, matching bitSet's coordinate space.
                                         matches.forEach(
                                             firstInBlock,
                                             lastInBlock + 1,
@@ -2498,9 +2514,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         public int docIDRunEnd() throws IOException {
                             int blockId = iterDoc >>> numericBlockShift;
                             if (cachedBlockId == blockId) {
+                                // We have a decoded bitmask for this numeric block: find the first non-matching
+                                // position within it, then cap at the skipper block boundary.
                                 int firstClearBit = nextClearBit(iterDoc & numericBlockMask);
                                 return Math.min((blockId << numericBlockShift) + firstClearBit, skipper.maxDocID(0) + 1);
                             }
+                            // No decoded block: if the whole skipper block is in range we can claim the run
+                            // extends to its end, otherwise we can only promise a run of 1.
                             if (lowerValue <= skipper.minValue(0) && skipper.maxValue(0) <= upperValue) {
                                 return skipper.maxDocID(0) + 1;
                             }
@@ -2516,14 +2536,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             }
                         }
 
+                        // Equivalent to FixedBitSet.nextSetBit but for 0-bits (clear bits).
                         private int nextClearBit(int from) {
-                            // Find the first bit position >= from that is NOT set in rangeMatches.
-                            // The bits beyond rangeMatches.length() are outside the block.
                             long[] bits = matches.getBits();
                             int wordIdx = from >>> 6;
                             if (wordIdx >= bits.length) {
                                 return matches.length();
                             }
+                            // Invert and right-shift to isolate clear bits at or after `from`.
                             long word = ~bits[wordIdx] >>> (from & 63);
                             if (word != 0) {
                                 return from + Long.numberOfTrailingZeros(word);

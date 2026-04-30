@@ -430,7 +430,11 @@ final class RequestXContent {
                 errors.add(
                     new XContentParseException(
                         loc,
-                        "Parameter [" + entry.getKey() + "] is an empty list. Empty lists are not allowed as named parameter values"
+                        "Empty lists are not allowed as named parameter values. Got parameter ["
+                            + entry.getKey()
+                            + "] with value ["
+                            + valueList
+                            + "]"
                     )
                 );
                 return;

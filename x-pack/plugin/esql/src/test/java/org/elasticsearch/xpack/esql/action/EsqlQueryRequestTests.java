@@ -452,11 +452,11 @@ public class EsqlQueryRequestTests extends ESTestCase {
         Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
         assertThat(
             e.getCause().getMessage(),
-            containsString("Parameter [_n1] is an empty list. Empty lists are not allowed as named parameter values")
+            containsString("Empty lists are not allowed as named parameter values. Got parameter [_n1] with value [[]]")
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("Parameter [_n2] is an empty list. Empty lists are not allowed as named parameter values")
+            containsString("Empty lists are not allowed as named parameter values. Got parameter [_n2] with value [[]]")
         );
     }
 

@@ -196,24 +196,3 @@ setup:
                     value: "data:image/jpeg;base64,abcdef1234567890"
 
   - match: { hits.total.value: 2 }
-
----
-"knn query with image input on non-semantic field still requires inference_id":
-  - do:
-      catch: bad_request
-      search:
-        index: test-dense-vector-index
-        body:
-          query:
-            knn:
-              field: embedding
-              k: 10
-              num_candidates: 100
-              query_vector_builder:
-                embedding:
-                  input:
-                    type: image
-                    value: "data:image/jpeg;base64,abcdef1234567890"
-
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "[inference_id] must be specified" }

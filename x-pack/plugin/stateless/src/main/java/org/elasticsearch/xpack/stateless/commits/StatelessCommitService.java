@@ -1260,6 +1260,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         @Nullable
         private volatile RecoveryInfoFromSource recoveryInfoFromSource = null;
 
+        // This field is only accessed by appendCommit which is called within a lock ensuring this variable visibility.
+        private Set<PrimaryTermAndGeneration> previousReferencedBccs = null;
+
         private final Set<ShardId> copyTargets = ConcurrentHashMap.newKeySet();
 
         // Visible for testing
@@ -1674,9 +1677,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert commitPrimaryTermAndGeneration.primaryTerm() == reference.getPrimaryTerm();
             assert commitPrimaryTermAndGeneration.generation() == reference.getGeneration();
 
-            Set<PrimaryTermAndGeneration> referencedBCCs = new HashSet<>(
-                BatchedCompoundCommit.computeReferencedBCCGenerations(statelessCompoundCommit)
-            );
+            Set<PrimaryTermAndGeneration> referencedBCCs = new HashSet<>();
+            BatchedCompoundCommit.appendBCCGenerations(referencedBCCs, statelessCompoundCommit);
 
             // For generational files used by local readers we must reference the original blob that contained them as Lucene might
             // delete the file and rely on the fact that in POSIX deleted files are kept around until the last process releases the
@@ -1690,9 +1692,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     }
                 }
             }
+
+            // In the case where commits are appended at a high rate and blob reference are not released fast enough, the size of the
+            // commitReferencesInfos can consume a significant amount of memory mainly due to referencedBCCs. To minimize, that impact
+            // we use Set.copyOf that use a Set implementation more memory friendly than HashSet and reuse the referencedBCCs instance of
+            // the previous CommitReferencesInfo if it contains the same PrimaryTermAndGeneration objects.
+            if (referencedBCCs.equals(previousReferencedBccs)) {
+                referencedBCCs = previousReferencedBccs;
+            } else {
+                referencedBCCs = Set.copyOf(referencedBCCs);
+                previousReferencedBccs = referencedBCCs;
+            }
+
             var previousCommitReferencesInfo = commitReferencesInfos.put(
                 commitPrimaryTermAndGeneration,
-                new CommitReferencesInfo(currentVirtualBcc.getPrimaryTermAndGeneration(), Collections.unmodifiableSet(referencedBCCs))
+                new CommitReferencesInfo(currentVirtualBcc.getPrimaryTermAndGeneration(), referencedBCCs)
             );
 
             assert previousCommitReferencesInfo == null

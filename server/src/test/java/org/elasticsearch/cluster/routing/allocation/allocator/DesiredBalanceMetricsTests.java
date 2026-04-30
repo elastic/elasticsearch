@@ -28,19 +28,22 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         long unassignedShards = randomNonNegativeLong();
         long totalAllocations = randomNonNegativeLong();
         long undesiredAllocations = randomNonNegativeLong();
+        final var desiredBalanceStats = randomDesiredBalanceStats();
         metrics.updateMetrics(
             new AllocationStats(unassignedShards, totalAllocations, undesiredAllocations),
             Map.of(),
             Map.of(),
-            DesiredBalanceStats.ZERO
+            desiredBalanceStats
         );
         assertEquals(totalAllocations, metrics.totalAllocations());
         assertEquals(unassignedShards, metrics.unassignedShards());
         assertEquals(undesiredAllocations, metrics.undesiredAllocations());
+        assertSame(desiredBalanceStats, metrics.desiredBalanceStats());
         metrics.zeroAllMetrics();
         assertEquals(0, metrics.totalAllocations());
         assertEquals(0, metrics.unassignedShards());
         assertEquals(0, metrics.undesiredAllocations());
+        assertSame(desiredBalanceStats, metrics.desiredBalanceStats()); // not zeroed out
     }
 
     public void testMetricsAreOnlyPublishedWhenNodeIsMaster() {

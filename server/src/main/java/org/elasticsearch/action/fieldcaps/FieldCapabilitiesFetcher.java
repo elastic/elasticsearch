@@ -11,6 +11,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
@@ -50,6 +51,9 @@ class FieldCapabilitiesFetcher {
     private static final boolean enableFieldHasValue = Booleans.parseBoolean(
         System.getProperty("es.field_caps_empty_fields_filter", Boolean.TRUE.toString())
     );
+    // Mirrors {@code SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG} (defined in the inference plugin) — same flag name reads the
+    // same system property, so the two stay in sync. Used to gate exposure of inference info in {@code _field_caps}.
+    private static final FeatureFlag SEMANTIC_FIELD_FEATURE_FLAG = new FeatureFlag("semantic_field");
 
     FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeEmptyFields) {
         this.indicesService = indicesService;
@@ -172,6 +176,9 @@ class FieldCapabilitiesFetcher {
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         Map<String, ObjectMapper> objectMappers = context.getMappingLookup().objectMappers();
+        Map<String, InferenceFieldMetadata> inferenceFields = SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
+            ? context.getMappingLookup().inferenceFields()
+            : Map.of();
         for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
             final String field = entry.getKey();
             MappedFieldType ft = entry.getValue();
@@ -181,6 +188,7 @@ class FieldCapabilitiesFetcher {
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
                 && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
                 && (filter == null || filter.test(ft))) {
+                InferenceFieldMetadata inferenceField = inferenceFields.get(field);
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),
@@ -189,6 +197,8 @@ class FieldCapabilitiesFetcher {
                     ft.isAggregatable(),
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
+                    inferenceField != null ? inferenceField.getInferenceId() : null,
+                    inferenceField != null ? inferenceField.getSearchInferenceId() : null,
                     ft.meta()
                 );
                 responseMap.put(field, fieldCap);

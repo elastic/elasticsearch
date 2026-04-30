@@ -349,6 +349,27 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             }
         }
 
+        // Cycle through the four valid inference shapes:
+        // no inference info, agreed (id only), agreed (id + distinct search id), per-index conflict.
+        String inferenceId = null;
+        String searchInferenceId = null;
+        String[] inferenceConflictsIndices = null;
+        switch (between(0, 3)) {
+            case 1 -> inferenceId = randomAlphaOfLengthBetween(3, 12);
+            case 2 -> {
+                inferenceId = randomAlphaOfLengthBetween(3, 12);
+                searchInferenceId = randomValueOtherThan(inferenceId, () -> randomAlphaOfLengthBetween(3, 12));
+            }
+            case 3 -> {
+                inferenceConflictsIndices = new String[randomIntBetween(1, 5)];
+                for (int i = 0; i < inferenceConflictsIndices.length; i++) {
+                    inferenceConflictsIndices[i] = randomAlphaOfLengthBetween(5, 20);
+                }
+            }
+            default -> {
+                /* leave all null for the no-inference case */ }
+        }
+
         Map<String, Set<String>> meta = switch (randomInt(2)) {
             case 0 -> Collections.emptyMap();
             case 1 -> Map.of("foo", Set.of("bar"));
@@ -368,6 +389,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             nonAggregatableIndices,
             nonDimensionIndices,
             metricConflictsIndices,
+            inferenceId,
+            searchInferenceId,
+            inferenceConflictsIndices,
             meta
         );
     }
@@ -386,8 +410,11 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         String[] nonAggregatableIndices = instance.nonAggregatableIndices();
         String[] nonDimensionIndices = instance.nonDimensionIndices();
         String[] metricConflictsIndices = instance.metricConflictsIndices();
+        String inferenceId = instance.getInferenceId();
+        String searchInferenceId = instance.getSearchInferenceId();
+        String[] inferenceConflictsIndices = instance.inferenceConflictsIndices();
         Map<String, Set<String>> meta = instance.meta();
-        switch (between(0, 12)) {
+        switch (between(0, 15)) {
             case 0:
                 name += randomAlphaOfLengthBetween(1, 10);
                 break;
@@ -499,6 +526,37 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 }
                 metricConflictsIndices = newMetricConflictsIndices;
                 break;
+            case 13:
+                if (inferenceId == null) {
+                    inferenceId = randomAlphaOfLength(8);
+                } else {
+                    inferenceId = randomBoolean() ? null : randomValueOtherThan(inferenceId, () -> randomAlphaOfLength(8));
+                }
+                break;
+            case 14:
+                if (searchInferenceId == null) {
+                    searchInferenceId = randomAlphaOfLength(8);
+                } else {
+                    searchInferenceId = randomBoolean() ? null : randomValueOtherThan(searchInferenceId, () -> randomAlphaOfLength(8));
+                }
+                break;
+            case 15:
+                String[] newInferenceConflictsIndices;
+                int startInferenceConflictsPos = 0;
+                if (inferenceConflictsIndices == null) {
+                    newInferenceConflictsIndices = new String[between(1, 10)];
+                } else {
+                    newInferenceConflictsIndices = Arrays.copyOf(
+                        inferenceConflictsIndices,
+                        inferenceConflictsIndices.length + between(1, 10)
+                    );
+                    startInferenceConflictsPos = inferenceConflictsIndices.length;
+                }
+                for (int i = startInferenceConflictsPos; i < newInferenceConflictsIndices.length; i++) {
+                    newInferenceConflictsIndices[i] = randomAlphaOfLengthBetween(5, 20);
+                }
+                inferenceConflictsIndices = newInferenceConflictsIndices;
+                break;
             default:
                 throw new AssertionError();
         }
@@ -515,7 +573,54 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             nonAggregatableIndices,
             nonDimensionIndices,
             metricConflictsIndices,
+            inferenceId,
+            searchInferenceId,
+            inferenceConflictsIndices,
             meta
         );
+    }
+
+    public void testBuilderInferenceMatching() {
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("review", "text");
+        builder.add(new String[] { "index1" }, false, true, false, false, null, "elser", "elser", Map.of());
+        builder.add(new String[] { "index2" }, false, true, false, false, null, "elser", "elser", Map.of());
+
+        FieldCapabilities cap = builder.build(false);
+        assertThat(cap.getInferenceId(), equalTo("elser"));
+        assertNull("search inference id is omitted when equal to inference id", cap.getSearchInferenceId());
+        assertNull(cap.inferenceConflictsIndices());
+    }
+
+    public void testBuilderInferenceDistinctSearchId() {
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("review", "text");
+        builder.add(new String[] { "index1" }, false, true, false, false, null, "elser-write", "elser-search", Map.of());
+        builder.add(new String[] { "index2" }, false, true, false, false, null, "elser-write", "elser-search", Map.of());
+
+        FieldCapabilities cap = builder.build(false);
+        assertThat(cap.getInferenceId(), equalTo("elser-write"));
+        assertThat(cap.getSearchInferenceId(), equalTo("elser-search"));
+        assertNull(cap.inferenceConflictsIndices());
+    }
+
+    public void testBuilderInferenceConflict() {
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("review", "text");
+        builder.add(new String[] { "index1" }, false, true, false, false, null, "elser-v1", "elser-v1", Map.of());
+        builder.add(new String[] { "index2" }, false, true, false, false, null, "elser-v2", "elser-v2", Map.of());
+
+        FieldCapabilities cap = builder.build(false);
+        assertNull("conflict suppresses the inference id", cap.getInferenceId());
+        assertNull(cap.getSearchInferenceId());
+        assertThat(cap.inferenceConflictsIndices(), equalTo(new String[] { "index1", "index2" }));
+    }
+
+    public void testBuilderInferenceMixedDropsObject() {
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("review", "text");
+        builder.add(new String[] { "index1" }, false, true, false, false, null, "elser", "elser", Map.of());
+        builder.add(new String[] { "index2" }, false, true, false, false, null, null, null, Map.of());
+
+        FieldCapabilities cap = builder.build(false);
+        assertNull("any non-inference index suppresses the inference object", cap.getInferenceId());
+        assertNull(cap.getSearchInferenceId());
+        assertNull(cap.inferenceConflictsIndices());
     }
 }

@@ -1,0 +1,181 @@
+setup:
+  - requires:
+      cluster_features: "field_caps.inference_info"
+      reason: inference info in field_caps requires the semantic_field feature flag
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-1
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-2
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-1
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+---
+"semantic_text exposes inference info under the text bucket":
+  - do:
+      indices.create:
+        index: idx_st
+        body:
+          mappings:
+            properties:
+              review:
+                type: semantic_text
+                inference_id: sparse-1
+
+  - do:
+      field_caps:
+        index: idx_st
+        fields: "*"
+        include_empty_fields: true
+
+  - match: { indices: [ "idx_st" ] }
+  - match: { fields.review.text.type: text }
+  - match: { fields.review.text.inference.inference_id: sparse-1 }
+  - not_exists: fields.review.text.inference.search_inference_id
+  - not_exists: fields.review.text.inference.inference_conflicts_indices
+
+---
+"semantic exposes inference info under the semantic bucket":
+  - do:
+      indices.create:
+        index: idx_s
+        body:
+          mappings:
+            properties:
+              review:
+                type: semantic
+                inference_id: embedding-1
+
+  - do:
+      field_caps:
+        index: idx_s
+        fields: "*"
+        include_empty_fields: true
+
+  - match: { indices: [ "idx_s" ] }
+  - match: { fields.review.semantic.type: semantic }
+  - match: { fields.review.semantic.inference.inference_id: embedding-1 }
+  - not_exists: fields.review.semantic.inference.search_inference_id
+  - not_exists: fields.review.semantic.inference.inference_conflicts_indices
+
+---
+"distinct search_inference_id is reported when set":
+  - do:
+      indices.create:
+        index: idx_search_id
+        body:
+          mappings:
+            properties:
+              review:
+                type: semantic_text
+                inference_id: sparse-1
+                search_inference_id: sparse-2
+
+  - do:
+      field_caps:
+        index: idx_search_id
+        fields: "*"
+        include_empty_fields: true
+
+  - match: { fields.review.text.inference.inference_id: sparse-1 }
+  - match: { fields.review.text.inference.search_inference_id: sparse-2 }
+
+---
+"conflicting inference_ids across indices surface inference_conflicts_indices":
+  - do:
+      indices.create:
+        index: idx_a
+        body:
+          mappings:
+            properties:
+              review:
+                type: semantic_text
+                inference_id: sparse-1
+
+  - do:
+      indices.create:
+        index: idx_b
+        body:
+          mappings:
+            properties:
+              review:
+                type: semantic_text
+                inference_id: sparse-2
+
+  - do:
+      field_caps:
+        index: idx_a,idx_b
+        fields: "*"
+        include_empty_fields: true
+
+  - not_exists: fields.review.text.inference.inference_id
+  - match: { fields.review.text.inference.inference_conflicts_indices: [ "idx_a", "idx_b" ] }
+
+---
+"mixed semantic and plain text drops the inference object":
+  - do:
+      indices.create:
+        index: idx_mix_st
+        body:
+          mappings:
+            properties:
+              review:
+                type: semantic_text
+                inference_id: sparse-1
+
+  - do:
+      indices.create:
+        index: idx_mix_text
+        body:
+          mappings:
+            properties:
+              review:
+                type: text
+
+  - do:
+      field_caps:
+        index: idx_mix_st,idx_mix_text
+        fields: "*"
+        include_empty_fields: true
+
+  - not_exists: fields.review.text.inference

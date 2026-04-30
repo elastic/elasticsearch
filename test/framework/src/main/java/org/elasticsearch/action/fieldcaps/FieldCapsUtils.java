@@ -106,8 +106,21 @@ public enum FieldCapsUtils {
     }
 
     private static final InstantiatingObjectParser<FieldCapabilities, String> FIELD_CAPS_PARSER;
+    private static final ConstructingObjectParser<FieldCapabilities.InferenceCapabilities, Void> INFERENCE_PARSER =
+        new ConstructingObjectParser<>(
+            "field_capabilities_inference",
+            true,
+            args -> new FieldCapabilities.InferenceCapabilities((String) args[0], (String) args[1], castStringList(args[2]))
+        );
 
     static {
+        INFERENCE_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.INFERENCE_ID_FIELD);
+        INFERENCE_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.SEARCH_INFERENCE_ID_FIELD);
+        INFERENCE_PARSER.declareStringArray(
+            ConstructingObjectParser.optionalConstructorArg(),
+            FieldCapabilities.INFERENCE_CONFLICTS_INDICES_FIELD
+        );
+
         InstantiatingObjectParser.Builder<FieldCapabilities, String> parser = InstantiatingObjectParser.builder(
             "field_capabilities",
             true,
@@ -126,9 +139,19 @@ public enum FieldCapsUtils {
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.METRIC_CONFLICTS_INDICES_FIELD);
         parser.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
+            (p, context) -> INFERENCE_PARSER.parse(p, null),
+            FieldCapabilities.INFERENCE_FIELD
+        );
+        parser.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
             (p, context) -> p.map(HashMap::new, v -> Set.copyOf(v.list())),
             new ParseField("meta")
         );
         FIELD_CAPS_PARSER = parser.build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> castStringList(Object value) {
+        return (List<String>) value;
     }
 }

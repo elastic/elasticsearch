@@ -31,6 +31,9 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         final TimeSeriesParams.MetricType metricType = randomBoolean() ? null : randomFrom(TimeSeriesParams.MetricType.values());
         final List<String> fields = randomList(1, 5, () -> randomAlphaOfLength(5));
         for (String field : fields) {
+            // Inference info is intentionally omitted here: this generator is consumed by tests that round-trip through arbitrary
+            // compatible transport versions, including ones predating FIELD_CAPS_INFERENCE_INFO. Inference round-tripping is covered
+            // by FieldCapabilitiesTests (which uses the current transport version) and by the YAML REST test.
             final IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                 field,
                 randomAlphaOfLengthBetween(5, 20),

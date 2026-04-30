@@ -82,6 +82,7 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
     public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
     public static final NodeFeature SEMANTIC_TEXT_EMBEDDING_TASK = new NodeFeature("semantic_text.inference_using_embedding_task");
+    public static final NodeFeature FIELD_CAPS_INFERENCE_INFO = new NodeFeature("field_caps.inference_info");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -153,6 +154,7 @@ public class InferenceFeatures implements FeatureSpecification {
         );
         if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
             testFeatures.add(SemanticFieldMapper.SEMANTIC_FIELD_MAPPER);
+            testFeatures.add(FIELD_CAPS_INFERENCE_INFO);
         }
         testFeatures.addAll(getFeatures());
         return testFeatures;

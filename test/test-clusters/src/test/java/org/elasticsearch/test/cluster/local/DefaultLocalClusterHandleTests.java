@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -107,6 +108,47 @@ public class DefaultLocalClusterHandleTests {
         handle.checkNodesAlive();
         handle.checkNodesAlive();
         assertThat(handle.getCheckCount(), is(1));
+    }
+
+    @Test
+    public void testCheckNodesAliveProbesAgainAfterCacheExpiry() throws Exception {
+        CountingWaitForHttpResource probe = new CountingWaitForHttpResource();
+        DefaultLocalClusterHandle handle = new DefaultLocalClusterHandle("cluster", List.of(newNode("node-0", true))) {
+            @Override
+            protected List<WaitForHttpResource> createHealthChecks() {
+                return List.of(probe);
+            }
+
+            @Override
+            protected long healthCheckCacheTtlNanos() {
+                return 0L;
+            }
+        };
+        setStarted(handle, true);
+        handle.checkNodesAlive();
+        handle.checkNodesAlive();
+        assertThat(probe.checks.get(), is(2));
+    }
+
+    @Test
+    public void testCheckNodesAliveSuppressesRepeatProbingAfterFailure() throws Exception {
+        CountingFailingWaitForHttpResource probe = new CountingFailingWaitForHttpResource();
+        DefaultLocalClusterHandle handle = new DefaultLocalClusterHandle("cluster", List.of(newNode("node-0", true))) {
+            @Override
+            protected List<WaitForHttpResource> createHealthChecks() {
+                return List.of(probe);
+            }
+
+            @Override
+            protected long healthCheckCacheTtlNanos() {
+                return java.time.Duration.ofMinutes(1).toNanos();
+            }
+        };
+        setStarted(handle, true);
+        assertThrows(IllegalStateException.class, handle::checkNodesAlive);
+        // Second call within the TTL window must not re-probe even though the first probe failed.
+        handle.checkNodesAlive();
+        assertThat(probe.checks.get(), is(1));
     }
 
     private static Node newNode(String name, boolean alive) throws Exception {
@@ -215,6 +257,33 @@ public class DefaultLocalClusterHandleTests {
 
         @Override
         protected void checkResource(javax.net.ssl.SSLContext ssl) throws java.io.IOException {
+            throw new java.io.IOException("health check failure");
+        }
+    }
+
+    private static class CountingWaitForHttpResource extends WaitForHttpResource {
+        final AtomicInteger checks = new AtomicInteger();
+
+        CountingWaitForHttpResource() throws MalformedURLException {
+            super(new java.net.URL("http://localhost:9200/_cluster/health"));
+        }
+
+        @Override
+        protected void checkResource(javax.net.ssl.SSLContext ssl) {
+            checks.incrementAndGet();
+        }
+    }
+
+    private static class CountingFailingWaitForHttpResource extends WaitForHttpResource {
+        final AtomicInteger checks = new AtomicInteger();
+
+        CountingFailingWaitForHttpResource() throws MalformedURLException {
+            super(new java.net.URL("http://localhost:9200/_cluster/health"));
+        }
+
+        @Override
+        protected void checkResource(javax.net.ssl.SSLContext ssl) throws java.io.IOException {
+            checks.incrementAndGet();
             throw new java.io.IOException("health check failure");
         }
     }

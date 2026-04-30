@@ -28,10 +28,8 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
-import org.elasticsearch.xpack.esql.datasources.spi.FileLayout;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -51,7 +49,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Resolver for external data sources (Iceberg tables, Parquet files, etc.).
@@ -179,10 +176,6 @@ public class ExternalSourceResolver {
 
         ExternalSourceMetadata extMetadata;
         StorageObject object;
-        // Captures split ranges produced by single-pass file layout resolution (e.g. Parquet/ORC).
-        // On a schema cache hit the file is not re-opened during resolution, so no ranges are
-        // captured here -- split discovery falls back to opening the file (status quo).
-        List<RangeAwareFormatReader.SplitRange> capturedRanges = null;
         if (isCacheable(provider)) {
             // Stat the file first (cheap HEAD/stat) to get mtime for the cache key.
             // Null mtime (e.g. gRPC/Flight, GCS/Azure fixtures) falls back to EPOCH so the
@@ -193,24 +186,18 @@ public class ExternalSourceResolver {
             long mtime = lastMod != null ? lastMod.toEpochMilli() : Instant.EPOCH.toEpochMilli();
             String formatType = detectFormatType(storagePath);
             SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtime, formatType, config);
-            // Captures split ranges only when the loader runs (cache miss); stays null on cache hit.
-            AtomicReference<List<RangeAwareFormatReader.SplitRange>> rangesHolder = new AtomicReference<>();
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                FileLayout layout = resolveSingleFileLayout(path, config);
-                SourceMetadata meta = layout.metadata();
-                rangesHolder.set(layout.splitRanges());
+                SourceMetadata meta = resolveSingleSource(path, config);
                 Map<String, Object> enrichedMeta = meta.statistics()
                     .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
                     .orElse(meta.sourceMetadata());
                 return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
             });
-            capturedRanges = rangesHolder.get();
             List<Attribute> schema = schemaEntry.toAttributes();
             extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
         } else {
-            FileLayout layout = resolveSingleFileLayout(path, config);
-            extMetadata = wrapAsExternalSourceMetadata(layout.metadata(), config);
-            capturedRanges = layout.splitRanges();
+            SourceMetadata metadata = resolveSingleSource(path, config);
+            extMetadata = wrapAsExternalSourceMetadata(metadata, config);
             object = provider.newObject(storagePath);
         }
 
@@ -218,9 +205,6 @@ public class ExternalSourceResolver {
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
             path
         );
-        if (capturedRanges != null && capturedRanges.isEmpty() == false) {
-            singletonList = GlobExpander.withFileSplitRanges(singletonList, Map.of(storagePath, capturedRanges));
-        }
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList);
     }
 
@@ -275,28 +259,21 @@ public class ExternalSourceResolver {
         long anchorMtime = listing.lastModifiedMillis(anchor);
 
         ExternalSourceMetadata extMetadata;
-        // Capture anchor-file split ranges from single-pass resolution (cache miss only).
-        List<RangeAwareFormatReader.SplitRange> anchorRanges = null;
         if (cacheable) {
             String formatType = detectFormatType(anchorPath);
             SchemaCacheKey schemaKey = SchemaCacheKey.build(anchorPath.toString(), anchorMtime, formatType, config);
-            AtomicReference<List<RangeAwareFormatReader.SplitRange>> rangesHolder = new AtomicReference<>();
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                FileLayout layout = resolveSingleFileLayout(anchorPath.toString(), config);
-                SourceMetadata meta = layout.metadata();
-                rangesHolder.set(layout.splitRanges());
+                SourceMetadata meta = resolveSingleSource(anchorPath.toString(), config);
                 Map<String, Object> enrichedMeta = meta.statistics()
                     .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
                     .orElse(meta.sourceMetadata());
                 return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
             });
-            anchorRanges = rangesHolder.get();
             List<Attribute> schema = schemaEntry.toAttributes();
             extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
         } else {
-            FileLayout layout = resolveSingleFileLayout(anchorPath.toString(), config);
-            extMetadata = wrapAsExternalSourceMetadata(layout.metadata(), config);
-            anchorRanges = layout.splitRanges();
+            SourceMetadata metadata = resolveSingleSource(anchorPath.toString(), config);
+            extMetadata = wrapAsExternalSourceMetadata(metadata, config);
         }
 
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
@@ -307,12 +284,6 @@ public class ExternalSourceResolver {
         PartitionMetadata partitionMetadata = listing.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
-        }
-
-        // Only anchor file ranges are captured here (FIRST_FILE_WINS opens only the anchor for schema);
-        // non-anchor files fall back to the slow path during split discovery.
-        if (anchorRanges != null && anchorRanges.isEmpty() == false) {
-            listing = GlobExpander.withFileSplitRanges(listing, Map.of(anchorPath, anchorRanges));
         }
 
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing);
@@ -408,8 +379,7 @@ public class ExternalSourceResolver {
         FormatReader.SchemaResolution schemaResolution
     ) throws Exception {
         long startNanos = System.nanoTime();
-        AllFileLayouts layouts = readAllFileLayouts(fileList, config);
-        Map<StoragePath, SourceMetadata> allMetadata = layouts.metadata();
+        Map<StoragePath, SourceMetadata> allMetadata = readAllFileMetadata(fileList, config);
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
 
         LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
@@ -432,42 +402,27 @@ public class ExternalSourceResolver {
         }
 
         FileList enriched = GlobExpander.withSchemaInfo(fileList, result.perFileInfo());
-        if (layouts.splitRanges().isEmpty() == false) {
-            enriched = GlobExpander.withFileSplitRanges(enriched, layouts.splitRanges());
-        }
         return new ExternalSourceResolution.ResolvedSource(extMetadata, enriched);
     }
 
     /**
-     * Aggregate result of reading all files' layouts in parallel: the per-file metadata used for
-     * schema reconciliation, plus per-file split ranges captured for free during the same open.
+     * Reads metadata from all files in parallel with bounded concurrency.
+     * Uses a semaphore to cap the number of concurrent metadata reads.
      */
-    private record AllFileLayouts(
-        Map<StoragePath, SourceMetadata> metadata,
-        Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> splitRanges
-    ) {}
-
-    /**
-     * Reads layouts (metadata + optional split ranges) from all files in parallel with bounded
-     * concurrency. Uses a semaphore to cap the number of concurrent reads.
-     */
-    private AllFileLayouts readAllFileLayouts(FileList fileList, Map<String, Object> config) throws Exception {
+    private Map<StoragePath, SourceMetadata> readAllFileMetadata(FileList fileList, Map<String, Object> config) throws Exception {
         int fileCount = fileList.fileCount();
 
         if (fileCount == 1) {
             StoragePath filePath = fileList.path(0);
-            FileLayout layout = resolveSingleFileLayout(filePath.toString(), config);
-            Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> ranges = layout.splitRanges().isEmpty()
-                ? Map.of()
-                : Map.of(filePath, layout.splitRanges());
-            return new AllFileLayouts(Map.of(filePath, layout.metadata()), ranges);
+            SourceMetadata meta = resolveSingleSource(filePath.toString(), config);
+            return Map.of(filePath, meta);
         }
 
         Semaphore semaphore = new Semaphore(Math.min(fileCount, MAX_PARALLEL_METADATA_READS));
         AtomicBoolean failed = new AtomicBoolean(false);
 
         @SuppressWarnings("unchecked")
-        CompletableFuture<Map.Entry<StoragePath, FileLayout>>[] futures = new CompletableFuture[fileCount];
+        CompletableFuture<Map.Entry<StoragePath, SourceMetadata>>[] futures = new CompletableFuture[fileCount];
 
         for (int i = 0; i < fileCount; i++) {
             StoragePath filePath = fileList.path(i);
@@ -478,8 +433,8 @@ public class ExternalSourceResolver {
                 try {
                     semaphore.acquire();
                     try {
-                        FileLayout layout = resolveSingleFileLayout(filePath.toString(), config);
-                        return Map.entry(filePath, layout);
+                        SourceMetadata meta = resolveSingleSource(filePath.toString(), config);
+                        return Map.entry(filePath, meta);
                     } finally {
                         semaphore.release();
                     }
@@ -503,19 +458,14 @@ public class ExternalSourceResolver {
             throw new RuntimeException("Failed to read file metadata in parallel", cause != null ? cause : e);
         }
 
-        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
-        Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> splitRanges = new LinkedHashMap<>();
-        for (CompletableFuture<Map.Entry<StoragePath, FileLayout>> future : futures) {
-            Map.Entry<StoragePath, FileLayout> entry = future.get();
+        Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
+        for (CompletableFuture<Map.Entry<StoragePath, SourceMetadata>> future : futures) {
+            Map.Entry<StoragePath, SourceMetadata> entry = future.get();
             if (entry != null) {
-                FileLayout layout = entry.getValue();
-                metadata.put(entry.getKey(), layout.metadata());
-                if (layout.splitRanges().isEmpty() == false) {
-                    splitRanges.put(entry.getKey(), layout.splitRanges());
-                }
+                result.put(entry.getKey(), entry.getValue());
             }
         }
-        return new AllFileLayouts(metadata, splitRanges);
+        return result;
     }
 
     private ExternalSourceMetadata buildUnifiedMetadata(
@@ -600,13 +550,7 @@ public class ExternalSourceResolver {
         return "false".equalsIgnoreCase(value.toString()) == false;
     }
 
-    /**
-     * Resolves the {@link FileLayout} (metadata + optional pre-computed split ranges) for a single
-     * path by iterating the registered {@link ExternalSourceFactory factories}. For range-aware
-     * file factories this captures schema and split ranges in a single open; other factories
-     * yield an empty range list.
-     */
-    private FileLayout resolveSingleFileLayout(String path, Map<String, Object> config) {
+    private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {
         // Early scheme validation: reject unsupported schemes without loading any plugin factories
         try {
             StoragePath parsed = StoragePath.of(path);
@@ -626,7 +570,7 @@ public class ExternalSourceResolver {
         for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
             if (factory.canHandle(path)) {
                 try {
-                    return factory.resolveFileLayout(path, config);
+                    return factory.resolveMetadata(path, config);
                 } catch (Exception e) {
                     LOGGER.debug("Factory [{}] claimed path [{}] but failed: {}", factory.type(), path, e.getMessage());
                     lastFailure = e;

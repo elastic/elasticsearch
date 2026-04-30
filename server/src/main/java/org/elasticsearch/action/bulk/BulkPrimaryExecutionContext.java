@@ -309,6 +309,10 @@ class BulkPrimaryExecutionContext {
                     docWriteRequest.opType(),
                     new BulkItemResponse.Failure(index, result.getId(), result.getFailure(), result.getSeqNo(), result.getTerm())
                 );
+                // A FAILURE result can still carry a translog location when InternalEngine converts it into a no-op.
+                if (result.getTranslogLocation() != null) {
+                    locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
+                }
             }
             default -> throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());
         }
@@ -321,8 +325,9 @@ class BulkPrimaryExecutionContext {
         assert executionResult != null && translatedResponse.getItemId() == executionResult.getItemId();
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
-        // If the replication group only contains the primary, we know that we do not need to hold the request into memory anymore.
-        if (primary.hasPeerReplicationTargets() == false) {
+        // If the primary is not searchable we know that we are in serverless and that we do not need to hold the request into memory
+        // anymore.
+        if (primary.routingEntry().isSearchable() == false) {
             requestToExecute = null;
         }
 
@@ -368,7 +373,7 @@ class BulkPrimaryExecutionContext {
                 assert executionResult != null;
                 break;
             case COMPLETED:
-                // requestToExecute can be null if there are no replicas
+                // requestToExecute can be null if the primary is not searchable (serverless)
                 assert executionResult != null;
                 assert getCurrentItem().getPrimaryResponse() != null;
                 break;

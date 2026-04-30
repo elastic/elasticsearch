@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PushbackInputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +37,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
     public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 20_000;
+
+    /** Buffer size used to accelerate {@link #scanForTerminator} on cold (unbuffered) streams. */
+    private static final int SCAN_BUFFER_SIZE = 8 * 1024;
 
     private final BlockFactory blockFactory;
     private final Settings settings;
@@ -74,11 +79,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize);
     }
 
-    private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object) throws IOException {
+    private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)
+        throws IOException {
         if (attributes != null && attributes.isEmpty() == false) {
             if (needsFullSchemaSupplement(attributes)) {
                 List<Attribute> inferred;
-                try (var stream = object.newStream()) {
+                try (var stream = openForSchemaInference(object, skipFirstLine)) {
                     inferred = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
                 }
                 return mergeInferredWithPreferred(inferred, attributes);
@@ -86,8 +92,39 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             return attributes;
         }
 
-        try (var stream = object.newStream()) {
+        try (var stream = openForSchemaInference(object, skipFirstLine)) {
             return NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
+        }
+    }
+
+    /**
+     * Opens a stream for schema inference, skipping the first partial line when the underlying
+     * range does not start at a record boundary (non-first splits). This prevents the inferrer
+     * from tripping over the truncated record fragment that precedes the first newline in a
+     * mid-file split.
+     *
+     * <p>Package-visible for testing.
+     */
+    static InputStream openForSchemaInference(StorageObject object, boolean skipFirstLine) throws IOException {
+        InputStream raw = object.newStream();
+        // Buffering up front gives the scan below and the returned stream the 8 KB fast path;
+        // the Pushback wrapper lets the lone-CR path unread its peeked byte so the returned
+        // stream starts on the first byte of the next record without allocating a prefix stream.
+        PushbackInputStream stream = new PushbackInputStream(new BufferedInputStream(raw, SCAN_BUFFER_SIZE), 1);
+        if (skipFirstLine == false) {
+            return stream;
+        }
+        try {
+            LineScan scan = scanForTerminator(stream);
+            if (scan.peekedByte() != -1) {
+                stream.unread(scan.peekedByte());
+            }
+            return stream;
+        } catch (IOException e) {
+            try {
+                stream.close();
+            } catch (IOException ignored) {}
+            throw e;
         }
     }
 
@@ -178,39 +215,57 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             skipFirstLine,
             trimLastPartialLine,
-            inferSchemaIfNeeded(resolvedSchema, object),
+            inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine),
             errorPolicy
         );
     }
 
     @Override
     public long findNextRecordBoundary(InputStream stream) throws IOException {
+        // The caller only cares about the byte offset of the terminator; a lone CR followed by
+        // some non-LF byte may have been consumed from the stream by the scanner, but the
+        // caller discards the stream after this call so that is acceptable.
+        // Wrap cold streams to restore the 8 KB fast path; if already buffered, pass through.
+        InputStream buffered = stream instanceof BufferedInputStream ? stream : new BufferedInputStream(stream, SCAN_BUFFER_SIZE);
+        return scanForTerminator(buffered).consumed();
+    }
+
+    /** Outcome of a single scan for the next record terminator. */
+    record LineScan(long consumed, int peekedByte) {
+        /** Sentinel returned when the stream ended before any terminator. */
+        static final LineScan EOF = new LineScan(-1, -1);
+    }
+
+    /**
+     * Reads one byte at a time from {@code in} until a record terminator (LF, CRLF, or lone CR)
+     * is consumed. Returns {@link LineScan#consumed} as the number of bytes read through-and-
+     * including the terminator; for the lone-CR case the byte that follows (which is the first
+     * byte of the next record) is read from the stream and exposed via {@link LineScan#peekedByte}
+     * so callers can preserve it. Returns {@link LineScan#EOF} if the stream ends before any
+     * terminator is seen.
+     *
+     * <p>Single source of truth for the three NDJSON line-terminator consumers:
+     * {@link NdJsonPageIterator#skipToNextLine}, {@link #findNextRecordBoundary}, and
+     * {@link #openForSchemaInference}.
+     */
+    static LineScan scanForTerminator(InputStream in) throws IOException {
         long consumed = 0;
-        byte[] buf = new byte[8192];
-        int bytesRead;
-        while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
-            for (int i = 0; i < bytesRead; i++) {
-                consumed++;
-                if (buf[i] == '\n') {
-                    return consumed;
+        int b;
+        while ((b = in.read()) != -1) {
+            consumed++;
+            if (b == '\n') {
+                return new LineScan(consumed, -1);
+            }
+            if (b == '\r') {
+                int next = in.read();
+                if (next == '\n') {
+                    return new LineScan(consumed + 1, -1);
                 }
-                if (buf[i] == '\r') {
-                    if (i + 1 < bytesRead) {
-                        if (buf[i + 1] == '\n') {
-                            i++;
-                            consumed++;
-                        }
-                    } else {
-                        int next = stream.read();
-                        if (next == '\n') {
-                            consumed++;
-                        }
-                    }
-                    return consumed;
-                }
+                // EOF after CR is reported as a clean terminator with no peeked byte.
+                return new LineScan(consumed, next);
             }
         }
-        return -1;
+        return LineScan.EOF;
     }
 
     @Override

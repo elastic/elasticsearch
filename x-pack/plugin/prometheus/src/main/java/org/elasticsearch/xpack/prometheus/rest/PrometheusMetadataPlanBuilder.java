@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -26,29 +26,19 @@ import java.time.Instant;
 import java.util.List;
 
 import static java.time.temporal.ChronoUnit.HOURS;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
 
 /**
  * Builds the {@link LogicalPlan} for a Prometheus {@code /api/v1/metadata} request.
  *
- * <p><b>Plan shape without metric filter:</b>
+ * <p><b>Plan shape:</b>
  * <pre>{@code
  * Limit(esqlLimit)
  * \_ Aggregate(groupings=[metric_name, metric_type, unit])
  *    \_ Eval(metric_type = MV_MIN(metric_type), unit = MV_MIN(unit))
  *       \_ MetricsInfo
- *          \_ Filter(@timestamp >= start AND @timestamp <= end)
+ *          \_ Filter(@timestamp >= start AND @timestamp <= end [AND metric IS NOT NULL])
  *             \_ UnresolvedRelation(index, TS)
- * }</pre>
- *
- * <p><b>Plan shape with metric filter:</b>
- * <pre>{@code
- * Limit(esqlLimit)
- * \_ Aggregate(groupings=[metric_name, metric_type, unit])
- *    \_ Eval(metric_type = MV_MIN(metric_type), unit = MV_MIN(unit))
- *       \_ Filter(metric_name == metric)
- *          \_ MetricsInfo
- *             \_ Filter(@timestamp >= start AND @timestamp <= end)
- *                \_ UnresolvedRelation(index, TS)
  * }</pre>
  *
  * <p>The ES|QL Limit caps the total number of rows fetched. A finite limit is only possible when
@@ -87,14 +77,8 @@ final class PrometheusMetadataPlanBuilder {
      */
     static LogicalPlan buildPlan(String index, String metric, int limit, int limitPerMetric, Instant start, Instant end) {
         LogicalPlan plan = PrometheusPlanBuilderUtils.tsSource(index);
-        plan = new Filter(Source.EMPTY, plan, PrometheusPlanBuilderUtils.buildTimeCondition(start, end));
+        plan = new Filter(Source.EMPTY, plan, buildFilterCondition(start, end, metric));
         plan = new MetricsInfo(Source.EMPTY, plan);
-
-        if (metric != null) {
-            UnresolvedAttribute metricNameAttr = new UnresolvedAttribute(Source.EMPTY, METRIC_NAME_FIELD);
-            Expression metricFilter = new Equals(Source.EMPTY, metricNameAttr, Literal.keyword(Source.EMPTY, metric));
-            plan = new Filter(Source.EMPTY, plan, metricFilter);
-        }
 
         // MetricsInfo may return multi-valued metric_type or unit fields when backing indices within a
         // data stream disagree on those values. MV_MIN collapses them to a single value before the
@@ -120,6 +104,14 @@ final class PrometheusMetadataPlanBuilder {
         plan = new Aggregate(Source.EMPTY, plan, groupings, aggregates);
         plan = new Limit(Source.EMPTY, Literal.integer(Source.EMPTY, computeEsqlLimit(limit, limitPerMetric)), plan);
         return plan;
+    }
+
+    private static Expression buildFilterCondition(Instant start, Instant end, String metric) {
+        Expression timeCondition = PrometheusPlanBuilderUtils.buildTimeCondition(start, end);
+        if (metric == null) {
+            return timeCondition;
+        }
+        return combineAnd(List.of(timeCondition, new IsNotNull(Source.EMPTY, new UnresolvedAttribute(Source.EMPTY, metric))));
     }
 
     /**

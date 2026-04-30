@@ -51,6 +51,21 @@ public class TemporalityAccessor {
         return new TemporalityAccessor(Mode.CONSTANT, constantTemporality, null, null, null);
     }
 
+    private static TemporalityAccessor constantWithBlock(Temporality constantTemporality, BytesRefBlock temporalityBlock) {
+        return new TemporalityAccessor(Mode.CONSTANT, constantTemporality, temporalityBlock, null, null);
+    }
+
+    /**
+     * Creates an accessor for the given temporality block that throws {@link InvalidTemporalityException}
+     * when an unrecognized temporality value is encountered.
+     *
+     * @param temporalityBlock the block containing temporality values as BytesRef strings ("cumulative" or "delta")
+     * @param defaultTemporality the temporality to use for null values
+     */
+    public static TemporalityAccessor create(BytesRefBlock temporalityBlock, Temporality defaultTemporality) {
+        return create(temporalityBlock, defaultTemporality, v -> { throw new InvalidTemporalityException(v); });
+    }
+
     /**
      * Creates an accessor for the given temporality block, automatically selecting the most efficient access mode.
      *
@@ -64,7 +79,7 @@ public class TemporalityAccessor {
         Function<BytesRef, Temporality> invalidTemporalityHandler
     ) {
         if (temporalityBlock.areAllValuesNull() || temporalityBlock.getPositionCount() == 0) {
-            return constant(defaultTemporality);
+            return constantWithBlock(defaultTemporality, temporalityBlock);
         }
         BytesRef scratch = new BytesRef();
         if (temporalityBlock.asVector() != null && temporalityBlock.asVector().isConstant()) {
@@ -77,8 +92,8 @@ public class TemporalityAccessor {
                     scratch,
                     invalidTemporalityHandler
                 );
-                case CUMULATIVE -> constant(Temporality.CUMULATIVE);
-                case DELTA -> constant(Temporality.DELTA);
+                case CUMULATIVE -> constantWithBlock(Temporality.CUMULATIVE, temporalityBlock);
+                case DELTA -> constantWithBlock(Temporality.DELTA, temporalityBlock);
             };
         } else if (temporalityBlock.asOrdinals() != null) {
             return new TemporalityAccessor(Mode.ORDINAL, defaultTemporality, temporalityBlock, scratch, invalidTemporalityHandler);
@@ -103,6 +118,10 @@ public class TemporalityAccessor {
         this.temporalityBlock = temporalityBlock;
         this.scratch = scratch;
         this.invalidTemporalityHandler = invalidTemporalityHandler;
+    }
+
+    public BytesRefBlock block() {
+        return temporalityBlock;
     }
 
     /**

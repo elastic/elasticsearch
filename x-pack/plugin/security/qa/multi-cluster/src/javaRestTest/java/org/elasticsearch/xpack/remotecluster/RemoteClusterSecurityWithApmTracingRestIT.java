@@ -102,19 +102,20 @@ public class RemoteClusterSecurityWithApmTracingRestIT extends AbstractRemoteClu
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     public static TestRule clusterRule = RuleChain.outerRule(mockApmServer).around(fulfillingCluster).around(queryCluster);
 
+    /**
+     * Verifies that an externally supplied {@code traceparent} header is honoured by the REST controller and propagated through a
+     * cross-cluster request. Since #130607, transport actions are not auto-traced by {@link org.elasticsearch.tasks.TaskManager} unless
+     * a parent APM context already exists locally, so the fulfilling cluster does not produce its own transaction for the cross-cluster
+     * transport entry point. We therefore assert only on the query cluster's REST transaction, which captures the propagated trace id.
+     */
     @SuppressWarnings("unchecked")
     public void testTracingCrossCluster() throws Exception {
         configureRemoteCluster();
         Set<Predicate<Map<String, Object>>> assertions = new HashSet<>(
             Set.of(
-                // REST action on query cluster
+                // REST action on query cluster: the externally supplied traceparent header must produce a transaction with this trace id.
                 allTrue(
                     transactionValue("name", equalTo("GET /_resolve/cluster/{name}")),
-                    transactionValue("trace_id", equalTo(traceIdValue))
-                ),
-                // transport action on fulfilling cluster
-                allTrue(
-                    transactionValue("name", equalTo("indices:admin/resolve/cluster")),
                     transactionValue("trace_id", equalTo(traceIdValue))
                 )
             )
@@ -122,7 +123,6 @@ public class RemoteClusterSecurityWithApmTracingRestIT extends AbstractRemoteClu
 
         CountDownLatch finished = new CountDownLatch(1);
 
-        // a consumer that will remove the assertions from a map once it matched
         Consumer<String> messageConsumer = (String message) -> {
             var apmMessage = parseMap(message);
             if (isTransactionTraceMessage(apmMessage)) {
@@ -147,7 +147,10 @@ public class RemoteClusterSecurityWithApmTracingRestIT extends AbstractRemoteClu
         final Response response = client().performRequest(resolveRequest);
         assertOK(response);
 
-        finished.await(30, TimeUnit.SECONDS);
+        // Force the APM agent on the query cluster to flush so the test does not depend on the agent's batch interval.
+        assertOK(client().performRequest(new Request("GET", "/_flush_telemetry")));
+
+        assertTrue("Timed out waiting for expected APM transactions: " + assertions, finished.await(30, TimeUnit.SECONDS));
         assertThat(assertions, equalTo(Collections.emptySet()));
     }
 

@@ -18,9 +18,9 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
+import org.elasticsearch.cli.terminal.Terminal.Verbosity;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -496,7 +496,8 @@ public class ServerCliTests extends CommandTestCase {
             if (mockSecureSettingsLoader != null) {
                 return mockSecureSettingsLoader;
             }
-            return super.secureSettingsLoader(processInfo);
+            var loader = super.secureSettingsLoader(processInfo);
+            return loader instanceof KeyStoreLoader ? new KeystoreSecureSettingsLoader() : loader;
         }
 
         @Override

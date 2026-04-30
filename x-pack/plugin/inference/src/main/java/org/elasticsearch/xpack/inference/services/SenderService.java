@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.IOUtils;
@@ -58,6 +57,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
 
@@ -109,11 +109,72 @@ public abstract class SenderService<M extends Model> implements InferenceService
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((inferListener) -> {
+        try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
             var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
-            doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, inferListener);
-        }).addListener(listener);
+            doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    @Override
+    public void parseRequestConfig(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        ActionListener<Model> parsedModelListener
+    ) {
+        try {
+            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+
+            ChunkingSettings chunkingSettings = null;
+            if (CHUNKING_TASK_TYPES.contains(taskType)) {
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                );
+            }
+
+            migrateBetweenTaskAndServiceSettings(serviceSettingsMap, taskSettingsMap);
+
+            var model = retrieveModelCreatorFromMapOrThrow(
+                modelCreators,
+                inferenceEntityId,
+                taskType,
+                name(),
+                ConfigurationParseContext.REQUEST
+            ).createFromMaps(
+                inferenceEntityId,
+                taskType,
+                name(),
+                serviceSettingsMap,
+                taskSettingsMap,
+                chunkingSettings,
+                serviceSettingsMap,
+                ConfigurationParseContext.REQUEST
+            );
+
+            throwIfNotEmptyMap(config, name());
+            throwIfNotEmptyMap(serviceSettingsMap, name());
+            if (usesParserForTaskSettings() == false) {
+                throwIfNotEmptyMap(taskSettingsMap, name());
+            }
+
+            parsedModelListener.onResponse(model);
+        } catch (Exception e) {
+            parsedModelListener.onFailure(e);
+        }
+    }
+
+    /**
+     * Override as needed. Services that create the task settings using a parser do not remove entries from the task settings map, which
+     * causes the existing validation that there are no unknown values left in the map to fail. Rather than explicitly checking that the
+     * task settings map is empty, these services will throw an exception from the parser.
+     * @return whether this service implements a parser for task settings
+     */
+    public boolean usesParserForTaskSettings() {
+        return false;
     }
 
     public M parsePersistedConfig(UnparsedModel unparsedModel) {
@@ -146,8 +207,20 @@ public abstract class SenderService<M extends Model> implements InferenceService
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            unparsedModel.endpointMetadata()
         );
+    }
+
+    @Override
+    public M buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            modelCreators,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.REQUEST
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     /**
@@ -198,13 +271,15 @@ public abstract class SenderService<M extends Model> implements InferenceService
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((completionInferListener) -> {
+        try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, CHAT_COMPLETION);
             if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
                 throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
-            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), resolvedInferenceTimeout, completionInferListener);
-        }).addListener(listener);
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), resolvedInferenceTimeout, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     protected boolean supportsChatCompletionReasoning() {
@@ -213,23 +288,23 @@ public abstract class SenderService<M extends Model> implements InferenceService
 
     @Override
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((embeddingInferListener) -> {
+        try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, request.inputType(), clusterService, model.getTaskType());
             if (supportsImageEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        Strings.format("The %s service does not support embedding with image inputs", name()),
+                        Strings.format("The %s service does not support embedding with non-text inputs", name()),
                         RestStatus.BAD_REQUEST
                     )
                 );
                 return;
             }
             if (supportsMultipleItemsPerContent()) {
-                doEmbeddingInfer(model, request, resolvedInferenceTimeout, embeddingInferListener);
+                doEmbeddingInfer(model, request, resolvedInferenceTimeout, listener);
             } else {
                 var index = indexContainingMultipleInferenceStrings(request.inputs());
                 if (index == null) {
-                    doEmbeddingInfer(model, request, resolvedInferenceTimeout, embeddingInferListener);
+                    doEmbeddingInfer(model, request, resolvedInferenceTimeout, listener);
                 } else {
                     listener.onFailure(
                         new ElasticsearchStatusException(
@@ -246,7 +321,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
                     );
                 }
             }
-        }).addListener(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -275,34 +352,36 @@ public abstract class SenderService<M extends Model> implements InferenceService
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        SubscribableListener.newForked(this::init).<List<ChunkedInference>>andThen((chunkedInferListener) -> {
+        try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
             ValidationException validationException = new ValidationException();
             validateInputType(inputType, model, validationException);
             validationException.throwIfValidationErrorsExist();
             if (supportsChunkedInfer()) {
                 if (input.isEmpty()) {
-                    chunkedInferListener.onResponse(List.of());
+                    listener.onResponse(List.of());
                 } else {
                     if (supportsImageEmbeddingContent() == false
                         && containsNonTextEntry(input.stream().map(ChunkInferenceInput::input).toList())) {
                         listener.onFailure(
                             new ElasticsearchStatusException(
-                                Strings.format("The %s service does not support embedding with image inputs", name()),
+                                Strings.format("The %s service does not support embedding with non-text inputs", name()),
                                 RestStatus.BAD_REQUEST
                             )
                         );
                         return;
                     }
                     // a non-null query is not supported and is dropped by all providers
-                    doChunkedInfer(model, input, taskSettings, inputType, resolvedInferenceTimeout, chunkedInferListener);
+                    doChunkedInfer(model, input, taskSettings, inputType, resolvedInferenceTimeout, listener);
                 }
             } else {
-                chunkedInferListener.onFailure(
+                listener.onFailure(
                     new UnsupportedOperationException(Strings.format("%s service does not support chunked inference", name()))
                 );
             }
-        }).addListener(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     protected abstract void doInfer(
@@ -346,23 +425,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
         return true;
     }
 
-    public void start(Model model, ActionListener<Boolean> listener) {
-        SubscribableListener.newForked(this::init)
-            .<Boolean>andThen((doStartListener) -> doStart(model, doStartListener))
-            .addListener(listener);
-    }
-
     @Override
-    public void start(Model model, @Nullable TimeValue unused, ActionListener<Boolean> listener) {
-        start(model, listener);
-    }
-
-    protected void doStart(Model model, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
-    }
-
-    private void init(ActionListener<Void> listener) {
-        sender.startAsynchronously(listener);
+    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
+        listener.onResponse(Boolean.TRUE);
     }
 
     @Override

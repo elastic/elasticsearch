@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.allocation.allocator.NodeSorters;
 import org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -365,10 +364,7 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
     }
 
     private void setUpThreeHealthyIndexNodesAndThreeHealthSearchNodes() {
-        // Ensure balancing is disabled for the indexing tier
-        Settings settings = Settings.builder()
-            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.REPLICAS)
-            .build();
+        Settings settings = Settings.builder().build();
         startMasterOnlyNode(settings);
         final var indexNodes = startIndexNodes(3, settings);
         final var searchNodes = startSearchNodes(3);

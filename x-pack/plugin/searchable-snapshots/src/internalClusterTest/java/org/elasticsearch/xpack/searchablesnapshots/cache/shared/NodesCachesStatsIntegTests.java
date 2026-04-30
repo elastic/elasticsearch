@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -20,6 +19,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest;
 
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -51,32 +50,10 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         ensureStableCluster(nodeNames.length);
 
         final String index = randomIdentifier();
-        final int shardCount = between(1, 4);
-        createIndex(
-            index,
-            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardCount).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
 
-        final int nbDocs = randomIntBetween(500, 1000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs, between(2, 5), false, null, false)) {
-            if (shardCount > 1) {
-                // Round-robin documents across shards so every shard holds documents.
-                indexer.setDocumentIdGenerator(counter -> {
-                    final int targetShard = (int) (counter % shardCount);
-                    String id = counter + "";
-                    int iteration = 0;
-                    // Give up if we can't find a correct hash. This should happen rarely so should not matter across
-                    // all docs added.
-                    while (Math.floorMod(Murmur3HashFunction.hash(id), shardCount) != targetShard && iteration < 1000) {
-                        id = counter + "-" + iteration++;
-                    }
-                    if (iteration == 1000) {
-                        logger.warn("Could not find an _id for the targetShard {} for doc id {}", targetShard, counter);
-                    }
-                    return id;
-                });
-            }
-            indexer.start(nbDocs);
+        final int nbDocs = randomIntBetween(1_000, 10_000);
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs)) {
             waitForDocs(nbDocs, indexer);
         }
         refresh(index);
@@ -131,12 +108,15 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
         }
 
+        // Make sure we have at least one query that matches docs on all shards.
+        prepareSearch(mountedIndex).addAggregation(
+            AggregationBuilders.global("all").subAggregation(AggregationBuilders.terms("by_test").field("test.keyword"))
+        ).setSize(0).get().decRef();
+
         for (int i = 0; i < 20; i++) {
-            // The first search uses rangeQuery("id").gte(0) to guarantee a full search on every shard regardless of
-            // doc distribution, ensuring SharedBlobCacheService writes are produced on every node holding a frozen shard.
             prepareSearch(mountedIndex).setQuery(
-                i == 0 ? QueryBuilders.rangeQuery("id").gte(0)
-                    : randomBoolean() ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
+                randomBoolean()
+                    ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
                     : QueryBuilders.termQuery("test", "value" + randomIntBetween(0, 1000))
             ).setSize(randomIntBetween(0, 1000)).get().decRef();
         }

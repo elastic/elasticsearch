@@ -517,3 +517,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
   method: plugin projects are wired into test cluster setup
   issue: https://github.com/elastic/elasticsearch/issues/148014
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testHasChildWithInnerHit
+  issue: https://github.com/elastic/elasticsearch/issues/148023

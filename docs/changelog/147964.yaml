@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 147964
+summary: "Caching: Prefetch from S3, if local prefetching fails"
+type: enhancement

@@ -24,9 +24,11 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es816.BinaryQuantizer;
+import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -130,8 +132,118 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
         return nonQuantizedDelegate.getRandomVectorScorer(similarityFunction, vectorValues, target);
     }
 
+    RandomVectorScorerSupplier getRandomVectorScorerSupplier(
+        VectorSimilarityFunction similarityFunction,
+        ES818BinaryQuantizedVectorsReader.OffHeapBinarizedQueryVectorValues scoringVectors,
+        OffHeapBinarizedVectorValues targetVectors
+    ) {
+        return new BinarizedRandomVectorScorerSupplier(scoringVectors, targetVectors, similarityFunction);
+    }
+
     @Override
     public String toString() {
         return "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=" + nonQuantizedDelegate + ")";
+    }
+
+    /** Vector scorer supplier over binarized vector values */
+    static class BinarizedRandomVectorScorerSupplier implements RandomVectorScorerSupplier {
+        private final ES818BinaryQuantizedVectorsReader.OffHeapBinarizedQueryVectorValues queryVectors;
+        private final OffHeapBinarizedVectorValues targetVectors;
+        private final VectorSimilarityFunction similarityFunction;
+
+        BinarizedRandomVectorScorerSupplier(
+            ES818BinaryQuantizedVectorsReader.OffHeapBinarizedQueryVectorValues queryVectors,
+            OffHeapBinarizedVectorValues targetVectors,
+            VectorSimilarityFunction similarityFunction
+        ) {
+            this.queryVectors = queryVectors;
+            this.targetVectors = targetVectors;
+            this.similarityFunction = similarityFunction;
+        }
+
+        @Override
+        public BinarizedRandomVectorScorer scorer() throws IOException {
+            return new BinarizedRandomVectorScorer(queryVectors.copy(), targetVectors.copy(), similarityFunction);
+        }
+
+        @Override
+        public RandomVectorScorerSupplier copy() throws IOException {
+            return new BinarizedRandomVectorScorerSupplier(queryVectors, targetVectors, similarityFunction);
+        }
+    }
+
+    /** Vector scorer over binarized vector values */
+    public static class BinarizedRandomVectorScorer extends UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer {
+        private final ES818BinaryQuantizedVectorsReader.OffHeapBinarizedQueryVectorValues queryVectors;
+        private final OffHeapBinarizedVectorValues targetVectors;
+        private final VectorSimilarityFunction similarityFunction;
+        private final byte[] quantizedQuery;
+        private OptimizedScalarQuantizer.QuantizationResult queryCorrections = null;
+        private int currentOrdinal = -1;
+
+        private final ES93BinaryQuantizedVectorScorer scorer;
+
+        BinarizedRandomVectorScorer(
+            ES818BinaryQuantizedVectorsReader.OffHeapBinarizedQueryVectorValues queryVectors,
+            OffHeapBinarizedVectorValues targetVectors,
+            VectorSimilarityFunction similarityFunction
+        ) throws IOException {
+            super(targetVectors);
+            this.queryVectors = queryVectors;
+            this.quantizedQuery = new byte[queryVectors.quantizedDimension()];
+            this.targetVectors = targetVectors;
+            this.similarityFunction = similarityFunction;
+            this.scorer = ESVectorUtil.getES93BinaryQuantizedVectorScorer(
+                targetVectors.slice,
+                targetVectors.dimension(),
+                targetVectors.getVectorByteLength()
+            );
+        }
+
+        @Override
+        public float score(int targetOrd) throws IOException {
+            if (queryCorrections == null) {
+                throw new IllegalStateException("score() called before setScoringOrdinal()");
+            }
+            return scorer.score(
+                quantizedQuery,
+                queryCorrections.lowerInterval(),
+                queryCorrections.upperInterval(),
+                queryCorrections.quantizedComponentSum(),
+                queryCorrections.additionalCorrection(),
+                similarityFunction,
+                targetVectors.getCentroidDP(),
+                targetOrd
+            );
+        }
+
+        @Override
+        public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+            if (queryCorrections == null) {
+                throw new IllegalStateException("bulkScore() called before setScoringOrdinal()");
+            }
+            return scorer.scoreBulk(
+                quantizedQuery,
+                queryCorrections.lowerInterval(),
+                queryCorrections.upperInterval(),
+                queryCorrections.quantizedComponentSum(),
+                queryCorrections.additionalCorrection(),
+                similarityFunction,
+                targetVectors.getCentroidDP(),
+                nodes,
+                scores,
+                numNodes
+            );
+        }
+
+        @Override
+        public void setScoringOrdinal(int i) throws IOException {
+            if (i == currentOrdinal) {
+                return;
+            }
+            System.arraycopy(queryVectors.vectorValue(i), 0, quantizedQuery, 0, quantizedQuery.length);
+            queryCorrections = queryVectors.getCorrectiveTerms(i);
+            currentOrdinal = i;
+        }
     }
 }

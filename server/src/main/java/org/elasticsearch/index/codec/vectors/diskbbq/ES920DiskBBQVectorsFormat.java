@@ -196,7 +196,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         validateDirectIOMetadata(writeDirectIOReads, VERSION_CURRENT);
         return new ES920DiskBBQVectorsWriter(
             state,
-            rawVectorFormat,
+            rawVectorFormat.getName(),
             writeDirectIOReads,
             rawVectorFormat.fieldsWriter(state),
             vectorPerCluster,
@@ -212,7 +212,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         validateDirectIOMetadata(null, VERSION_START);
         return new ES920DiskBBQVectorsWriter(
             state,
-            rawVectorFormat,
+            rawVectorFormat.getName(),
             null,
             rawVectorFormat.fieldsWriter(state),
             vectorPerCluster,

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -25,7 +24,6 @@ import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
@@ -58,7 +56,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
 
     public ES920DiskBBQVectorsWriter(
         SegmentWriteState state,
-        FlatVectorsFormat rawVectorFormat,
+        String rawVectorFormatName,
         boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
@@ -69,7 +67,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         this(
             state,
-            rawVectorFormat,
+            rawVectorFormatName,
             useDirectIOReads,
             rawVectorDelegate,
             vectorPerCluster,
@@ -83,7 +81,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
 
     ES920DiskBBQVectorsWriter(
         SegmentWriteState state,
-        FlatVectorsFormat rawVectorFormat,
+        String rawVectorFormatName,
         Boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
@@ -95,7 +93,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         super(
             state,
-            rawVectorFormat,
+            rawVectorFormatName,
             useDirectIOReads,
             rawVectorDelegate,
             writeVersion,
@@ -642,7 +640,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, ClusteringFloatVectorValues floatVectorValues, MergeState mergeState)
+    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
         throws IOException {
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
         // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
@@ -666,14 +664,14 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
      * @throws IOException if an I/O error occurs
      */
     @Override
-    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, ClusteringFloatVectorValues floatVectorValues) throws IOException {
+    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
         HierarchicalKMeans hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
         return calculateCentroids(hierarchicalKMeans, floatVectorValues, fieldInfo);
     }
 
     private CentroidAssignments calculateCentroids(
         HierarchicalKMeans hierarchicalKMeans,
-        ClusteringFloatVectorValues floatVectorValues,
+        KMeansFloatVectorValues floatVectorValues,
         FieldInfo fieldInfo
     ) throws IOException {
         KMeansResult kMeansResult = hierarchicalKMeans.cluster(floatVectorValues, vectorPerCluster);

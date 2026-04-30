@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -90,7 +89,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
     public ESNextDiskBBQVectorsWriter(
         SegmentWriteState state,
-        FlatVectorsFormat rawVectorFormat,
+        String rawVectorFormatName,
         boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
         ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
@@ -105,7 +104,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         super(
             state,
-            rawVectorFormat,
+            rawVectorFormatName,
             useDirectIOReads,
             rawVectorDelegate,
             ESNextDiskBBQVectorsFormat.VERSION_CURRENT,
@@ -847,7 +846,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, ClusteringFloatVectorValues floatVectorValues, MergeState mergeState)
+    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
         throws IOException {
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
         // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
@@ -990,7 +989,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
      * @throws IOException if an I/O error occurs
      */
     @Override
-    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, ClusteringFloatVectorValues floatVectorValues) throws IOException {
+    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
         if (sliceField != null) {
             // for sliced indexed, we don't cluster the data during flush so we can search our vectors by docId range
             return buildFlatCentroidAssignments(fieldInfo, floatVectorValues);

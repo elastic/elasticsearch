@@ -502,3 +502,24 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/147988
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testPagination
+  issue: https://github.com/elastic/elasticsearch/issues/148006
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTermsAggsWithProfile
+  issue: https://github.com/elastic/elasticsearch/issues/148010
+- class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
+  method: plugin projects are wired into test cluster setup
+  issue: https://github.com/elastic/elasticsearch/issues/148014
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testHasChildWithInnerHit
+  issue: https://github.com/elastic/elasticsearch/issues/148023
+- class: org.elasticsearch.xpack.stateless.shutdown.SigtermTerminationHandlerTests
+  method: testShutdownBlockIgnoreOtherRoles
+  issue: https://github.com/elastic/elasticsearch/issues/148037
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testDoExecuteReleasesRegistrationWhenDataNodeFailsAfterChunkStreaming
+  issue: https://github.com/elastic/elasticsearch/issues/147870
+- class: org.elasticsearch.search.profile.TimerTests
+  method: testTimingInterval
+  issue: https://github.com/elastic/elasticsearch/issues/148038

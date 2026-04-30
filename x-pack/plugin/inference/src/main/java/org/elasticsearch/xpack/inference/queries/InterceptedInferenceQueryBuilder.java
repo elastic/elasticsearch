@@ -14,12 +14,14 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
@@ -138,11 +140,15 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected abstract Map<String, Float> getFields();
 
     /**
-     * Get the original query's query text. If not available, {@code null} should be returned.
+     * Get the query input. Plain-text queries should be wrapped as {@code new InferenceStringGroup(queryText)}.
+     * Non-text inputs (e.g. images) should be returned as the appropriate {@link InferenceStringGroup}.
+     * Return {@code null} when no inference results should be generated (e.g. when a standalone query vector builder
+     * is already handling the inference).
      *
-     * @return The original query's query text
+     * @return The query input, or {@code null} if inference results should not be generated
      */
-    protected abstract String getQuery();
+    @Nullable
+    protected abstract InferenceStringGroup getInput();
 
     /**
      * Rewrite to a backwards-compatible form of the query builder, depending on the value of
@@ -363,7 +369,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> newInferenceInfoFuture = new PlainActionFuture<>();
         InferenceQueryUtils.InferenceInfoRequest inferenceInfoRequest = new InferenceQueryUtils.InferenceInfoRequest(
             getFields(),
-            getQuery(),
+            getInput(),
             inferenceResultsMap,
             resolveWildcards(),
             useDefaultFields(),

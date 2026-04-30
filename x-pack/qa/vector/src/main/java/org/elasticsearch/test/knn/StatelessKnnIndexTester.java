@@ -19,7 +19,7 @@ import java.nio.file.Path;
  * directory type so that {@code "directory_type": "stateless"} works in
  * the test configuration JSON.
  *
- * <p>Run via: {@code ./gradlew :modules-self-managed:vector:checkVec --args="config.json"}
+ * <p>Run via: {@code ./gradlew :x-pack:qa:vector:checkVec --args="config.json"}
  */
 public class StatelessKnnIndexTester {
 

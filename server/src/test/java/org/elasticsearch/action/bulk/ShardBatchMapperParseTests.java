@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -19,13 +20,22 @@ import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowBuilder;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -270,6 +280,125 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             assertThat(searcher.getIndexReader().numDocs(), equalTo(1));
+        }
+
+        closeShards(shard);
+    }
+
+    /**
+     * Drives {@link ShardBatchMapper#parseMappings} directly (no fallback safety net) and inspects
+     * the {@link ParsedDocument} produced by {@code parseRow}. Each metadata-mapper hook that the
+     * batch path relies on contributes a Lucene field by a known name, so checking for those names
+     * tells us preParse/postParse actually ran. If the metadata phases are skipped, parseRow either
+     * NPEs (no _id) or emits a doc missing _routing/_source/_version/_seq_no — both make this test fail.
+     */
+    public void testParseMappingsAddsMetadataFields() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "host":  { "type": "keyword" },
+                "value": { "type": "long" }
+              }
+            }""";
+        // Use stored source so SourceFieldMapper.preParse adds a _source StoredField we can inspect.
+        IndexShard shard = newShardWithMapping(mapping, STORED_SOURCE_SETTINGS);
+
+        IndexRequest indexRequest = indexRequest("doc-1").routing("route-1");
+        BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest) };
+
+        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+            builder.startDocument();
+            builder.setString("host", "alpha");
+            builder.setLong("value", 7L);
+            builder.endDocument();
+            try (EirfBatch batch = builder.build()) {
+                BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
+                assertNotNull("mapping should be resolvable for batch path", resolution);
+
+                List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, shard, 1, 0, resolution);
+                assertNotNull("parseMappings must succeed (no fallback) for this test to be meaningful", ops);
+                assertThat(ops.size(), equalTo(1));
+
+                ParsedDocument parsed = ops.getFirst().parsedDoc();
+                LuceneDocument doc = parsed.rootDoc();
+
+                // ProvidedIdFieldMapper.preParse — sets context.id and adds an indexed _id field.
+                assertThat("ParsedDocument id should be populated by IdFieldMapper.preParse", parsed.id(), equalTo("doc-1"));
+                assertNotNull("_id Lucene field must be present", doc.getField(IdFieldMapper.NAME));
+
+                // RoutingFieldMapper.preParse — adds a stored _routing field whose string value is the routing key.
+                IndexableField routingField = doc.getField(RoutingFieldMapper.NAME);
+                assertNotNull("_routing must be added by RoutingFieldMapper.preParse", routingField);
+                assertThat(routingField.stringValue(), equalTo("route-1"));
+
+                // VersionFieldMapper.preParse — adds a placeholder _version doc-values field.
+                assertNotNull("_version must be added by VersionFieldMapper.preParse", doc.getField(VersionFieldMapper.NAME));
+
+                // SeqNoFieldMapper.postParse — adds the _seq_no placeholder doc-values field.
+                assertNotNull("_seq_no must be added by SeqNoFieldMapper.postParse", doc.getField(SeqNoFieldMapper.NAME));
+
+                // SourceFieldMapper.preParse — adds the _source stored field with the row-synthesized JSON.
+                IndexableField sourceField = doc.getField(SourceFieldMapper.NAME);
+                assertNotNull("_source must be added by SourceFieldMapper.preParse", sourceField);
+                assertNotNull(sourceField.binaryValue());
+            }
+        }
+
+        closeShards(shard);
+    }
+
+    /**
+     * Synthetic-source variant of the metadata-field audit. Combines coverage for:
+     * <ul>
+     *   <li>{@link SourceFieldMapper#preParse} (synthetic branch — adds {@code _recovery_source}
+     *       or {@code _recovery_source_size} and does <em>not</em> add a stored {@code _source})</li>
+     *   <li>{@link IgnoredFieldMapper#postParse} (records {@code _ignored} for fields that hit
+     *       {@code ignore_above})</li>
+     * </ul>
+     *
+     * <p>Note that {@code IgnoredSourceFieldMapper.postParse} is not exercised by an
+     * {@code ignore_above} trigger: {@code KeywordFieldMapper} stores the ignored bytes directly
+     * into a synthetic-source fallback field rather than via
+     * {@code DocumentParserContext#addIgnoredFieldValue}, so {@code getIgnoredFieldValues()}
+     * stays empty and the postParse hook is a no-op for this case. Exercising it would require
+     * an {@code ignore_malformed} trigger on a numeric column.
+     */
+    public void testParseMappingsSyntheticSourceAndIgnored() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "host": { "type": "keyword", "ignore_above": 4 }
+              }
+            }""";
+        IndexShard shard = newShardWithMapping(mapping, SYNTHETIC_SOURCE_SETTINGS);
+
+        BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("doc-1")) };
+        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+            builder.startDocument();
+            builder.setString("host", "way-too-long"); // exceeds ignore_above
+            builder.endDocument();
+            try (EirfBatch batch = builder.build()) {
+                BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
+                assertNotNull(resolution);
+
+                List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, shard, 1, 0, resolution);
+                assertNotNull("parseMappings must succeed (no fallback) for this test to be meaningful", ops);
+                assertThat(ops.size(), equalTo(1));
+
+                LuceneDocument doc = ops.getFirst().parsedDoc().rootDoc();
+
+                // Synthetic source: stored _source is absent, but a _recovery_source flavor must be present.
+                assertNull("stored _source must not be present in synthetic mode", doc.getField(SourceFieldMapper.NAME));
+                boolean hasRecovery = doc.getField(SourceFieldMapper.RECOVERY_SOURCE_NAME) != null
+                    || doc.getField(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME) != null;
+                assertTrue(
+                    "SourceFieldMapper.preParse must add either _recovery_source or _recovery_source_size in synthetic mode",
+                    hasRecovery
+                );
+
+                // ignore_above triggered → IgnoredFieldMapper.postParse records the field name.
+                assertNotNull("_ignored must be added when a column exceeds ignore_above", doc.getField(IgnoredFieldMapper.NAME));
+            }
         }
 
         closeShards(shard);

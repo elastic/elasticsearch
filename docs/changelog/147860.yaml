@@ -1,0 +1,6 @@
+area: Infra/Core
+issues:
+ - 143694
+pr: 147860
+summary: Use `toTruncatedString` in chunked objects `toString`
+type: bug

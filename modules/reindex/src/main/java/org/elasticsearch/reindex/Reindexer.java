@@ -729,6 +729,14 @@ public class Reindexer {
                 l.onFailure(e);
                 return;
             }
+
+            // Capture RPS under the relocation guard, blocking concurrent rethrottle from this point on.
+            // RPS is carried on the request itself; the destination allocates the RPS amongst incomplete slices.
+            // Completed slices will have the old RPS values.
+            final float capturedRPS = task.isLeader()
+                ? task.getLeaderState().captureRequestsPerSecondForRelocation()
+                : task.getWorkerState().captureRequestsPerSecondForRelocation();
+            request.setRequestsPerSecond(capturedRPS);
             request.setResumeInfo(
                 new ResumeInfo(resumeInfo.relocationOrigin(), resumeInfo.worker(), resumeInfo.slices(), sourceTaskResult)
             );

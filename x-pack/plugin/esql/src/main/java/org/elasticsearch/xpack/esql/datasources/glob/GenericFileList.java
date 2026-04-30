@@ -10,10 +10,8 @@ package org.elasticsearch.xpack.esql.datasources.glob;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
-import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
-import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.List;
@@ -30,14 +28,13 @@ final class GenericFileList implements FileList {
     private final String originalPattern;
     private final PartitionMetadata partitionMetadata;
     private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo;
-    private final Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> fileSplitRanges;
 
     GenericFileList(List<StorageEntry> files, String originalPattern) {
-        this(files, originalPattern, null, null, null);
+        this(files, originalPattern, null, null);
     }
 
     GenericFileList(List<StorageEntry> files, String originalPattern, @Nullable PartitionMetadata partitionMetadata) {
-        this(files, originalPattern, partitionMetadata, null, null);
+        this(files, originalPattern, partitionMetadata, null);
     }
 
     GenericFileList(
@@ -46,16 +43,6 @@ final class GenericFileList implements FileList {
         @Nullable PartitionMetadata partitionMetadata,
         @Nullable Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo
     ) {
-        this(files, originalPattern, partitionMetadata, fileSchemaInfo, null);
-    }
-
-    GenericFileList(
-        List<StorageEntry> files,
-        String originalPattern,
-        @Nullable PartitionMetadata partitionMetadata,
-        @Nullable Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo,
-        @Nullable Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> fileSplitRanges
-    ) {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
         }
@@ -63,7 +50,6 @@ final class GenericFileList implements FileList {
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
         this.fileSchemaInfo = fileSchemaInfo;
-        this.fileSplitRanges = fileSplitRanges;
     }
 
     List<StorageEntry> files() {
@@ -87,53 +73,12 @@ final class GenericFileList implements FileList {
         return fileSchemaInfo;
     }
 
-    @Nullable
-    Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> fileSplitRanges() {
-        return fileSplitRanges;
-    }
-
-    @Override
-    public int rangeCount(int i) {
-        if (fileSplitRanges == null) {
-            return -1;
-        }
-        StoragePath p = path(i);
-        List<RangeAwareFormatReader.SplitRange> ranges = fileSplitRanges.get(p);
-        return ranges != null ? ranges.size() : 0;
-    }
-
-    @Override
-    public long rangeOffset(int i, int r) {
-        return fileSplitRanges.get(path(i)).get(r).offset();
-    }
-
-    @Override
-    public long rangeLength(int i, int r) {
-        return fileSplitRanges.get(path(i)).get(r).length();
-    }
-
-    @Override
-    @Nullable
-    public SplitStats rangeStats(int i, int r) {
-        Map<String, Object> stats = fileSplitRanges.get(path(i)).get(r).statistics();
-        return (stats == null || stats.isEmpty()) ? null : SplitStats.of(stats);
-    }
-
     /**
      * Returns a new GenericFileList with per-file schema info attached.
      * Used by schema reconciliation to pass column mappings from planning to split discovery.
      */
     GenericFileList withSchemaInfo(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
-        return new GenericFileList(files, originalPattern, partitionMetadata, schemaInfo, fileSplitRanges);
-    }
-
-    /**
-     * Returns a new GenericFileList with pre-resolved per-file split ranges attached.
-     * Captured during single-pass file layout resolution (Parquet/ORC) and consumed by
-     * split discovery to avoid re-reading file footers.
-     */
-    GenericFileList withFileSplitRanges(Map<StoragePath, List<RangeAwareFormatReader.SplitRange>> splitRanges) {
-        return new GenericFileList(files, originalPattern, partitionMetadata, fileSchemaInfo, splitRanges);
+        return new GenericFileList(files, originalPattern, partitionMetadata, schemaInfo);
     }
 
     int size() {
@@ -187,14 +132,12 @@ final class GenericFileList implements FileList {
         GenericFileList other = (GenericFileList) o;
         return Objects.equals(files, other.files)
             && Objects.equals(originalPattern, other.originalPattern)
-            && Objects.equals(partitionMetadata, other.partitionMetadata)
-            && Objects.equals(fileSchemaInfo, other.fileSchemaInfo)
-            && Objects.equals(fileSplitRanges, other.fileSplitRanges);
+            && Objects.equals(partitionMetadata, other.partitionMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(files, originalPattern, partitionMetadata, fileSchemaInfo, fileSplitRanges);
+        return Objects.hash(files, originalPattern, partitionMetadata);
     }
 
     @Override

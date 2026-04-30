@@ -268,9 +268,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         Expression conversion = switch (unionTypes) {
             case CompactMultiTypeEsField compact -> {
                 MappedFieldType mft = shardContext.fieldType(fieldName);
+                // Match what field_caps reports on the coordinator: family type (e.g., constant_keyword -> keyword) rather than the
+                // concrete mapper type, so the lookup key here aligns with how typeToConversionExpressions was keyed upstream.
                 yield mft == null
                     ? null
-                    : compact.getConversionExpressionForType(EsqlDataTypeRegistry.INSTANCE.fromEs(mft.typeName(), mft.getMetricType()));
+                    : compact.getConversionExpressionForType(
+                        EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType())
+                    );
             }
             case MultiTypeEsField legacy -> {
                 // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with cluster prefix

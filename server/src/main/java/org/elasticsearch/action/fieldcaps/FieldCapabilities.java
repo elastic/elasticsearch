@@ -592,16 +592,16 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 this.metricType = null;
             }
             // Track inference info across indices: the field is reported as inference-backed only when every index that maps it
-            // is inference-backed. Different inference ids across indices become a conflict reported per-index.
+            // is inference-backed. A divergence in either inference_id or search_inference_id across indices is treated as a
+            // conflict and reported per-index in inferenceConflictsIndices.
             if (inference == null || inference.inferenceId() == null) {
                 hasNonInferenceIndex = true;
             } else if (inferenceSeen == false) {
                 inferenceSeen = true;
                 firstInference = inference;
-            } else if (Objects.equals(firstInference.inferenceId(), inference.inferenceId()) == false
-                || Objects.equals(firstInference.searchInferenceId(), inference.searchInferenceId()) == false) {
-                    hasConflictInferenceId = true;
-                }
+            } else if (inferenceIdsDiverge(firstInference, inference)) {
+                hasConflictInferenceId = true;
+            }
             indicesList.add(new IndexCaps(indices, search, agg, isDimension, metricType, inference));
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>()).add(entry.getValue());
@@ -723,6 +723,17 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 }
             }
             return count;
+        }
+
+        /**
+         * Two inference-backed indices are considered to diverge when either their {@code inference_id} or
+         * {@code search_inference_id} differ. We err on the strict side here: any divergence collapses
+         * the merged response into the conflict shape, so clients can detect a heterogeneous inference setup
+         * with a single check.
+         */
+        private static boolean inferenceIdsDiverge(FieldInferenceCapabilities a, FieldInferenceCapabilities b) {
+            return Objects.equals(a.inferenceId(), b.inferenceId()) == false
+                || Objects.equals(a.searchInferenceId(), b.searchInferenceId()) == false;
         }
     }
 

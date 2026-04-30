@@ -546,24 +546,36 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         );
     }
 
+    /**
+     * Round-robin between the four valid inference shapes that {@link #randomFieldCaps} produces:
+     *   null → id-only → id+search → conflicts-only → null.
+     * Any other shape is unexpected; the assertion documents the invariant so a future shape addition
+     * fails loudly instead of silently producing an equal instance and breaking the wire-round-trip contract.
+     */
     private FieldInferenceCapabilities mutateInference(FieldInferenceCapabilities inference) {
         if (inference == null) {
             return new FieldInferenceCapabilities(randomAlphaOfLength(8), null, null);
         }
-        // Move to a different shape than the current one. The state-machine over the four shapes is
-        // small enough that we can just round-robin to the next one.
-        if (inference.inferenceId() != null && inference.searchInferenceId() == null && inference.inferenceConflictsIndices() == null) {
+        boolean idOnly = inference.inferenceId() != null
+            && inference.searchInferenceId() == null
+            && inference.inferenceConflictsIndices() == null;
+        boolean idAndSearch = inference.inferenceId() != null
+            && inference.searchInferenceId() != null
+            && inference.inferenceConflictsIndices() == null;
+        boolean conflictsOnly = inference.inferenceId() == null
+            && inference.searchInferenceId() == null
+            && inference.inferenceConflictsIndices() != null;
+        if (idOnly) {
             String id = inference.inferenceId();
             return new FieldInferenceCapabilities(id, randomValueOtherThan(id, () -> randomAlphaOfLength(8)), null);
         }
-        if (inference.inferenceId() != null && inference.searchInferenceId() != null) {
-            String[] conflicts = new String[] { randomAlphaOfLength(6), randomAlphaOfLength(6) };
-            return new FieldInferenceCapabilities(null, null, conflicts);
+        if (idAndSearch) {
+            return new FieldInferenceCapabilities(null, null, new String[] { randomAlphaOfLength(6), randomAlphaOfLength(6) });
         }
-        if (inference.inferenceConflictsIndices() != null) {
+        if (conflictsOnly) {
             return null;
         }
-        return null;
+        throw new AssertionError("unexpected inference shape: " + inference);
     }
 
     public void testBuilderInferenceMatching() {

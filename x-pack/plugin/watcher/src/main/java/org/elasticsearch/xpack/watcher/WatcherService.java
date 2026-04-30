@@ -405,7 +405,7 @@ public class WatcherService {
         final Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigurations(state, indexMetadata);
         final int numShards = indexMetadata.getNumberOfShards();
         synchronized (pendingWatches) {
-            for (Watch pendingWatch : this.pendingWatches.values()) {
+            for (Watch pendingWatch : pendingWatches.values()) {
                 final ShardAllocationConfiguration shardConfig = findShardConfig(shardConfigs, pendingWatch.id(), numShards);
                 if (shardConfig == null || shardConfig.shouldBeTriggered(pendingWatch.id()) == false) {
                     continue;
@@ -429,7 +429,7 @@ public class WatcherService {
         String id,
         int numShards
     ) {
-        int shardIdNum = Math.floorMod(Murmur3HashFunction.hash(id), numShards);
+        final int shardIdNum = Math.floorMod(Murmur3HashFunction.hash(id), numShards);
         for (Map.Entry<ShardId, ShardAllocationConfiguration> entry : shardConfigs.entrySet()) {
             if (entry.getKey().getId() == shardIdNum) {
                 return entry.getValue();
@@ -439,15 +439,17 @@ public class WatcherService {
     }
 
     /**
-     * Atomically register an active watch with the trigger engine and the pending-watches map. Both happen under the
-     * same lock so a concurrent {@link #onWatchRemoved} cannot interleave between the engine update and the pending
-     * update. The pending entry covers the brief window where the engine is paused mid-reload; the engine update gets
-     * the watch scheduled immediately when the engine is running.
+     * Atomically attempt to schedule an active watch and, if the engine refuses (paused), retain the watch in the
+     * pending-watches map so the next reload picks it up. A running engine accepts the watch immediately and we skip
+     * the pending entry — the next reload will reload the watch from the index search anyway. Both branches happen
+     * under the same lock so a concurrent {@link #onWatchRemoved} cannot interleave between the engine call and the
+     * pending update.
      */
     void onWatchAdded(Watch watch) {
         synchronized (pendingWatches) {
-            triggerService.add(watch);
-            pendingWatches.put(watch.id(), watch);
+            if (triggerService.add(watch) == false) {
+                pendingWatches.put(watch.id(), watch);
+            }
         }
     }
 

@@ -98,15 +98,14 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     @Override
-    public synchronized void add(Watch watch) {
+    public synchronized boolean add(Watch watch) {
         logger.trace("Adding watch [{}] to engine (engine is running: {})", watch.id(), isRunning.get());
         assert watch.trigger() instanceof ScheduleTrigger;
-        // While the engine is paused (between pauseExecution and start) the schedules map has been cleared.
-        // Adding here would only get wiped out by start(), so we drop the call: WatcherService keeps a separate
-        // pending-watch map populated from postIndex which is merged into the next loadWatches invocation, which then
-        // feeds start(). This way the engine schedules are only ever populated by start() while the engine is paused.
+        // While the engine is paused (between pauseExecution and start) the schedules map has been cleared. Adding
+        // here would only get wiped out by start(), so we report "not added" and let the caller retain the watch
+        // (typically in WatcherService.pendingWatches) until the next start() merges it back in.
         if (isRunning.get() == false) {
-            return;
+            return false;
         }
         ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
         ActiveSchedule currentSchedule = schedules.get(watch.id());
@@ -117,6 +116,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         if (currentSchedule == null || currentSchedule.schedule.equals(trigger.getSchedule()) == false) {
             schedules.put(watch.id(), createSchedule(watch, trigger, clock.millis()));
         }
+        return true;
     }
 
     /**

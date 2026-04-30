@@ -60,9 +60,10 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public synchronized void add(Watch watch) {
+    public synchronized boolean add(Watch watch) {
         logger.info("adding watch [{}]", watch.id());
         watches.get().put(watch.id(), watch);
+        return true;
     }
 
     @Override

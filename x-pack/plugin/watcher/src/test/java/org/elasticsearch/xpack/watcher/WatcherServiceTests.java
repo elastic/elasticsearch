@@ -281,6 +281,7 @@ public class WatcherServiceTests extends ESTestCase {
         String engineType = "foo";
         TriggerEngine<?, ?> triggerEngine = mock(TriggerEngine.class);
         when(triggerEngine.type()).thenReturn(engineType);
+        when(triggerEngine.add(any(Watch.class))).thenReturn(true);
         TriggerService triggerService = new TriggerService(Collections.singleton(triggerEngine));
 
         Trigger trigger = mock(Trigger.class);

@@ -496,6 +496,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
                 equalTo(0L)
             )
         );
+        // Confirm the task was also deregistered (single call, no retry loop, no ref leak).
+        expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID));
     }
 
     private ShardFetchSearchRequest createShardFetchSearchRequest() {

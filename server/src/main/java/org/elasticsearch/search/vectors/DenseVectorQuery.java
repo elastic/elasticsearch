@@ -14,16 +14,19 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -40,13 +43,13 @@ import java.util.Objects;
  * Exact knn query. Will iterate and score all documents that have the provided dense vector field in
  * the index. An optional filter restricts scoring to documents that also match that query.
  *
- * <p>{@link ScorerSupplier#get(long)} returns a {@code DenseVectorScorer} that supports two modes:
- * <ul>
- *   <li>{@code nextDocsAndScores}: drives the top-level collection path via
- *       {@link VectorScorer#bulk}, letting similarity computation run in SIMD-friendly batches
- *       without per-document dispatch overhead.</li>
- *   <li>{@link Scorer#score()}: per-document scoring for the explain and conjunction paths.</li>
- * </ul>
+ * <p>{@link ScorerSupplier#bulkScorer()} is overridden to return a {@code DenseVectorBulkScorer}
+ * that drives the top-level collection path. It calls {@code DenseVectorScorer#nextDocsAndScores}
+ * in a loop, which delegates to {@link VectorScorer#bulk}, letting similarity computation run in
+ * SIMD-friendly batches without per-document dispatch overhead.
+ *
+ * <p>{@link ScorerSupplier#get(long)} returns a {@code DenseVectorScorer} that also supports
+ * per-document {@link Scorer#score()} for the explain and conjunction paths.
  */
 public abstract class DenseVectorQuery extends Query {
 
@@ -135,6 +138,11 @@ public abstract class DenseVectorQuery extends Query {
                 @Override
                 public Scorer get(long leadCost) throws IOException {
                     return new DenseVectorScorer(vectorScorer, filterIterator, boost);
+                }
+
+                @Override
+                public BulkScorer bulkScorer() throws IOException {
+                    return new DenseVectorBulkScorer(get(Long.MAX_VALUE), cost);
                 }
 
                 @Override
@@ -312,6 +320,50 @@ public abstract class DenseVectorQuery extends Query {
             for (int i = 0; i < buffer.size; i++) {
                 buffer.features[i] *= boost;
             }
+        }
+    }
+
+    static class DenseVectorBulkScorer extends BulkScorer {
+        private final DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
+        private final Scorer scorer;
+        private final long cost;
+        private float currentScore;
+        private final Scorable scorable = new Scorable() {
+            @Override
+            public float score() {
+                return currentScore;
+            }
+        };
+
+        DenseVectorBulkScorer(Scorer scorer, long cost) {
+            this.scorer = scorer;
+            this.cost = cost;
+        }
+
+        @Override
+        public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+            collector.setScorer(scorable);
+
+            if (scorer.docID() < min) {
+                scorer.iterator().advance(min);
+            }
+
+            for (scorer.nextDocsAndScores(max, acceptDocs, buffer); buffer.size > 0; scorer.nextDocsAndScores(max, acceptDocs, buffer)) {
+
+                for (int i = 0; i < buffer.size; i++) {
+                    int doc = buffer.docs[i];
+                    // currentScore is closed over by scorable, which is available to the collector
+                    currentScore = buffer.features[i];
+                    collector.collect(doc);
+                }
+            }
+
+            return scorer.docID();
+        }
+
+        @Override
+        public long cost() {
+            return cost;
         }
     }
 }

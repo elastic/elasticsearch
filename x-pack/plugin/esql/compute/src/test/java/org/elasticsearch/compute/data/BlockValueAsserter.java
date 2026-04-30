@@ -122,8 +122,9 @@ public class BlockValueAsserter {
     private static void assertLongRangeValues(LongRangeBlock block, int firstValueIdx, int valueCount, List<Object> expectedRowValues) {
         for (int idx = 0; idx < valueCount; idx++) {
             var expectedValue = (LongRangeBlockBuilder.LongRange) expectedRowValues.get(idx);
-            assertThat(block.getFromBlock().getLong(firstValueIdx + idx), equalTo(expectedValue.from()));
-            assertThat(block.getToBlock().getLong(firstValueIdx + idx), equalTo(expectedValue.to()));
+            var actualValue = block.getLongRange(firstValueIdx + idx);
+            assertThat(actualValue.from(), equalTo(expectedValue.from()));
+            assertThat(actualValue.to(), equalTo(expectedValue.to()));
         }
     }
 }

@@ -647,6 +647,19 @@ public class BlockFactoryTests extends ESTestCase {
         }
     }
 
+    public void testLongRangeBlockBuilderWithPossiblyLargeEstimateSingle() {
+        var range = new LongRangeBlockBuilder.LongRange(randomLong(), randomLong());
+        int positions = randomIntBetween(1, 2048);
+        try (var block = blockFactory.newConstantLongRangeBlockWith(range, positions)) {
+            assertThat(breaker.getUsed(), greaterThan(0L));
+            assertThat(block.getPositionCount(), equalTo(positions));
+            for (int p = 0; p < positions; p++) {
+                assertThat(block.getLongRange(block.getFirstValueIndex(p)), equalTo(range));
+            }
+        }
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
     public void testReleaseVector() {
         int positionCount = randomIntBetween(1, 10);
         IntVector vector = blockFactory.newIntArrayVector(new int[positionCount], positionCount);

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -160,9 +161,22 @@ public class RangeWithin extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var leftEvaluator = toEvaluator.apply(left);
-        var rangeEvaluator = toEvaluator.apply(right);
-        return new RangeWithinEvaluator.Factory(source(), left.dataType(), right.dataType(), leftEvaluator, rangeEvaluator);
+        var leftEval = toEvaluator.apply(left);
+        var rightEval = toEvaluator.apply(right);
+        if (left.dataType() == DATE_RANGE) {
+            return new RangeWithinDateRangeDateRangeEvaluator.Factory(source(), leftEval, rightEval);
+        }
+        return new RangeWithinDateDateRangeEvaluator.Factory(source(), leftEval, rightEval);
+    }
+
+    @Evaluator(extraName = "DateDateRange")
+    static boolean processDateDateRange(long date, LongRangeBlockBuilder.LongRange range) {
+        return date >= range.from() && date < range.to();
+    }
+
+    @Evaluator(extraName = "DateRangeDateRange")
+    static boolean processDateRangeDateRange(LongRangeBlockBuilder.LongRange left, LongRangeBlockBuilder.LongRange right) {
+        return left.from() >= right.from() && left.to() <= right.to();
     }
 
     @Override

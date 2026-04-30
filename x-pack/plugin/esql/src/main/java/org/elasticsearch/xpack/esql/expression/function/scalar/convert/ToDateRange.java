@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,8 +22,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -92,5 +97,10 @@ public class ToDateRange extends AbstractConvertFunction {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, ToDateRange::new, field());
+    }
+
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
+    public static LongRangeBlockBuilder.LongRange processFromString(BytesRef field) {
+        return EsqlDataTypeConverter.parseDateRange(field.utf8ToString(), ZoneOffset.UTC);
     }
 }

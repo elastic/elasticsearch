@@ -78,4 +78,12 @@ public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock
     LongBlock getFromBlock();
 
     LongBlock getToBlock();
+
+    /**
+     * Returns the range value at the given absolute value index within the block's underlying sub-blocks.
+     * Use {@link #getFirstValueIndex(int)} to translate a position index to a value index.
+     */
+    default LongRangeBlockBuilder.LongRange getLongRange(int valueIndex) {
+        return new LongRangeBlockBuilder.LongRange(getFromBlock().getLong(valueIndex), getToBlock().getLong(valueIndex));
+    }
 }

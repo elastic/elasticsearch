@@ -1515,6 +1515,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
+     * Associate the lucene index with a new set of user data. This is useful when we need to remove entries from existing ones.
+     */
+    public void associateIndexWithNewUserData(Map<String, String> userData) throws IOException {
+        metadataLock.writeLock().lock();
+        try (IndexWriter writer = newTemporaryAppendingIndexWriter(directory, null)) {
+            writer.setLiveCommitData(userData.entrySet());
+            writer.commit();
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
      * Keeping existing unsafe commits when opening an engine can be problematic because these commits are not safe
      * at the recovering time but they can suddenly become safe in the future.
      * The following issues can happen if unsafe commits are kept oninit.

@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.oteldata.otlp.DocumentMetadata;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
@@ -246,6 +247,19 @@ public class LogDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("attributes.my_bytes"), equalTo(Base64.getEncoder().encodeToString(bytes)));
     }
 
+    public void testGeoLocationAttributesAreMerged() throws IOException {
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_000L)
+            .setBody(AnyValue.newBuilder().setStringValue("msg").build())
+            .addAttributes(keyValue("client.geo.location.lon", 1.1))
+            .addAttributes(keyValue("client.geo.location.lat", 2.2))
+            .build();
+
+        ObjectPath doc = buildDocument(logRecord);
+
+        assertThat(doc.evaluate("attributes.client\\.geo\\.location"), equalTo(List.of(1.1, 2.2)));
+    }
+
     public void testSpanAndTraceIdsAreHexEncoded() throws IOException {
         LogRecord logRecord = LogRecord.newBuilder()
             .setTimeUnixNano(1_000_000_000L)
@@ -354,6 +368,7 @@ public class LogDocumentBuilderTests extends ESTestCase {
             .addAttributes(keyValue("keep", "value"))
             .addAttributes(keyValue("data_stream.type", "logs"))
             .addAttributes(keyValue("elasticsearch.document_id", "doc-id"))
+            .addAttributes(keyValue(DocumentMetadata.INGEST_PIPELINE_ATTRIBUTE, "logs-pipeline"))
             .build();
 
         ObjectPath doc = buildDocument(resource, scope, logRecord);
@@ -361,6 +376,7 @@ public class LogDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("attributes.keep"), equalTo("value"));
         assertThat(doc.evaluate("attributes.data_stream\\.type"), nullValue());
         assertThat(doc.evaluate("attributes.elasticsearch\\.document_id"), nullValue());
+        assertThat(doc.evaluate("attributes.elasticsearch\\.ingest_pipeline"), nullValue());
         assertThat(doc.evaluate("scope.attributes.scope\\.keep"), equalTo("value"));
         assertThat(doc.evaluate("resource.attributes.service\\.name"), equalTo("test-service"));
         assertThat(doc.evaluate("resource.attributes.elastic\\.mapping\\.mode"), nullValue());
@@ -374,6 +390,7 @@ public class LogDocumentBuilderTests extends ESTestCase {
             .setBody(AnyValue.newBuilder().setStringValue("msg").build())
             .addAttributes(keyValue("data_stream.type", "logs"))
             .addAttributes(keyValue("elasticsearch.document_id", "doc-id"))
+            .addAttributes(keyValue(DocumentMetadata.INGEST_PIPELINE_ATTRIBUTE, "logs-pipeline"))
             .build();
 
         ObjectPath doc = buildDocument(resource, scope, logRecord);

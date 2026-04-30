@@ -1797,8 +1797,9 @@ public class EsqlCapabilities {
 
         /**
          * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
+         * V3: DATE_RANGE fields with {@code doc_values: false} now return null instead of throwing an exception.
          */
-        DATE_RANGE_FIELD_TYPE_V2(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V3(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2488,7 +2489,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V2(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V3(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command

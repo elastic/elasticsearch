@@ -24,10 +24,11 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -91,11 +92,12 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         activeFetchPhaseTasks = new ActiveFetchPhaseTasks();
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
 
+        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofMb(64));
         action = new TransportFetchPhaseCoordinationAction(
             transportService,
             new ActionFilters(Set.of()),
             activeFetchPhaseTasks,
-            new NoneCircuitBreakerService(),
+            breakerService,
             namedWriteableRegistry
         );
         new TransportFetchPhaseResponseChunkAction(transportService, activeFetchPhaseTasks, namedWriteableRegistry);
@@ -468,9 +470,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         Exception failure = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
         assertThat(failure.getMessage(), equalTo("simulated data node failure during chunk streaming"));
 
-        assertBusy(() -> {
-            expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID));
-        });
+        assertBusy(
+            () -> expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID))
+        );
     }
 
     private ShardFetchSearchRequest createShardFetchSearchRequest() {

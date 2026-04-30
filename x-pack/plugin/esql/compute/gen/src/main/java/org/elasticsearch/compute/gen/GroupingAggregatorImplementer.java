@@ -498,8 +498,6 @@ public class GroupingAggregatorImplementer {
             }
         }
 
-
-
         if (valuesAreVector && combineOnceForConstant) {
             emitConstantVectorGroupingShortCircuit(builder, groupsIsBlock);
         }

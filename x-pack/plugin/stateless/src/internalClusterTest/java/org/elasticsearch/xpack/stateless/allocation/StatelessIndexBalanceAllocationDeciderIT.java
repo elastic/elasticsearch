@@ -180,10 +180,10 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
     }
 
     /**
-     * Create a 3-shard index and ensure that in every cluster state, a predicate is met for the allocated primary shards. Returns
+     * Create a 3-shard index and ensure that in every cluster state, a predicate is met for the allocated shards. Returns
      * when the 3 shards are all allocated.
      *
-     * @param allocatedShardsPredicate A predicate used to check the state of the allocated primaries
+     * @param allocatedShardsPredicate A predicate used to check the state of the allocation, applied to primaries and replicas separately
      */
     private void createIndexAndEnsureAllocationMatches(Predicate<List<ShardRouting>> allocatedShardsPredicate) {
         final String indexName = randomIndexName();

@@ -247,6 +247,19 @@ public class LogDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("attributes.my_bytes"), equalTo(Base64.getEncoder().encodeToString(bytes)));
     }
 
+    public void testGeoLocationAttributesAreMerged() throws IOException {
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_000L)
+            .setBody(AnyValue.newBuilder().setStringValue("msg").build())
+            .addAttributes(keyValue("client.geo.location.lon", 1.1))
+            .addAttributes(keyValue("client.geo.location.lat", 2.2))
+            .build();
+
+        ObjectPath doc = buildDocument(logRecord);
+
+        assertThat(doc.evaluate("attributes.client\\.geo\\.location"), equalTo(List.of(1.1, 2.2)));
+    }
+
     public void testSpanAndTraceIdsAreHexEncoded() throws IOException {
         LogRecord logRecord = LogRecord.newBuilder()
             .setTimeUnixNano(1_000_000_000L)

@@ -330,12 +330,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testAllocationExplainRebalancingNotPreferred
   issue: https://github.com/elastic/elasticsearch/issues/147627
-- class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
-  method: testMatches
-  issue: https://github.com/elastic/elasticsearch/issues/147630
-- class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
-  method: testVisit
-  issue: https://github.com/elastic/elasticsearch/issues/147643
 - class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
   method: test {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
   issue: https://github.com/elastic/elasticsearch/issues/147654
@@ -350,9 +344,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
   method: testWithCranky {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
   issue: https://github.com/elastic/elasticsearch/issues/147732
-- class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
-  method: testToString
-  issue: https://github.com/elastic/elasticsearch/issues/147739
 - class: org.elasticsearch.search.suggest.completion.CategoryQueryContextTests
   method: testNullCategoryIsIllegal
   issue: https://github.com/elastic/elasticsearch/issues/147762
@@ -362,9 +353,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.IndexRoutingTests
   method: testRequiredRoutingUsesSliceMessageWhenSliceEnabled
   issue: https://github.com/elastic/elasticsearch/issues/147777
-- class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
-  method: testEqualsAndHashCode
-  issue: https://github.com/elastic/elasticsearch/issues/147778
 
 # Examples:
 #

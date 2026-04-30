@@ -1797,8 +1797,9 @@ public class EsqlCapabilities {
 
         /**
          * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
+         * V3: DATE_RANGE fields with {@code doc_values: false} now return null instead of throwing an exception.
          */
-        DATE_RANGE_FIELD_TYPE_V2(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V3(Build.current().isSnapshot()),
 
         /**
          * Network direction function.

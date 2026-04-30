@@ -158,6 +158,34 @@ public class ReindexMetadataTests extends ESTestCase {
         assertFalse(metadata.isRoutingFromSlice());
     }
 
+    public void testRoutingChangedWithSliceTracksProvenanceOnlyChanges() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        assertFalse(metadata.routingChangedWithSlice(false));
+        assertTrue(metadata.routingChangedWithSlice(true));
+
+        metadata.put(SliceIndexing.PARAM_NAME, ROUTING);
+        assertFalse(metadata.routingChanged());
+        assertTrue(metadata.isRoutingFromSlice());
+        assertTrue(metadata.routingChangedWithSlice(false));
+        assertFalse(metadata.routingChangedWithSlice(true));
+
+        metadata.put("_routing", ROUTING);
+        assertFalse(metadata.routingChanged());
+        assertFalse(metadata.isRoutingFromSlice());
+        assertFalse(metadata.routingChangedWithSlice(false));
+        assertTrue(metadata.routingChangedWithSlice(true));
+    }
+
+    public void testRoutingChangedWithSliceTracksRoutingValueChanges() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        metadata.put("_routing", "routing2");
+        assertTrue(metadata.routingChanged());
+        assertTrue(metadata.routingChangedWithSlice(false));
+        assertTrue(metadata.routingChangedWithSlice(true));
+    }
+
     public void testSliceUnavailableWhenFeatureFlagDisabled() {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertFalse(metadata.isAvailable(SliceIndexing.PARAM_NAME));

@@ -510,6 +510,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
     @Override
     public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
         ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.TEXT_EMBEDDING, KnnVectorQueryBuilder.NAME);
+        ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.EMBEDDING, KnnVectorQueryBuilder.NAME);
     }
 
     private static VectorData assertQueryIsInterceptedKnnWithValidResults(QueryBuilder query) {

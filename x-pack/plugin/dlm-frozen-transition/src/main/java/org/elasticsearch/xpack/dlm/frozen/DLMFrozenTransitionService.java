@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.Logger;
@@ -42,73 +41,43 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
         Setting.Property.NodeScope
     );
 
-    static final Setting<Integer> MAX_CONCURRENCY_SETTING = Setting.intSetting(
-        "dlm.frozen_transition.max_concurrency",
-        10,
-        1,
-        100,
-        Setting.Property.NodeScope
-    );
-
-    static final Setting<Integer> MAX_QUEUE_SIZE = Setting.intSetting(
-        "dlm.frozen_transition.max_queue_size",
-        500,
-        1,
-        10000,
-        Setting.Property.NodeScope
-    );
-
     private static final Logger logger = getLogger(DLMFrozenTransitionService.class);
-    private final int maxConcurrency;
-    private final int maxQueueSize;
-    private final DLMFrozenTransitionSettings transitionSettings;
-    private final DataStreamLifecycleErrorStore errorStore;
+
     private final BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory;
-    private volatile DLMFrozenTransitionExecutor transitionExecutor;
+    private final DLMFrozenTransitionExecutor transitionExecutor;
 
     DLMFrozenTransitionService(
         ClusterService clusterService,
         Client client,
         Supplier<XPackLicenseState> licenseStateSupplier,
-        DLMFrozenTransitionSettings transitionSettings,
-        DataStreamLifecycleErrorStore errorStore
+        DLMFrozenTransitionExecutor transitionExecutor
     ) {
         this(
             clusterService,
             (index, pid) -> new DLMConvertToFrozen(index, pid, client, clusterService, licenseStateSupplier, Clock.systemUTC()),
             POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis(),
-            transitionSettings,
-            errorStore
+            transitionExecutor
         );
     }
 
     // visible for testing
     DLMFrozenTransitionService(
         ClusterService clusterService,
-        BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory
+        BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
+        DLMFrozenTransitionExecutor transitionExecutor
     ) {
-        this(
-            clusterService,
-            transitionRunnableFactory,
-            0,
-            DLMFrozenTransitionSettings.create(clusterService),
-            new DataStreamLifecycleErrorStore(System::currentTimeMillis)
-        );
+        this(clusterService, transitionRunnableFactory, 0, transitionExecutor);
     }
 
     private DLMFrozenTransitionService(
         ClusterService clusterService,
         BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
         long initialDelayMillis,
-        DLMFrozenTransitionSettings transitionSettings,
-        DataStreamLifecycleErrorStore errorStore
+        DLMFrozenTransitionExecutor transitionExecutor
     ) {
         super(clusterService, POLL_INTERVAL_SETTING.get(clusterService.getSettings()), initialDelayMillis);
-        this.maxConcurrency = MAX_CONCURRENCY_SETTING.get(clusterService.getSettings());
-        this.maxQueueSize = MAX_QUEUE_SIZE.get(clusterService.getSettings());
         this.transitionRunnableFactory = transitionRunnableFactory;
-        this.transitionSettings = transitionSettings;
-        this.errorStore = errorStore;
+        this.transitionExecutor = transitionExecutor;
     }
 
     @Override
@@ -123,35 +92,12 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
 
     @Override
     void onStart() {
-        transitionExecutor = new DLMFrozenTransitionExecutor(
-            clusterService,
-            maxConcurrency,
-            maxQueueSize,
-            clusterService.getSettings(),
-            transitionSettings,
-            errorStore
-        );
+        transitionExecutor.start();
     }
 
     @Override
     void onStop() {
-        if (transitionExecutor != null) {
-            transitionExecutor.shutdownNow();
-            transitionExecutor = null;
-        }
-    }
-
-    @Override
-    void onClose() {
-        if (transitionExecutor != null) {
-            transitionExecutor.close();
-            transitionExecutor = null;
-        }
-    }
-
-    // Visible for testing
-    boolean isTransitionExecutorRunning() {
-        return transitionExecutor != null;
+        transitionExecutor.stop();
     }
 
     // Visible for testing
@@ -159,17 +105,8 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
         return transitionExecutor;
     }
 
-    // Visible for testing
-    DataStreamLifecycleErrorStore getErrorStore() {
-        return errorStore;
-    }
-
     // visible for testing
     void checkForFrozenIndices() {
-        final DLMFrozenTransitionExecutor executor = transitionExecutor;
-        if (executor == null) {
-            return;
-        }
         for (ProjectMetadata projectMetadata : clusterService.state().metadata().projects().values()) {
             for (DataStream dataStream : projectMetadata.dataStreams().values()) {
                 for (Index index : dataStream.getIndices()) {
@@ -178,15 +115,15 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
                     }
                     if (indexMarkedForFrozen(projectMetadata.index(index))) {
                         logger.debug("Frozen index to process detected: {}", index);
-                        if (executor.transitionSubmitted(index.getName())) {
+                        if (transitionExecutor.transitionSubmitted(index.getName())) {
                             logger.debug("Transition already running for index [{}], skipping", index);
                             continue;
-                        } else if (executor.hasCapacity() == false) {
+                        } else if (transitionExecutor.hasCapacity() == false) {
                             logger.debug("No transition threads available. Stopping loop at {}", index);
                             return;
                         }
                         try {
-                            executor.submit(transitionRunnableFactory.apply(index.getName(), projectMetadata.id()));
+                            transitionExecutor.submit(transitionRunnableFactory.apply(index.getName(), projectMetadata.id()));
                         } catch (RejectedExecutionException e) {
                             logger.debug(
                                 () -> LoggerMessageFormat.format(

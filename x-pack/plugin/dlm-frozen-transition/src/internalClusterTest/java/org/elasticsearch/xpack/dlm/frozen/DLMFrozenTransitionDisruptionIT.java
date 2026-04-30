@@ -573,7 +573,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     private void assertNoErrorRecorded(String candidateIndex) throws Exception {
         awaitTransitionCompletion(candidateIndex);
         DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
-        DataStreamLifecycleErrorStore errorStore = transitionService.getErrorStore();
+        DataStreamLifecycleErrorStore errorStore = transitionService.getTransitionExecutor().getErrorStore();
         assertThat(
             "No error should be recorded for a gracefully-skipped index",
             errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
@@ -587,7 +587,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     private void assertErrorRecorded(String candidateIndex) throws Exception {
         assertBusy(() -> {
             DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
-            DataStreamLifecycleErrorStore errorStore = transitionService.getErrorStore();
+            DataStreamLifecycleErrorStore errorStore = transitionService.getTransitionExecutor().getErrorStore();
             assertThat(
                 "An error should be recorded for the disrupted index",
                 errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),

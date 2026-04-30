@@ -586,6 +586,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 .putNull(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
                 .put(DLM_CREATED_SETTING_KEY, true)
         );
+
         return resizeReq;
     }
 

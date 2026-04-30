@@ -189,6 +189,9 @@ class FieldCapabilitiesFetcher {
                 && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
                 && (filter == null || filter.test(ft))) {
                 InferenceFieldMetadata inferenceField = inferenceFields.get(field);
+                FieldInferenceCapabilities inference = inferenceField == null
+                    ? null
+                    : new FieldInferenceCapabilities(inferenceField.getInferenceId(), inferenceField.getSearchInferenceId());
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),
@@ -197,8 +200,7 @@ class FieldCapabilitiesFetcher {
                     ft.isAggregatable(),
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
-                    inferenceField != null ? inferenceField.getInferenceId() : null,
-                    inferenceField != null ? inferenceField.getSearchInferenceId() : null,
+                    inference,
                     ft.meta()
                 );
                 responseMap.put(field, fieldCap);

@@ -22,14 +22,12 @@ import java.util.Map;
 
 /**
  * Describes the capabilities of a field in a single index.
- * @param name              The name of the field.
- * @param type              The type associated with the field.
- * @param isSearchable      Whether this field is indexed for search.
- * @param isAggregatable    Whether this field can be aggregated on.
- * @param inferenceId       The id of the inference endpoint that backs this field, or null if the field is not backed by inference.
- * @param searchInferenceId The id of the inference endpoint used at query time, or null if it matches {@code inferenceId} or the
- *                          field is not backed by inference.
- * @param meta              Metadata about the field.
+ * @param name           The name of the field.
+ * @param type           The type associated with the field.
+ * @param isSearchable   Whether this field is indexed for search.
+ * @param isAggregatable Whether this field can be aggregated on.
+ * @param inference      The inference-related capabilities of the field, or null if the field is not backed by an inference endpoint.
+ * @param meta           Metadata about the field.
  */
 
 public record IndexFieldCapabilities(
@@ -40,8 +38,7 @@ public record IndexFieldCapabilities(
     boolean isAggregatable,
     boolean isDimension,
     TimeSeriesParams.MetricType metricType,
-    @Nullable String inferenceId,
-    @Nullable String searchInferenceId,
+    @Nullable FieldInferenceCapabilities inference,
     Map<String, String> meta
 ) implements Writeable {
 
@@ -59,7 +56,7 @@ public record IndexFieldCapabilities(
         TimeSeriesParams.MetricType metricType,
         Map<String, String> meta
     ) {
-        this(name, type, isMetadatafield, isSearchable, isAggregatable, isDimension, metricType, null, null, meta);
+        this(name, type, isMetadatafield, isSearchable, isAggregatable, isDimension, metricType, null, meta);
     }
 
     public static IndexFieldCapabilities readFrom(StreamInput in) throws IOException {
@@ -70,11 +67,9 @@ public record IndexFieldCapabilities(
         boolean isAggregatable = in.readBoolean();
         boolean isDimension = in.readBoolean();
         TimeSeriesParams.MetricType metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
-        String inferenceId = null;
-        String searchInferenceId = null;
+        FieldInferenceCapabilities inference = null;
         if (in.getTransportVersion().supports(FIELD_CAPS_INFERENCE_INFO)) {
-            inferenceId = in.readOptionalString();
-            searchInferenceId = in.readOptionalString();
+            inference = in.readOptionalWriteable(FieldInferenceCapabilities::readFrom);
         }
         return new IndexFieldCapabilities(
             name,
@@ -84,8 +79,7 @@ public record IndexFieldCapabilities(
             isAggregatable,
             isDimension,
             metricType,
-            inferenceId,
-            searchInferenceId,
+            inference,
             in.readImmutableMap(StreamInput::readString)
         );
     }
@@ -100,8 +94,7 @@ public record IndexFieldCapabilities(
         out.writeBoolean(isDimension);
         out.writeOptionalEnum(metricType);
         if (out.getTransportVersion().supports(FIELD_CAPS_INFERENCE_INFO)) {
-            out.writeOptionalString(inferenceId);
-            out.writeOptionalString(searchInferenceId);
+            out.writeOptionalWriteable(inference);
         }
         out.writeMap(meta, StreamOutput::writeString);
     }

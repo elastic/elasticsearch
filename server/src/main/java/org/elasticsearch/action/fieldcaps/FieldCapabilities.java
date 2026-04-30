@@ -56,9 +56,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     public static final ParseField NON_DIMENSION_INDICES_FIELD = new ParseField("non_dimension_indices");
     public static final ParseField METRIC_CONFLICTS_INDICES_FIELD = new ParseField("metric_conflicts_indices");
     public static final ParseField INFERENCE_FIELD = new ParseField("inference");
-    public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
-    public static final ParseField SEARCH_INFERENCE_ID_FIELD = new ParseField("search_inference_id");
-    public static final ParseField INFERENCE_CONFLICTS_INDICES_FIELD = new ParseField("inference_conflicts_indices");
 
     static final TransportVersion FIELD_CAPS_INFERENCE_INFO = TransportVersion.fromName("field_caps_inference_info");
 
@@ -77,11 +74,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private final String[] metricConflictsIndices;
 
     @Nullable
-    private final String inferenceId;
-    @Nullable
-    private final String searchInferenceId;
-    @Nullable
-    private final String[] inferenceConflictsIndices;
+    private final FieldInferenceCapabilities inference;
 
     private final Map<String, Set<String>> meta;
 
@@ -107,13 +100,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      *                               or null if the field is aggregatable in all indices.
      * @param nonDimensionIndices The list of indices where this field is not a dimension
      * @param metricConflictsIndices The list of indices where this field is has different metric types or not mark as a metric
-     * @param inferenceId The id of the inference endpoint that backs this field (when all indices agree),
-     *                    or null when the field is not backed by inference in every index or when the indices disagree.
-     * @param searchInferenceId The id of the inference endpoint used at query time, only set when distinct from {@code inferenceId}
-     *                          and consistent across all indices; null otherwise.
-     * @param inferenceConflictsIndices The list of indices where this field is backed by inference but with different inference ids
-     *                                  than the others, or null when there is no conflict (or the field is not inference-backed
-     *                                  in every index).
+     * @param inference Inference-related capabilities of the field, or null if the field is not backed by inference in every index.
+     *                  See {@link FieldInferenceCapabilities} for what's tracked.
      * @param meta Merged metadata across indices.
      */
     public FieldCapabilities(
@@ -129,9 +117,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         String[] nonAggregatableIndices,
         String[] nonDimensionIndices,
         String[] metricConflictsIndices,
-        @Nullable String inferenceId,
-        @Nullable String searchInferenceId,
-        @Nullable String[] inferenceConflictsIndices,
+        @Nullable FieldInferenceCapabilities inference,
         Map<String, Set<String>> meta
     ) {
         this.name = name;
@@ -146,9 +132,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.nonAggregatableIndices = nonAggregatableIndices;
         this.nonDimensionIndices = nonDimensionIndices;
         this.metricConflictsIndices = metricConflictsIndices;
-        this.inferenceId = inferenceId;
-        this.searchInferenceId = searchInferenceId;
-        this.inferenceConflictsIndices = inferenceConflictsIndices;
+        this.inference = inference;
         this.meta = Objects.requireNonNull(meta);
     }
 
@@ -183,8 +167,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             nonAggregatableIndices,
             nonDimensionIndices,
             metricConflictsIndices,
-            null,
-            null,
             null,
             meta
         );
@@ -231,8 +213,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             null,
             null,
             null,
-            null,
-            null,
             meta
         );
 
@@ -273,7 +253,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         List<String> nonAggregatableIndices,
         List<String> nonDimensionIndices,
         List<String> metricConflictsIndices,
-        InferenceCapabilities inference,
+        FieldInferenceCapabilities inference,
         Map<String, Set<String>> meta
     ) {
         this(
@@ -289,11 +269,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             nonAggregatableIndices != null ? nonAggregatableIndices.toArray(new String[0]) : null,
             nonDimensionIndices != null ? nonDimensionIndices.toArray(new String[0]) : null,
             metricConflictsIndices != null ? metricConflictsIndices.toArray(new String[0]) : null,
-            inference != null ? inference.inferenceId() : null,
-            inference != null ? inference.searchInferenceId() : null,
-            inference != null && inference.inferenceConflictsIndices() != null
-                ? inference.inferenceConflictsIndices().toArray(new String[0])
-                : null,
+            inference,
             meta != null ? meta : Collections.emptyMap()
         );
     }
@@ -312,13 +288,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.nonDimensionIndices = in.readOptionalStringArray();
         this.metricConflictsIndices = in.readOptionalStringArray();
         if (in.getTransportVersion().supports(FIELD_CAPS_INFERENCE_INFO)) {
-            this.inferenceId = in.readOptionalString();
-            this.searchInferenceId = in.readOptionalString();
-            this.inferenceConflictsIndices = in.readOptionalStringArray();
+            this.inference = in.readOptionalWriteable(FieldInferenceCapabilities::readFrom);
         } else {
-            this.inferenceId = null;
-            this.searchInferenceId = null;
-            this.inferenceConflictsIndices = null;
+            this.inference = null;
         }
         meta = in.readMap(i -> i.readCollectionAsSet(StreamInput::readString));
     }
@@ -338,9 +310,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeOptionalStringArray(nonDimensionIndices);
         out.writeOptionalStringArray(metricConflictsIndices);
         if (out.getTransportVersion().supports(FIELD_CAPS_INFERENCE_INFO)) {
-            out.writeOptionalString(inferenceId);
-            out.writeOptionalString(searchInferenceId);
-            out.writeOptionalStringArray(inferenceConflictsIndices);
+            out.writeOptionalWriteable(inference);
         }
         out.writeMap(meta, StreamOutput::writeStringCollection);
     }
@@ -373,18 +343,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         if (metricConflictsIndices != null) {
             builder.array(METRIC_CONFLICTS_INDICES_FIELD.getPreferredName(), metricConflictsIndices);
         }
-        if (hasInferenceInfo()) {
-            builder.startObject(INFERENCE_FIELD.getPreferredName());
-            if (inferenceId != null) {
-                builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
-            }
-            if (searchInferenceId != null) {
-                builder.field(SEARCH_INFERENCE_ID_FIELD.getPreferredName(), searchInferenceId);
-            }
-            if (inferenceConflictsIndices != null) {
-                builder.array(INFERENCE_CONFLICTS_INDICES_FIELD.getPreferredName(), inferenceConflictsIndices);
-            }
-            builder.endObject();
+        if (inference != null && inference.isEmpty() == false) {
+            builder.field(INFERENCE_FIELD.getPreferredName(), inference);
         }
         if (meta.isEmpty() == false) {
             builder.startObject("meta");
@@ -399,10 +359,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
-    }
-
-    private boolean hasInferenceInfo() {
-        return inferenceId != null || searchInferenceId != null || inferenceConflictsIndices != null;
     }
 
     /**
@@ -493,30 +449,12 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     }
 
     /**
-     * The id of the inference endpoint that backs this field, present only when every index that maps the field maps it as
-     * inference-backed and they all agree on the inference id. Returns null otherwise.
+     * Inference-related capabilities of this field, or null if the field is not consistently inference-backed across all indices.
+     * Adding new inference-related state should extend {@link FieldInferenceCapabilities} rather than this class.
      */
     @Nullable
-    public String getInferenceId() {
-        return inferenceId;
-    }
-
-    /**
-     * The id of the inference endpoint used at query time, present only when every index that maps the field maps it as
-     * inference-backed, they all agree on the search inference id, and that id differs from {@link #getInferenceId()}.
-     */
-    @Nullable
-    public String getSearchInferenceId() {
-        return searchInferenceId;
-    }
-
-    /**
-     * The list of indices that map this field as inference-backed but use a different inference id (or search inference id) than
-     * the others. Null when there is no such conflict.
-     */
-    @Nullable
-    public String[] inferenceConflictsIndices() {
-        return inferenceConflictsIndices;
+    public FieldInferenceCapabilities inference() {
+        return inference;
     }
 
     /**
@@ -543,32 +481,18 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             && Arrays.equals(nonAggregatableIndices, that.nonAggregatableIndices)
             && Arrays.equals(nonDimensionIndices, that.nonDimensionIndices)
             && Arrays.equals(metricConflictsIndices, that.metricConflictsIndices)
-            && Objects.equals(inferenceId, that.inferenceId)
-            && Objects.equals(searchInferenceId, that.searchInferenceId)
-            && Arrays.equals(inferenceConflictsIndices, that.inferenceConflictsIndices)
+            && Objects.equals(inference, that.inference)
             && Objects.equals(meta, that.meta);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(
-            name,
-            type,
-            isMetadataField,
-            isSearchable,
-            isAggregatable,
-            isDimension,
-            metricType,
-            inferenceId,
-            searchInferenceId,
-            meta
-        );
+        int result = Objects.hash(name, type, isMetadataField, isSearchable, isAggregatable, isDimension, metricType, inference, meta);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(nonSearchableIndices);
         result = 31 * result + Arrays.hashCode(nonAggregatableIndices);
         result = 31 * result + Arrays.hashCode(nonDimensionIndices);
         result = 31 * result + Arrays.hashCode(metricConflictsIndices);
-        result = 31 * result + Arrays.hashCode(inferenceConflictsIndices);
         return result;
     }
 
@@ -576,16 +500,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     public String toString() {
         return Strings.toString(this);
     }
-
-    /**
-     * Container for the {@code inference} sub-object on a {@link FieldCapabilities} entry. Only used by the parser; not part of the
-     * wire protocol.
-     */
-    public record InferenceCapabilities(
-        @Nullable String inferenceId,
-        @Nullable String searchInferenceId,
-        @Nullable List<String> inferenceConflictsIndices
-    ) {}
 
     static class Builder {
         private final String name;
@@ -603,8 +517,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         // The first index sets the baseline. Subsequent indices either match (no change), introduce a different inference id
         // (conflict — record the indices), or have no inference info (mixed — drops the whole inference object at build time).
         private boolean inferenceSeen;
-        private String firstInferenceId;
-        private String firstSearchInferenceId;
+        private FieldInferenceCapabilities firstInference;
         private boolean hasNonInferenceIndex;
         private boolean hasConflictInferenceId;
 
@@ -642,11 +555,11 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             TimeSeriesParams.MetricType metricType,
             Map<String, String> meta
         ) {
-            add(indices, isMetadataField, search, agg, isDimension, metricType, null, null, meta);
+            add(indices, isMetadataField, search, agg, isDimension, metricType, null, meta);
         }
 
         /**
-         * Collect the field capabilities for an index, including the inference ids when the field is backed by an inference endpoint.
+         * Collect the field capabilities for an index, including inference info when the field is backed by an inference endpoint.
          */
         void add(
             String[] indices,
@@ -655,8 +568,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             boolean agg,
             boolean isDimension,
             TimeSeriesParams.MetricType metricType,
-            @Nullable String inferenceId,
-            @Nullable String searchInferenceId,
+            @Nullable FieldInferenceCapabilities inference,
             Map<String, String> meta
         ) {
             assert assertIndicesSorted(indices);
@@ -681,17 +593,16 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
             // Track inference info across indices: the field is reported as inference-backed only when every index that maps it
             // is inference-backed. Different inference ids across indices become a conflict reported per-index.
-            if (inferenceId == null) {
+            if (inference == null || inference.inferenceId() == null) {
                 hasNonInferenceIndex = true;
             } else if (inferenceSeen == false) {
                 inferenceSeen = true;
-                firstInferenceId = inferenceId;
-                firstSearchInferenceId = searchInferenceId;
-            } else if (Objects.equals(firstInferenceId, inferenceId) == false
-                || Objects.equals(firstSearchInferenceId, searchInferenceId) == false) {
+                firstInference = inference;
+            } else if (Objects.equals(firstInference.inferenceId(), inference.inferenceId()) == false
+                || Objects.equals(firstInference.searchInferenceId(), inference.searchInferenceId()) == false) {
                     hasConflictInferenceId = true;
                 }
-            indicesList.add(new IndexCaps(indices, search, agg, isDimension, metricType, inferenceId, searchInferenceId));
+            indicesList.add(new IndexCaps(indices, search, agg, isDimension, metricType, inference));
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>()).add(entry.getValue());
             }
@@ -763,23 +674,23 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
             // Inference output: emit only if every index agrees this field is inference-backed; on conflicting ids, emit the
             // inference object with the inference id omitted and a per-index conflict array.
-            final String resolvedInferenceId;
-            final String resolvedSearchInferenceId;
-            final String[] resolvedInferenceConflictsIndices;
+            final FieldInferenceCapabilities resolvedInference;
             if (inferenceSeen && hasNonInferenceIndex == false) {
                 if (hasConflictInferenceId) {
-                    resolvedInferenceId = null;
-                    resolvedSearchInferenceId = null;
-                    resolvedInferenceConflictsIndices = filterIndices(totalIndices, ic -> ic.inferenceId != null);
+                    String[] conflicts = filterIndices(
+                        countIndices(ic -> ic.inference != null && ic.inference.inferenceId() != null),
+                        ic -> ic.inference != null && ic.inference.inferenceId() != null
+                    );
+                    resolvedInference = new FieldInferenceCapabilities(null, null, conflicts);
                 } else {
-                    resolvedInferenceId = firstInferenceId;
-                    resolvedSearchInferenceId = Objects.equals(firstInferenceId, firstSearchInferenceId) ? null : firstSearchInferenceId;
-                    resolvedInferenceConflictsIndices = null;
+                    String inferenceId = firstInference.inferenceId();
+                    String searchInferenceId = Objects.equals(firstInference.inferenceId(), firstInference.searchInferenceId())
+                        ? null
+                        : firstInference.searchInferenceId();
+                    resolvedInference = new FieldInferenceCapabilities(inferenceId, searchInferenceId, null);
                 }
             } else {
-                resolvedInferenceId = null;
-                resolvedSearchInferenceId = null;
-                resolvedInferenceConflictsIndices = null;
+                resolvedInference = null;
             }
 
             final Function<Map.Entry<String, Set<String>>, Set<String>> entryValueFunction = Map.Entry::getValue;
@@ -799,11 +710,19 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 nonAggregatableIndices,
                 nonDimensionIndices,
                 metricConflictsIndices,
-                resolvedInferenceId,
-                resolvedSearchInferenceId,
-                resolvedInferenceConflictsIndices,
+                resolvedInference,
                 immutableMeta
             );
+        }
+
+        private int countIndices(Predicate<IndexCaps> pred) {
+            int count = 0;
+            for (IndexCaps ic : indicesList) {
+                if (pred.test(ic)) {
+                    count += ic.indices.length;
+                }
+            }
+            return count;
         }
     }
 
@@ -813,7 +732,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         boolean isAggregatable,
         boolean isDimension,
         TimeSeriesParams.MetricType metricType,
-        @Nullable String inferenceId,
-        @Nullable String searchInferenceId
+        @Nullable FieldInferenceCapabilities inference
     ) {}
 }

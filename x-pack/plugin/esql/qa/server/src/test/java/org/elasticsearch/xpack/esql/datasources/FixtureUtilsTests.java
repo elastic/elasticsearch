@@ -5,18 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.csv;
+package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
+import org.elasticsearch.test.ESTestCase;
 
 /**
- * Unit tests for {@link FixtureUtils#injectWithEntries}. Placed in the CSV QA project
- * because it already depends on the qa/server library where {@code FixtureUtils} lives.
- * Named with the {@code IT} suffix and extends {@link ESRestTestCase} to satisfy the
- * {@code javaRestTest} testing conventions, even though no cluster is required.
+ * Unit tests for {@link FixtureUtils#injectWithEntries}. Lives in the same qa/server project as the
+ * class under test so it can be a plain {@link ESTestCase} unit test (no cluster required).
  */
-public class FixtureUtilsIT extends ESRestTestCase {
+public class FixtureUtilsTests extends ESTestCase {
 
     public void testInjectWithEntriesAppendsWhenNoExistingWith() {
         String result = FixtureUtils.injectWithEntries(

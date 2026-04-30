@@ -191,7 +191,13 @@ public class FixtureUtils {
         if (entries.isEmpty()) {
             return externalPart;
         }
-        return externalPart.substring(0, withBrace + 1) + " " + entries + ", " + externalPart.substring(withBrace + 1);
+        // Strip a leading space from the existing map body since we always emit ", " as the separator,
+        // otherwise input like "{ "k": v }" would yield two spaces between the merged entries.
+        String tail = externalPart.substring(withBrace + 1);
+        if (tail.startsWith(" ")) {
+            tail = tail.substring(1);
+        }
+        return externalPart.substring(0, withBrace + 1) + " " + entries + ", " + tail;
     }
 
     /**

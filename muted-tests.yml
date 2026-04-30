@@ -511,9 +511,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.shutdown.SigtermTerminationHandlerTests
   method: testShutdownBlockIgnoreOtherRoles
   issue: https://github.com/elastic/elasticsearch/issues/148037
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testDoExecuteReleasesRegistrationWhenDataNodeFailsAfterChunkStreaming
-  issue: https://github.com/elastic/elasticsearch/issues/147870
 - class: org.elasticsearch.search.profile.TimerTests
   method: testTimingInterval
   issue: https://github.com/elastic/elasticsearch/issues/148038

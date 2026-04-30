@@ -20,6 +20,7 @@ if [ $# = 0 ]; then
   echo "Building cross-compilation Docker image"
   docker build --quiet -f build-tools/Dockerfile.cargo-zigbuild -t cargo-zigbuild .
   docker run \
+    --rm \
     -v $PWD:/workspace -w /workspace \
     -v $HOME/.cargo/registry:/usr/local/cargo/registry \
     cargo-zigbuild ./"$SCRIPT" --build
@@ -36,13 +37,42 @@ if [ ! -f "/usr/local/cargo/bin/cargo-zigbuild" ]; then
   exit 1
 fi
 
-ls .cargo
+#--- MacOS specific stuff
+export CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS="-C link-arg=-undefined -C link-arg=dynamic_lookup"
+export SDKROOT=$(mktemp -d)
 
+# TAPI files are text placeholders for MacOS SDK libraries that the linker will pick up if present.
+# The files produced below don't define actual symbols. This works in combination with the linker parameters
+# `-undefined -C link-arg=dynamic_lookup` defined above, that let it silently ignore missing symbols.
+for lib in libc libm libiconv libSystem; do
+  file=$SDKROOT/usr/lib/$lib.tbd
+  mkdir -p "$(dirname $file)"
+  cat > $file << EOF
+--- !tapi-tbd
+tbd-version: 4
+targets: [ arm64-macos ]
+install-name: /usr/lib/$lib.dylib
+exports: []
+...
+EOF
+done
+
+for fwk in CoreFoundation Security; do
+  file=$SDKROOT/System/Library/Frameworks/$fwk.framework/$fwk.tbd
+  mkdir -p "$(dirname $file)"
+  cat > $file << EOF
+--- !tapi-tbd
+tbd-version: 4
+targets: [ arm64-macos ]
+install-name: /System/Library/Frameworks/$fwk.framework/$fwk
+exports: []
+...
+EOF
+done
+
+#--- Build
 rm -rf $OUTPUT
 mkdir $OUTPUT
-
-export CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS="-C link-arg=-undefined -C link-arg=dynamic_lookup"
-export SDKROOT=/workspace/build-tools/darwin-sysroot
 
 for target in $TARGETS; do
   echo "Building target $target"

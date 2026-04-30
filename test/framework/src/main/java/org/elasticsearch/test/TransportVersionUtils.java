@@ -53,8 +53,8 @@ public class TransportVersionUtils {
      * Returns a random {@link TransportVersion} that does not support the provided version. Effectively, this returns a version
      * "before" the given version.
      */
-    public static TransportVersion randomVersionNotSupporting(TransportVersion version) {
-        return RandomPicks.randomFrom(random(), allReleasedVersions().stream().filter(v -> v.supports(version) == false).toList());
+    public static TransportVersion randomVersionNotSupporting(Random random, TransportVersion version) {
+        return RandomPicks.randomFrom(random, allReleasedVersions().stream().filter(v -> v.supports(version) == false).toList());
     }
 
     /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */

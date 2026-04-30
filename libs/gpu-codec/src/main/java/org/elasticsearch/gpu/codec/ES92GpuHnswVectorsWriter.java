@@ -47,7 +47,7 @@ import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.HnswKnnVectorsWriter;
+import org.elasticsearch.index.codec.vectors.IndexingKnnVectorsWriter;
 import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -74,7 +74,7 @@ import static org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVecto
  * Writer that builds an Nvidia Carga Graph on GPU and then writes it into the Lucene99 HNSW format,
  * so that it can be searched on CPU with Lucene99HNSWVectorReader.
  */
-final class ES92GpuHnswVectorsWriter extends HnswKnnVectorsWriter {
+final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
     private static final Logger logger = LogManager.getLogger(ES92GpuHnswVectorsWriter.class);
     private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES92GpuHnswVectorsWriter.class);
     private static final int LUCENE99_HNSW_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;

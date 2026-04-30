@@ -22,7 +22,6 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
-import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
@@ -36,6 +35,7 @@ import org.apache.lucene.util.IORunnable;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.IndexingKnnVectorsWriter;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValuesSlice;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
@@ -55,18 +55,13 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * Base class for IVF vectors writer.
  */
-public abstract class IVFVectorsWriter extends KnnVectorsWriter {
+public abstract class IVFVectorsWriter extends IndexingKnnVectorsWriter {
 
     private final List<FieldWriter> fieldWriters = new ArrayList<>();
     private final IndexOutput ivfCentroids, ivfClusters;
     private final IndexOutput ivfMeta;
     private final String rawVectorFormatName;
     private final Boolean useDirectIOReads;
-    private final FlatVectorsFormat flatVectorsFormat;
-    private final SegmentWriteState segmentWriteState;
-    private boolean flatWriterClosed = false;
-    private FlatVectorsReader flatVectorsReader;
-    private final FlatVectorsWriter rawVectorDelegate;
     private final int flatVectorThreshold;
     private final boolean shouldWriteDirectIoReads;
 
@@ -84,13 +79,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         boolean shouldWriteDirectIoReads,
         int flatVectorThreshold
     ) throws IOException {
-        this.flatVectorsFormat = flatVectorsFormat;
+        super(state, flatVectorsFormat, rawVectorDelegate);
         this.rawVectorFormatName = flatVectorsFormat.getName();
         this.useDirectIOReads = useDirectIOReads;
-        this.rawVectorDelegate = rawVectorDelegate;
         this.flatVectorThreshold = flatVectorThreshold;
         this.shouldWriteDirectIoReads = shouldWriteDirectIoReads;
-        this.segmentWriteState = state;
         final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
         final String ivfCentroidsFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, centroidExtension);
         final String ivfClustersFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, clusterExtension);
@@ -112,7 +105,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         if (fieldInfo.getVectorSimilarityFunction() == VectorSimilarityFunction.COSINE) {
             throw new IllegalArgumentException("IVF does not support cosine similarity");
         }
-        final FlatFieldVectorsWriter<?> rawVectorDelegate = this.rawVectorDelegate.addField(fieldInfo);
+        final FlatFieldVectorsWriter<?> rawVectorDelegate = this.flatVectorWriter.addField(fieldInfo);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
             @SuppressWarnings("unchecked")
             final FlatFieldVectorsWriter<float[]> floatWriter = (FlatFieldVectorsWriter<float[]>) rawVectorDelegate;
@@ -197,7 +190,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public final void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
-        rawVectorDelegate.flush(maxDoc, sortMap);
+        flatVectorWriter.flush(maxDoc, sortMap);
         for (FieldWriter fieldWriter : fieldWriters) {
             // build preconditioner if necessary, only need one given that this writer is tied to a format that has a fixed dim & block dim
             // write preconditioner subsequently in the centroids file
@@ -351,7 +344,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public final IORunnable mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
+        flatVectorWriter.mergeOneField(fieldInfo, mergeState);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
             return () -> mergeOneFieldIVF(fieldInfo, mergeState);
         } else {
@@ -631,27 +624,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         throw new IllegalArgumentException("invalid distance function: " + func);
     }
 
-    private void ensureFlatReaderOpen() throws IOException {
-        if (flatVectorsReader == null) {
-            rawVectorDelegate.finish();
-            rawVectorDelegate.close();
-            flatWriterClosed = true;
-            SegmentReadState readState = new SegmentReadState(
-                segmentWriteState.directory,
-                segmentWriteState.segmentInfo,
-                segmentWriteState.fieldInfos,
-                segmentWriteState.context,
-                segmentWriteState.segmentSuffix
-            );
-            flatVectorsReader = flatVectorsFormat.fieldsReader(readState);
-        }
-    }
-
     @Override
     public final void finish() throws IOException {
-        if (flatWriterClosed == false) {
-            rawVectorDelegate.finish();
-        }
+        super.finish();
         if (ivfMeta != null) {
             // write end of fields marker
             ivfMeta.writeInt(-1);
@@ -667,16 +642,16 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public final void close() throws IOException {
-        if (flatWriterClosed) {
+        if (isFlatWriterClosed()) {
             IOUtils.close(ivfMeta, ivfCentroids, ivfClusters, flatVectorsReader);
         } else {
-            IOUtils.close(rawVectorDelegate, ivfMeta, ivfCentroids, ivfClusters, flatVectorsReader);
+            IOUtils.close(flatVectorWriter, ivfMeta, ivfCentroids, ivfClusters, flatVectorsReader);
         }
     }
 
     @Override
     public final long ramBytesUsed() {
-        return rawVectorDelegate.ramBytesUsed();
+        return flatVectorWriter.ramBytesUsed();
     }
 
     private record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<float[]> delegate) {}

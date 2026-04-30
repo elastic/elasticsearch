@@ -124,6 +124,10 @@ class SemanticFieldValueFetcher implements ValueFetcher {
         List<Object> chunks = new ArrayList<>();
 
         iterateChildDocs(doc, it, offset -> {
+            if (offset.inputIndex() != null) {
+                // TODO: Implement input index handling
+                throw new UnsupportedOperationException("Input index-based text extraction is not supported");
+            }
             var rawValue = originalValueMap.computeIfAbsent(offset.field(), k -> {
                 var valueObj = XContentMapValues.extractValue(offset.field(), source.source(), null);
                 var values = SemanticTextUtils.nodeStringValues(offset.field(), valueObj).stream().toList();
@@ -141,13 +145,11 @@ class SemanticFieldValueFetcher implements ValueFetcher {
 
         iterateChildDocs(doc, it, offset -> {
             var fullChunks = chunkMap.computeIfAbsent(offset.field(), k -> new ArrayList<>());
+            var rawEmbeddings = rawEmbeddings(embeddingsFieldLoader::write, source.sourceContentType());
             fullChunks.add(
-                new SemanticTextField.Chunk(
-                    null,
-                    offset.start(),
-                    offset.end(),
-                    rawEmbeddings(embeddingsFieldLoader::write, source.sourceContentType())
-                )
+                offset.inputIndex() != null
+                    ? new SemanticTextField.Chunk(offset.inputIndex(), rawEmbeddings)
+                    : new SemanticTextField.Chunk(offset.start(), offset.end(), rawEmbeddings)
             );
         });
 
@@ -182,7 +184,7 @@ class SemanticFieldValueFetcher implements ValueFetcher {
                 }
             }
 
-            var offset = offsetsLoader.advanceTo(it.docID());
+            var offset = offsetsLoader.advanceTo(it.docID(), fieldType.getChunksField().indexSettings().getIndexVersionCreated());
             if (offset == null) {
                 throw new IllegalStateException(
                     "Cannot fetch values for field [" + fieldType.name() + "], missing offsets for doc [" + doc + "]"

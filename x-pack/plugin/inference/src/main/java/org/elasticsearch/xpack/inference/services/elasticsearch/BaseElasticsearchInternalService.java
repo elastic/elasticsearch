@@ -47,7 +47,6 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -126,7 +125,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             });
             subscribableListener.addTimeout(timeout, threadPool, inferenceExecutor);
             subscribableListener.addListener(ActionListener.wrap(started -> {
-                inferenceStats.deploymentDuration().record(timer.elapsedMillis(), serviceAndResponseAttributes(model, null));
+                inferenceStats.deploymentDuration().record(timer.elapsedMillis(), inferenceStats.serviceAndResponseAttributes(model, null));
                 finalListener.onResponse(started);
             }, e -> {
                 if (e instanceof ElasticsearchTimeoutException) {
@@ -140,10 +139,11 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                         )
                     );
                     inferenceStats.deploymentDuration()
-                        .record(timer.elapsedMillis(), serviceAndResponseAttributes(model, timeoutException));
+                        .record(timer.elapsedMillis(), inferenceStats.serviceAndResponseAttributes(model, timeoutException));
                     finalListener.onFailure(timeoutException);
                 } else {
-                    inferenceStats.deploymentDuration().record(timer.elapsedMillis(), serviceAndResponseAttributes(model, unwrapCause(e)));
+                    inferenceStats.deploymentDuration()
+                        .record(timer.elapsedMillis(), inferenceStats.serviceAndResponseAttributes(model, unwrapCause(e)));
                     finalListener.onFailure(e);
                 }
             }));

@@ -21,6 +21,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -637,6 +638,7 @@ public class IpFieldMapper extends FieldMapper {
     private final boolean ignoreMalformed;
     private final boolean storeIgnored;
     private final boolean dimension;
+    private final boolean writeDimensionRouting;
 
     private final InetAddress nullValue;
     private final String nullValueAsString;
@@ -672,6 +674,9 @@ public class IpFieldMapper extends FieldMapper {
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
         this.dimension = builder.dimension.getValue();
+        this.writeDimensionRouting = this.dimension
+            && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
+            && efs.extractDimensionsWhileMapping();
         this.storeIgnored = storeIgnored;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSettings = builder.indexSettings;
@@ -735,7 +740,7 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, ESInetAddressPoint address) {
-        if (dimension && context.getRoutingFields().isNoop() == false) {
+        if (writeDimensionRouting) {
             context.getRoutingFields().addIp(fieldType().name(), address.getInetAddress());
         }
         LuceneDocument doc = context.doc();

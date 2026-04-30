@@ -55,13 +55,24 @@ final class ParquetColumnDecoding {
      * Parquet {@code FIXED_LEN_BYTE_ARRAY(16)} is always exactly 16 bytes.
      */
     static String formatUuid(byte[] bytes) {
-        if (bytes == null || bytes.length != 16) {
-            throw new QlIllegalArgumentException("UUID requires exactly 16 bytes, got " + (bytes == null ? "null" : bytes.length));
+        return formatUuid(bytes, 0, bytes == null ? 0 : bytes.length);
+    }
+
+    /**
+     * Formats a 16-byte UUID in big-endian layout as the standard 8-4-4-4-12 hex string.
+     * The UUID bytes start at {@code offset} in the given array.
+     */
+    static String formatUuid(byte[] bytes, int offset, int length) {
+        if (bytes == null || length != 16) {
+            throw new QlIllegalArgumentException("UUID requires exactly 16 bytes, got " + (bytes == null ? "null" : length));
+        }
+        if (offset < 0 || offset + 16 > bytes.length) {
+            throw new QlIllegalArgumentException("UUID byte offset out of bounds: offset=" + offset + ", array length=" + bytes.length);
         }
         StringBuilder sb = new StringBuilder(36);
         for (int i = 0; i < 16; i++) {
-            sb.append(HEX[(bytes[i] >> 4) & 0xF]);
-            sb.append(HEX[bytes[i] & 0xF]);
+            sb.append(HEX[(bytes[offset + i] >> 4) & 0xF]);
+            sb.append(HEX[bytes[offset + i] & 0xF]);
             if (i == 3 || i == 5 || i == 7 || i == 9) {
                 sb.append('-');
             }

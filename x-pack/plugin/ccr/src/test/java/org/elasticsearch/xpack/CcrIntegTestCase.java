@@ -524,7 +524,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 new CcrStatsAction.Request(TEST_REQUEST_TIMEOUT)
             ).actionGet();
             assertThat(
-                "Follow stats not empty: " + Strings.toString(statsResponse.getFollowStats()),
+                "Follow stats not empty: " + Strings.toTruncatedString(statsResponse.getFollowStats()),
                 statsResponse.getFollowStats().getStatsResponses(),
                 empty()
             );

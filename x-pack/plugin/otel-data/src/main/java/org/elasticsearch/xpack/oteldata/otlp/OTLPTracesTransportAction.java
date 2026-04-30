@@ -11,7 +11,6 @@ import io.opentelemetry.proto.collector.trace.v1.ExportTracePartialSuccess;
 import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
 import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
-import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.resource.v1.Resource;
 import io.opentelemetry.proto.trace.v1.ResourceSpans;
 import io.opentelemetry.proto.trace.v1.ScopeSpans;
@@ -25,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,7 +54,6 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
     public static final ActionType<OTLPActionResponse> TYPE = new ActionType<>(NAME);
 
     public static final String TYPE_TRACES = "traces";
-    private static final String DOCUMENT_ID_ATTRIBUTE = "elasticsearch.document_id";
 
     @Inject
     public OTLPTracesTransportAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool, Client client) {
@@ -75,14 +74,14 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
             for (int j = 0, scopeSpansListSize = scopeSpansList.size(); j < scopeSpansListSize; j++) {
                 ScopeSpans scopeSpans = scopeSpansList.get(j);
                 InstrumentationScope scope = scopeSpans.getScope();
-                String receiverName = TargetIndex.extractReceiverName(scope);
+                String scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
                 List<Span> spansList = scopeSpans.getSpansList();
                 for (int k = 0, spansListSize = spansList.size(); k < spansListSize; k++) {
                     Span span = spansList.get(k);
                     TargetIndex index = TargetIndex.evaluate(
                         TYPE_TRACES,
                         span.getAttributesList(),
-                        receiverName,
+                        scopeRoutingDataset,
                         scope.getAttributesList(),
                         resource.getAttributesList()
                     );
@@ -97,8 +96,8 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                             span
                         );
                         IndexRequest indexRequest = new IndexRequest(index.index());
-                        String documentId = extractDocumentId(span.getAttributesList());
-                        if (documentId.isEmpty() == false) {
+                        String documentId = DocumentMetadata.documentId(span.getAttributesList());
+                        if (Strings.hasLength(documentId)) {
                             indexRequest.id(documentId);
                         }
                         bulkRequestBuilder.add(
@@ -109,9 +108,9 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                     for (int l = 0, eventsListSize = eventsList.size(); l < eventsListSize; l++) {
                         Span.Event event = eventsList.get(l);
                         TargetIndex eventIndex = TargetIndex.evaluate(
-                            OTLPLogsTransportAction.TYPE_LOGS,
+                            TargetIndex.TYPE_LOGS,
                             event.getAttributesList(),
-                            receiverName,
+                            scopeRoutingDataset,
                             scope.getAttributesList(),
                             resource.getAttributesList()
                         );
@@ -127,8 +126,8 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                                 event
                             );
                             IndexRequest eventRequest = new IndexRequest(eventIndex.index());
-                            String eventDocumentId = extractDocumentId(event.getAttributesList());
-                            if (eventDocumentId.isEmpty() == false) {
+                            String eventDocumentId = DocumentMetadata.documentId(event.getAttributesList());
+                            if (Strings.hasLength(eventDocumentId)) {
                                 eventRequest.id(eventDocumentId);
                             }
                             bulkRequestBuilder.add(
@@ -139,25 +138,15 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                 }
             }
         }
-        return ProcessingContext.withTotalDataPoints(bulkRequestBuilder.numberOfActions());
+        return ProcessingContext.withTotalItems(bulkRequestBuilder.numberOfActions());
     }
 
     @Override
-    MessageLite responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
+    MessageLite responseWithRejectedItems(int rejectedItems, String message) {
         ExportTracePartialSuccess partialSuccess = ExportTracePartialSuccess.newBuilder()
-            .setRejectedSpans(rejectedDataPoints)
+            .setRejectedSpans(rejectedItems)
             .setErrorMessage(message)
             .build();
         return ExportTraceServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();
-    }
-
-    private static String extractDocumentId(List<KeyValue> attributes) {
-        for (int i = 0, size = attributes.size(); i < size; i++) {
-            KeyValue attribute = attributes.get(i);
-            if (DOCUMENT_ID_ATTRIBUTE.equals(attribute.getKey())) {
-                return attribute.getValue().getStringValue();
-            }
-        }
-        return "";
     }
 }

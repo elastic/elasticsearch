@@ -57,3 +57,64 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }
 
+---
+"Match query on semantic field with image content":
+
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: "img_1"
+        body:
+          # TODO Use a real type: image when it's supported on indexing
+          my_field: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: "img_2"
+        body:
+          my_field: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            match:
+              my_field:
+                query: "cat on a windowsill"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "img_1" }
+
+---
+"Semantic query on semantic field":
+
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: "1"
+        body:
+          my_field: "the quick brown fox"
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: "2"
+        body:
+          my_field: "the slow green turtle"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            semantic:
+              field: my_field
+              query: "the quick brown fox"
+
+  - match: { hits.total.value: 2 }

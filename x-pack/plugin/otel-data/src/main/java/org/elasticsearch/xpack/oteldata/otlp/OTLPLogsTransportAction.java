@@ -161,17 +161,17 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
         }
 
         @Override
-        public int totalDataPoints() {
+        public int totalItems() {
             return totalLogRecords;
         }
 
         @Override
-        public int getIgnoredDataPoints() {
+        public int getIgnoredItems() {
             return ignoredLogRecords;
         }
 
         @Override
-        public String getIgnoredDataPointsMessage(int limit) {
+        public String getIgnoredItemsMessage(int limit) {
             if (ignoredLogRecordMessages.isEmpty()) {
                 return "";
             }
@@ -193,9 +193,9 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
     }
 
     @Override
-    MessageLite responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
+    MessageLite responseWithRejectedItems(int rejectedItems, String message) {
         ExportLogsPartialSuccess partialSuccess = ExportLogsPartialSuccess.newBuilder()
-            .setRejectedLogRecords(rejectedDataPoints)
+            .setRejectedLogRecords(rejectedItems)
             .setErrorMessage(message)
             .build();
         return ExportLogsServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();

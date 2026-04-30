@@ -103,8 +103,8 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
 
         ProcessingContext context = logsAction.prepareBulkRequest(createBodyMapRequest(List.of(logRecord)), bulkRequestBuilder);
 
-        assertThat(context.totalDataPoints(), equalTo(1));
-        assertThat(context.getIgnoredDataPoints(), equalTo(0));
+        assertThat(context.totalItems(), equalTo(1));
+        assertThat(context.getIgnoredItems(), equalTo(0));
         assertThat(bulkRequestBuilder.numberOfActions(), equalTo(1));
         IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
         Map<String, Object> source = indexRequest.sourceAsMap();
@@ -128,7 +128,7 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
             bulkRequestBuilder
         );
 
-        assertThat(context.totalDataPoints(), equalTo(1));
+        assertThat(context.totalItems(), equalTo(1));
         assertThat(bulkRequestBuilder.numberOfActions(), equalTo(1));
         IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
         assertThat(((Number) indexRequest.sourceAsMap().get("a")).longValue(), equalTo(42L));
@@ -144,8 +144,8 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
             bulkRequestBuilder
         );
 
-        assertThat(context.totalDataPoints(), equalTo(1));
-        assertThat(context.getIgnoredDataPoints(), equalTo(0));
+        assertThat(context.totalItems(), equalTo(1));
+        assertThat(context.getIgnoredItems(), equalTo(0));
         assertThat(bulkRequestBuilder.numberOfActions(), equalTo(1));
         IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
         assertThat(indexRequest.sourceAsMap().get("body"), equalTo(Map.of("text", "not a bodymap")));
@@ -203,7 +203,7 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
             bulkRequestBuilder
         );
 
-        assertThat(context.totalDataPoints(), equalTo(1));
+        assertThat(context.totalItems(), equalTo(1));
         assertThat(bulkRequestBuilder.numberOfActions(), equalTo(1));
         IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
         assertThat(indexRequest.index(), equalTo("logs-generic-default"));
@@ -227,7 +227,7 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
             bulkRequestBuilder
         );
 
-        assertThat(context.totalDataPoints(), equalTo(1));
+        assertThat(context.totalItems(), equalTo(1));
         assertThat(bulkRequestBuilder.numberOfActions(), equalTo(1));
         IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
         assertThat(indexRequest.index(), equalTo("metrics-generic-default"));
@@ -260,7 +260,7 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
             bulkRequestBuilder
         );
 
-        assertThat(context.totalDataPoints(), equalTo(1));
+        assertThat(context.totalItems(), equalTo(1));
         IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
         assertThat(indexRequest.index(), equalTo("logs-generic-default"));
     }
@@ -281,9 +281,9 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
             bulkRequestBuilder
         );
 
-        assertThat(context.totalDataPoints(), equalTo(3));
-        assertThat(context.getIgnoredDataPoints(), equalTo(2));
-        String ignoredDataPointsMessage = context.getIgnoredDataPointsMessage(10);
+        assertThat(context.totalItems(), equalTo(3));
+        assertThat(context.getIgnoredItems(), equalTo(2));
+        String ignoredDataPointsMessage = context.getIgnoredItemsMessage(10);
         String invalidBodyTypeMessage = "Invalid log record body type for 'bodymap' mapping mode";
         assertThat(ignoredDataPointsMessage, containsString(invalidBodyTypeMessage));
         assertThat(

@@ -139,13 +139,13 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                 }
             }
         }
-        return ProcessingContext.withTotalDataPoints(bulkRequestBuilder.numberOfActions());
+        return ProcessingContext.withTotalItems(bulkRequestBuilder.numberOfActions());
     }
 
     @Override
-    MessageLite responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
+    MessageLite responseWithRejectedItems(int rejectedItems, String message) {
         ExportTracePartialSuccess partialSuccess = ExportTracePartialSuccess.newBuilder()
-            .setRejectedSpans(rejectedDataPoints)
+            .setRejectedSpans(rejectedItems)
             .setErrorMessage(message)
             .build();
         return ExportTraceServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();

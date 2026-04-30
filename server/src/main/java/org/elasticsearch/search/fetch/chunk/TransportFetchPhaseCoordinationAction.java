@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
@@ -236,10 +237,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             );
 
             ActionListener.respondAndRelease(listener.map(Response::new), finalResult);
-        }, listener::onFailure), () -> {
-            registration.close();
-            responseStream.decRef();
-        });
+        }, listener::onFailure), () -> Releasables.close(registration, responseStream::decRef));
 
         final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {

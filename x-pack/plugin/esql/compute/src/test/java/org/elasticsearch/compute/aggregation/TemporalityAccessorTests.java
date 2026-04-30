@@ -20,6 +20,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class TemporalityAccessorTests extends ESTestCase {
 
@@ -37,12 +39,14 @@ public class TemporalityAccessorTests extends ESTestCase {
     public void testConstant() {
         TemporalityAccessor accessor = TemporalityAccessor.constant(Temporality.CUMULATIVE);
         assertThat(accessor.mode, equalTo(TemporalityAccessor.Mode.CONSTANT));
+        assertThat(accessor.block(), nullValue());
         assertThat(accessor.get(0), equalTo(Temporality.CUMULATIVE));
         assertThat(accessor.get(100), equalTo(Temporality.CUMULATIVE));
         assertThat(accessor.get(Integer.MAX_VALUE), equalTo(Temporality.CUMULATIVE));
 
         accessor = TemporalityAccessor.constant(Temporality.DELTA);
         assertThat(accessor.mode, equalTo(TemporalityAccessor.Mode.CONSTANT));
+        assertThat(accessor.block(), nullValue());
         assertThat(accessor.get(0), equalTo(Temporality.DELTA));
         assertThat(accessor.get(100), equalTo(Temporality.DELTA));
     }
@@ -54,6 +58,7 @@ public class TemporalityAccessorTests extends ESTestCase {
         ) {
             TemporalityAccessor accessor = TemporalityAccessor.create(nullBlock, Temporality.DELTA, failingHandler());
             assertThat(accessor.mode, equalTo(TemporalityAccessor.Mode.CONSTANT));
+            assertThat(accessor.block(), sameInstance(nullBlock));
             assertThat(accessor.get(0), equalTo(Temporality.DELTA));
         }
     }
@@ -62,14 +67,17 @@ public class TemporalityAccessorTests extends ESTestCase {
         try (BytesRefBlock emptyBlock = blockFactory().newBytesRefBlockBuilder(0).build()) {
             TemporalityAccessor accessor = TemporalityAccessor.create(emptyBlock, Temporality.CUMULATIVE, failingHandler());
             assertThat(accessor.mode, equalTo(TemporalityAccessor.Mode.CONSTANT));
+            assertThat(accessor.block(), sameInstance(emptyBlock));
             assertThat(accessor.get(0), equalTo(Temporality.CUMULATIVE));
         }
     }
 
     public void testCreateWithConstantCumulativeReturnsConstant() {
         try (BytesRefVector vector = blockFactory().newConstantBytesRefVector(Temporality.CUMULATIVE.bytesRef(), 10)) {
-            TemporalityAccessor accessor = TemporalityAccessor.create(vector.asBlock(), Temporality.DELTA, failingHandler());
+            BytesRefBlock block = vector.asBlock();
+            TemporalityAccessor accessor = TemporalityAccessor.create(block, Temporality.DELTA, failingHandler());
             assertThat(accessor.mode, equalTo(TemporalityAccessor.Mode.CONSTANT));
+            assertThat(accessor.block(), sameInstance(block));
             assertThat(accessor.get(0), equalTo(Temporality.CUMULATIVE));
             assertThat(accessor.get(5), equalTo(Temporality.CUMULATIVE));
         }
@@ -77,8 +85,10 @@ public class TemporalityAccessorTests extends ESTestCase {
 
     public void testCreateWithConstantDeltaReturnsConstant() {
         try (BytesRefVector vector = blockFactory().newConstantBytesRefVector(Temporality.DELTA.bytesRef(), 10)) {
-            TemporalityAccessor accessor = TemporalityAccessor.create(vector.asBlock(), Temporality.CUMULATIVE, failingHandler());
+            BytesRefBlock block = vector.asBlock();
+            TemporalityAccessor accessor = TemporalityAccessor.create(block, Temporality.CUMULATIVE, failingHandler());
             assertThat(accessor.mode, equalTo(TemporalityAccessor.Mode.CONSTANT));
+            assertThat(accessor.block(), sameInstance(block));
             assertThat(accessor.get(0), equalTo(Temporality.DELTA));
         }
     }
@@ -107,6 +117,7 @@ public class TemporalityAccessorTests extends ESTestCase {
         ) {
             TemporalityAccessor accessor = TemporalityAccessor.create(block, Temporality.DELTA, failingHandler());
             assertThat(accessor.mode, equalTo(TemporalityAccessor.Mode.DYNAMIC));
+            assertThat(accessor.block(), sameInstance(block));
             assertThat(accessor.get(0), equalTo(Temporality.CUMULATIVE));
             assertThat(accessor.get(1), equalTo(Temporality.DELTA));
             assertThat(accessor.get(2), equalTo(Temporality.CUMULATIVE));
@@ -162,6 +173,7 @@ public class TemporalityAccessorTests extends ESTestCase {
             try (OrdinalBytesRefBlock block = new OrdinalBytesRefBlock(ordinalsBuilder.build(), dictBuilder.build())) {
                 TemporalityAccessor accessor = TemporalityAccessor.create(block, Temporality.DELTA, failingHandler());
                 assertThat(accessor.mode, equalTo(TemporalityAccessor.Mode.ORDINAL));
+                assertThat(accessor.block(), sameInstance(block));
                 assertThat(accessor.get(0), equalTo(Temporality.CUMULATIVE));
                 assertThat(accessor.get(1), equalTo(Temporality.DELTA));
                 assertThat(accessor.get(2), equalTo(Temporality.CUMULATIVE));

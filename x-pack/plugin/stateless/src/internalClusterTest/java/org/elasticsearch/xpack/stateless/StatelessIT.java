@@ -122,6 +122,7 @@ import static org.elasticsearch.indices.IndexingMemoryController.SHARD_INACTIVE_
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
@@ -564,7 +565,7 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(indexName);
         // Index also works and we get expected number of docs
         indexDocsAndRefresh(indexName, 10);
-        assertHitCount(safeGet(prepareSearch(indexName).setSize(0).execute()), 20);
+        assertResponse(prepareSearch(indexName).setSize(0), response -> { assertHitCount(response, 20); });
     }
 
     public void testRestartNodeWithClosedIndex() throws Exception {
@@ -587,7 +588,7 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(indexName);
         // Index also works and we get expected number of docs
         indexDocsAndRefresh(indexName, 10);
-        assertHitCount(safeGet(prepareSearch(indexName).setSize(0).execute()), 20);
+        assertResponse(prepareSearch(indexName).setSize(0), response -> { assertHitCount(response, 20); });
     }
 
     public void testSetsRecyclableBigArraysInTranslogReplicator() throws Exception {

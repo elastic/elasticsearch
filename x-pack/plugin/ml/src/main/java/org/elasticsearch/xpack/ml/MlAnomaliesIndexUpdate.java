@@ -525,7 +525,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
                 + "{\"source\":{\"index\":\"%s\"},\"dest\":{\"index\":\"%s\",\"op_type\":\"create\"}}. "
                 + "Using op_type:create avoids overwriting documents that were already renormalized in the destination. "
                 + "After verifying documents arrived, [%s] may be deleted. "
-                + "KB: https://support.elastic.dev/knowledge/view/d699924c",
+                + "Details: https://github.com/elastic/elasticsearch/issues/147686",
             badIndex,    // 1 stranded in index
             targetIndex, // 2 new results written to
             badIndex,    // 3 reindex source

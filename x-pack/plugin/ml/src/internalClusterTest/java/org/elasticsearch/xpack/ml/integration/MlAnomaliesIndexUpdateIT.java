@@ -170,6 +170,7 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
 
         // Heal must have picked the next suffix
         assertAliasesOnIndex(expectedTarget, jobs, state);
+        assertBadIndexHasNoMlAliases(existingBlocker, state);
         assertBadIndexHasNoMlAliases(badIndex, state);
     }
 

@@ -4,7 +4,7 @@
 
 multipleAggsWithoutTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v3
+required_capability: tsdb_temporality_support_v4
 
 TS metric_temporality
  | STATS bytes_per_second = SUM(rate(network.total_bytes_in)), bytes = SUM(increase(network.total_bytes_in)) BY cluster
@@ -24,7 +24,7 @@ prod-null       | 0.2928479               | 264.0
 
 rateGroupedByTemporality
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v3
+required_capability: tsdb_temporality_support_v4
 
 TS metric_temporality
  | STATS bytes_per_second = SUM(rate(network.total_bytes_in)) BY my_temporality
@@ -44,7 +44,7 @@ null                   | 0.2928479
 
 multipleAggsByTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v3
+required_capability: tsdb_temporality_support_v4
 
 TS metric_temporality
  | STATS bytes_per_second = SUM(rate(network.total_bytes_in)), bytes = SUM(increase(network.total_bytes_in)) BY cluster, bucket = TBUCKET(300s)
@@ -73,7 +73,7 @@ bucket:datetime          | cluster:keyword | bytes_per_second:double | bytes:dou
 
 irateWithoutTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v3
+required_capability: tsdb_temporality_support_v4
 
 TS metric_temporality
  | STATS irate_bytes = SUM(irate(network.total_bytes_in)) BY cluster
@@ -81,6 +81,8 @@ TS metric_temporality
  | KEEP cluster, irate_bytes
  | SORT cluster
 ;
+warning:Line 2:27: evaluation of [irate(network.total_bytes_in)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:27: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.
 
 cluster:keyword | irate_bytes:double
 prod-cumulative | 0.5786293
@@ -93,7 +95,7 @@ prod-null       | 0.5786293
 
 irateGroupedByTemporality
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v3
+required_capability: tsdb_temporality_support_v4
 
 TS metric_temporality
  | STATS irate_bytes = SUM(irate(network.total_bytes_in)) BY my_temporality
@@ -101,6 +103,8 @@ TS metric_temporality
  | KEEP my_temporality, irate_bytes
  | SORT my_temporality
 ;
+warning:Line 2:27: evaluation of [irate(network.total_bytes_in)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:27: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.
 
 my_temporality:keyword | irate_bytes:double
 cumulative             | 0.5786293
@@ -113,7 +117,7 @@ null                   | 0.5786293
 
 irateByTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v3
+required_capability: tsdb_temporality_support_v4
 
 TS metric_temporality
  | STATS irate_bytes = SUM(irate(network.total_bytes_in)) BY cluster, bucket = TBUCKET(300s)
@@ -121,6 +125,8 @@ TS metric_temporality
  | KEEP bucket, cluster, irate_bytes
  | SORT bucket, cluster
 ;
+warning:Line 2:27: evaluation of [irate(network.total_bytes_in)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:27: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.
 
 bucket:datetime          | cluster:keyword | irate_bytes:double
 2024-05-10T00:00:00.000Z | prod-cumulative | 0.5703784

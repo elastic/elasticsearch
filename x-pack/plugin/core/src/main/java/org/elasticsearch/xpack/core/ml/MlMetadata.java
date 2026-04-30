@@ -204,7 +204,7 @@ public class MlMetadata implements Metadata.ProjectCustom {
 
     @Override
     public final String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     @Override

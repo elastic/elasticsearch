@@ -265,7 +265,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     public Collection<String> getTombstones() {

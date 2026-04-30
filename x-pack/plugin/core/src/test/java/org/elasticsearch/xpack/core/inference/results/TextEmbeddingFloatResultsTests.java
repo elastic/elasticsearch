@@ -45,7 +45,7 @@ public class TextEmbeddingFloatResultsTests extends AbstractWireSerializingTestC
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
         var entity = new TextEmbeddingFloatResults(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.1F })));
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "text_embedding" : [
@@ -67,7 +67,7 @@ public class TextEmbeddingFloatResultsTests extends AbstractWireSerializingTestC
 
         );
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "text_embedding" : [

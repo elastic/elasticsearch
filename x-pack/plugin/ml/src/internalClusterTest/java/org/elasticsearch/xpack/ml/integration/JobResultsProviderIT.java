@@ -1055,7 +1055,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         }
         BulkResponse response = bulkRequest.get();
         if (response.hasFailures()) {
-            throw new IllegalStateException(Strings.toString(response));
+            throw new IllegalStateException(Strings.toTruncatedString(response));
         }
     }
 

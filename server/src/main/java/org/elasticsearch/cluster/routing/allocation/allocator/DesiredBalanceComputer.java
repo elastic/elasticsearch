@@ -531,7 +531,7 @@ public class DesiredBalanceComputer {
                 allocationExplainLogger.debug(
                     "unassigned shard [{}] with allocation decision {}",
                     lastTrackedUnassignedShard,
-                    org.elasticsearch.common.Strings.toString(
+                    org.elasticsearch.common.Strings.toTruncatedString(
                         p -> ChunkedToXContentHelper.object("node_allocation_decision", shardAllocationDecision.toXContentChunked(p))
                     )
                 );

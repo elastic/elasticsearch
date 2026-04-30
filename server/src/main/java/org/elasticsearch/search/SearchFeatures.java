@@ -61,6 +61,12 @@ public final class SearchFeatures implements FeatureSpecification {
     );
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE = new NodeFeature("search.exponential_histogram_querydsl_range");
     public static final NodeFeature DEFAULT_DISK_BBQ = new NodeFeature("search.default_disk_bbq");
+    /**
+     * Test-only gate for REST tests that assert coordinator {@code profile.request} metadata; that response shape
+     * depends on {@code TransportVersion} {@code include_original_query_indices_in_search_profile_results}, which
+     * is not supported on mixed BWC clusters that still contain pre-9.5 nodes.
+     */
+    public static final NodeFeature PROFILE_COORDINATOR_REQUEST_METADATA = new NodeFeature("search.profile.coordinator_request_metadata");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -89,7 +95,8 @@ public final class SearchFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
             EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
-            DEFAULT_DISK_BBQ
+            DEFAULT_DISK_BBQ,
+            PROFILE_COORDINATOR_REQUEST_METADATA
         );
     }
 }

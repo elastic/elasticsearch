@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -71,14 +72,14 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
             for (int j = 0, scopeLogsListSize = scopeLogsList.size(); j < scopeLogsListSize; j++) {
                 ScopeLogs scopeLogs = scopeLogsList.get(j);
                 InstrumentationScope scope = scopeLogs.getScope();
-                String receiverName = TargetIndex.extractReceiverName(scope);
+                String scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
                 List<LogRecord> logRecordsList = scopeLogs.getLogRecordsList();
                 for (int k = 0, logRecordsListSize = logRecordsList.size(); k < logRecordsListSize; k++) {
                     LogRecord logRecord = logRecordsList.get(k);
                     TargetIndex index = TargetIndex.evaluate(
                         TYPE_LOGS,
                         logRecord.getAttributesList(),
-                        receiverName,
+                        scopeRoutingDataset,
                         scope.getAttributesList(),
                         resource.getAttributesList()
                     );
@@ -92,10 +93,17 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
                             index,
                             logRecord
                         );
+                        IndexRequest indexRequest = new IndexRequest(index.index());
+                        String documentId = DocumentMetadata.documentId(logRecord.getAttributesList());
+                        if (Strings.hasLength(documentId)) {
+                            indexRequest.id(documentId);
+                        }
+                        String ingestPipeline = DocumentMetadata.ingestPipeline(logRecord.getAttributesList());
+                        if (Strings.hasLength(ingestPipeline)) {
+                            indexRequest.setPipeline(ingestPipeline);
+                        }
                         bulkRequestBuilder.add(
-                            new IndexRequest(index.index()).opType(DocWriteRequest.OpType.CREATE)
-                                .setRequireDataStream(true)
-                                .source(xContentBuilder)
+                            indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
                         );
                     }
                 }

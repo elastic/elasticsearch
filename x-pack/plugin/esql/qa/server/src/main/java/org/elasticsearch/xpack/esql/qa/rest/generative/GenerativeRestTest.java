@@ -81,6 +81,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
+        // Full-text functions and `:` operator are not allowed after FORK
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
         "sub-plan execution results too large",  // INLINE STATS limitations
         // this comes from mapping-all-types.json and it gets occasionally picked up by full text functions
         "Inference endpoint not found \\[foo_inference_id\\]",
@@ -115,9 +117,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // https://github.com/elastic/elasticsearch/issues/145570
         "function cannot operate on \\[.*\\], which is not a field from an index mapping",
         "\\[:\\] operator cannot operate on \\[.*\\], which is not a field from an index mapping",
-        "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
-        // https://github.com/elastic/elasticsearch/issues/141827
-        "JOIN left field \\[.*\\] of type \\[.*\\] is incompatible with right field \\[.*\\] of type \\[NULL\\]",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561

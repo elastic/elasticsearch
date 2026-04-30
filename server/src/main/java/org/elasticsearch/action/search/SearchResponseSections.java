@@ -156,6 +156,16 @@ public class SearchResponseSections implements Releasable {
         return profileResults.getShardResults();
     }
 
+    /**
+     * The merged {@link SearchProfileResults} when profiling ran on the coordinator, including optional
+     * {@link SearchProfileResults#getOriginalSource()} / {@link SearchProfileResults#getRequestIndices()} metadata;
+     * otherwise {@code null}.
+     */
+    @Nullable
+    public final SearchProfileResults searchProfileResults() {
+        return profileResults;
+    }
+
     @Override
     public void close() {
         if (topHitsToRelease != null) {

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
@@ -35,22 +34,14 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
-import org.elasticsearch.index.query.NestedQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
@@ -71,12 +62,9 @@ import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_USES_DENSE_VEC
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
-import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_JINA_V5_ENDPOINT_ID;
@@ -620,117 +608,6 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             return super.allValuesFetcher(blContext);
         }
 
-        public QueryBuilder semanticQuery(InferenceResults inferenceResults, Integer requestSize, float boost, String queryName) {
-            String nestedFieldPath = getChunksFieldName(name());
-            String inferenceResultsFieldName = getEmbeddingsFieldName(name());
-            QueryBuilder childQueryBuilder;
-
-            if (modelSettings == null) {
-                // No inference results have been indexed yet
-                childQueryBuilder = new MatchNoneQueryBuilder();
-            } else {
-                childQueryBuilder = switch (modelSettings.taskType()) {
-                    case SPARSE_EMBEDDING -> {
-                        if (inferenceResults instanceof TextExpansionResults == false) {
-                            throw new IllegalArgumentException(
-                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, TextExpansionResults.NAME)
-                            );
-                        }
-
-                        TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;
-                        yield new SparseVectorQueryBuilder(
-                            inferenceResultsFieldName,
-                            textExpansionResults.getWeightedTokens(),
-                            null,
-                            null,
-                            null,
-                            null
-                        );
-                    }
-                    case TEXT_EMBEDDING, EMBEDDING -> {
-                        if (inferenceResults instanceof MlDenseEmbeddingResults == false) {
-                            throw new IllegalArgumentException(
-                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, MlDenseEmbeddingResults.NAME)
-                            );
-                        }
-
-                        MlDenseEmbeddingResults textEmbeddingResults = (MlDenseEmbeddingResults) inferenceResults;
-                        float[] inference = textEmbeddingResults.getInferenceAsFloat();
-                        int dimensions = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
-                            ? inference.length * Byte.SIZE // Bit vectors encode 8 dimensions into each byte value
-                            : inference.length;
-                        assert modelSettings.dimensions() != null
-                            : "Model settings should have dimensions set by now for text embedding models";
-                        if (dimensions != modelSettings.dimensions()) {
-                            throw new IllegalArgumentException(
-                                generateDimensionCountMismatchMessage(dimensions, modelSettings.dimensions())
-                            );
-                        }
-
-                        Integer k = requestSize;
-                        if (k != null) {
-                            // Ensure that k is at least the default size so that aggregations work when size is set to 0 in the request
-                            k = Math.max(k, DEFAULT_SIZE);
-                        }
-
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null, null, null)
-                            .setAutoPrefilteringEnabled(true);
-                    }
-                    default -> throw new IllegalStateException(
-                        "Field ["
-                            + name()
-                            + "] is configured to use an inference endpoint with an unsupported task type ["
-                            + modelSettings.taskType()
-                            + "]"
-                    );
-                };
-            }
-
-            return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Max).boost(boost).queryName(queryName);
-        }
-
-        private String generateQueryInferenceResultsTypeMismatchMessage(InferenceResults inferenceResults, String expectedResultsType) {
-            StringBuilder sb = new StringBuilder(
-                "Field ["
-                    + name()
-                    + "] expected query inference results to be of type ["
-                    + expectedResultsType
-                    + "],"
-                    + " got ["
-                    + inferenceResults.getWriteableName()
-                    + "]."
-            );
-
-            return generateInvalidQueryInferenceResultsMessage(sb);
-        }
-
-        private String generateDimensionCountMismatchMessage(int inferenceDimCount, int expectedDimCount) {
-            StringBuilder sb = new StringBuilder(
-                "Field ["
-                    + name()
-                    + "] expected query inference results with "
-                    + expectedDimCount
-                    + " dimensions, got "
-                    + inferenceDimCount
-                    + " dimensions."
-            );
-
-            return generateInvalidQueryInferenceResultsMessage(sb);
-        }
-
-        private String generateInvalidQueryInferenceResultsMessage(StringBuilder baseMessageBuilder) {
-            if (searchInferenceId != null && searchInferenceId.equals(inferenceId) == false) {
-                baseMessageBuilder.append(" Is the search inference endpoint [")
-                    .append(searchInferenceId)
-                    .append("] compatible with the inference endpoint [")
-                    .append(inferenceId)
-                    .append("]?");
-            } else {
-                baseMessageBuilder.append(" Has the configuration for inference endpoint [").append(inferenceId).append("] changed?");
-            }
-
-            return baseMessageBuilder.toString();
-        }
     }
 
     private static void configureSparseVectorMapperBuilder(

@@ -27,6 +27,9 @@ final class ByteArrayStorageObject implements StorageObject {
     private final int length;
 
     ByteArrayStorageObject(StoragePath path, byte[] data, int offset, int length) {
+        if (offset < 0 || length < 0 || offset + length > data.length) {
+            throw new IllegalArgumentException("Invalid region: offset=" + offset + ", length=" + length + ", data.length=" + data.length);
+        }
         this.path = path;
         this.data = data;
         this.offset = offset;

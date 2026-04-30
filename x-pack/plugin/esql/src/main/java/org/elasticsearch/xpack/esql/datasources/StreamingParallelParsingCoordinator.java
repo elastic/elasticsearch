@@ -14,11 +14,15 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -106,6 +110,7 @@ public final class StreamingParallelParsingCoordinator {
         private final ArrayBlockingQueue<byte[]> bufferPool;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
         private final int windowSize;
+        private final int chunkSize;
         private final ArrayBlockingQueue<Page>[] pageQueues;
 
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
@@ -131,7 +136,7 @@ public final class StreamingParallelParsingCoordinator {
             this.errorPolicy = errorPolicy;
             this.windowSize = parallelism + 1;
 
-            int chunkSize = Math.toIntExact(reader.minimumSegmentSize());
+            this.chunkSize = Math.toIntExact(reader.minimumSegmentSize());
 
             this.bufferPool = new ArrayBlockingQueue<>(windowSize);
             for (int i = 0; i < windowSize; i++) {
@@ -151,7 +156,7 @@ public final class StreamingParallelParsingCoordinator {
             this.allDone = new CountDownLatch(1 + parallelism);
 
             try {
-                executor.execute(() -> runSegmentator(decompressedStream, chunkSize));
+                executor.execute(() -> runSegmentator(decompressedStream, this.chunkSize));
             } catch (RejectedExecutionException e) {
                 firstError.compareAndSet(null, e);
                 allDone.countDown();
@@ -197,7 +202,7 @@ public final class StreamingParallelParsingCoordinator {
                     }
 
                     int totalBytes = offset + Math.max(bytesRead, 0);
-                    boolean isEof = bytesRead < 0 || (offset + bytesRead) < buf.length;
+                    boolean isEof = bytesRead < 0 || totalBytes < buf.length;
 
                     int lastNewline = findLastNewline(buf, totalBytes);
 
@@ -241,9 +246,8 @@ public final class StreamingParallelParsingCoordinator {
                     stream.close();
                 } catch (IOException ignored) {}
 
-                // Send poison pills to stop all parser threads
-                int dispatched = chunksDispatched.get();
-                for (int i = 0; i < windowSize; i++) {
+                int parserCount = windowSize - 1;
+                for (int i = 0; i < parserCount; i++) {
                     try {
                         chunkQueue.put(Chunk.POISON);
                     } catch (InterruptedException e) {
@@ -318,8 +322,7 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         private void recycleBuffer(byte[] buf) {
-            // Only recycle buffers that match the pool's buffer size
-            if (bufferPool.remainingCapacity() > 0) {
+            if (buf.length <= chunkSize) {
                 bufferPool.offer(buf);
             }
         }
@@ -354,19 +357,19 @@ public final class StreamingParallelParsingCoordinator {
                 int n = stream.read(grown, offset, grown.length - offset);
                 if (n < 0) {
                     if (offset == existingLen) {
-                        return java.util.Arrays.copyOf(existing, existingLen);
+                        return Arrays.copyOf(existing, existingLen);
                     }
-                    return java.util.Arrays.copyOf(grown, offset);
+                    return Arrays.copyOf(grown, offset);
                 }
                 // Check for newline in the newly read bytes
                 for (int i = offset; i < offset + n; i++) {
                     if (grown[i] == '\n') {
-                        return java.util.Arrays.copyOf(grown, offset + n);
+                        return Arrays.copyOf(grown, offset + n);
                     }
                 }
                 offset += n;
                 if (offset >= grown.length) {
-                    grown = java.util.Arrays.copyOf(grown, grown.length + growBy);
+                    grown = Arrays.copyOf(grown, grown.length + growBy);
                 }
             }
         }
@@ -403,7 +406,7 @@ public final class StreamingParallelParsingCoordinator {
         @Override
         public Page next() {
             if (hasNext() == false) {
-                throw new java.util.NoSuchElementException();
+                throw new NoSuchElementException();
             }
             Page result = buffered;
             buffered = null;
@@ -411,8 +414,7 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         private Page takeNextPage() throws InterruptedException {
-            int totalDispatched = chunksDispatched.get();
-            while (currentChunk < totalDispatched || firstError.get() == null) {
+            while (true) {
                 checkError();
 
                 if (currentChunk >= chunksDispatched.get()) {
@@ -440,8 +442,6 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 return page;
             }
-            checkError();
-            return null;
         }
 
         private void checkError() {
@@ -498,7 +498,7 @@ public final class StreamingParallelParsingCoordinator {
     /**
      * Minimal StorageObject wrapping an InputStream for the parallelism=1 fallback path.
      */
-    private static final class InputStreamStorageObject implements org.elasticsearch.xpack.esql.datasources.spi.StorageObject {
+    private static final class InputStreamStorageObject implements StorageObject {
         private final InputStream stream;
 
         InputStreamStorageObject(InputStream stream) {
@@ -522,7 +522,7 @@ public final class StreamingParallelParsingCoordinator {
 
         @Override
         public java.time.Instant lastModified() {
-            return java.time.Instant.EPOCH;
+            return Instant.EPOCH;
         }
 
         @Override
@@ -532,7 +532,7 @@ public final class StreamingParallelParsingCoordinator {
 
         @Override
         public org.elasticsearch.xpack.esql.datasources.spi.StoragePath path() {
-            return org.elasticsearch.xpack.esql.datasources.spi.StoragePath.of("stream://decompressed");
+            return StoragePath.of("stream://decompressed");
         }
     }
 }

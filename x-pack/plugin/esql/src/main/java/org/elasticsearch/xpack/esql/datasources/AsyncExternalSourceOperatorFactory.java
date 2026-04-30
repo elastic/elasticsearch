@@ -973,18 +973,32 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (seg == null) {
             return null;
         }
-        if (isStreamOnlyCompressed(reader)) {
-            CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
-            InputStream decompressed = cdr.codec().decompress(obj.newStream());
-            return StreamingParallelParsingCoordinator.parallelRead(
-                seg,
-                decompressed,
-                cols,
-                batchSize,
-                parsingParallelism,
-                executor,
-                policy
-            );
+        if (reader instanceof CompressionDelegatingFormatReader cdr) {
+            DecompressionCodec codec = cdr.codec();
+            if ((codec instanceof SplittableDecompressionCodec) == false && (codec instanceof IndexedDecompressionCodec) == false) {
+                InputStream raw = obj.newStream();
+                InputStream decompressed;
+                try {
+                    decompressed = codec.decompress(raw);
+                } catch (Exception e) {
+                    raw.close();
+                    throw e;
+                }
+                try {
+                    return StreamingParallelParsingCoordinator.parallelRead(
+                        seg,
+                        decompressed,
+                        cols,
+                        batchSize,
+                        parsingParallelism,
+                        executor,
+                        policy
+                    );
+                } catch (Exception e) {
+                    decompressed.close();
+                    throw e;
+                }
+            }
         }
         return ParallelParsingCoordinator.parallelRead(seg, obj, cols, batchSize, parsingParallelism, executor, policy);
     }

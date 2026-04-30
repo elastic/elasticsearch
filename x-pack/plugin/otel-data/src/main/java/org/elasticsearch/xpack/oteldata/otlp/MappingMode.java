@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.oteldata.otlp;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
-import java.util.Optional;
-
 /**
  * Controls how OTLP records are mapped to Elasticsearch documents.
  * <p>
@@ -46,22 +44,11 @@ public enum MappingMode {
         if (Strings.hasLength(value) == false) {
             return OTEL;
         }
-        return fromName(value).orElseThrow(() -> new IllegalArgumentException(unsupportedMappingModeMessage(value)));
-    }
-
-    /**
-     * Looks up a mapping mode by name without applying a default.
-     */
-    public static Optional<MappingMode> fromName(String value) {
         for (MappingMode mode : values()) {
             if (mode.name.equalsIgnoreCase(value)) {
-                return Optional.of(mode);
+                return mode;
             }
         }
-        return Optional.empty();
-    }
-
-    static String unsupportedMappingModeMessage(@Nullable String value) {
-        return "Unsupported mapping mode [" + value + "], expected one of [otel, bodymap]";
+        throw new IllegalArgumentException("Unsupported mapping mode [" + value + "], expected one of [otel, bodymap]");
     }
 }

@@ -19,12 +19,14 @@ import io.opentelemetry.proto.logs.v1.SeverityNumber;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.oteldata.otlp.AbstractOTLPTransportAction.ProcessingContext;
@@ -149,31 +151,23 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
         assertThat(indexRequest.sourceAsMap().get("body"), equalTo(Map.of("text", "not a bodymap")));
     }
 
-    public void testUnknownScopeMappingModeSkipsScopeAndIsReported() throws Exception {
+    public void testUnknownScopeMappingModeFailsRequest() {
         OTLPLogsTransportAction logsAction = (OTLPLogsTransportAction) createAction();
         LogRecord invalidScopeLogRecord = LogRecord.newBuilder().setBody(AnyValue.newBuilder().setStringValue("skip me").build()).build();
-        LogRecord validScopeLogRecord = LogRecord.newBuilder().setBody(AnyValue.newBuilder().setStringValue("index me").build()).build();
         BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
 
-        ProcessingContext context = logsAction.prepareBulkRequest(
-            createLogsRequest(
-                MappingMode.OTEL,
-                createScopeLogs(List.of(invalidScopeLogRecord), "ecs"),
-                createScopeLogs(List.of(validScopeLogRecord), "otel")
-            ),
-            bulkRequestBuilder
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> logsAction.prepareBulkRequest(
+                createLogsRequest(MappingMode.OTEL, createScopeLogs(List.of(invalidScopeLogRecord), "ecs")),
+                bulkRequestBuilder
+            )
         );
-
-        assertThat(context.totalDataPoints(), equalTo(2));
-        assertThat(context.getIgnoredDataPoints(), equalTo(1));
-        assertThat(context.getIgnoredDataPointsMessage(10), containsString("Unsupported mapping mode [ecs]"));
-        assertThat(bulkRequestBuilder.numberOfActions(), equalTo(1));
-        IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
-        assertThat(indexRequest.index(), equalTo("logs-generic.otel-default"));
-        assertThat(indexRequest.sourceAsMap().get("body"), equalTo(Map.of("text", "index me")));
+        assertThat(e.getMessage(), containsString("Unsupported mapping mode [ecs]"));
+        assertThat(bulkRequestBuilder.numberOfActions(), equalTo(0));
     }
 
-    public void testUnknownScopeMappingModeReturnsPartialSuccessForMixedRequest() throws Exception {
+    public void testUnknownScopeMappingModeReturnsBadRequest() {
         LogRecord invalidScopeLogRecord1 = LogRecord.newBuilder().setBody(AnyValue.newBuilder().setStringValue("skip me").build()).build();
         LogRecord invalidScopeLogRecord2 = LogRecord.newBuilder()
             .setBody(AnyValue.newBuilder().setStringValue("skip me too").build())
@@ -185,12 +179,10 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
             createScopeLogs(List.of(validScopeLogRecord), "otel")
         );
 
-        OTLPActionResponse response = executeRequest(request, new BulkResponse(new BulkItemResponse[] { successResponse() }, 0));
+        Exception e = executeRequestExpectingFailure(request, new BulkResponse(new BulkItemResponse[] { successResponse() }, 0));
 
-        byte[] responseBytes = response.getResponse().array();
-        assertThat(parseHasPartialSuccess(responseBytes), equalTo(true));
-        assertThat(parseRejectedCount(responseBytes), equalTo(2L));
-        assertThat(parseErrorMessage(responseBytes), containsString("Unsupported mapping mode [ecs]"));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("Unsupported mapping mode [ecs]"));
     }
 
     public void testBodyMapModeDoesNotRouteFromBodyDataStreamType() throws Exception {

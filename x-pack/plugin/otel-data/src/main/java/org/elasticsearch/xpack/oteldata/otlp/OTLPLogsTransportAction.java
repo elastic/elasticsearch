@@ -79,12 +79,7 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
                 MappingMode mode = requestMappingMode;
                 String scopeMappingMode = scopeMappingMode(scope);
                 if (scopeMappingMode != null) {
-                    var parsedMappingMode = MappingMode.fromName(scopeMappingMode);
-                    if (parsedMappingMode.isEmpty()) {
-                        context.rejectScopeMappingMode(scopeMappingMode, logRecordsList.size());
-                        continue;
-                    }
-                    mode = parsedMappingMode.get();
+                    mode = MappingMode.parse(scopeMappingMode);
                 }
                 String scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
                 for (int k = 0, logRecordsListSize = logRecordsList.size(); k < logRecordsListSize; k++) {
@@ -154,17 +149,6 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
 
         private void rejectInvalidBodyType(LogRecord logRecord) {
             rejectLogRecord("Invalid log record body type for 'bodymap' mapping mode: " + logRecord.getBody().getValueCase());
-        }
-
-        private void rejectScopeMappingMode(String mappingMode, int logRecords) {
-            if (logRecords == 0) {
-                return;
-            }
-            incrementTotalLogRecords(logRecords);
-            ignoredLogRecords += logRecords;
-            addIgnoredLogRecordMessage(
-                "Invalid scope mapping mode [" + mappingMode + "]: " + MappingMode.unsupportedMappingModeMessage(mappingMode)
-            );
         }
 
         private void rejectLogRecord(String message) {

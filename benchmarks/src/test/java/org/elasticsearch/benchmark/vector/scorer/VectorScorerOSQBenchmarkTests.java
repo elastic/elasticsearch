@@ -46,92 +46,68 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
         this.similarityFunction = similarityFunction;
     }
 
-    public void testSingleScalarVsVectorized() throws Exception {
+    public void testSingle() throws Exception {
         for (int i = 0; i < REPETITIONS; i++) {
             var seed = randomLong();
 
-            var scalar = new VectorScorerOSQBenchmark();
-            var vectorized = new VectorScorerOSQBenchmark();
-            try {
-                var data = VectorScorerOSQBenchmark.generateRandomVectorData(
-                    new Random(seed),
-                    dims,
-                    bits,
-                    int4Encoding,
-                    similarityFunction
-                );
+            var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, int4Encoding, similarityFunction);
 
-                scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
-                scalar.dims = dims;
-                scalar.bits = bits;
-                scalar.directoryType = directoryType;
-                scalar.int4Encoding = int4Encoding;
-                scalar.similarityFunction = similarityFunction;
-                scalar.setup(data);
+            float[] expected = null;
+            for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
+                VectorScorerOSQBenchmark bench = new VectorScorerOSQBenchmark();
+                bench.implementation = impl;
+                bench.dims = dims;
+                bench.bits = bits;
+                bench.directoryType = directoryType;
+                bench.int4Encoding = int4Encoding;
+                bench.similarityFunction = similarityFunction;
+                bench.setup(data);
 
-                float[] expected = scalar.score();
-
-                vectorized.implementation = VectorScorerOSQBenchmark.VectorImplementation.VECTORIZED;
-                vectorized.dims = dims;
-                vectorized.bits = bits;
-                vectorized.directoryType = directoryType;
-                vectorized.int4Encoding = int4Encoding;
-                vectorized.similarityFunction = similarityFunction;
-                vectorized.setup(data);
-
-                float[] result = vectorized.score();
-
-                assertArrayEqualsPercent("single scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
-            } finally {
-                scalar.teardown();
-                vectorized.teardown();
-                IOUtils.rm(scalar.tempDir);
-                IOUtils.rm(vectorized.tempDir);
+                try {
+                    float[] result = bench.score();
+                    // just check against the first one - they should all be identical to each other
+                    if (expected == null) {
+                        expected = result;
+                        continue;
+                    }
+                    assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
+                } finally {
+                    bench.teardown();
+                    IOUtils.rm(bench.tempDir);
+                }
             }
         }
     }
 
-    public void testBulkScalarVsVectorized() throws Exception {
+    public void testBulk() throws Exception {
         for (int i = 0; i < REPETITIONS; i++) {
             var seed = randomLong();
 
-            var scalar = new VectorScorerOSQBenchmark();
-            var vectorized = new VectorScorerOSQBenchmark();
-            try {
-                var data = VectorScorerOSQBenchmark.generateRandomVectorData(
-                    new Random(seed),
-                    dims,
-                    bits,
-                    int4Encoding,
-                    similarityFunction
-                );
+            var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, int4Encoding, similarityFunction);
 
-                scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
-                scalar.dims = dims;
-                scalar.bits = bits;
-                scalar.directoryType = directoryType;
-                scalar.int4Encoding = int4Encoding;
-                scalar.similarityFunction = similarityFunction;
-                scalar.setup(data);
+            float[] expected = null;
+            for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
+                VectorScorerOSQBenchmark bench = new VectorScorerOSQBenchmark();
+                bench.implementation = impl;
+                bench.dims = dims;
+                bench.bits = bits;
+                bench.directoryType = directoryType;
+                bench.int4Encoding = int4Encoding;
+                bench.similarityFunction = similarityFunction;
+                bench.setup(data);
 
-                float[] expected = scalar.bulkScore();
-
-                vectorized.implementation = VectorScorerOSQBenchmark.VectorImplementation.VECTORIZED;
-                vectorized.dims = dims;
-                vectorized.bits = bits;
-                vectorized.directoryType = directoryType;
-                vectorized.int4Encoding = int4Encoding;
-                vectorized.similarityFunction = similarityFunction;
-                vectorized.setup(data);
-
-                float[] result = vectorized.bulkScore();
-
-                assertArrayEqualsPercent("bulk scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
-            } finally {
-                scalar.teardown();
-                vectorized.teardown();
-                IOUtils.rm(scalar.tempDir);
-                IOUtils.rm(vectorized.tempDir);
+                try {
+                    float[] result = bench.bulkScore();
+                    // just check against the first one - they should all be identical to each other
+                    if (expected == null) {
+                        expected = result;
+                        continue;
+                    }
+                    assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
+                } finally {
+                    bench.teardown();
+                    IOUtils.rm(bench.tempDir);
+                }
             }
         }
     }

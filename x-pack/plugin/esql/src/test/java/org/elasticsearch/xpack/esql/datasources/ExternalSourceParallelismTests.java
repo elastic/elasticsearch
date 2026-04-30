@@ -88,19 +88,15 @@ public class ExternalSourceParallelismTests extends ESTestCase {
                 final int driverIdx = d;
                 driverPool.submit(() -> {
                     try {
-                        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                             storageProvider,
                             formatReader,
                             StoragePath.of("s3://bucket/f0.parquet"),
                             testAttributes(),
                             100,
                             10,
-                            asyncReadPool,
-                            null,
-                            null,
-                            null,
-                            sliceQueue
-                        );
+                            asyncReadPool
+                        ).sliceQueue(sliceQueue).build();
                         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
                         SourceOperator operator = factory.get(driverContext);
                         while (operator.isFinished() == false) {
@@ -206,19 +202,15 @@ public class ExternalSourceParallelismTests extends ESTestCase {
             for (int d = 0; d < driverCount; d++) {
                 driverPool.submit(() -> {
                     try {
-                        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                             storageProvider,
                             formatReader,
                             StoragePath.of("s3://bucket/f0.parquet"),
                             testAttributes(),
                             100,
                             10,
-                            asyncReadPool,
-                            null,
-                            null,
-                            null,
-                            sliceQueue
-                        );
+                            asyncReadPool
+                        ).sliceQueue(sliceQueue).build();
                         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
                         SourceOperator operator = factory.get(driverContext);
                         while (operator.isFinished() == false) {
@@ -284,19 +276,15 @@ public class ExternalSourceParallelismTests extends ESTestCase {
             )
         );
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             StoragePath.of("s3://bucket/f1.parquet"),
             attributes,
             100,
             10,
-            Runnable::run,
-            null,
-            Set.of("year"),
-            Map.of(),
-            sliceQueue
-        );
+            Runnable::run
+        ).partitionColumnNames(Set.of("year")).partitionValues(Map.of()).sliceQueue(sliceQueue).build();
 
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
         SourceOperator operator = factory.get(driverContext);

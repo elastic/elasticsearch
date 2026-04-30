@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -407,16 +408,11 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
             ctx.promqlCommand().timestamp(),
             window,
-            ctx.stepAttr()
+            ctx.stepAttr(),
+            ctx.optimizerContext().configuration()
         );
 
-        Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
-            functionCall.functionName(),
-            functionCall.source(),
-            childResult.expression(),
-            promqlCtx,
-            functionCall.parameters()
-        );
+        Expression function = functionCall.buildEsqlFunction(childResult.expression(), promqlCtx);
 
         // This can happen when trying to provide a counter to a function that doesn't support it e.g. avg_over_time on a counter
         // This is essentially a bug since this limitation doesn't exist in PromQL itself.
@@ -467,7 +463,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
             ctx.promqlCommand().timestamp(),
             null,
-            ctx.stepAttr()
+            ctx.stepAttr(),
+            ctx.optimizerContext().configuration()
         );
         Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
             scalarFunction.functionName(),
@@ -626,9 +623,10 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
             ctx.promqlCommand().timestamp(),
             AggregateFunction.NO_WINDOW,
-            ctx.stepAttr()
+            ctx.stepAttr(),
+            ctx.optimizerContext().configuration()
         );
-        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(agg.functionName(), agg.source(), inputValue, promqlCtx, agg.parameters());
+        return agg.buildEsqlFunction(inputValue, promqlCtx);
     }
 
     private static LogicalPlan createInnermostAggregatePlan(TranslationContext ctx, LogicalPlan plan, LabelSetSpec labels, Expression agg) {
@@ -958,22 +956,28 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
         // Try to extract the exact match
         String exactMatch = AutomatonUtils.matchesExact(matcher.automaton());
-        if (exactMatch != null) {
-            return new Equals(source, field, Literal.keyword(source, exactMatch));
-        }
-
         Expression condition;
-        // Try to extract disjoint patterns (handles mixed prefix/suffix/exact)
-        List<AutomatonUtils.PatternFragment> fragments = AutomatonUtils.extractFragments(matcher.value());
-        if (fragments != null && fragments.isEmpty() == false) {
-            condition = translateDisjointPatterns(source, field, fragments);
+        if (exactMatch != null) {
+            condition = new Equals(source, field, Literal.keyword(source, exactMatch));
         } else {
-            // Fallback to RLIKE with the full automaton pattern
-            // Note: We need to ensure the pattern is properly anchored for PromQL semantics
-            condition = new RLike(source, field, new RLikePattern(matcher.toString()));
+            // Try to extract disjoint patterns (handles mixed prefix/suffix/exact)
+            List<AutomatonUtils.PatternFragment> fragments = AutomatonUtils.extractFragments(matcher.value());
+            if (fragments != null && fragments.isEmpty() == false) {
+                condition = translateDisjointPatterns(source, field, fragments);
+            } else {
+                // Fallback to RLIKE with the full automaton pattern
+                // Note: We need to ensure the pattern is properly anchored for PromQL semantics
+                condition = new RLike(source, field, new RLikePattern(matcher.toString()));
+            }
+            if (matcher.isNegation()) {
+                condition = new Not(source, condition);
+            }
         }
-        if (matcher.isNegation()) {
-            condition = new Not(source, condition);
+        // PromQL spec: absent labels are treated as having value "". If the matcher's automaton
+        // accepts the empty string (e.g. {label=""} or {label!="foo"}), series where the label
+        // field is NULL (absent) must also match.
+        if (matcher.matchesEmpty()) {
+            condition = Predicates.combineOr(List.of(new IsNull(source, field), condition));
         }
         return condition;
     }

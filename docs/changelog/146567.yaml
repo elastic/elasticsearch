@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 146538
+pr: 146567
+summary: Fix match only text decoding surrogate pairs
+type: bug

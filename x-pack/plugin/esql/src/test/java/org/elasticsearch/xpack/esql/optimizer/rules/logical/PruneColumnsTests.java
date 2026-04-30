@@ -1273,6 +1273,113 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         }
     }
 
+    /**
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#28]]
+     *   \_Fork[[]]
+     *     |_Project[[]]
+     *     | \_Filter[NOT(STARTSWITH(gender{f}#31,v[KEYWORD]))]
+     *     |   \_Aggregate[[gender{f}#31],[gender{f}#31]]
+     *     |     \_EsRelation[employees][_meta_field{f}#35, emp_no{f}#29, first_name{f}#30, ..]
+     *     |_Project[[]]
+     *     | \_Filter[salary{f}#45 > 100000[INTEGER]]
+     *     |   \_Aggregate[[salary{f}#45],[salary{f}#45]]
+     *     |     \_EsRelation[employees][_meta_field{f}#46, emp_no{f}#40, first_name{f}#41, ..]
+     *     \_Project[[]]
+     *       \_Filter[emp_no{f}#51 > 10000[INTEGER]]
+     *         \_EsRelation[employees][_meta_field{f}#57, emp_no{f}#51, first_name{f}#52, ..]
+     * }
+     */
+    public void testPruneColumnsInForkBranchesWithFinalCountStats() {
+        var query = """
+             from employees
+             // reusing the same column name as in the final STATS
+            | FORK ( stats salary = count(*)::int, z = count(*) by gender
+                    | where NOT starts_with(gender, "v")
+                    | eval gender = gender::keyword )
+                   ( stats gender = values(gender), z = count(*) by salary
+                    | where salary > 100000 )
+                   ( where emp_no > 10000
+                    | eval gender = gender::keyword )
+            | sort salary
+            | stats y = count(*) // this removes all existing columns
+            """;
+
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("y"));
+        var fork = as(aggregate.child(), Fork.class);
+
+        assertThat(fork.output().size(), equalTo(0));
+        assertThat(fork.children().size(), equalTo(3));
+
+        var firstBranch = fork.children().getFirst();
+        var firstBranchProject = as(firstBranch, Project.class);
+        var firstBranchFilter = as(firstBranchProject.child(), Filter.class);
+        var firstBranchAggregate = as(firstBranchFilter.child(), Aggregate.class);
+        assertThat(firstBranchAggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(firstBranchAggregate.aggregates()), contains("gender"));
+        var firstBranchRelation = as(firstBranchAggregate.child(), EsRelation.class);
+        assertThat(firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("gender"));
+
+        var secondBranch = fork.children().get(1);
+        var secondBranchProject = as(secondBranch, Project.class);
+        var secondBranchFilter = as(secondBranchProject.child(), Filter.class);
+        var secondBranchAggregate = as(secondBranchFilter.child(), Aggregate.class);
+        assertThat(secondBranchAggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(secondBranchAggregate.aggregates()), contains("salary"));
+        var secondBranchRelation = as(secondBranchAggregate.child(), EsRelation.class);
+        assertThat(secondBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary"));
+
+        var thirdBranch = fork.children().get(2);
+        var thirdBranchProject = as(thirdBranch, Project.class);
+        var thirdBranchFilter = as(thirdBranchProject.child(), Filter.class);
+        var thirdBranchRelation = as(thirdBranchFilter.child(), EsRelation.class);
+        assertThat(thirdBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no", "gender"));
+    }
+
+    /**
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#12]]
+     *   \_Fork[[]]
+     *     \_Project[[]]
+     *       \_Filter[emp_no{f}#13 > 10000[INTEGER]]
+     *         \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
+     *           \_EsRelation[employees][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * }
+     */
+    public void testPruneColumnsInForkWithSingleBranchAndFinalStats() {
+        var query = """
+                 from employees
+                | stats x = count(*), y = count(*) by emp_no
+                | FORK (where emp_no > 10000)
+                | sort x
+                | stats y = count(*)
+            """;
+
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("y"));
+        var fork = as(aggregate.child(), Fork.class);
+        assertThat(fork.output().size(), equalTo(0));
+        assertThat(fork.children().size(), equalTo(1));
+
+        var project = as(fork.children().getFirst(), Project.class);
+        assertThat(project.projections().size(), equalTo(0));
+        var filter = as(project.child(), Filter.class);
+        var branchAggregate = as(filter.child(), Aggregate.class);
+        assertThat(branchAggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(branchAggregate.aggregates()), contains("emp_no"));
+        var relation = as(branchAggregate.child(), EsRelation.class);
+        assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no"));
+    }
+
     /*
      * Limit[1000[INTEGER],false,false]
      * \_InlineJoin[LEFT,[],[]]

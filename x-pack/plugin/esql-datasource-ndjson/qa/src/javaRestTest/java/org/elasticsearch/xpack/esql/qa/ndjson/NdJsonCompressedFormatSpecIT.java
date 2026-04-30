@@ -51,6 +51,6 @@ public class NdJsonCompressedFormatSpecIT extends AbstractExternalSourceSpecTest
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithFormats(COMPRESSED_FORMATS, "/external-ndjson.csv-spec");
+        return readExternalSpecTestsWithFormats(COMPRESSED_FORMATS, "/external-basic.csv-spec");
     }
 }

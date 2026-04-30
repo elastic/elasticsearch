@@ -26,7 +26,9 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
+import java.util.OptionalDouble;
 import java.util.function.DoubleBinaryOperator;
+import java.util.function.LongBinaryOperator;
 
 /**
  * Allows accumulating multiple {@link ExponentialHistogram} into a single one
@@ -206,7 +208,6 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         ZeroBucket zeroBucket = a.zeroBucket().merge(b.zeroBucket());
         zeroBucket = zeroBucket.collapseOverlappingBucketsForAll(posBucketsA, negBucketsA, posBucketsB, negBucketsB);
 
-        DownscaleStats downscaleStats = factory.downscaleStats;
         FixedCapacityExponentialHistogram buffer = factory.acquireBuffer();
         try {
 
@@ -221,31 +222,58 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             // We try the merge optimistically, assuming that everything fits.
             // If we fail, we reduce the target scale to make everything fit.
 
-            MergingBucketIterator positiveMerged = new MergingBucketIterator(posBucketsA.copy(), posBucketsB.copy(), targetScale);
-            MergingBucketIterator negativeMerged = new MergingBucketIterator(negBucketsA.copy(), negBucketsB.copy(), targetScale);
-
-            buffer.resetBuckets(targetScale);
-            downscaleStats.reset();
-            int overflowCount = putBuckets(buffer, negativeMerged, false, downscaleStats);
-            overflowCount += putBuckets(buffer, positiveMerged, true, downscaleStats);
-
-            if (overflowCount > 0) {
-                // UDD-sketch approach: decrease the scale and retry.
-                int reduction = downscaleStats.getRequiredScaleReductionToReduceBucketCountBy(overflowCount);
-                targetScale -= reduction;
-                buffer.resetBuckets(targetScale);
-                positiveMerged = new MergingBucketIterator(posBucketsA, posBucketsB, targetScale);
-                negativeMerged = new MergingBucketIterator(negBucketsA, negBucketsB, targetScale);
-                overflowCount = putBuckets(buffer, negativeMerged, false, null);
-                overflowCount += putBuckets(buffer, positiveMerged, true, null);
-
-                assert overflowCount == 0 : "Should never happen, the histogram should have had enough space";
-            }
+            mergeBucketsInto(negBucketsA, posBucketsA, negBucketsB, posBucketsB, targetScale, Long::sum, buffer);
             FixedCapacityExponentialHistogram temp = result;
             result = buffer;
             buffer = temp;
         } finally {
             factory.releaseBuffer(buffer);
+        }
+    }
+
+    private void mergeBucketsInto(
+        CopyableBucketIterator negBucketsA,
+        CopyableBucketIterator posBucketsA,
+        CopyableBucketIterator negBucketsB,
+        CopyableBucketIterator posBucketsB,
+        int targetScale,
+        LongBinaryOperator countCombineFunction,
+        FixedCapacityExponentialHistogram output
+    ) {
+        DownscaleStats downscaleStats = factory.downscaleStats;
+        MergingBucketIterator positiveMerged = new MergingBucketIterator(
+            posBucketsA.copy(),
+            posBucketsB.copy(),
+            targetScale,
+            countCombineFunction
+        );
+        MergingBucketIterator negativeMerged = new MergingBucketIterator(
+            negBucketsA.copy(),
+            negBucketsB.copy(),
+            targetScale,
+            countCombineFunction
+        );
+
+        // We might exceed our limit for the total number of buckets for the targetScale.
+        // We try the merge optimistically, assuming that everything fits.
+        // If we fail, we reduce the target scale to make everything fit and redo the merge
+
+        output.resetBuckets(targetScale);
+        downscaleStats.reset();
+        int overflowCount = putBuckets(output, negativeMerged, false, downscaleStats);
+        overflowCount += putBuckets(output, positiveMerged, true, downscaleStats);
+
+        if (overflowCount > 0) {
+            // UDD-sketch approach: decrease the scale and retry.
+            int reduction = downscaleStats.getRequiredScaleReductionToReduceBucketCountBy(overflowCount);
+            targetScale -= reduction;
+            output.resetBuckets(targetScale);
+            positiveMerged = new MergingBucketIterator(posBucketsA, posBucketsB, targetScale, countCombineFunction);
+            negativeMerged = new MergingBucketIterator(negBucketsA, negBucketsB, targetScale, countCombineFunction);
+            overflowCount = putBuckets(output, negativeMerged, false, null);
+            overflowCount += putBuckets(output, positiveMerged, true, null);
+
+            assert overflowCount == 0 : "Should never happen, the histogram should have had enough space";
         }
     }
 
@@ -259,6 +287,12 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         long prevIndex = 0;
         int overflowCount = 0;
         while (buckets.hasNext()) {
+            if (buckets.peekCount() == 0) {
+                // skip empty buckets which might occur when subtracting histograms
+                buckets.advance();
+                continue;
+            }
+
             long idx = buckets.peekIndex();
             if (collectDownScaleStatsOnNext) {
                 downscaleStats.add(prevIndex, idx);
@@ -284,6 +318,156 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             return a;
         }
         return aggregator.applyAsDouble(a, b);
+    }
+
+    /**
+     * Clears this merger and sets it to the histogram {@code a} minus the histogram {@code b}.
+     * <p>
+     * This method is intended to compute the delta between two cumulative histograms from the same time series,
+     * where {@code a} is a later snapshot and {@code b} is an earlier snapshot.
+     * In cumulative histograms, bucket counts only increase over time, which means that subtracting {@code b}
+     * from {@code a} will never result in negative bucket counts.
+     * <p>
+     * The algorithm provides the following guarantees:
+     * Given two exponential histograms {@code b} and {@code c}.
+     * The histogram {@code a} is the result of merging the histograms {@code b} and {@code c}.
+     * Then {@code a - b} will yield the histogram {@code c}, with the limitation that
+     * <ul>
+     *     <li>{@code a - b} might have a smaller scale (=less precision) than {@code c} (but no lower than the scale of {@code a})</li>
+     *     <li>{@code a - b} might have a greater zero threshold than {@code c} (but not greater than the zero threshold of {@code a})</li>
+     *     <li>{@code a - b} might not preserve the exact minimum / maximum of {@code c}, but will provide an estimate in that case</li>
+     * </ul>
+     *
+     * @param a the base histogram to subtract from
+     * @param b the histogram to be subtracted
+     */
+    public void setToDifference(ExponentialHistogram a, ExponentialHistogram b) {
+        if (result != null) {
+            factory.releaseBuffer(result);
+            result = null;
+        }
+        long bValueCount = b.valueCount();
+        long aValueCount = a.valueCount();
+        if (aValueCount == bValueCount) {
+            // fast path, subtracting histograms with equal count will yield an empty histogram
+            // We just assume here that the input is actually subtractable, e.g. we don't verify that all buckets are equal too
+            return;
+        }
+        if (bValueCount == 0) {
+            // fast path, subtracting an empty histogram does nothing.
+            // This check is placed before the scale check because the ExponentialHistogram.empty() singleton
+            // uses the maximum scale, so we never want to fail when subtracting an empty histogram.
+            this.add(a);
+            return;
+        }
+        if (aValueCount < bValueCount) {
+            throw new IllegalArgumentException(
+                "Cannot subtract histograms (a-b), where a.count < b.count: " + aValueCount + " < " + bValueCount
+            );
+        }
+        if (a.scale() > b.scale()) {
+            throw new IllegalArgumentException(
+                "Cannot subtract histograms (a-b), where a.scale > b.scale: " + a.scale() + " > " + b.scale()
+            );
+        }
+        if (a.min() > b.min()) {
+            throw new IllegalArgumentException("Cannot subtract histograms (a-b), where a.min > b.min: " + a.min() + " > " + b.min());
+        }
+        if (a.max() < b.max()) {
+            throw new IllegalArgumentException("Cannot subtract histograms (a-b), where a.max < b.max: " + a.max() + " < " + b.max());
+        }
+        if (a.zeroBucket().compareZeroThreshold(b.zeroBucket()) < 0) {
+            throw new IllegalArgumentException(
+                "Cannot subtract histograms (a-b), where a.zeroThreshold < b.zeroThreshold: "
+                    + a.zeroBucket().zeroThreshold()
+                    + " < "
+                    + b.zeroBucket().zeroThreshold()
+            );
+        }
+
+        CopyableBucketIterator negBucketsB = b.negativeBuckets().iterator();
+        CopyableBucketIterator posBucketsB = b.positiveBuckets().iterator();
+
+        // adjust the zeroThreshold of B to match A, collapsing overlapping buckets into the zero bucket
+        ZeroBucket updatedZeroBucketB = a.zeroBucket()
+            .withCount(b.zeroBucket().count())
+            .collapseOverlappingBucketsForAll(negBucketsB, posBucketsB);
+
+        // now we can subtract the zero buckets
+        assert updatedZeroBucketB.compareZeroThreshold(a.zeroBucket()) == 0
+            : "After collapsing overlapping buckets, the zero threshold of B should match that of A";
+        if (a.zeroBucket().count() < updatedZeroBucketB.count()) {
+            throw new IllegalArgumentException(
+                "Cannot subtract histograms (a-b), where a.zeroCount < b.zeroCount after adjusting to the same zeroThreshold: "
+                    + a.zeroBucket().count()
+                    + " < "
+                    + updatedZeroBucketB.count()
+            );
+        }
+
+        ZeroBucket subtractedZeroBucket = a.zeroBucket().withCount(a.zeroBucket().count() - updatedZeroBucketB.count());
+
+        LongBinaryOperator bucketDifferenceOperator = (aCount, bCount) -> {
+            if (aCount < bCount) {
+                throw new IllegalArgumentException(
+                    "Cannot subtract histograms (a-b), where A has a smaller count for the same bucket than B: " + aCount + " < " + bCount
+                );
+            }
+            return aCount - bCount;
+        };
+
+        FixedCapacityExponentialHistogram buffer = factory.acquireBuffer();
+        try {
+            mergeBucketsInto(
+                a.negativeBuckets().iterator(),
+                a.positiveBuckets().iterator(),
+                negBucketsB,
+                posBucketsB,
+                a.scale(),
+                bucketDifferenceOperator,
+                buffer
+            );
+
+            buffer.setZeroBucket(subtractedZeroBucket);
+            buffer.setSum(a.sum() - b.sum());
+
+            if (a.min() < b.min()) {
+                // A was generated by adding new values to B. These new values included a new, smallest value
+                // That implies that this is also the smallest value of the difference
+                buffer.setMin(a.min());
+            } else {
+                assert a.min() == b.min();
+                // In this case we don't know the exact minimum anymore, we have to estimate it
+                OptionalDouble estimatedMin = ExponentialHistogramUtils.estimateMin(
+                    buffer.zeroBucket(),
+                    buffer.negativeBuckets(),
+                    buffer.positiveBuckets()
+                );
+                assert estimatedMin.isPresent()
+                    : "The merged histogram should have at least one value, so the estimated minimum should be present";
+                buffer.setMin(Math.max(a.min(), estimatedMin.getAsDouble()));
+            }
+
+            // Same logic as for min
+            if (a.max() > b.max()) {
+                buffer.setMax(a.max());
+            } else {
+                assert a.max() == b.max();
+                OptionalDouble estimatedMax = ExponentialHistogramUtils.estimateMax(
+                    buffer.zeroBucket(),
+                    buffer.negativeBuckets(),
+                    buffer.positiveBuckets()
+                );
+                assert estimatedMax.isPresent()
+                    : "The merged histogram should have at least one value, so the estimated maximum should be present";
+                buffer.setMax(Math.min(a.max(), estimatedMax.getAsDouble()));
+            }
+
+            result = buffer;
+            buffer = null;
+        } finally {
+            factory.releaseBuffer(buffer);
+        }
     }
 
 }

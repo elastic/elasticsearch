@@ -281,6 +281,37 @@ public class DataExtractorUtilsTests extends ESTestCase {
         }
     }
 
+    public void testPreferRicherLinkedClusterStates_keepsBestWhenCandidateEmpty() {
+        List<LinkedClusterState> best = List.of(
+            new LinkedClusterState("a", LinkedClusterState.Status.AVAILABLE, null, 1L),
+            new LinkedClusterState("b", LinkedClusterState.Status.AVAILABLE, null, 2L)
+        );
+        assertThat(DataExtractorUtils.preferRicherLinkedClusterStates(best, List.of()), equalTo(best));
+    }
+
+    public void testPreferRicherLinkedClusterStates_prefersMoreDistinctAliases() {
+        List<LinkedClusterState> one = List.of(new LinkedClusterState("a", LinkedClusterState.Status.AVAILABLE, null, 1L));
+        List<LinkedClusterState> two = List.of(
+            new LinkedClusterState("a", LinkedClusterState.Status.AVAILABLE, null, 1L),
+            new LinkedClusterState("b", LinkedClusterState.Status.SKIPPED, "x", 0L)
+        );
+        assertThat(DataExtractorUtils.preferRicherLinkedClusterStates(one, two), equalTo(two));
+        assertThat(DataExtractorUtils.preferRicherLinkedClusterStates(two, one), equalTo(two));
+    }
+
+    public void testPreferRicherLinkedClusterStates_tieBreaksOnAvailability() {
+        List<LinkedClusterState> mix = List.of(
+            new LinkedClusterState("a", LinkedClusterState.Status.AVAILABLE, null, 1L),
+            new LinkedClusterState("b", LinkedClusterState.Status.SKIPPED, "x", 0L)
+        );
+        List<LinkedClusterState> bothUp = List.of(
+            new LinkedClusterState("a", LinkedClusterState.Status.AVAILABLE, null, 1L),
+            new LinkedClusterState("b", LinkedClusterState.Status.AVAILABLE, null, 1L)
+        );
+        assertThat(DataExtractorUtils.preferRicherLinkedClusterStates(mix, bothUp), equalTo(bothUp));
+        assertThat(DataExtractorUtils.preferRicherLinkedClusterStates(bothUp, mix), equalTo(bothUp));
+    }
+
     private static SearchResponse createSearchResponse(SearchResponse.Clusters clusters) {
         return new SearchResponse(
             new SearchHits(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f),

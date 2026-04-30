@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -21,9 +22,27 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
         String sourceType = randomFrom("parquet", "csv", "file", "iceberg");
         List<Attribute> output = randomFieldAttributes(1, 5, false);
         Map<String, Object> config = randomBoolean() ? Map.of() : Map.of("endpoint", "https://s3.example.com");
-        Map<String, Object> sourceMetadata = randomBoolean() ? Map.of() : Map.of("schema_version", 1);
+        Map<String, Object> sourceMetadata = randomBoolean() ? Map.of() : randomSourceMetadataWithStats();
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, sourceType, sourcePath, null, null, sourceMetadata, config);
         return new ExternalRelation(randomSource(), sourcePath, metadata, output);
+    }
+
+    private static Map<String, Object> randomSourceMetadataWithStats() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("schema_version", 1);
+        if (randomBoolean()) {
+            map.put("_stats.row_count", randomLongBetween(0, 100_000));
+            map.put("_stats.size_bytes", randomLongBetween(1000, 10_000_000));
+            String intCol = randomAlphaOfLength(5);
+            map.put("_stats.columns." + intCol + ".null_count", randomLongBetween(0, 1000));
+            map.put("_stats.columns." + intCol + ".min", randomIntBetween(0, 100));
+            map.put("_stats.columns." + intCol + ".max", randomIntBetween(100, 1000));
+            String strCol = randomAlphaOfLength(5);
+            map.put("_stats.columns." + strCol + ".null_count", randomLongBetween(0, 100));
+            map.put("_stats.columns." + strCol + ".min", randomAlphaOfLength(5));
+            map.put("_stats.columns." + strCol + ".max", randomAlphaOfLength(5));
+        }
+        return map;
     }
 
     @Override

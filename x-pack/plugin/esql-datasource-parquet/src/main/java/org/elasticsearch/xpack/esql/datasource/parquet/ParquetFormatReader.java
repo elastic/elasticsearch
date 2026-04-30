@@ -23,6 +23,7 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
@@ -47,12 +48,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
-import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -212,6 +213,44 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
             throw newInvalidParquetFileException(uri, e);
         }
+    }
+
+    private static ParquetFileReader openParquetFile(
+        StorageObject object,
+        InputFile inputFile,
+        ParquetReadOptions options,
+        ParquetMetadata cachedFooter
+    ) throws IOException {
+        String uri = object.path().toString();
+        try {
+            return ParquetFileReader.open(inputFile, cachedFooter, options, inputFile.newStream());
+        } catch (IOException e) {
+            throw newInvalidParquetFileException(uri, e);
+        } catch (RuntimeException e) {
+            if (e instanceof CircuitBreakingException) {
+                throw e;
+            }
+            if (e instanceof ElasticsearchException) {
+                throw e;
+            }
+            throw newInvalidParquetFileException(uri, e);
+        }
+    }
+
+    /**
+     * Filters a cached footer's row groups to only those whose midpoint falls within [rangeStart, rangeEnd).
+     * This mirrors parquet-mr's split assignment logic (see {@code ParquetInputFormat.getRowGroupInfo})
+     * which is applied during footer parsing but skipped when using a pre-parsed {@link ParquetMetadata}.
+     */
+    private static ParquetMetadata filterBlocksByRange(ParquetMetadata metadata, long rangeStart, long rangeEnd) {
+        List<BlockMetaData> filtered = new ArrayList<>();
+        for (BlockMetaData block : metadata.getBlocks()) {
+            long midpoint = block.getStartingPos() + block.getCompressedSize() / 2;
+            if (midpoint >= rangeStart && midpoint < rangeEnd) {
+                filtered.add(block);
+            }
+        }
+        return new ParquetMetadata(metadata.getFileMetaData(), filtered);
     }
 
     private static IOException newInvalidParquetFileException(String uri, Exception e) {
@@ -599,17 +638,34 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
      * structural (corrupt page, schema mismatch) rather than row-level.
      */
     @Override
-    public CloseableIterator<Page> readRange(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        long rangeStart,
-        long rangeEnd,
-        List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
+    public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
+        long rangeStart = context.rangeStart();
+        long rangeEnd = context.rangeEnd();
+        List<String> projectedColumns = context.projectedColumns();
+        int batchSize = context.batchSize();
+        List<Attribute> resolvedAttributes = context.resolvedAttributes();
+
         InputFile parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart);
-        ParquetFileReader reader = openParquetFile(object, parquetInputFile, readOptionsBuilder().withRange(rangeStart, rangeEnd).build());
+        ParquetReadOptions rangeOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
+        ParquetFileReader reader;
+        if (context.fileContext() instanceof ParquetMetadata cachedFooter) {
+            ParquetMetadata rangeMetadata = filterBlocksByRange(cachedFooter, rangeStart, rangeEnd);
+            reader = openParquetFile(object, parquetInputFile, rangeOptions, rangeMetadata);
+        } else {
+            // Parse the full footer (all row groups) and cache it for subsequent splits.
+            // ParquetFileReader.open with a range only retains blocks whose midpoint falls
+            // in the range, making getFooter() unusable for other splits. readFooter with
+            // options that have no range returns the complete metadata. The underlying
+            // FooterByteCache ensures the footer bytes are fetched from storage only once.
+            ParquetMetadata fullFooter = ParquetFileReader.readFooter(
+                parquetInputFile,
+                readOptionsBuilder().build(),
+                parquetInputFile.newStream()
+            );
+            context.setFileContext(fullFooter);
+            ParquetMetadata rangeMetadata = filterBlocksByRange(fullFooter, rangeStart, rangeEnd);
+            reader = openParquetFile(object, parquetInputFile, rangeOptions, rangeMetadata);
+        }
         try {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
@@ -623,11 +679,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             // parquet-mr never sees the filter and the reader does not need to be re-opened.
             if (useOptimized == false && FilterCompat.isFilteringRequired(recordFilter)) {
                 reader.close();
-                reader = openParquetFile(
-                    object,
-                    parquetInputFile,
-                    readOptionsBuilder().withRange(rangeStart, rangeEnd).withRecordFilter(recordFilter).build()
-                );
+                ParquetReadOptions filteredOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd)
+                    .withRecordFilter(recordFilter)
+                    .build();
+                if (context.fileContext() instanceof ParquetMetadata cf) {
+                    reader = openParquetFile(object, parquetInputFile, filteredOptions, filterBlocksByRange(cf, rangeStart, rangeEnd));
+                } else {
+                    reader = openParquetFile(object, parquetInputFile, filteredOptions);
+                }
                 fileMetaData = reader.getFileMetaData();
                 parquetSchema = fileMetaData.getSchema();
             }

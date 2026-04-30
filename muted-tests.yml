@@ -496,3 +496,12 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
   method: testNextPageText
   issue: https://github.com/elastic/elasticsearch/issues/147950
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testDoExecuteReleasesRegistrationOnLastChunkDeserializationFailure
+  issue: https://github.com/elastic/elasticsearch/issues/147967
+- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
+  method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
+  issue: https://github.com/elastic/elasticsearch/issues/147972
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testDataStreamStatsActionBroadcastedToSearchNodesOnly
+  issue: https://github.com/elastic/elasticsearch/issues/147973

@@ -103,10 +103,9 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
         this.formatter = valuesSourceConfig.format();
         this.roundingInfos = roundingInfos;
-        // Under a `global` agg the top-level query is ignored, so the rounding must be unbounded
-        // to cover every doc in the index
+        // Under a `global` agg the top-level query is ignored, so the rounding must not narrow by it
         this.roundingPreparer = BucketsAggregator.descendsFromGlobalAggregator(parent)
-            ? rounding -> rounding.prepareForUnknown()
+            ? valuesSourceConfig.roundingPreparerForGlobal(context)
             : valuesSourceConfig.roundingPreparer(context);
     }
 

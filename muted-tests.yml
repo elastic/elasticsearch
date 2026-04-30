@@ -330,12 +330,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testAllocationExplainRebalancingNotPreferred
   issue: https://github.com/elastic/elasticsearch/issues/147627
-- class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
-  method: testMatches
-  issue: https://github.com/elastic/elasticsearch/issues/147630
-- class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
-  method: testVisit
-  issue: https://github.com/elastic/elasticsearch/issues/147643
 - class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
   method: test {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
   issue: https://github.com/elastic/elasticsearch/issues/147654
@@ -350,9 +344,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
   method: testWithCranky {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
   issue: https://github.com/elastic/elasticsearch/issues/147732
-- class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
-  method: testToString
-  issue: https://github.com/elastic/elasticsearch/issues/147739
 - class: org.elasticsearch.search.suggest.completion.CategoryQueryContextTests
   method: testNullCategoryIsIllegal
   issue: https://github.com/elastic/elasticsearch/issues/147762
@@ -362,12 +353,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.IndexRoutingTests
   method: testRequiredRoutingUsesSliceMessageWhenSliceEnabled
   issue: https://github.com/elastic/elasticsearch/issues/147777
-- class: org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQueryTests
-  method: testEqualsAndHashCode
-  issue: https://github.com/elastic/elasticsearch/issues/147778
-- class: org.elasticsearch.search.rescore.QueryRescoreModeTests
-  method: testQueryRescoreMode
-  issue: https://github.com/elastic/elasticsearch/issues/147812
 
 # Examples:
 #
@@ -409,9 +394,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogMasterFailureOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/147835
-- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
-  method: testTranslogIsolatedNodeOnlyStressRecoveryTest
-  issue: https://github.com/elastic/elasticsearch/issues/147836
 - class: org.elasticsearch.xpack.stateless.lucene.SearchDirectoryTests
   method: testGetHighestOffsetSegmentInfos
   issue: https://github.com/elastic/elasticsearch/issues/147837
@@ -451,9 +433,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.RefreshNodeCreditManagerTests
   method: testPeriodicWarning
   issue: https://github.com/elastic/elasticsearch-serverless/issues/6518
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testDoExecutePreservesContextIdInFinalResult
-  issue: https://github.com/elastic/elasticsearch/issues/147840
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/147849
@@ -469,15 +448,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
   method: testRetentionLeasesIgnoredForSoftDeletesPolicy
   issue: https://github.com/elastic/elasticsearch/issues/147859
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testDoExecuteReleasesRegistrationWhenDataNodeFailsAfterChunkStreaming
-  issue: https://github.com/elastic/elasticsearch/issues/147870
 - class: org.elasticsearch.xpack.stateless.recovery.SearchShardRecoveryIT
   method: testRefreshOfRecoveringSearchShard
   issue: https://github.com/elastic/elasticsearch/issues/147871
-- class: org.elasticsearch.search.internal.CancellableBulkScorerTests
-  method: testIntervalGrowsGeometrically
-  issue: https://github.com/elastic/elasticsearch/issues/147872
 - class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/147482
@@ -490,12 +463,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testOldCommitsAreRetainedIfSearchNodesUseThem
   issue: https://github.com/elastic/elasticsearch/issues/147888
-- class: org.elasticsearch.xpack.security.authc.HttOptionsNoAuthnIntegTests
-  method: testNoAuthnForPreFlightRequest
-  issue: https://github.com/elastic/elasticsearch/issues/147898
-- class: org.elasticsearch.xpack.security.authc.HttOptionsNoAuthnIntegTests
-  method: testNoAuthnForResourceOptionsMethod
-  issue: https://github.com/elastic/elasticsearch/issues/147899
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=synonyms/110_synonyms_invalid/Load index with an invalid synonym rule with lenient set to false}
   issue: https://github.com/elastic/elasticsearch/issues/147907
@@ -520,3 +487,51 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
   method: testNextPageText
   issue: https://github.com/elastic/elasticsearch/issues/147950
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testDoExecuteReleasesRegistrationOnLastChunkDeserializationFailure
+  issue: https://github.com/elastic/elasticsearch/issues/147967
+- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
+  method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
+  issue: https://github.com/elastic/elasticsearch/issues/147972
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testDataStreamStatsActionBroadcastedToSearchNodesOnly
+  issue: https://github.com/elastic/elasticsearch/issues/147973
+- class: org.elasticsearch.search.suggest.completion.CategoryQueryContextTests
+  method: testToXContext
+  issue: https://github.com/elastic/elasticsearch/issues/147974
+- class: org.elasticsearch.search.rescore.QueryRescoreModeTests
+  method: testQueryRescoreMode
+  issue: https://github.com/elastic/elasticsearch/issues/147812
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
+  issue: https://github.com/elastic/elasticsearch/issues/147988
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testPagination
+  issue: https://github.com/elastic/elasticsearch/issues/148006
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTermsAggsWithProfile
+  issue: https://github.com/elastic/elasticsearch/issues/148010
+- class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
+  method: plugin projects are wired into test cluster setup
+  issue: https://github.com/elastic/elasticsearch/issues/148014
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testHasChildWithInnerHit
+  issue: https://github.com/elastic/elasticsearch/issues/148023
+- class: org.elasticsearch.xpack.stateless.shutdown.SigtermTerminationHandlerTests
+  method: testShutdownBlockIgnoreOtherRoles
+  issue: https://github.com/elastic/elasticsearch/issues/148037
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testDoExecuteReleasesRegistrationWhenDataNodeFailsAfterChunkStreaming
+  issue: https://github.com/elastic/elasticsearch/issues/147870
+- class: org.elasticsearch.search.profile.TimerTests
+  method: testTimingInterval
+  issue: https://github.com/elastic/elasticsearch/issues/148038
+- class: org.elasticsearch.search.sort.NestedSortBuilderTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/148039
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
+  method: testRandomActivitiesStatelessSnapshotAndRelocationEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/148041
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTopHits
+  issue: https://github.com/elastic/elasticsearch/issues/148044

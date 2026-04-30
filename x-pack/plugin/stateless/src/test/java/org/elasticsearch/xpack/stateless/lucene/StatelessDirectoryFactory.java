@@ -61,7 +61,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 /**
  * Factory for creating a stateless directory for use by the KnnIndexTester
  * benchmark tool. This class is loaded via reflection from the elasticsearch repo's
- * {@code modules-self-managed/vector} module, so the method signatures form a stable public API.
+ * vector module, so the method signatures form a stable public API.
  *
  * <p>The returned directory supports both reads and writes: writes go to a local
  * NIOFSDirectory, and reads flow through the stateless blob cache

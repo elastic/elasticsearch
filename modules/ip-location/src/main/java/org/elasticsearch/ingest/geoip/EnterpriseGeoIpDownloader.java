@@ -173,6 +173,10 @@ public class EnterpriseGeoIpDownloader extends AbstractGeoIpDownloader {
         {
             Set<String> existingDatabaseNames = state.getDatabases().keySet();
             for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {
+                if (shouldKeepRunning() == false) {
+                    logger.debug("Aborting enterprise geoip database additions: task is being cancelled or completed");
+                    break;
+                }
                 final String id = entry.getKey();
                 DatabaseConfiguration database = entry.getValue().database();
                 if (existingDatabaseNames.contains(database.name() + ".mmdb") == false) {
@@ -219,6 +223,10 @@ public class EnterpriseGeoIpDownloader extends AbstractGeoIpDownloader {
         if (addedSomething == false && droppedSomething == false) {
             RuntimeException accumulator = null;
             for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {
+                if (shouldKeepRunning() == false) {
+                    logger.debug("Aborting enterprise geoip database refresh: task is being cancelled or completed");
+                    break;
+                }
                 final String id = entry.getKey();
                 DatabaseConfiguration database = entry.getValue().database();
                 try {

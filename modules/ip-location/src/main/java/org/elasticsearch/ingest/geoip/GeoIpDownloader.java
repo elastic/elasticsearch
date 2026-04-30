@@ -153,6 +153,10 @@ public class GeoIpDownloader extends AbstractGeoIpDownloader {
             logger.trace("Updating geoip databases");
             List<Map<String, Object>> response = fetchDatabasesOverview();
             for (Map<String, Object> res : response) {
+                if (shouldKeepRunning() == false) {
+                    logger.debug("Aborting geoip database updates: task is being cancelled or completed");
+                    break;
+                }
                 if (res.get("name").toString().endsWith(".tgz")) {
                     processDatabase(res);
                 }

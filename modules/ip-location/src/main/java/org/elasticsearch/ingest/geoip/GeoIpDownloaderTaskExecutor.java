@@ -251,11 +251,13 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
      * Deletes the {@code .geoip_databases} index for the given project after the geoip downloader task has
      * been removed. Called from the {@code onRemove} callback of
      * {@link org.elasticsearch.persistent.PersistentTaskLifecycleManager}.
+     * <p>
+     * Safe to run concurrently with no in-flight bulks: {@link AbstractGeoIpDownloader} defers
+     * {@code markAsCompleted()} until any in-flight {@code runDownloader()} has returned, so by the time
+     * the persistent-tasks framework removes the task entry from cluster state and fires this callback,
+     * the executing node has stopped writing to {@code .geoip_databases}. The DELETE therefore cannot
+     * race with an auto-create from a straggler bulk.
      */
-    @FixForMultiProject(
-        description = "The current implementation has a potential race condition where the master may trigger the "
-            + "index cleanup before the downloader task has finished on the executing node."
-    )
     void deleteGeoIpDatabasesIndex(ProjectId projectId) {
         ProjectMetadata project = clusterService.state().metadata().projects().get(projectId);
         if (project == null) {

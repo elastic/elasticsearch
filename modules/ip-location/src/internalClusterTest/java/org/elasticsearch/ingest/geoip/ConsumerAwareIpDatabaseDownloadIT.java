@@ -66,37 +66,29 @@ public class ConsumerAwareIpDatabaseDownloadIT extends AbstractGeoIpIT {
         return settings.build();
     }
 
+    /**
+     * Disable the downloader and wait for the persistent-tasks framework to remove the task entry, which in turn
+     * triggers {@code GeoIpDownloaderTaskExecutor#deleteGeoIpDatabasesIndex} via the {@code onRemove} hook. Thanks
+     * to the drain contract in {@link AbstractGeoIpDownloader} (cancellation defers {@code markAsCompleted()} until
+     * any in-flight {@code runDownloader()} has returned), the DELETE runs against an idle index — no auto-create
+     * race from a straggler bulk and therefore no shard left in {@code [starting shard]} state for
+     * {@code InternalTestCluster#assertAfterTest} to time out on.
+     */
     @After
     public void cleanUp() throws Exception {
-        // Cancel any consumers that may still be registered (defensive: phase 4 of the test cancels both,
-        // but a mid-phase failure would otherwise leak consumers and keep the downloader running).
-        String projectId = ProjectId.DEFAULT.id();
-        for (IpLocationConsumer consumer : IpLocationConsumer.values()) {
-            IpLocationTestHelper.cancelDownloadRequest(internalCluster(), projectId, consumer);
-        }
-        // Once IpLocationDownloadConsumers is empty, every node's checkDatabases drops the project
-        // entry and shuts down its loaders, so getDatabases() goes empty on every node — including
-        // the ingest+data node, which the test's per-phase assertions don't directly cover. Waiting
-        // for that here ensures any in-flight runDownloader iteration has wound down before
-        // assertAfterTest runs.
-        assertBusy(() -> {
-            List<GeoIpStatsAction.NodeResponse> responses = getNodeResponses();
-            for (GeoIpStatsAction.NodeResponse nodeResponse : responses) {
-                assertThat(nodeResponse.getDatabases(), empty());
-            }
-        });
-        // Wait for replica recovery of .geoip_databases to complete so assertAfterTest doesn't see a
-        // shard in [starting shard] state. The index may not exist if no download ever ran (e.g., test
-        // failed before phase 1), so guard with a state check.
-        if (clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-            .get()
-            .getState()
-            .metadata()
-            .getProject(ProjectId.DEFAULT)
-            .getIndicesLookup()
-            .containsKey(GeoIpDownloader.DATABASES_INDEX)) {
-            ensureGreen(GeoIpDownloader.DATABASES_INDEX);
-        }
+        updateClusterSettings(Settings.builder().putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey()));
+        assertBusy(
+            () -> assertFalse(
+                ".geoip_databases should be deleted by the onRemove hook after disabling the downloader",
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                    .get()
+                    .getState()
+                    .metadata()
+                    .getProject(ProjectId.DEFAULT)
+                    .getIndicesLookup()
+                    .containsKey(GeoIpDownloader.DATABASES_INDEX)
+            )
+        );
     }
 
     /**

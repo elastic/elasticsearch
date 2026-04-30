@@ -67,7 +67,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.ingest.geoip.DatabaseNodeServiceTests.createClusterState;
@@ -484,7 +487,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
         assertEquals(18, geoIpDownloader.state.getDatabases().get("test.mmdb").lastCheck()); // highly surprising, seems wrong
     }
 
-    @SuppressWarnings("unchecked")
     public void testUpdateTaskState() {
         geoIpDownloader = new GeoIpDownloader(
             client,
@@ -518,7 +520,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
         geoIpDownloader.updateTaskState();
     }
 
-    @SuppressWarnings("unchecked")
     public void testUpdateTaskStateError() {
         geoIpDownloader = new GeoIpDownloader(
             client,
@@ -564,6 +565,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
         builder.close();
         when(httpClient.getBytes("a.b?elastic_geoip_service_tos=agree")).thenReturn(baos.toByteArray());
         Iterator<Map<String, Object>> it = maps.iterator();
+        AtomicReference<CountDownLatch> cycleDone = new AtomicReference<>(new CountDownLatch(1));
+        AtomicInteger processDatabaseCalls = new AtomicInteger();
         geoIpDownloader = new GeoIpDownloader(
             client,
             httpClient,
@@ -581,13 +584,26 @@ public class GeoIpDownloaderTests extends ESTestCase {
             projectId
         ) {
             @Override
+            void runDownloader() {
+                try {
+                    updateDatabases();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                } finally {
+                    cycleDone.get().countDown();
+                }
+            }
+
+            @Override
             void processDatabase(Map<String, Object> databaseInfo) {
+                processDatabaseCalls.incrementAndGet();
                 assertEquals(it.next(), databaseInfo);
             }
         };
         // No consumers in cluster state — should skip downloading
-        geoIpDownloader.updateDatabases();
-        assertTrue(it.hasNext());
+        geoIpDownloader.requestRunOnDemand();
+        safeAwait(cycleDone.get());
+        assertEquals("processDatabase must not be invoked when there are no consumers", 0, processDatabaseCalls.get());
         // Add a consumer to cluster state — should proceed with downloads
         ClusterState stateWithConsumers = createClusterState(
             projectId,
@@ -595,7 +611,10 @@ public class GeoIpDownloaderTests extends ESTestCase {
             IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST)
         );
         when(clusterService.state()).thenReturn(stateWithConsumers);
-        geoIpDownloader.updateDatabases();
+        cycleDone.set(new CountDownLatch(1));
+        geoIpDownloader.requestRunOnDemand();
+        safeAwait(cycleDone.get());
+        assertEquals("processDatabase must be invoked once per database in the manifest", maps.size(), processDatabaseCalls.get());
         assertFalse(it.hasNext());
     }
 
@@ -699,6 +718,80 @@ public class GeoIpDownloaderTests extends ESTestCase {
             lastChecked = Instant.now().minus(randomIntBetween(0, 29), ChronoUnit.DAYS);
         }
         return new GeoIpTaskState.Metadata(0, 0, 0, randomAlphaOfLength(20), lastChecked.toEpochMilli());
+    }
+
+    /**
+     * The persistent-tasks framework relies on {@code markAsCompleted()} signalling that the task is truly done so
+     * that downstream lifecycle work (in particular {@link GeoIpDownloaderTaskExecutor#deleteGeoIpDatabasesIndex})
+     * can run safely against an idle index. If {@code markAsCompleted()} fires while {@code runDownloader()} is
+     * still in flight, an in-flight bulk can race with the index deletion and auto-recreate {@code .geoip_databases}
+     * (see the test failures originally tracked under {@code @FixForMultiProject} on {@code deleteGeoIpDatabasesIndex}).
+     * This test pins the contract: cancellation must defer {@code markAsCompleted()} until the in-flight iteration
+     * has returned.
+     */
+    public void testMarkAsCompletedDeferredUntilInFlightRunDrains() throws Exception {
+        CountDownLatch enteredRun = new CountDownLatch(1);
+        CountDownLatch releaseRun = new CountDownLatch(1);
+        AtomicBoolean completed = new AtomicBoolean(false);
+
+        AbstractGeoIpDownloader blockingDownloader = new GeoIpDownloader(
+            client,
+            httpClient,
+            clusterService,
+            threadPool,
+            Settings.EMPTY,
+            2,
+            "",
+            "",
+            "",
+            EMPTY_TASK_ID,
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            projectId
+        ) {
+            {
+                init(new PersistentTasksService(clusterService, threadPool, client), null, null, 0);
+            }
+
+            @Override
+            void runDownloader() {
+                enteredRun.countDown();
+                safeAwait(releaseRun);
+            }
+
+            @Override
+            public void markAsCompleted() {
+                completed.set(true);
+                // Deliberately not calling super.markAsCompleted(): the test pins the *timing* of this call,
+                // not the persistent-tasks framework's completion notification (which would require a real
+                // TaskManager + a CompletionPersistentTaskAction handler on MockClient).
+            }
+        };
+
+        try {
+            blockingDownloader.requestRunOnDemand();
+            safeAwait(enteredRun);
+
+            // Simulate the cancellation the persistent-tasks framework would deliver when the geoip task is
+            // removed from cluster state (e.g. when an admin sets ingest.geoip.downloader.enabled=null).
+            blockingDownloader.onCancelled();
+
+            assertFalse(
+                "markAsCompleted must not fire while runDownloader is still in flight; the persistent-tasks framework "
+                    + "treats it as the signal that no more work is being done by this task on this node, and "
+                    + "downstream lifecycle (e.g. deleteGeoIpDatabasesIndex) relies on it",
+                completed.get()
+            );
+
+            releaseRun.countDown();
+
+            assertBusy(() -> assertTrue("markAsCompleted should fire once the in-flight iteration drains", completed.get()));
+        } finally {
+            // Make sure the generic-pool runOnDemand thread can return, so the threadPool shutdown in tearDown
+            // doesn't have to interrupt it.
+            releaseRun.countDown();
+        }
     }
 
     private static class MockClient extends NoOpClient implements ProjectClient {

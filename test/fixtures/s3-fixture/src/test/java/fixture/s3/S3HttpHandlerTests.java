@@ -202,6 +202,30 @@ public class S3HttpHandlerTests extends ESTestCase {
             ),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
         );
+
+        // Suffix range: last N bytes of the blob.
+        var suffixLength = randomIntBetween(1, blobBytes.length() - 1);
+        var suffixStart = blobBytes.length() - suffixLength;
+        assertEquals(
+            "Suffix Range: bytes=-" + suffixLength,
+            new TestHttpResponse(
+                RestStatus.PARTIAL_CONTENT,
+                blobBytes.slice(suffixStart, suffixLength),
+                addETag(expectedEtag, contentRangeHeader(suffixStart, blobBytes.length() - 1, blobBytes.length()))
+            ),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesSuffixHeader(suffixLength))
+        );
+
+        // Suffix length larger than the blob: returns the entire object (RFC 9110 §14.1.2).
+        assertEquals(
+            "Suffix Range larger than blob: bytes=-" + (blobBytes.length() + 100),
+            new TestHttpResponse(
+                RestStatus.PARTIAL_CONTENT,
+                blobBytes,
+                addETag(expectedEtag, contentRangeHeader(0, blobBytes.length() - 1, blobBytes.length()))
+            ),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesSuffixHeader(blobBytes.length() + 100))
+        );
     }
 
     public void testSingleMultipartUpload() {
@@ -612,17 +636,21 @@ public class S3HttpHandlerTests extends ESTestCase {
         );
     }
 
-    private static Headers bytesRangeHeader(@Nullable Integer startInclusive, @Nullable Integer endInclusive) {
+    private static Headers bytesRangeHeader(int startInclusive, @Nullable Integer endInclusive) {
         StringBuilder range = new StringBuilder("bytes=");
-        if (startInclusive != null) {
-            range.append(startInclusive);
-        }
-        range.append('-');
+        range.append(startInclusive).append('-');
         if (endInclusive != null) {
             range.append(endInclusive);
         }
         var headers = new Headers();
         headers.put("Range", List.of(range.toString()));
+        return headers;
+    }
+
+    /** Suffix-range header per RFC 7233 §2.1: "bytes=-N" requests the last N bytes. */
+    private static Headers bytesSuffixHeader(int suffixLength) {
+        var headers = new Headers();
+        headers.put("Range", List.of("bytes=-" + suffixLength));
         return headers;
     }
 

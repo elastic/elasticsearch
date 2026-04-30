@@ -28,8 +28,10 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
@@ -130,5 +132,20 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
         var response = client().performRequest(new Request("GET", target + "/_search"));
         assertOK(response);
         return ObjectPath.createFromResponse(response);
+    }
+
+    protected ObjectPath search(String target, String body) throws IOException {
+        Request request = new Request("GET", target + "/_search");
+        request.setJsonEntity(body);
+        var response = client().performRequest(request);
+        assertOK(response);
+        return ObjectPath.createFromResponse(response);
+    }
+
+    protected static ObjectPath getIndexMappingPath(String target) throws IOException {
+        Map<String, Object> mappings = ObjectPath.createFromResponse(client().performRequest(new Request("GET", target + "/_mapping")))
+            .evaluate("");
+        assertThat(mappings, aMapWithSize(1));
+        return new ObjectPath(new ObjectPath(mappings.values().iterator().next()).evaluate("mappings"));
     }
 }

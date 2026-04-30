@@ -2408,11 +2408,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             valuesData.seek(indexReader.get(blockIndex));
                         }
                         currentBlockIndex = blockIndex;
-                        if (bitsPerOrd == -1) {
-                            decoder.decodeBlock(valuesData, currentBlock, numericBlockSize);
-                        } else {
-                            decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
-                        }
+                        decoder.decode(valuesData, currentBlock);
                     }
                 }
 

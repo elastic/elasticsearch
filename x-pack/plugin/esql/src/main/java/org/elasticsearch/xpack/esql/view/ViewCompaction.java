@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -26,10 +27,16 @@ import java.util.Map;
 /**
  * Rule that compacts the nested plan produced by {@link ViewResolver} into the form expected by the
  * rest of the query pipeline. This work used to live as a post-pass at the bottom of
- * {@link ViewResolver#replaceViews}, but was moved to the analyzer so the resolver can return an
- * uncompacted plan — needed for CPS to attach lenient field-caps calls to specific resolution levels
- * (see <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a> and
+ * {@link ViewResolver#replaceViews}, but was moved out so the resolver can return an uncompacted
+ * plan — needed for CPS to attach lenient field-caps calls to specific resolution levels (see
+ * <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a> and
  * <a href="https://github.com/elastic/esql-planning/issues/472">#472</a>).
+ * <p>
+ * Despite the {@link Rule} type and naming, this is not currently registered in the analyzer's rule
+ * batches. {@code EsqlSession} invokes it explicitly between view resolution and pre-analysis, so
+ * PreAnalyzer extracts the same index patterns that the analyzer's {@code ResolveTable} rule looks
+ * up later. Keeping it as a {@link Rule} subclass makes it trivial to relocate into the analyzer
+ * pipeline once #543 introduces a post-field-caps semantic-analysis phase that can re-invoke it.
  * <p>
  * Behaviour is intended to be identical to the previous in-resolver compaction:
  * <ol>
@@ -45,19 +52,57 @@ import java.util.Map;
  * </ol>
  * <p>
  * Note: a small amount of compaction stays inside {@link ViewResolver#buildPlanFromBranches} —
- * specifically the per-level sibling {@link UnresolvedRelation} merge — because
- * {@link ViewUnionAll} (a {@link Fork} subclass) enforces {@link Fork#MAX_BRANCHES} at construction
- * time, and a wide branching level of compactable views would be unconstructible without first
- * reducing the entry count.
+ * specifically the per-level sibling {@link UnresolvedRelation} merge — to keep the resolved tree
+ * compact at the per-level boundary, so wide branching levels of compactable views (e.g.
+ * {@code FROM v1, v2, ... v9}) collapse to a single {@link UnresolvedRelation} rather than
+ * tripping {@link Fork#MAX_BRANCHES} at post-analysis verification.
  */
 public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
+        // Phase A: ViewResolver emits ViewShadowRelation siblings to mark each per-resolution-level
+        // CPS lenient lookup. They have no consumer yet — Phase B will add a post-ResolveTable
+        // analyzer rule that resolves them via lenient field-caps. Until that lands, strip them
+        // here so the rest of the pipeline (PreAnalyzer, ResolveTable, the runtime) doesn't see
+        // them. Without this strip, every existing test would change shape, and PreAnalyzer would
+        // walk into them looking for an indexPattern() it doesn't currently understand.
+        plan = stripViewShadowRelations(plan);
         plan = rewriteUnionAllsWithNamedSubqueries(plan);
         plan = compactNestedViewUnionAlls(plan);
         plan = plan.transformDown(NamedSubquery.class, UnaryPlan::child);
         return plan;
+    }
+
+    /**
+     * Drop any {@link ViewShadowRelation} siblings from {@link ViewUnionAll}s, returning the
+     * (possibly-collapsed) parent. Phase A makes shadows transparent to existing consumers; Phase B
+     * removes this strip and routes shadows through the analyzer instead.
+     */
+    private static LogicalPlan stripViewShadowRelations(LogicalPlan plan) {
+        return plan.transformDown(ViewUnionAll.class, vua -> {
+            LinkedHashMap<String, LogicalPlan> filtered = new LinkedHashMap<>();
+            boolean changed = false;
+            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
+                if (entry.getValue() instanceof ViewShadowRelation) {
+                    changed = true;
+                    continue;
+                }
+                filtered.put(entry.getKey(), entry.getValue());
+            }
+            if (changed == false) {
+                return vua;
+            }
+            if (filtered.isEmpty()) {
+                // Defensive — should not happen in practice since each level has at least the
+                // strict resolution alongside the shadow. Fall back to the original vua.
+                return vua;
+            }
+            if (filtered.size() == 1) {
+                return filtered.values().iterator().next();
+            }
+            return new ViewUnionAll(vua.source(), filtered, vua.output());
+        });
     }
 
     /**
@@ -143,7 +188,6 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // Inner Forks/UnionAlls (from user-written subqueries inside views) are also lifted,
         // with each child becoming a separate named entry suffixed from the parent view name.
         LinkedHashMap<String, LogicalPlan> flat = new LinkedHashMap<>();
-        boolean hasInnerFork = false;
 
         // Process non-fork entries first so that all outer keys are in `flat` before we attempt
         // to flatten inner forks. This makes the conflict check order-independent —
@@ -170,7 +214,6 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             String parentKey = entry.getKey();
             LogicalPlan value = entry.getValue();
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
-            hasInnerFork = true;
             if (inner instanceof ViewUnionAll innerVua) {
                 // Named branches from inner ViewUnionAll: lift with their own names. A bare
                 // UnresolvedRelation with an exclusion must be wrapped in a NamedSubquery before
@@ -203,11 +246,10 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             }
         }
 
-        if (hasInnerFork == false) {
-            return vua;
-        }
-
-        // Try to merge all UnresolvedRelation entries into a single one, unless there are duplicates
+        // Always attempt to merge bare UnresolvedRelation siblings — the strip step earlier in this
+        // rule may have just exposed entries that were previously hidden inside a ViewUnionAll
+        // wrapping shadows + strict; without an unconditional merge here those exposed siblings
+        // would stay as separate branches even when their patterns are mergeable.
         mergeUnresolvedRelationEntries(flat);
 
         if (flat.size() > Fork.MAX_BRANCHES) {

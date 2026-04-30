@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.view.ViewCompaction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.time.Clock;
@@ -158,6 +159,8 @@ public class EsqlSession {
     }
 
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
+
+    private static final ViewCompaction VIEW_COMPACTION = new ViewCompaction();
 
     private final String sessionId;
     private final TransportVersion localClusterMinimumVersion;
@@ -320,7 +323,11 @@ public class EsqlSession {
             viewResolution.viewQueries()
         );
 
-        LogicalPlan plan = viewResolution.plan();
+        // Compact the uncompacted plan that ViewResolver produces (UnionAll/ViewUnionAll rewriting,
+        // sibling-UnresolvedRelation merging, NamedSubquery unwrapping). Must run BEFORE
+        // PreAnalyzer so the index patterns extracted for field-caps match what the analyzer's
+        // ResolveTable rule looks up later. See {@link ViewCompaction} for the rationale.
+        LogicalPlan plan = VIEW_COMPACTION.apply(viewResolution.plan());
         Configuration configurationToUse = configuration;
         if (plan instanceof Explain explain) {
             explainMode = true;

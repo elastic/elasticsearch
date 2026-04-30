@@ -44,10 +44,6 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
-        if (children.size() > MAX_BRANCHES) {
-            throw new IllegalArgumentException("FORK supports up to " + MAX_BRANCHES + " branches, got: " + children.size());
-        }
-
         this.output = output;
     }
 
@@ -192,7 +188,21 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         return Fork::checkFork;
     }
 
+    /**
+     * Branch-count limit shared by all {@link Fork} subclasses (Fork, UnionAll, ViewUnionAll).
+     * Lives at post-analysis verification rather than the Fork constructor so that compaction
+     * passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both
+     * {@code Fork::checkFork} and {@code UnionAll::checkUnionAll} since each subclass dispatches
+     * to its own {@link #postAnalysisPlanVerification()} override.
+     */
+    static void checkBranchCount(LogicalPlan plan, Failures failures) {
+        if (plan instanceof Fork fork && fork.children().size() > MAX_BRANCHES) {
+            failures.add(Failure.fail(fork, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, fork.children().size()));
+        }
+    }
+
     private static void checkFork(LogicalPlan plan, Failures failures) {
+        checkBranchCount(plan, failures);
         if (plan instanceof Fork == false || plan instanceof UnionAll) {
             return;
         }

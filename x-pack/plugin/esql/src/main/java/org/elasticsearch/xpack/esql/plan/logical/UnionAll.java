@@ -75,6 +75,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     private static void checkUnionAll(LogicalPlan plan, Failures failures) {
+        Fork.checkBranchCount(plan, failures);
         // Check that all UnionAll branches have compatible data types for each column
         if (plan instanceof UnionAll unionAll) {
             Map<String, DataType> outputTypes = unionAll.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));

@@ -167,7 +167,6 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.view.ViewCompaction;
 
 import java.time.Duration;
 import java.time.temporal.TemporalAmount;
@@ -233,11 +232,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new Batch<>(
             "Initialize",
             Limiter.ONCE,
-            // Compact the nested plan ViewResolver produces before any rule expects EsRelations or
-            // resolved subqueries. Used to live as a post-pass in ViewResolver itself; moved here so
-            // the resolver can keep the per-resolution-level structure required for CPS lenient
-            // field-caps calls (esql-planning #543, #472).
-            new ViewCompaction(),
             new ResolveConfigurationAware(),
             new ResolveTable(),
             new ResolveExternalRelations(),

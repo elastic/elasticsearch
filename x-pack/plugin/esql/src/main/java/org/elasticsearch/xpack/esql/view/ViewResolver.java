@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.util.ArrayList;
@@ -137,10 +138,12 @@ public class ViewResolver {
             return;
         }
         // Note: this returns the uncompacted nested plan. Compaction (UnionAll/ViewUnionAll
-        // rewriting, sibling UnresolvedRelation merging, NamedSubquery unwrapping) now happens as
-        // the first rule in the analyzer (see {@link org.elasticsearch.xpack.esql.view.ViewCompaction}).
-        // Keeping the resolver's output uncompacted is required so CPS can attach lenient
-        // field-caps calls to specific resolution levels — see esql-planning #543, #472.
+        // rewriting, sibling UnresolvedRelation merging, NamedSubquery unwrapping) now lives in
+        // {@link org.elasticsearch.xpack.esql.view.ViewCompaction} and is applied by EsqlSession
+        // between view resolution and pre-analysis, so PreAnalyzer extracts the same index
+        // patterns that the analyzer's ResolveTable will later look up. Keeping the resolver's
+        // output uncompacted is the foundation for the CPS lenient-field-caps work in
+        // esql-planning #543, #472.
         replaceViews(
             plan,
             parser,
@@ -288,6 +291,15 @@ public class ViewResolver {
             }
         }
 
+        // For each position in the parent UnresolvedRelation's pattern list, the exclusions that
+        // appear strictly after it. Used to attach position-aware exclusions to each
+        // {@link ViewShadowRelation} so the lenient field-caps target mirrors the local exclusion
+        // scope exactly. Index resolution is left-to-right: an exclusion only narrows what's
+        // already been accumulated, so a view referenced at position i is only affected by
+        // exclusions at positions > i. See esql-planning #543.
+        String[] urPatterns = unresolvedRelation.indexPattern().indexPattern().split(",");
+        List<List<String>> exclusionsAfter = computeExclusionsAfterByPosition(urPatterns);
+
         var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT);
         req.indices(patterns);
 
@@ -297,7 +309,13 @@ public class ViewResolver {
                 return;
             }
 
+            // Map each resolved view name to the earliest position in urPatterns at which it was
+            // matched (broadest applicable-exclusion set). Earliest-position wins so we don't drop
+            // exclusions that the user wrote after a wildcard match of the same view.
+            Map<String, Integer> viewToEarliestPosition = computeViewToEarliestPosition(urPatterns, response);
+
             final HashMap<String, ViewPlan> resolvedViews = new HashMap<>();
+            final HashMap<String, ViewShadowRelation> viewShadows = new HashMap<>();
             final LinkedHashSet<String> ancestorViews = new LinkedHashSet<>(seenViews);
             SubscribableListener<Void> chain = SubscribableListener.newForked(l2 -> l2.onResponse(null));
             for (var view : response.views()) {
@@ -305,6 +323,15 @@ public class ViewResolver {
                     // Make sure we don't block sibling branches from containing the same views
                     LinkedHashSet<String> branchSeenViews = new LinkedHashSet<>(ancestorViews);
                     validateViewReferenceAndMarkSeen(view.name(), branchSeenViews);
+                    // Build the per-view {@link ViewShadowRelation} once, alongside the resolved
+                    // body. Lives at the same plan-tree level as the strict resolution so the
+                    // post-resolution rule can find the pair structurally.
+                    Integer pos = viewToEarliestPosition.get(view.name());
+                    List<String> applicableExclusions = (pos != null) ? exclusionsAfter.get(pos) : List.of();
+                    viewShadows.putIfAbsent(
+                        view.name(),
+                        new ViewShadowRelation(unresolvedRelation.source(), view.name(), applicableExclusions)
+                    );
                     replaceViews(
                         resolve(view, parser, viewQueries),
                         parser,
@@ -321,12 +348,71 @@ public class ViewResolver {
             }
             chain.andThenApply(ignored -> {
                 List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViews, patterns);
+                // Append the per-resolved-view ViewShadowRelations as additional siblings at this
+                // same level. They live under suffixed names so they don't collide with the
+                // strict ViewPlan keys when the LinkedHashMap is built downstream.
+                for (var view : response.views()) {
+                    ViewShadowRelation shadow = viewShadows.get(view.name());
+                    if (shadow != null) {
+                        subqueries.add(new ViewPlan(view.name() + "#shadow", shadow));
+                    }
+                }
                 if (subqueries.size() == 1) {
                     return subqueries.getFirst().plan();
                 }
                 return buildPlanFromBranches(unresolvedRelation, subqueries, depth);
             }).addListener(listener);
         }));
+    }
+
+    /**
+     * For each position {@code i} in {@code urPatterns}, computes the list of exclusion patterns at
+     * positions {@code j > i}, preserving original order. Used to attach position-aware exclusions
+     * to each {@link ViewShadowRelation}.
+     */
+    private static List<List<String>> computeExclusionsAfterByPosition(String[] urPatterns) {
+        List<List<String>> exclusionsAfter = new ArrayList<>(urPatterns.length);
+        List<String> later = new ArrayList<>();
+        for (int i = urPatterns.length - 1; i >= 0; i--) {
+            // Snapshot what's accumulated so far before potentially adding the current pattern.
+            exclusionsAfter.add(0, List.copyOf(later));
+            if (patternIsExclusion(urPatterns[i])) {
+                later.add(0, urPatterns[i]);
+            }
+        }
+        return exclusionsAfter;
+    }
+
+    /**
+     * Maps each resolved view name to the earliest position in {@code urPatterns} at which it was
+     * matched. When a view appears at multiple positions (e.g. matched both by a wildcard pattern
+     * earlier in the list and by an explicit name later), earliest wins, giving the broadest set of
+     * later exclusions — the most conservative reading for the lenient lookup.
+     */
+    private static Map<String, Integer> computeViewToEarliestPosition(String[] urPatterns, EsqlResolveViewAction.Response response) {
+        Set<String> resolvedViewNames = new HashSet<>();
+        for (var view : response.views()) {
+            resolvedViewNames.add(view.name());
+        }
+        Map<String, Integer> viewToEarliestPosition = new HashMap<>();
+        for (var expr : response.getResolvedIndexExpressions().expressions()) {
+            int position = -1;
+            for (int i = 0; i < urPatterns.length; i++) {
+                if (urPatterns[i].equals(expr.original())) {
+                    position = i;
+                    break;
+                }
+            }
+            if (position < 0) {
+                continue;
+            }
+            for (String index : expr.localExpressions().indices()) {
+                if (resolvedViewNames.contains(index)) {
+                    viewToEarliestPosition.merge(index, position, Math::min);
+                }
+            }
+        }
+        return viewToEarliestPosition;
     }
 
     /**
@@ -505,17 +591,21 @@ public class ViewResolver {
                 plans.put(key, ns);
             } else if (vp.plan instanceof UnresolvedRelation urp && urp.indexMode() == IndexMode.STANDARD) {
                 plans.put(key, urp);
+            } else if (vp.plan instanceof ViewShadowRelation) {
+                // Leave ViewShadowRelation bare — Phase A's ViewCompaction strip recognises it by
+                // type and removes it directly. Wrapping in NamedSubquery would hide it from the
+                // strip and keep its name out of the dropped-entries' keyspace.
+                plans.put(key, vp.plan);
             } else {
                 plans.put(key, new NamedSubquery(ur.source(), vp.plan, key));
             }
         }
 
         // Pass 2: Try to merge bare UnresolvedRelations that don't share index patterns. Most of the
-        // compaction work has moved to the {@link ViewCompaction} analyzer rule, but this per-level
-        // merge has to stay here because {@link ViewUnionAll} (a {@link Fork} subclass) enforces
-        // {@link Fork#MAX_BRANCHES} at construction time — a wide branching level (e.g. {@code FROM
-        // v1, v2, ... v9} of compactable views) would be unconstructible without first reducing the
-        // entry count.
+        // compaction work has moved to the {@link ViewCompaction} analyzer rule, but a per-level merge
+        // here keeps the resolved plan compact: a wide branching level (e.g. {@code FROM v1, v2, ... v9}
+        // of compactable views) folds into a single {@link UnresolvedRelation} entry rather than a
+        // ViewUnionAll that would later trip {@link Fork#MAX_BRANCHES} at post-analysis verification.
         mergeCompatibleUnresolvedRelations(plans);
 
         if (plans.size() == 1) {
@@ -529,8 +619,8 @@ public class ViewResolver {
      * Merges bare UnresolvedRelation entries that don't share index patterns into a single entry.
      * Those that cannot be merged are wrapped in NamedSubquery nodes to preserve data duplication
      * semantics. The full broader-scope compaction lives in {@link ViewCompaction}; this is the
-     * minimum needed at the resolver's per-level boundary to keep branch counts within
-     * {@link Fork#MAX_BRANCHES}.
+     * per-level merge that keeps the resolved tree small enough to pass {@link Fork#MAX_BRANCHES}
+     * at post-analysis verification.
      */
     private static void mergeCompatibleUnresolvedRelations(LinkedHashMap<String, LogicalPlan> plans) {
         List<String> urKeys = new ArrayList<>();

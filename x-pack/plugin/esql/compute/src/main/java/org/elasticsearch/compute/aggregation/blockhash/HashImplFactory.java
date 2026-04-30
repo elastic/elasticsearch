@@ -69,8 +69,16 @@ public class HashImplFactory {
 
     /** Creates a new BytesRefHashTable. */
     public static BytesRefHashTable newBytesRefHash(BlockFactory bf) {
+        return newBytesRefHash(bf, -1);
+    }
+
+    /**
+     * Creates a new BytesRefHashTable for a fixed-length keys
+     */
+    public static BytesRefHashTable newBytesRefHash(BlockFactory bf, int fixedLengthKey) {
         if (SWISS_HASH_FACTORY != null) {
-            return SWISS_HASH_FACTORY.newBytesRefSwissHash(bf.bigArrays().recycler(), bf.breaker(), bf.bigArrays());
+            return SwissHashFactory.getInstance()
+                .newBytesRefSwissHash(bf.bigArrays().recycler(), bf.breaker(), bf.bigArrays(), fixedLengthKey);
         } else {
             return new BytesRefHash(1, bf.bigArrays());
         }

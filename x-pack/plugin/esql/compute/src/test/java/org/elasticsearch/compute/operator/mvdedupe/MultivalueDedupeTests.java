@@ -318,7 +318,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     List<Supplier<BytesRefHashTable>> bytesRefHashImpls() {
         var bf = blockFactory();
         return List.of(
-            () -> SWISS_HASH_FACTORY.newBytesRefSwissHash(PageCacheRecycler.NON_RECYCLING_INSTANCE, bf.breaker(), bf.bigArrays()),
+            () -> SWISS_HASH_FACTORY.newBytesRefSwissHash(PageCacheRecycler.NON_RECYCLING_INSTANCE, bf.breaker(), bf.bigArrays(), -1),
             () -> new BytesRefHash(1, bf.bigArrays())
         );
     }

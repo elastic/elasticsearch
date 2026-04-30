@@ -215,8 +215,9 @@ public final class TimeSeriesBlockHash extends BlockHash {
     public Block[] getKeys(IntVector selected) {
         final int positionCount = (int) finalHash.size();
         final Block[] blocks;
-        if (OrdinalBytesRefBlock.isDense(positionCount, tsidHash.size())) {
-            blocks = buildOrdinalKeys(positionCount);
+        final BytesRefArray bytes = tsidHash.getOptionalBackingBytesRefs();
+        if (bytes != null && OrdinalBytesRefBlock.isDense(positionCount, tsidHash.size())) {
+            blocks = buildOrdinalKeys(bytes, positionCount);
         } else {
             blocks = buildNonOrdinalKeys(positionCount);
         }
@@ -226,7 +227,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
         return blocks;
     }
 
-    private Block[] buildOrdinalKeys(int positionCount) {
+    private Block[] buildOrdinalKeys(final BytesRefArray bytes, int positionCount) {
         final Block[] blocks = new Block[2];
         try (
             var tsidOrds = blockFactory.newIntVectorFixedBuilder(positionCount);
@@ -236,7 +237,6 @@ public final class TimeSeriesBlockHash extends BlockHash {
                 tsidOrds.appendInt(p, (int) finalHash.getKey1(p));
                 timestamps.appendLong(p, finalHash.getKey2(p));
             }
-            final BytesRefArray bytes = tsidHash.getBytesRefs();
             var dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
             bytes.incRef();
             try {

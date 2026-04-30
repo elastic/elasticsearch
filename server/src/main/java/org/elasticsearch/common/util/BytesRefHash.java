@@ -278,6 +278,10 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     }
 
     @Override
+    public BytesRefArray getOptionalBackingBytesRefs() {
+        return getBytesRefs();
+    }
+
     public BytesRefArray getBytesRefs() {
         return bytesRefs;
     }

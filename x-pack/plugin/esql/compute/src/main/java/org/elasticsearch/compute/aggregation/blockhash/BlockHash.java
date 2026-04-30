@@ -188,11 +188,6 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
         if (groups.size() == 2) {
             var g1 = groups.get(0);
             var g2 = groups.get(1);
-            if (g1.elementType == ElementType.LONG && g2.elementType == ElementType.INT) {
-                return new LongIntAdaptiveBlockHash(groups, blockFactory, emitBatchSize, false);
-            } else if (g1.elementType == ElementType.INT && g2.elementType == ElementType.LONG) {
-                return new LongIntAdaptiveBlockHash(groups, blockFactory, emitBatchSize, true);
-            }
             // TODO: wire these with adaptive
             if (allowBrokenOptimizations) {
                 if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {

@@ -694,9 +694,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         return bytesRefs.get(id, dest);
     }
 
-    /** Returns the key array. */
     @Override
-    public BytesRefArray getBytesRefs() {
+    public BytesRefArray getOptionalBackingBytesRefs() {
         return bytesRefs;
     }
 

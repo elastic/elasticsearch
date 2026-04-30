@@ -304,6 +304,37 @@ public class PagedBytesCursor {
     }
 
     /**
+     * Read exactly {@code length} bytes into {@code scratch}. When the bytes fit within the
+     * current page this is a zero-copy slice; otherwise they are assembled byte-by-byte.
+     */
+    public BytesRef readBytes(int length, BytesRef scratch) {
+        if (remaining < length) {
+            throw new IllegalArgumentException("not enough bytes");
+        }
+        if (pages[pageIndex].length - pageOffset >= length) {
+            scratch.bytes = pages[pageIndex];
+            scratch.offset = pageOffset;
+            scratch.length = length;
+            pageOffset += length;
+            remaining -= length;
+            if (pageOffset >= pages[pageIndex].length && remaining > 0) {
+                pageIndex++;
+                pageOffset = 0;
+            }
+        } else {
+            if (scratch.bytes.length < length) {
+                scratch.bytes = new byte[length];
+            }
+            for (int i = 0; i < length; i++) {
+                scratch.bytes[i] = readByte();
+            }
+            scratch.offset = 0;
+            scratch.length = length;
+        }
+        return scratch;
+    }
+
+    /**
      * Read bytes up to the end of the current page without crossing a page boundary,
      * returning a zero-copy {@link BytesRef} into the backing page. Advances the cursor.
      */

@@ -906,16 +906,8 @@ public class BlockHashTests extends BlockHashTestCase {
         long[] values2 = new long[] { 0, 0, 0, 1, 1, 1 };
         Object[][] expectedKeys = { new Object[] { 0, 0L }, new Object[] { 1, 0L }, new Object[] { -1, 1L }, new Object[] { 0, 1L } };
         hash(ordsAndKeys -> {
-            if (forcePackedHash) {
-                assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:INT, 1:LONG], entries=4, size="));
-                assertThat(ordsAndKeys.description(), endsWith("b}"));
-            } else {
-                assertThat(
-                    ordsAndKeys.description(),
-                    startsWith("Adaptive{LongIntBlockHash{keys=[LongKey[channel=1], IntKey[channel=0]], entries=4")
-                );
-                assertThat(ordsAndKeys.description(), endsWith("b}}"));
-            }
+            assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:INT, 1:LONG], entries=4, size="));
+            assertThat(ordsAndKeys.description(), endsWith("b}"));
             assertOrds(ordsAndKeys.ords(), 0, 1, 0, 2, 3, 2);
             assertKeys(ordsAndKeys.keys(), expectedKeys);
         },
@@ -949,16 +941,8 @@ public class BlockHashTests extends BlockHashTestCase {
                 new Object[] { null, null },
                 new Object[] { 1L, -10 } };
             hash(ordsAndKeys -> {
-                if (forcePackedHash) {
-                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:INT], entries=6, size="));
-                    assertThat(ordsAndKeys.description(), endsWith("b}"));
-                } else {
-                    assertThat(
-                        ordsAndKeys.description(),
-                        startsWith("Adaptive{PackedValuesBlockHash{groups=[0:LONG, 1:INT], entries=6, size=")
-                    );
-                    assertThat(ordsAndKeys.description(), endsWith("b}}"));
-                }
+                assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:INT], entries=6, size="));
+                assertThat(ordsAndKeys.description(), endsWith("b}"));
                 assertOrds(ordsAndKeys.ords(), 0, 1, 2, 3, 4, 5, 2);
                 assertKeys(ordsAndKeys.keys(), expectedKeys);
             }, longsBuilder.build(), intsBuilder.build());

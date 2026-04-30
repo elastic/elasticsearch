@@ -14,8 +14,8 @@ import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.swisshash.SwissHashFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -64,7 +64,7 @@ public class BytesRefSwissHashBenchmark {
 
     BytesRef[] keys;
 
-    BytesRefSwissHash swiss;
+    BytesRefHashTable swiss;
     BytesRefHash legacy;
 
     // --------------------------- SETUP ---------------------------
@@ -77,7 +77,7 @@ public class BytesRefSwissHashBenchmark {
         BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("dummy");
-        swiss = SwissHashFactory.getInstance().newBytesRefSwissHash(recycler, breaker, bigArrays);
+        swiss = SwissHashFactory.getInstance().newBytesRefSwissHash(recycler, breaker, bigArrays, -1);
         legacy = new BytesRefHash(1, bigArrays);
     }
 

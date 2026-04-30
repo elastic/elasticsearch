@@ -11,6 +11,7 @@ package org.elasticsearch.swisshash;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,7 +35,12 @@ public abstract class SwissHashFactory {
 
     public abstract LongLongSwissHash newLongLongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker);
 
-    public abstract BytesRefSwissHash newBytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays);
+    public abstract BytesRefHashTable newBytesRefSwissHash(
+        PageCacheRecycler recycler,
+        CircuitBreaker breaker,
+        BigArrays bigArrays,
+        int keyLen
+    );
 
     private static final class SwissHashFactoryImpl extends SwissHashFactory {
         @Override
@@ -48,8 +54,12 @@ public abstract class SwissHashFactory {
         }
 
         @Override
-        public BytesRefSwissHash newBytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
-            return new BytesRefSwissHash(recycler, breaker, bigArrays);
+        public BytesRefHashTable newBytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays, int keyLen) {
+            if (keyLen > 0 && keyLen <= FixedLengthSwissHash.MAX_KEY_SIZE) {
+                return new FixedLengthSwissHash(recycler, breaker, keyLen);
+            } else {
+                return new BytesRefSwissHash(recycler, breaker, bigArrays);
+            }
         }
     }
 

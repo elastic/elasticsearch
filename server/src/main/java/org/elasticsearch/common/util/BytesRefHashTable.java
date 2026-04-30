@@ -12,6 +12,7 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -48,6 +49,24 @@ public interface BytesRefHashTable extends Accountable, Releasable {
     /** Returns the size (number of key/value pairs) in the table.*/
     long size();
 
-    /** Gets the backing bytes ref array. */
-    BytesRefArray getBytesRefs();
+    /** Gets an optional the backing bytes ref array. */
+    @Nullable
+    BytesRefArray getOptionalBackingBytesRefs();
+
+    /**
+     * Whether this table supports {@link #bulkAdd}. Implementations return {@code true} only
+     * when the table is large enough that prefetch-based bulk insertion outweighs its overhead.
+     */
+    default boolean supportBulkAdd() {
+        return false;
+    }
+
+    /**
+     * Adds {@code length} key pairs in bulk, writing each group id into {@code ids}.
+     * Ids are always non-negative (unlike {@link #add} which encodes duplicates as {@code -1-id}).
+     * Only valid when {@link #supportBulkAdd()} returns {@code true}.
+     */
+    default void bulkAdd(byte[] keyArray, int keyStartOff, int[] ids, int numKeys) {
+        throw new UnsupportedOperationException("bulkAdd is not supported");
+    }
 }

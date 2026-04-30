@@ -150,7 +150,8 @@ public final class BytesRefLongBlockHash extends BlockHash {
         BytesRefBlock k1 = null;
         LongVector k2 = null;
         int positions = selected.getPositionCount();
-        if (OrdinalBytesRefBlock.isDense(positions, bytesHash.hash.size())) {
+        BytesRefArray bytes = bytesHash.hash.getOptionalBackingBytesRefs();
+        if (bytes != null && OrdinalBytesRefBlock.isDense(positions, bytesHash.hash.size())) {
             try (var ordinals = blockFactory.newIntBlockBuilder(positions); var longs = blockFactory.newLongVectorBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
                     int groupId = selected.getInt(i);
@@ -162,7 +163,6 @@ public final class BytesRefLongBlockHash extends BlockHash {
                     }
                     longs.appendLong(finalHash.getKey2(groupId));
                 }
-                BytesRefArray bytes = bytesHash.hash.getBytesRefs();
                 bytes.incRef();
                 BytesRefVector dict = null;
 

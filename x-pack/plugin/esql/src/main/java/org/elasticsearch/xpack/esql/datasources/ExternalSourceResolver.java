@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -275,7 +276,55 @@ public class ExternalSourceResolver {
 
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
         if (listing.fileCount() > 1) {
-            extMetadata = markStatsAsPartial(extMetadata);
+            // For multi-file FIRST_FILE_WINS, read all files' metadata in parallel to aggregate
+            // statistics across all files. This allows pushdown (COUNT/MIN/MAX) to use accurate
+            // global stats without needing split discovery (Phase 2).
+            // For the cacheable path we use the schema cache for every file (including the anchor)
+            // so that repeated resolves benefit from cached results.
+            Map<String, Object> aggregatedStats = cacheable
+                ? readAndAggregateAllFileStatsWithCache(listing, config)
+                : readAndAggregateAllFileStats(listing, config);
+            if (aggregatedStats != null) {
+                // Replace anchor-only stats with globally-aggregated stats.
+                // Preserve all non-stats keys from the current extMetadata (e.g. file_count, config).
+                Map<String, Object> current = extMetadata.sourceMetadata();
+                Map<String, Object> merged = current != null ? new HashMap<>(current) : new HashMap<>();
+                merged.putAll(aggregatedStats);
+                // Do NOT add STATS_PARTIAL — stats are now complete across all files.
+                merged.remove(SourceStatisticsSerializer.STATS_PARTIAL);
+                final Map<String, Object> finalMerged = Map.copyOf(merged);
+                final ExternalSourceMetadata baseMetadata = extMetadata;
+                extMetadata = new ExternalSourceMetadata() {
+                    @Override
+                    public String location() {
+                        return baseMetadata.location();
+                    }
+
+                    @Override
+                    public List<Attribute> schema() {
+                        return baseMetadata.schema();
+                    }
+
+                    @Override
+                    public String sourceType() {
+                        return baseMetadata.sourceType();
+                    }
+
+                    @Override
+                    public Map<String, Object> sourceMetadata() {
+                        return finalMerged;
+                    }
+
+                    @Override
+                    public Map<String, Object> config() {
+                        return baseMetadata.config();
+                    }
+                };
+            } else {
+                // Could not aggregate stats (some files lacked statistics) — mark as partial
+                // so the optimizer does not rely on incomplete sourceMetadata stats.
+                extMetadata = markStatsAsPartial(extMetadata);
+            }
         }
 
         PartitionMetadata partitionMetadata = listing.partitionMetadata();
@@ -391,7 +440,8 @@ public class ExternalSourceResolver {
 
         List<Attribute> unifiedSchema = result.unifiedSchema();
         SourceMetadata firstMeta = allMetadata.get(firstFile);
-        ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config);
+        Map<String, Object> aggregatedStats = aggregateFileStatistics(allMetadata.values());
+        ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
 
         PartitionMetadata partitionMetadata = fileList.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
@@ -428,16 +478,156 @@ public class ExternalSourceResolver {
         return result;
     }
 
+    /**
+     * Aggregates statistics from all files' metadata into a single merged flat stats map.
+     * For each file, embeds its per-file statistics into its flat sourceMetadata map,
+     * then merges all maps using {@link SourceStatisticsSerializer#mergeStatistics}.
+     * Returns {@code null} if any file lacks statistics (prevents incorrect partial results).
+     */
+    @Nullable
+    private static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata) {
+        List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
+        for (SourceMetadata meta : allMetadata) {
+            if (meta.statistics().isEmpty()) {
+                // At least one file has no statistics — cannot produce accurate global stats.
+                return null;
+            }
+            Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), meta.statistics().get());
+            perFileFlatStats.add(flat);
+        }
+        return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats);
+    }
+
+    /**
+     * Reads metadata from all files in {@code listing} in parallel (bounded concurrency),
+     * then aggregates statistics across all files.
+     * Returns a merged flat stats map, or {@code null} if any file fails or lacks statistics.
+     * Errors reading individual files are logged at DEBUG and cause the method to return {@code null}
+     * (the caller will then mark stats as partial instead of using incomplete aggregations).
+     */
+    @Nullable
+    private Map<String, Object> readAndAggregateAllFileStats(FileList listing, Map<String, Object> config) {
+        int fileCount = listing.fileCount();
+        Semaphore semaphore = new Semaphore(Math.min(fileCount, MAX_PARALLEL_METADATA_READS));
+        AtomicBoolean anyFailed = new AtomicBoolean(false);
+
+        @SuppressWarnings("unchecked")
+        CompletableFuture<SourceMetadata>[] futures = new CompletableFuture[fileCount];
+
+        for (int i = 0; i < fileCount; i++) {
+            StoragePath filePath = listing.path(i);
+            futures[i] = CompletableFuture.supplyAsync(() -> {
+                if (anyFailed.get()) {
+                    return null;
+                }
+                try {
+                    semaphore.acquire();
+                    try {
+                        return resolveSingleSource(filePath.toString(), config);
+                    } finally {
+                        semaphore.release();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    anyFailed.set(true);
+                    LOGGER.debug("Interrupted reading stats from [{}], will use partial stats", filePath);
+                    return null;
+                } catch (Exception e) {
+                    anyFailed.set(true);
+                    LOGGER.debug(() -> "Failed to read stats from [" + filePath + "], will use partial stats: " + e.getMessage());
+                    return null;
+                }
+            }, executor);
+        }
+
+        try {
+            CompletableFuture.allOf(futures).join();
+        } catch (CompletionException e) {
+            LOGGER.debug("Error reading per-file stats in parallel, will use partial stats", e);
+            return null;
+        }
+
+        if (anyFailed.get()) {
+            return null;
+        }
+
+        List<SourceMetadata> allMeta = new ArrayList<>(fileCount);
+        for (CompletableFuture<SourceMetadata> future : futures) {
+            try {
+                SourceMetadata meta = future.getNow(null);
+                if (meta != null) {
+                    allMeta.add(meta);
+                }
+            } catch (Exception e) {
+                return null;
+            }
+        }
+
+        if (allMeta.size() != fileCount) {
+            return null;
+        }
+
+        return aggregateFileStatistics(allMeta);
+    }
+
+    /**
+     * Cache-aware variant of {@link #readAndAggregateAllFileStats}.
+     * Uses the schema cache (keyed by path + mtime) for each file so that repeated
+     * multi-file resolves do not re-read footers unnecessarily.
+     * Returns {@code null} if any file cannot be resolved or lacks statistics.
+     */
+    @Nullable
+    private Map<String, Object> readAndAggregateAllFileStatsWithCache(FileList listing, Map<String, Object> config) {
+        int fileCount = listing.fileCount();
+        List<Map<String, Object>> perFileStats = new ArrayList<>(fileCount);
+        for (int i = 0; i < fileCount; i++) {
+            StoragePath filePath = listing.path(i);
+            long mtime = listing.lastModifiedMillis(i);
+            String formatType = detectFormatType(filePath);
+            SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
+            try {
+                SchemaCacheEntry entry = cacheService.getOrComputeSchema(schemaKey, k -> {
+                    SourceMetadata meta = resolveSingleSource(filePath.toString(), config);
+                    Map<String, Object> enrichedMeta = meta.statistics()
+                        .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
+                        .orElse(meta.sourceMetadata());
+                    return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
+                });
+                Map<String, Object> fileMeta = entry.safeMetadata();
+                if (fileMeta == null || fileMeta.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false) {
+                    // This file has no statistics — cannot produce accurate global stats.
+                    return null;
+                }
+                perFileStats.add(fileMeta);
+            } catch (Exception e) {
+                LOGGER.debug(() -> "Failed to get cached stats for [" + filePath + "], will use partial stats: " + e.getMessage());
+                return null;
+            }
+        }
+        return SourceStatisticsSerializer.mergeStatistics(perFileStats);
+    }
+
     private ExternalSourceMetadata buildUnifiedMetadata(
         SourceMetadata referenceMeta,
         List<Attribute> unifiedSchema,
-        Map<String, Object> queryConfig
+        Map<String, Object> queryConfig,
+        @Nullable Map<String, Object> aggregatedStats
     ) {
         Map<String, Object> mergedConfig = mergeConfigs(referenceMeta.config(), queryConfig);
         List<Attribute> schema = List.copyOf(unifiedSchema);
-        Map<String, Object> enrichedSourceMetadata = referenceMeta.statistics()
-            .map(stats -> SourceStatisticsSerializer.embedStatistics(referenceMeta.sourceMetadata(), stats))
-            .orElse(referenceMeta.sourceMetadata());
+        Map<String, Object> enrichedSourceMetadata;
+        if (aggregatedStats != null) {
+            // Aggregated stats already contain all the _stats.* keys merged across all files.
+            // Start from the reference meta's base map and overlay the aggregated stats.
+            Map<String, Object> base = referenceMeta.sourceMetadata();
+            Map<String, Object> merged = base != null ? new HashMap<>(base) : new HashMap<>();
+            merged.putAll(aggregatedStats);
+            enrichedSourceMetadata = Map.copyOf(merged);
+        } else {
+            enrichedSourceMetadata = referenceMeta.statistics()
+                .map(stats -> SourceStatisticsSerializer.embedStatistics(referenceMeta.sourceMetadata(), stats))
+                .orElse(referenceMeta.sourceMetadata());
+        }
         return new ExternalSourceMetadata() {
             @Override
             public String location() {

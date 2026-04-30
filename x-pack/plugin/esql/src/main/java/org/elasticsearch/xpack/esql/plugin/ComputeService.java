@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -306,16 +307,63 @@ public class ComputeService {
         List<ExternalSplit> splits = new ArrayList<>();
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
-            discoverSplitsFromFragments(plan, splits);
-            if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
-                List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
-                if (coalesced != splits) {
-                    splits.clear();
-                    splits.addAll(coalesced);
+            if (canSkipSplitDiscovery(plan) == false) {
+                discoverSplitsFromFragments(plan, splits);
+                if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
+                    List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
+                    if (coalesced != splits) {
+                        splits.clear();
+                        splits.addAll(coalesced);
+                    }
                 }
             }
+            // else: splits stays empty — the optimizer will use sourceMetadata for pushdown
         }
         return splits;
+    }
+
+    /**
+     * Returns {@code true} when split discovery (Phase 2 footer reads) can be skipped.
+     * This is safe only when the query is a pure ungrouped aggregate directly over an
+     * {@link ExternalRelation} whose {@code sourceMetadata} already contains complete
+     * (non-partial) statistics with a row count.
+     * <p>
+     * For queries that can be skipped, the local physical optimizer will use
+     * {@code sourceMetadata} statistics to evaluate COUNT(*) and similar aggregates
+     * without reading any data files.
+     * <p>
+     * This method is conservative: any ambiguity returns {@code false} so that
+     * normal split discovery proceeds.
+     */
+    public static boolean canSkipSplitDiscovery(PhysicalPlan plan) {
+        // Walk every FragmentExec in the plan. If any one qualifies for skipping,
+        // the entire split-discovery step can be omitted for that fragment.
+        // We require ALL external relations in the plan to qualify — if any don't,
+        // we must do full discovery. Use a holder that defaults to false.
+        boolean[] foundAny = { false };
+        boolean[] allCanSkip = { true };
+
+        plan.forEachDown(FragmentExec.class, fragment -> {
+            LogicalPlan logical = fragment.fragment();
+            // We only short-circuit for: Aggregate(no groupings) directly over ExternalRelation.
+            // No Filter, Eval, or other operators between them.
+            if (logical instanceof Aggregate agg && agg.groupings().isEmpty() && agg.child() instanceof ExternalRelation ext) {
+                foundAny[0] = true;
+                Map<String, Object> meta = ext.metadata().sourceMetadata();
+                if (meta == null
+                    || meta.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false
+                    || Boolean.TRUE.equals(meta.get(SourceStatisticsSerializer.STATS_PARTIAL))) {
+                    allCanSkip[0] = false;
+                }
+            } else if (logical.anyMatch(ExternalRelation.class::isInstance)) {
+                // External relation exists but not in the simple Aggregate -> ExternalRelation pattern.
+                // Cannot skip split discovery for this fragment.
+                foundAny[0] = true;
+                allCanSkip[0] = false;
+            }
+        });
+
+        return foundAny[0] && allCanSkip[0];
     }
 
     private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits) {

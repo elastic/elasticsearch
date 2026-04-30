@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -170,7 +171,129 @@ public class CountPushdownWiringTests extends ESTestCase {
         assertEquals(1500L, as(page.getBlock(0), LongBlock.class).getLong(0));
     }
 
+    // ---- canSkipSplitDiscovery tests ----
+
+    /**
+     * A pure ungrouped COUNT(*) over ExternalRelation with complete sourceMetadata stats
+     * qualifies for skipping split discovery.
+     */
+    public void testCanSkipSplitDiscoveryForCountStar() {
+        Aggregate agg = countStarAggregate();
+        FragmentExec fragment = new FragmentExec(agg);
+        assertTrue("should skip split discovery for COUNT(*) with complete stats", ComputeService.canSkipSplitDiscovery(fragment));
+    }
+
+    /**
+     * An ExternalRelation with STATS_PARTIAL=true must NOT skip split discovery.
+     */
+    public void testCannotSkipSplitDiscoveryWhenStatsPartial() {
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER));
+        Map<String, Object> sourceMetadata = new HashMap<>();
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 50_000L);
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
+
+        SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
+        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
+        Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
+        FragmentExec fragment = new FragmentExec(agg);
+
+        assertFalse("should not skip with STATS_PARTIAL=true", ComputeService.canSkipSplitDiscovery(fragment));
+    }
+
+    /**
+     * An ExternalRelation without a row count in sourceMetadata must NOT skip split discovery.
+     */
+    public void testCannotSkipSplitDiscoveryWhenNoRowCount() {
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER));
+        // sourceMetadata has no row count at all
+        SourceMetadata metadata = stubMetadata(attrs, Map.of());
+        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
+        Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
+        FragmentExec fragment = new FragmentExec(agg);
+
+        assertFalse("should not skip with no row count", ComputeService.canSkipSplitDiscovery(fragment));
+    }
+
+    /**
+     * An aggregate WITH groupings (BY clause) cannot push down, so split discovery must run.
+     */
+    public void testCannotSkipSplitDiscoveryWithGroupings() {
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER), AGE);
+        Map<String, Object> sourceMetadata = new HashMap<>();
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
+
+        SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
+        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
+        // Add a grouping on AGE
+        Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(AGE), List.of(countAlias, AGE));
+        FragmentExec fragment = new FragmentExec(agg);
+
+        assertFalse("should not skip with groupings", ComputeService.canSkipSplitDiscovery(fragment));
+    }
+
+    /**
+     * Multi-file COUNT(*) pushdown: with aggregated sourceMetadata (no STATS_PARTIAL, valid row count),
+     * empty splits should resolve to the total row count from sourceMetadata.
+     */
+    public void testCountStarPushdownWithAggregatedSourceMetadata() {
+        // Simulate multi-file sourceMetadata with aggregated stats (no STATS_PARTIAL).
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER), AGE);
+        Map<String, Object> sourceMetadata = new HashMap<>();
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 50_000L);
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_FILE_COUNT, 5L);
+        // No STATS_PARTIAL — stats are global
+
+        SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
+        ExternalRelation external = new ExternalRelation(Source.EMPTY, "s3://bucket/*.parquet", metadata, attrs);
+        Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
+        Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
+
+        // With EMPTY splits (as Stage 2 will provide), the optimizer must use sourceMetadata.
+        PhysicalPlan result = runLocalPlanWithSplits(agg, List.of());
+
+        LocalSourceExec local = as(result, LocalSourceExec.class);
+        Page page = local.supplier().get();
+        assertEquals(50_000L, as(page.getBlock(0), LongBlock.class).getLong(0));
+    }
+
     // ---- helpers ----
+
+    private static SourceMetadata stubMetadata(List<Attribute> attrs, Map<String, Object> sourceMetadata) {
+        return new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return attrs;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "file:///test.parquet";
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return sourceMetadata;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                return o instanceof SourceMetadata;
+            }
+
+            @Override
+            public int hashCode() {
+                return 1;
+            }
+        };
+    }
 
     private PhysicalPlan runLocalPlanWithSplits(Aggregate logicalAgg, List<ExternalSplit> splits) {
         return runLocalPlanWithSplitsAndRegistry(logicalAgg, splits, buildParquetRegistry());

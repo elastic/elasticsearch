@@ -29,12 +29,14 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
+import org.elasticsearch.test.fixture.RequestEntry;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -47,6 +49,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -77,6 +80,7 @@ public class S3HttpHandler implements HttpHandler {
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, AtomicInteger> completingUploads = new ConcurrentHashMap<>();
+    private final List<RequestEntry> requestLog = new CopyOnWriteArrayList<>();
 
     public S3HttpHandler(final String bucket, S3ConsistencyModel consistencyModel) {
         this(bucket, null, consistencyModel);
@@ -107,11 +111,18 @@ public class S3HttpHandler implements HttpHandler {
      */
     public static final String DEFAULT_LIST_OBJECT_LAST_MODIFIED = "1970-01-01T00:00:00.000Z";
 
+    public List<RequestEntry> requestLog() {
+        return Collections.unmodifiableList(requestLog);
+    }
+
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         // Remove custom query parameters before processing the request. This simulates how S3 ignores them.
         // https://docs.aws.amazon.com/AmazonS3/latest/userguide/LogFormat.html#LogFormatCustom
         final S3Request request = parseRequest(exchange);
+        requestLog.add(
+            new RequestEntry(System.nanoTime(), request.method(), request.path(), exchange.getRequestHeaders().getFirst("Range"))
+        );
 
         if (METHODS_HAVING_NO_REQUEST_BODY.contains(request.method())) {
             int read = exchange.getRequestBody().read();
@@ -393,28 +404,31 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
                 // S3 supports https://www.rfc-editor.org/rfc/rfc9110.html#name-range
-                // This handler supports both bounded ranges (bytes=0-100) and open-ended ranges (bytes=100-)
+                // Supports bounded (bytes=0-100), open-ended (bytes=100-), and suffix (bytes=-N) ranges
                 final HttpHeaderParser.Range range = parseRangeHeader(rangeHeader);
                 if (range == null) {
                     throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
-                long start = range.start();
-                // For open-ended ranges (bytes=N-), end is null, meaning "to end of file"
-                long end = range.end() != null ? range.end() : blob.length() - 1;
-                if (end < start) {
+                // A byte-range with end < start is invalid. Real S3 ignores it and returns the full object
+                // with 200 OK, so the fixture mirrors that behavior. This check must run before
+                // resolveAgainst, otherwise an invalid range whose start is also beyond EOF (e.g.
+                // "bytes=300-50" against a 200-byte object) would be reported as 416 instead of being ignored.
+                if (range.end() != null && range.end() < range.start()) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
                     blob.writeTo(exchange.getResponseBody());
                     return;
-                } else if (blob.length() <= start) {
+                }
+                final HttpHeaderParser.ResolvedRange resolved = range.resolveAgainst(blob.length());
+                if (resolved == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                     return;
                 }
-                var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
-                end = start + responseBlob.length() - 1;
+                var responseBlob = blob.slice(Math.toIntExact(resolved.start()), Math.toIntExact(resolved.length()));
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                exchange.getResponseHeaders().add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", start, end, blob.length()));
+                exchange.getResponseHeaders()
+                    .add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", resolved.start(), resolved.end(), blob.length()));
                 exchange.sendResponseHeaders(RestStatus.PARTIAL_CONTENT.getStatus(), responseBlob.length());
                 responseBlob.writeTo(exchange.getResponseBody());
 

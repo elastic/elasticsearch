@@ -131,14 +131,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
     public void testSkipsWhenSnapshotAlreadyMounted() throws InterruptedException {
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
         createProjectStateWithMountedSnapshot(snapshotName);
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            () -> licenseState,
-            Clock.systemUTC()
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
 
         convert.maybeMountSearchableSnapshot(indexName);
 
@@ -151,14 +144,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         RestoreInfo restoreInfo = new RestoreInfo("snap", List.of(indexName), 1, 1);
         mockMountResponse.set(new RestoreSnapshotResponse(restoreInfo));
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            () -> licenseState,
-            Clock.systemUTC()
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         convert.maybeMountSearchableSnapshot(indexName);
 
         MountSearchableSnapshotRequest req = capturedMountRequest.get();
@@ -175,14 +161,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         createProjectState();
         mockMountResponse.set(new RestoreSnapshotResponse((RestoreInfo) null));
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            () -> licenseState,
-            Clock.systemUTC()
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
 
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,
@@ -196,14 +175,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         RestoreInfo restoreInfo = new RestoreInfo("snap", List.of(indexName), 2, 1);
         mockMountResponse.set(new RestoreSnapshotResponse(restoreInfo));
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            () -> licenseState,
-            Clock.systemUTC()
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
 
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,
@@ -217,14 +189,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         RestoreInfo restoreInfo = new RestoreInfo("snap", List.of(indexName), 0, 0);
         mockMountResponse.set(new RestoreSnapshotResponse(restoreInfo));
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            () -> licenseState,
-            Clock.systemUTC()
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
 
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,
@@ -237,14 +202,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         createProjectState();
         mockMountFailure.set(new ElasticsearchException("mount failed"));
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            () -> licenseState,
-            Clock.systemUTC()
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
 
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,

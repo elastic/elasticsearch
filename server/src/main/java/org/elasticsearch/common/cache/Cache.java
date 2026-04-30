@@ -10,6 +10,9 @@
 package org.elasticsearch.common.cache;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.lang.reflect.Array;
 import java.util.HashMap;
@@ -17,14 +20,15 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.ToLongBiFunction;
 
@@ -58,6 +62,7 @@ import java.util.function.ToLongBiFunction;
  * @param <V> The type of the values
  */
 public class Cache<K, V> {
+    private static final Logger logger = LogManager.getLogger(Cache.class);
 
     private final LongAdder hits = new LongAdder();
 
@@ -187,15 +192,17 @@ public class Cache<K, V> {
         Map<K, CompletableFuture<Entry<K, V>>> map;
 
         /**
-         * get an entry from the segment; expired entries will be returned as null but not removed from the cache until the LRU list is
-         * pruned or a manual {@link Cache#refresh()} is performed however a caller can take action using the provided callback
+         * get an entry from the segment with cancellation support; expired entries will be returned as null but not removed from the
+         * cache until the LRU list is pruned or a manual {@link Cache#refresh()} is performed however a caller can take action using
+         * the provided callback
          *
-         * @param key       the key of the entry to get from the cache
-         * @param now       the access time of this entry
-         * @param eagerEvict whether entries should be eagerly evicted on expiration
+         * @param key                   the key of the entry to get from the cache
+         * @param now                   the access time of this entry
+         * @param eagerEvict            whether entries should be eagerly evicted on expiration
+         * @param cancellationRegistrar if non-null, accepts a Runnable to be called on cancellation
          * @return the entry if there was one, otherwise null
          */
-        Entry<K, V> get(K key, long now, boolean eagerEvict) {
+        Entry<K, V> get(K key, long now, boolean eagerEvict, Consumer<Runnable> cancellationRegistrar) {
             CompletableFuture<Entry<K, V>> future;
             readLock.lock();
             try {
@@ -206,12 +213,12 @@ public class Cache<K, V> {
             if (future != null) {
                 Entry<K, V> entry;
                 try {
-                    entry = future.get();
+                    entry = blockOnFuture(future, cancellationRegistrar);
                 } catch (ExecutionException e) {
-                    assert future.isCompletedExceptionally();
                     misses.increment();
                     return null;
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     throw new IllegalStateException(e);
                 }
                 if (isExpired(entry, now)) {
@@ -335,6 +342,46 @@ public class Cache<K, V> {
 
     }
 
+    /**
+     * Block on a CompletableFuture with cancellation support.
+     *
+     * @param future                the future to wait on
+     * @param cancellationRegistrar if non-null, accepts a Runnable to be called on cancellation
+     * @return  the result of the future
+     *
+     * @throws ExecutionException   if the future completed exceptionally
+     * @throws InterruptedException if the thread was interrupted
+     */
+    private static <T> T blockOnFuture(CompletableFuture<T> future, Consumer<Runnable> cancellationRegistrar) throws ExecutionException,
+        InterruptedException {
+        if (future.isDone()) {
+            return future.get();
+        }
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Boolean> futureCompletedFirst = new AtomicReference<>(null);
+
+        future.whenComplete((value, throwable) -> {
+            futureCompletedFirst.compareAndSet(null, Boolean.TRUE);
+            latch.countDown();
+        });
+
+        if (cancellationRegistrar != null) {
+            cancellationRegistrar.accept(() -> {
+                futureCompletedFirst.compareAndSet(null, Boolean.FALSE);
+                latch.countDown();
+            });
+        }
+
+        latch.await();
+
+        if (Boolean.TRUE.equals(futureCompletedFirst.get())) {
+            return future.get();
+        } else {
+            throw new TaskCancelledException("Cache wait cancelled");
+        }
+    }
+
     public static final int NUMBER_OF_SEGMENTS = 256;
     @SuppressWarnings("unchecked")
     private final CacheSegment[] segments = (CacheSegment[]) Array.newInstance(CacheSegment.class, NUMBER_OF_SEGMENTS);
@@ -362,8 +409,12 @@ public class Cache<K, V> {
     }
 
     private V get(K key, long now, boolean eagerEvict) {
+        return get(key, now, eagerEvict, null);
+    }
+
+    private V get(K key, long now, boolean eagerEvict, Consumer<Runnable> cancellationRegistrar) {
         CacheSegment segment = getCacheSegment(key);
-        Entry<K, V> entry = segment.get(key, now, eagerEvict);
+        Entry<K, V> entry = segment.get(key, now, eagerEvict, cancellationRegistrar);
         if (entry == null) {
             return null;
         } else {
@@ -387,9 +438,27 @@ public class Cache<K, V> {
      * @throws ExecutionException thrown if loader throws an exception or returns a null value
      */
     public V computeIfAbsent(K key, CacheLoader<K, V> loader) throws ExecutionException {
+        return computeIfAbsent(key, loader, null);
+    }
+
+    /**
+     * This variant supports cancellation - if a cancellation callback is provided and triggered while waiting for
+     * another thread to compute the value, a TaskCancelledException will be thrown.
+     * <p>
+     * Waiting can happen at multiple points:
+     * <ul>
+     * <li>during the initial eager lookup when another thread already has an in-flight computation for the key, and</li>
+     * <li>after this thread loses the put-if-absent race and must wait on the winner's computation.</li>
+     * </ul>
+     *
+     * @param cancellationRegistrar if non-null, accepts a Runnable to be called when this wait should be cancelled
+     * @throws TaskCancelledException thrown if the operation is cancelled at any cache wait point
+     */
+    public V computeIfAbsent(K key, CacheLoader<K, V> loader, Consumer<Runnable> cancellationRegistrar) throws ExecutionException {
         long now = now();
         // we have to eagerly evict expired entries or our putIfAbsent call below will fail
-        V value = get(key, now, true);
+        // this can block on an existing in-flight computation and may throw TaskCancelledException
+        V value = get(key, now, true, cancellationRegistrar);
         if (value == null) {
             // we need to synchronize loading of a value for a given key; however, holding the segment lock while
             // invoking load can lead to deadlock against another thread due to dependent key loading; therefore, we
@@ -410,61 +479,65 @@ public class Cache<K, V> {
                 segment.writeLock.unlock();
             }
 
-            BiFunction<? super Entry<K, V>, Throwable, ? extends V> handler = (ok, ex) -> {
-                if (ok != null) {
-                    promote(ok, now);
-                    return ok.value;
-                } else {
-                    segment.writeLock.lock();
-                    try {
-                        CompletableFuture<Entry<K, V>> sanity = segment.map == null ? null : segment.map.get(key);
-                        if (sanity != null && sanity.isCompletedExceptionally()) {
-                            segment.map.remove(key);
-                            if (segment.map.isEmpty()) {
-                                segment.map = null;
-                            }
-                        }
-                    } finally {
-                        segment.writeLock.unlock();
-                    }
-                    return null;
-                }
-            };
-
-            CompletableFuture<V> completableValue;
-            if (future == null) {
+            final boolean isComputing = (future == null);
+            if (isComputing) {
                 future = completableFuture;
-                completableValue = future.handle(handler);
                 V loaded;
                 try {
                     loaded = loader.load(key);
                 } catch (Exception e) {
                     future.completeExceptionally(e);
+                    cleanupFailedFuture(segment, key, future);
                     throw new ExecutionException(e);
                 }
                 if (loaded == null) {
                     NullPointerException npe = new NullPointerException("loader returned a null value");
                     future.completeExceptionally(npe);
+                    cleanupFailedFuture(segment, key, future);
                     throw new ExecutionException(npe);
-                } else {
-                    future.complete(new Entry<>(key, loaded, now));
                 }
+                Entry<K, V> entry = new Entry<>(key, loaded, now);
+                future.complete(entry);
+                promote(entry, now);
+                return loaded;
             } else {
-                completableValue = future.handle(handler);
-            }
-
-            try {
-                value = completableValue.get();
-                // check to ensure the future hasn't been completed with an exception
-                if (future.isCompletedExceptionally()) {
-                    future.get(); // call get to force the exception to be thrown for other concurrent callers
-                    throw new IllegalStateException("the future was completed exceptionally but no exception was thrown");
+                try {
+                    Entry<K, V> entry = blockOnFuture(future, cancellationRegistrar);
+                    if (entry == null) {
+                        future.get();
+                        throw new IllegalStateException("future completed exceptionally but no exception thrown");
+                    }
+                    promote(entry, now);
+                    return entry.value;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new ExecutionException(e);
                 }
-            } catch (InterruptedException e) {
-                throw new IllegalStateException(e);
             }
         }
         return value;
+    }
+
+    /**
+     * Clean up a failed future from the segment map.
+     */
+    private void cleanupFailedFuture(CacheSegment segment, K key, CompletableFuture<Entry<K, V>> future) {
+        segment.writeLock.lock();
+        try {
+            if (segment.map != null) {
+                CompletableFuture<Entry<K, V>> current = segment.map.get(key);
+                if (current == future) {
+                    segment.map.remove(key);
+                    if (segment.map.isEmpty()) {
+                        segment.map = null;
+                    }
+                } else if (current != null) {
+                    logger.debug("Skipped cleanup for key [{}] because the future was replaced", key);
+                }
+            }
+        } finally {
+            segment.writeLock.unlock();
+        }
     }
 
     /**

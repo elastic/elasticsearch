@@ -90,6 +90,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                 assert false == authentication.isRunAs() : "saml realm authentication cannot have run-as";
                 @SuppressWarnings("unchecked")
                 final Map<String, Object> tokenMeta = (Map<String, Object>) result.getMetadata().get(SamlRealm.CONTEXT_TOKEN_DATA);
+                final String inResponseTo = (String) tokenMeta.get(SamlRealm.TOKEN_METADATA_IN_RESPONSE_TO);
                 tokenService.createOAuth2Tokens(
                     authentication,
                     originatingAuthentication,
@@ -102,7 +103,8 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                                 authentication,
                                 tokenResult.getAccessToken(),
                                 tokenResult.getRefreshToken(),
-                                expiresIn
+                                expiresIn,
+                                inResponseTo
                             )
                         );
                     }, listener::onFailure)

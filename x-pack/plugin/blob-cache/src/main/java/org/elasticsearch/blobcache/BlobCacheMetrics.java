@@ -64,7 +64,7 @@ public class BlobCacheMetrics {
             ),
             meterRegistry.registerDoubleHistogram(
                 "es.blob_cache.population.throughput.histogram",
-                "The throughput observed when populating the the cache",
+                "The throughput observed when populating the cache",
                 "MiB/second"
             ),
             meterRegistry.registerLongCounter(

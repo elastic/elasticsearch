@@ -187,8 +187,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends MlFullClusterRestartTes
                 "analysis_config": {
                     "bucket_span": "10m",
                     "detectors": [{
-                        "function": "metric",
-                        "field_name": "responsetime"
+                        "function": "count"
                     }]
                 },
                 "data_description": {}

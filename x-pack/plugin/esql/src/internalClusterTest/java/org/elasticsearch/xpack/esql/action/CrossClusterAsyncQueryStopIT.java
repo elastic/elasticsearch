@@ -144,16 +144,16 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
         // If a node is both data and coordinator, and all drivers are blocked by the allowEmitting latch,
         // there are no workers left to execute the final driver or fetch pages from remote clusters.
         // This can prevent remote clusters from being marked as successful on the coordinator, even if they
-        // have completed. To avoid this, we reserve at least one worker for the final driver and page fetching.
-        // A single worker is enough, as these two tasks can be paused and yielded.
+        // have completed. To avoid this, we lower the concurrency to 1 or 2.
         var threadpool = cluster(LOCAL_CLUSTER).getInstance(TransportService.class).getThreadPool();
         int maxEsqlWorkers = threadpool.info(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME).getMax();
-        LOGGER.info("--> Launching async query");
+        int concurrency = between(1, maxEsqlWorkers > 3 ? 2 : 1);
+        LOGGER.info("--> Launching async query with concurrency={} max={}", concurrency, maxEsqlWorkers);
         final String asyncExecutionId = startAsyncQueryWithPragmas(
             client,
             "FROM blocking,*:logs-* | STATS total=sum(coalesce(const,v)) | LIMIT 1",
             includeCCSMetadata.v1(),
-            Map.of(QueryPragmas.TASK_CONCURRENCY.getKey(), between(1, maxEsqlWorkers - 1))
+            Map.of(QueryPragmas.TASK_CONCURRENCY.getKey(), concurrency)
         );
         try {
             // wait until we know that the local query against 'blocking' has started

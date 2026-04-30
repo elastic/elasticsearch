@@ -9,12 +9,6 @@
 
 package org.elasticsearch.entitlement.config;
 
-import jdk.internal.foreign.abi.AbstractLinker;
-import jdk.internal.foreign.layout.ValueLayouts;
-
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy;
-import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
@@ -23,14 +17,15 @@ import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationReg
 import java.io.IOException;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
+import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SegmentScope;
+import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.spi.FileSystemProvider;
-import java.util.List;
 import java.util.concurrent.ForkJoinPool;
 
 public class Java20Instrumentation implements InstrumentationConfig {
@@ -43,94 +38,39 @@ public class Java20Instrumentation implements InstrumentationConfig {
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled();
 
-        builder.on(AbstractLinker.class, rule -> {
-            rule.calling(AbstractLinker::downcallHandle, FunctionDescriptor.class, Linker.Option[].class)
+        builder.on(Linker.class, rule -> {
+            rule.calling(Linker::downcallHandle, MemorySegment.class, FunctionDescriptor.class, Linker.Option[].class)
                 .enforce(Policies::loadingNativeLibraries)
                 .elseThrowNotEntitled();
-            rule.calling(AbstractLinker::upcallStub, MethodHandle.class, FunctionDescriptor.class, SegmentScope.class)
+            rule.calling(Linker::downcallHandle, FunctionDescriptor.class, Linker.Option[].class)
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
+            rule.calling(Linker::upcallStub, MethodHandle.class, FunctionDescriptor.class, SegmentScope.class)
                 .enforce(Policies::loadingNativeLibraries)
                 .elseThrowNotEntitled();
         });
 
-        builder.on(ValueLayouts.OfAddressImpl.class, rule -> {
-            rule.calling(ValueLayouts.OfAddressImpl::asUnbounded).enforce(Policies::loadingNativeLibraries).elseThrowNotEntitled();
+        builder.on(MemorySegment.class, rule -> {
+            rule.callingStatic(MemorySegment::ofAddress, Long.class).enforce(Policies::loadingNativeLibraries).elseThrowNotEntitled();
+            rule.callingStatic(MemorySegment::ofAddress, Long.class, Long.class)
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
+            rule.callingStatic(MemorySegment::ofAddress, Long.class, Long.class, SegmentScope.class)
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
+            rule.callingStatic(MemorySegment::ofAddress, Long.class, Long.class, SegmentScope.class, Runnable.class)
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
         });
 
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey(
-                    "java/lang/foreign/Linker",
-                    "downcallHandle",
-                    List.of("java.lang.foreign.MemorySegment", "java.lang.foreign.FunctionDescriptor", "java.lang.foreign.Linker$Option[]")
-                ),
-                args -> Policies.loadingNativeLibraries(),
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
-
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey("java/lang/foreign/MemorySegment", "ofAddress", List.of("java.lang.Long")),
-                args -> Policies.loadingNativeLibraries(),
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
-
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey("java/lang/foreign/MemorySegment", "ofAddress", List.of("java.lang.Long", "java.lang.Long")),
-                args -> Policies.loadingNativeLibraries(),
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
-
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey(
-                    "java/lang/foreign/MemorySegment",
-                    "ofAddress",
-                    List.of("java.lang.Long", "java.lang.Long", "java.lang.foreign.SegmentScope")
-                ),
-                args -> Policies.loadingNativeLibraries(),
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
-
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey(
-                    "java/lang/foreign/MemorySegment",
-                    "ofAddress",
-                    List.of("java.lang.Long", "java.lang.Long", "java.lang.foreign.SegmentScope", "java.lang.Runnable")
-                ),
-                args -> Policies.loadingNativeLibraries(),
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
-
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey(
-                    "java/lang/foreign/SymbolLookup",
-                    "libraryLookup",
-                    List.of("java.lang.String", "java.lang.foreign.SegmentScope")
-                ),
-                args -> Policies.loadingNativeLibraries(),
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
-
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey(
-                    "java/lang/foreign/SymbolLookup",
-                    "libraryLookup",
-                    List.of("java.nio.file.Path", "java.lang.foreign.SegmentScope")
-                ),
-                args -> Policies.loadingNativeLibraries(),
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
+        builder.on(SymbolLookup.class, rule -> {
+            rule.callingStatic(SymbolLookup::libraryLookup, String.class, SegmentScope.class)
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
+            rule.callingStatic(SymbolLookup::libraryLookup, Path.class, SegmentScope.class)
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
+        });
 
         builder.on(ModuleLayer.Controller.class, rule -> {
             rule.callingVoid(ModuleLayer.Controller::enableNativeAccess, Module.class)

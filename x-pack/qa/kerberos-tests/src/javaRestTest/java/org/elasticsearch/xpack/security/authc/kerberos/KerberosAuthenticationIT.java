@@ -29,7 +29,6 @@ import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.ietf.jgss.GSSException;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -38,14 +37,14 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.security.AccessControlContext;
-import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.List;
 import java.util.Map;
 
+import javax.security.auth.Subject;
 import javax.security.auth.login.LoginContext;
+import javax.security.auth.login.LoginException;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.hamcrest.Matchers.contains;
@@ -139,7 +138,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         assertOK(response);
     }
 
-    public void testLoginByKeytab() throws IOException, PrivilegedActionException {
+    public void testLoginByKeytab() throws Exception {
         final String keytabPath = krb5Fixture.getKeytab().toString();
         final boolean enabledDebugLogs = Boolean.parseBoolean(ENABLE_KERBEROS_DEBUG_LOGS_KEY);
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
@@ -150,7 +149,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         executeRequestAndVerifyResponse(krb5Fixture.getPrincipal(), callbackHandler);
     }
 
-    public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
+    public void testLoginByUsernamePassword() throws Exception {
         final String userPrincipalName = TEST_USER_WITH_PWD_KEY;
         final String password = TEST_USER_WITH_PWD_PASSWD_KEY;
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
@@ -162,7 +161,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);
     }
 
-    public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
+    public void testGetOauth2TokenInExchangeForKerberosTickets() throws Exception {
         final String userPrincipalName = TEST_USER_WITH_PWD_KEY;
         final String password = TEST_USER_WITH_PWD_PASSWD_KEY;
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
@@ -224,17 +223,13 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     private void executeRequestAndVerifyResponse(
         final String userPrincipalName,
         final SpnegoHttpClientConfigCallbackHandler callbackHandler
-    ) throws PrivilegedActionException, IOException {
+    ) throws PrivilegedActionException, IOException, LoginException {
         final Request request = new Request("GET", "/_security/_authenticate");
         try (RestClient restClient = buildRestClientForKerberos(callbackHandler)) {
-            final AccessControlContext accessControlContext = AccessController.getContext();
             final LoginContext lc = callbackHandler.login();
-            Response response = SpnegoHttpClientConfigCallbackHandler.doAsPrivilegedWrapper(
+            Response response = Subject.doAs(
                 lc.getSubject(),
-                (PrivilegedExceptionAction<Response>) () -> {
-                    return restClient.performRequest(request);
-                },
-                accessControlContext
+                (PrivilegedExceptionAction<Response>) () -> restClient.performRequest(request)
             );
 
             assertOK(response);

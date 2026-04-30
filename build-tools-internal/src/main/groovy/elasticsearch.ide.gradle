@@ -192,7 +192,6 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
           defaults(JUnit) {
             vmParameters = [
               '-ea',
-              '-Djava.security.manager=allow',
               '-Djava.locale.providers=CLDR',
               '-Dtests.testfeatures.enabled=true',
               '-Des.nativelibs.path="' + testLibraryPath + '"',

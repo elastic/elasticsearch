@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
+import static org.elasticsearch.xpack.esql.inference.InferenceRunner.COMPLETION_PRODUCT_USE_CASE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CompletionOperatorRequestIteratorTests extends ComputeTestCase {
@@ -36,6 +37,7 @@ public class CompletionOperatorRequestIteratorTests extends ComputeTestCase {
             for (int currentPos = 0; requestIterator.hasNext(); currentPos++) {
                 InferenceAction.Request request = requestIterator.next();
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
+                assertThat(request.getContext().productUseCase(), equalTo(COMPLETION_PRODUCT_USE_CASE));
                 scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(currentPos), scratch);
                 assertThat(request.getInput().get(0), equalTo(scratch.utf8ToString()));
             }

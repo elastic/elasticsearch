@@ -361,34 +361,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
         }
     }
 
-    public void testMappingUpdateChecks() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
-
-        {
-            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
-
-            // Text fields are not stored by default, so an incoming update that is identical but
-            // just has `stored:false` should not require an update
-            builder.putMapping("""
-                {"properties":{"field":{"type":"text","store":"false"}}}""");
-            assertTrue(mapperService.assertNoUpdateRequired(builder.build()));
-        }
-
-        {
-            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
-
-            // However, an update that really does need a rebuild will throw an exception
-            builder.putMapping("""
-                {"properties":{"field":{"type":"text","store":"true"}}}""");
-            Exception e = expectThrows(IllegalStateException.class, () -> mapperService.assertNoUpdateRequired(builder.build()));
-
-            assertThat(e.getMessage(), containsString("expected current mapping ["));
-            assertThat(e.getMessage(), containsString("to be the same as new mapping"));
-        }
-    }
-
     public void testEagerGlobalOrdinals() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("eager1").field("type", "keyword").field("eager_global_ordinals", true).endObject();

@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
@@ -50,6 +52,16 @@ public class FieldAttribute extends TypedAttribute {
         "FieldAttribute",
         FieldAttribute::readFrom
     );
+
+    private static final EsField TIMESERIES_FIELD = new EsField(MetadataAttribute.TIMESERIES, DataType.KEYWORD, Map.of(), false);
+
+    static EsField timeSeriesField() {
+        return TIMESERIES_FIELD;
+    }
+
+    public static TimeSeriesMetadataAttribute timeSeriesAttribute(Source source) {
+        return new TimeSeriesMetadataAttribute(source, Set.of());
+    }
 
     private final String parentName;
     private final EsField field;
@@ -266,5 +278,22 @@ public class FieldAttribute extends TypedAttribute {
 
     public EsField field() {
         return field;
+    }
+
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        switch (format) {
+            case FULL -> {
+                sb.append(name()).append("{").append(label());
+                if (field.getNodeStringName().isEmpty() == false) {
+                    sb.append("(").append(field.getNodeStringName()).append(")");
+                }
+                if (synthetic()) {
+                    sb.append("$");
+                }
+                sb.append("}#").append(id());
+            }
+            case LIMITED -> super.nodeString(sb, format);
+        }
     }
 }

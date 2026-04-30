@@ -56,6 +56,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -68,6 +69,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -910,6 +912,20 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
 
         assertThat(preparedSearchRequest.scroll(), nullValue());
+    }
+
+    /**
+     * Sliced bulk-by-scroll must retain scroll when {@code max_docs} is at most the batch size. Otherwise, the search has
+     * {@code slice} without scroll set, which fails request validation.
+     */
+    public void testKeepScrollWhenMaxDocsAtMostScrollSizeButSliced() {
+        testRequest.setMaxDocs(between(1, 100));
+        testRequest.getSearchRequest().source().size(100);
+        testRequest.getSearchRequest().source().slice(new SliceBuilder(IdFieldMapper.NAME, 0, 5));
+
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+
+        assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
 
     public void testEnableScrollWhenProceedOnVersionConflict() {

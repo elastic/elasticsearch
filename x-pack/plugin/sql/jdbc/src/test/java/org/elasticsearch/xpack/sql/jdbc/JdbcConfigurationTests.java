@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.SslConfig;
@@ -17,8 +16,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Map;
@@ -317,14 +314,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         Map<String, String> urlPropMap = sslProperties();
         String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
 
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            DriverManager.setLogWriter(new java.io.PrintWriter(System.out));
-            return null;
-        });
+        DriverManager.setLogWriter(new java.io.PrintWriter(System.out));
 
         try {
             DriverManager.getDriver(jdbcPrefix() + "test?" + sslUrlProps);

@@ -24,6 +24,8 @@ import java.util.stream.Collectors;
 
 public class InferenceRunner {
 
+    public static final String COMPLETION_PRODUCT_USE_CASE = "internal_completion";
+
     private final Client client;
     private final ThreadPool threadPool;
 

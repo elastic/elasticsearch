@@ -53,7 +53,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         final MapperBuilderContext builderContext = MapperBuilderContext.root(false, false);
 
         {
-            indexService.clearCaches(false, true);
+            indexService.clearCaches(false, true, false);
             MappedFieldType ft = new TextFieldMapper.Builder(
                 "high_freq",
                 createDefaultIndexAnalyzers(),
@@ -69,7 +69,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
             }
         }
         {
-            indexService.clearCaches(false, true);
+            indexService.clearCaches(false, true, false);
             MappedFieldType ft = new TextFieldMapper.Builder(
                 "high_freq",
                 createDefaultIndexAnalyzers(),
@@ -88,7 +88,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
 
         {
-            indexService.clearCaches(false, true);// test # docs with value
+            indexService.clearCaches(false, true, false);// test # docs with value
             MappedFieldType ft = new TextFieldMapper.Builder(
                 "med_freq",
                 createDefaultIndexAnalyzers(),
@@ -108,7 +108,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
 
         {
-            indexService.clearCaches(false, true);
+            indexService.clearCaches(false, true, false);
             MappedFieldType ft = new TextFieldMapper.Builder(
                 "med_freq",
                 createDefaultIndexAnalyzers(),

@@ -327,8 +327,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             return buildServiceSettingsMap(
                 MODEL_VALUE,
                 URL_VALUE,
-                SIMILARITY_MEASURE_VALUE.toString(),
                 DIMENSIONS_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
                 MAX_INPUT_TOKENS_VALUE,
                 null
             );
@@ -342,8 +342,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 return buildServiceSettingsMap(
                     MODEL_VALUE,
                     URL_VALUE,
-                    SIMILARITY_MEASURE_VALUE.toString(),
                     null,
+                    SIMILARITY_MEASURE_VALUE.toString(),
                     MAX_INPUT_TOKENS_VALUE,
                     null
                 );
@@ -351,8 +351,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 return buildServiceSettingsMap(
                     MODEL_VALUE,
                     URL_VALUE,
-                    SIMILARITY_MEASURE_VALUE.toString(),
                     DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
                     MAX_INPUT_TOKENS_VALUE,
                     null
                 );
@@ -984,7 +984,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     }
 
     private static Map<String, Object> getEmbeddingsServiceSettingsMap() {
-        return buildServiceSettingsMap(INFERENCE_ID_VALUE, URL_VALUE, SIMILARITY_MEASURE_VALUE.toString(), null, null, null);
+        return buildServiceSettingsMap(INFERENCE_ID_VALUE, URL_VALUE, null, SIMILARITY_MEASURE_VALUE.toString(), null, null);
     }
 
     @Override

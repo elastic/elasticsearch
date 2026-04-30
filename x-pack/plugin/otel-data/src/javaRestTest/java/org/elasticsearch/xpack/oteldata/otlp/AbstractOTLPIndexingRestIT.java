@@ -28,8 +28,10 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
@@ -95,6 +97,17 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
     }
 
     protected static String createApiKey(String indexPattern) throws IOException {
+        return createApiKey(new String[] { indexPattern });
+    }
+
+    protected static String createApiKey(String... indexPatterns) throws IOException {
+        StringBuilder indexPatternsJson = new StringBuilder();
+        for (int i = 0; i < indexPatterns.length; i++) {
+            if (i > 0) {
+                indexPatternsJson.append(", ");
+            }
+            indexPatternsJson.append('"').append(indexPatterns[i]).append('"');
+        }
         Request createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity("""
             {
@@ -103,14 +116,14 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
                 "writer": {
                   "index": [
                     {
-                      "names": ["$INDEX_PATTERN"],
+                      "names": [$INDEX_PATTERNS],
                       "privileges": ["create_doc", "auto_configure"]
                     }
                   ]
                 }
               }
             }
-            """.replace("$INDEX_PATTERN", indexPattern));
+            """.replace("$INDEX_PATTERNS", indexPatternsJson.toString()));
         ObjectPath createApiKeyResponse = ObjectPath.createFromResponse(client().performRequest(createApiKeyRequest));
         return createApiKeyResponse.evaluate("encoded");
     }
@@ -119,5 +132,20 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
         var response = client().performRequest(new Request("GET", target + "/_search"));
         assertOK(response);
         return ObjectPath.createFromResponse(response);
+    }
+
+    protected ObjectPath search(String target, String body) throws IOException {
+        Request request = new Request("GET", target + "/_search");
+        request.setJsonEntity(body);
+        var response = client().performRequest(request);
+        assertOK(response);
+        return ObjectPath.createFromResponse(response);
+    }
+
+    protected static ObjectPath getIndexMappingPath(String target) throws IOException {
+        Map<String, Object> mappings = ObjectPath.createFromResponse(client().performRequest(new Request("GET", target + "/_mapping")))
+            .evaluate("");
+        assertThat(mappings, aMapWithSize(1));
+        return new ObjectPath(new ObjectPath(mappings.values().iterator().next()).evaluate("mappings"));
     }
 }

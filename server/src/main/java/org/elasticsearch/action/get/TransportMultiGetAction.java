@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ReshardingActionHelper;
@@ -121,6 +122,9 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 item.routing(project.resolveIndexRouting(item.routing(), item.index()));
                 shardId = OperationRouting.shardId(project, concreteSingleIndex, item.id(), item.routing());
             } catch (RoutingMissingException e) {
+                responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
+                continue;
+            } catch (SliceMissingException e) {
                 responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
                 continue;
             } catch (Exception e) {

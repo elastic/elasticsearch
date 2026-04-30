@@ -455,7 +455,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
 
     /**
      * Successful local reindex must not increment {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER}.
-     * That counter is reserved for the keep-alive-expiry heuristic when scroll/PIT contexts go missing after the inferred deadline.
+     * That counter is reserved for when the underlying search context's keep-alive expires
      */
     public void testSuccessfulLocalReindexDoesNotEmitSearchContextKeepaliveExpiredMetric() throws Exception {
         final String dataNodeName = internalCluster().startNode();
@@ -478,6 +478,79 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
         assertHitCount(prepareSearch("dest").setSize(0), 3);
+
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            final long keepaliveExpiredTotal = testTelemetryPlugin.getLongCounterMeasurement(
+                BulkByScrollSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER
+            ).stream().mapToLong(Measurement::getLong).sum();
+            assertThat(keepaliveExpiredTotal, equalTo(0L));
+        });
+    }
+
+    /**
+     * Successful update by query must not increment {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER}.
+     * That counter is reserved for when the underlying search context's keep-alive expires
+     */
+    public void testSuccessfulUpdateByQueryDoesNotEmitSearchContextKeepaliveExpiredMetric() throws Exception {
+        final String dataNodeName = internalCluster().startNode();
+
+        indexRandom(
+            true,
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "b"),
+            prepareIndex("test").setId("3").setSource("foo", "c")
+        );
+        assertHitCount(prepareSearch("test").setSize(0), 3);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        testTelemetryPlugin.resetMeter();
+
+        BulkByScrollResponse response = updateByQuery().source("test").refresh(true).get();
+        assertThat(response.getBulkFailures(), empty());
+        assertThat(response.getSearchFailures(), empty());
+        assertHitCount(prepareSearch("test").setSize(0), 3);
+
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            final long keepaliveExpiredTotal = testTelemetryPlugin.getLongCounterMeasurement(
+                BulkByScrollSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER
+            ).stream().mapToLong(Measurement::getLong).sum();
+            assertThat(keepaliveExpiredTotal, equalTo(0L));
+        });
+    }
+
+    /**
+     * Successful delete by query must not increment {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER}.
+     * That counter is reserved for when the underlying search context's keep-alive expires
+     */
+    public void testSuccessfulDeleteByQueryDoesNotEmitSearchContextKeepaliveExpiredMetric() throws Exception {
+        final String dataNodeName = internalCluster().startNode();
+
+        indexRandom(
+            true,
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "b"),
+            prepareIndex("test").setId("3").setSource("foo", "c")
+        );
+        assertHitCount(prepareSearch("test").setSize(0), 3);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        testTelemetryPlugin.resetMeter();
+
+        BulkByScrollResponse response = deleteByQuery().source("test")
+            .filter(QueryBuilders.matchAllQuery())
+            .refresh(true)
+            .get();
+        assertThat(response.getBulkFailures(), empty());
+        assertThat(response.getSearchFailures(), empty());
+        assertHitCount(prepareSearch("test").setSize(0), 0);
 
         assertBusy(() -> {
             testTelemetryPlugin.collect();

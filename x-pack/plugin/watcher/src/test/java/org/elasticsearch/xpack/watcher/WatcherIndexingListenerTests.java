@@ -93,7 +93,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         clock.freeze();
-        listener = new WatcherIndexingListener(parser, clock, triggerService, () -> WatcherState.STARTED, watch -> {}, id -> {});
+        // Wire onWatchActive/onWatchInactive directly to triggerService so the existing verify(triggerService)
+        // assertions still observe what the listener decides to do.
+        listener = new WatcherIndexingListener(parser, clock, () -> WatcherState.STARTED, triggerService::add, triggerService::remove);
 
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
@@ -145,7 +147,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     public void testPostIndexWhenStopped() throws Exception {
-        listener = new WatcherIndexingListener(parser, clock, triggerService, () -> WatcherState.STOPPED, watch -> {}, id -> {});
+        listener = new WatcherIndexingListener(parser, clock, () -> WatcherState.STOPPED, triggerService::add, triggerService::remove);
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
         listener.setConfiguration(new Configuration(Watch.INDEX, map));
@@ -403,8 +405,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         );
 
         assertThat(allocationIds.size(), is(1));
-        assertThat(allocationIds.get(shardId).index, is(0));
-        assertThat(allocationIds.get(shardId).shardCount, is(1));
+        assertThat(allocationIds.get(shardId).index(), is(0));
+        assertThat(allocationIds.get(shardId).shardCount(), is(1));
     }
 
     public void testCheckAllocationIdsWithoutShards() throws Exception {

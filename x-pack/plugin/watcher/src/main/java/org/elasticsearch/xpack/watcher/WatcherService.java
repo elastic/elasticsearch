@@ -52,11 +52,8 @@ import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -292,6 +289,12 @@ public class WatcherService {
         if (processedClusterStateVersion.get() == state.getVersion()) {
             executionService.unPause();
             triggerService.start(watches);
+            IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, state.metadata());
+            Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigurationByShardId(state, indexMetadata);
+            synchronized (pendingWatches) {
+                collectPendingWatches(indexMetadata, shardConfigs).forEach(triggerService::add);
+                pendingWatches.clear();
+            }
             if (triggeredWatches.isEmpty() == false) {
                 executionService.executeTriggeredWatches(triggeredWatches);
             }
@@ -322,12 +325,6 @@ public class WatcherService {
      * before they are fed into the trigger service.
      */
     private Collection<Watch> loadWatches(ClusterState clusterState) {
-        // Snapshot and drain the pending map: any watch that arrived via postIndex while a reload was in flight will be
-        // merged into the result below, applying the same shard-routing filter as the index search so a stale entry is
-        // dropped rather than scheduled on the wrong node.
-        Map<String, Watch> pending = new HashMap<>(pendingWatches);
-        pendingWatches.clear();
-
         IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, clusterState.metadata());
         // no index exists, all good, we can start
         if (indexMetadata == null) {
@@ -336,25 +333,14 @@ public class WatcherService {
 
         SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
-        Set<String> loadedIds = new HashSet<>();
         try {
             refreshWatches(indexMetadata);
 
-            // find out local shards
-            String watchIndexName = indexMetadata.getIndex().getName();
-            RoutingNode routingNode = clusterState.getRoutingNodes().node(clusterState.nodes().getLocalNodeId());
-            // yes, this can happen, if the state is not recovered
-            if (routingNode == null) {
-                return Collections.emptyList();
-            }
-            List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
+            Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigurationByShardId(clusterState, indexMetadata);
 
-            @NotMultiProjectCapable(description = "Watcher is not available in serverless")
-            IndexRoutingTable indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(watchIndexName);
-            Map<ShardId, ShardAllocationConfiguration> shardConfigs = ShardAllocationConfiguration.forLocalShards(
-                localShards,
-                indexRoutingTable
-            );
+            if (shardConfigs == null) {
+                return List.of(); // no shard configs mean the index is not yet ready, so we can't load watches yet'
+            }
 
             SearchRequest searchRequest = new SearchRequest(INDEX).scroll(scrollTimeout)
                 .preference(Preference.ONLY_LOCAL.toString())
@@ -374,7 +360,6 @@ public class WatcherService {
                     String id = hit.getId();
                     try {
                         Watch watch = parser.parse(id, true, hit.getSourceRef(), XContentType.JSON, hit.getSeqNo(), hit.getPrimaryTerm());
-                        loadedIds.add(id);
                         if (watch.status().state().isActive()) {
                             watches.add(watch);
                         }
@@ -387,22 +372,6 @@ public class WatcherService {
                 response.decRef();
                 response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
-
-            // Merge in any pending watches the search did not pick up. This covers watches indexed after refreshWatches
-            // returned but before the search reached their shard. Search results take precedence (canonical view).
-            int numShards = indexMetadata.getNumberOfShards();
-            for (Watch pendingWatch : pending.values()) {
-                if (loadedIds.contains(pendingWatch.id())) {
-                    continue;
-                }
-                ShardAllocationConfiguration shardConfig = findShardConfig(shardConfigs, pendingWatch.id(), numShards);
-                if (shardConfig == null || shardConfig.shouldBeTriggered(pendingWatch.id()) == false) {
-                    continue;
-                }
-                if (pendingWatch.status().state().isActive()) {
-                    watches.add(pendingWatch);
-                }
-            }
         } finally {
             if (response != null) {
                 ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
@@ -414,6 +383,40 @@ public class WatcherService {
 
         logger.debug("Loaded [{}] watches for execution", watches.size());
 
+        return watches;
+    }
+
+    private static Map<ShardId, ShardAllocationConfiguration> shardAllocationConfigurationByShardId(
+        ClusterState clusterState,
+        IndexMetadata indexMetadata
+    ) {
+        // find out local shards
+        RoutingNode routingNode = clusterState.getRoutingNodes().node(clusterState.nodes().getLocalNodeId());
+        // yes, this can happen, if the state is not recovered
+        if (routingNode == null) {
+            return null;
+        }
+
+        String watchIndexName = indexMetadata.getIndex().getName();
+        List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
+
+        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+        IndexRoutingTable indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(watchIndexName);
+        return ShardAllocationConfiguration.forLocalShards(localShards, indexRoutingTable);
+    }
+
+    private List<Watch> collectPendingWatches(IndexMetadata indexMetadata, Map<ShardId, ShardAllocationConfiguration> shardConfigs) {
+        List<Watch> watches = new ArrayList<>();
+        int numShards = indexMetadata.getNumberOfShards();
+        for (Watch pendingWatch : this.pendingWatches.values()) {
+            ShardAllocationConfiguration shardConfig = findShardConfig(shardConfigs, pendingWatch.id(), numShards);
+            if (shardConfig == null || shardConfig.shouldBeTriggered(pendingWatch.id()) == false) {
+                continue;
+            }
+            if (pendingWatch.status().state().isActive()) {
+                watches.add(pendingWatch);
+            }
+        }
         return watches;
     }
 
@@ -438,22 +441,28 @@ public class WatcherService {
     }
 
     /**
-     * Record a watch observed by {@link WatcherIndexingListener#postIndex} so that the next {@link #loadWatches} run
-     * picks it up even if it arrives between the search refresh and the actual scan. Entries added here are filtered
-     * by the local shard routing in {@link #loadWatches}, so a watch that no longer belongs on this node is dropped
-     * rather than pushed into the trigger engine.
+     * Atomically register an active watch with the trigger engine and the pending-watches map. Both happen under the
+     * same lock so a concurrent {@link #onWatchRemoved} cannot interleave between the engine update and the pending
+     * update. The pending entry covers the brief window where the engine is paused mid-reload; the engine update gets
+     * the watch scheduled immediately when the engine is running.
      */
-    void onWatchIndexed(Watch watch) {
-        pendingWatches.put(watch.id(), watch);
+    void onWatchAdded(Watch watch) {
+        synchronized (pendingWatches) {
+            triggerService.add(watch);
+            pendingWatches.put(watch.id(), watch);
+        }
     }
 
     /**
-     * Drop a pending entry for a watch that has been deleted (or deactivated) since it was tracked. Without this the
-     * next {@link #loadWatches} would merge the stale in-memory entry back into the schedule even though the watch is
-     * no longer in the index, causing the trigger engine to fire executions that fail with "watch not found".
+     * Atomically remove a watch from the pending-watches map and the trigger engine. Both happen under the same lock
+     * so a concurrent {@link #onWatchAdded} for the same id cannot resurrect a deleted watch by sneaking an add in
+     * between the two halves of the removal.
      */
-    void onWatchDeleted(String watchId) {
-        pendingWatches.remove(watchId);
+    void onWatchRemoved(String watchId) {
+        synchronized (pendingWatches) {
+            pendingWatches.remove(watchId);
+            triggerService.remove(watchId);
+        }
     }
 
     // Non private for unit testing purposes

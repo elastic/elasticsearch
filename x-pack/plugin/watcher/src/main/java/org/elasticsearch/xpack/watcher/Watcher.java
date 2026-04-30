@@ -543,10 +543,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         listener = new WatcherIndexingListener(
             watchParser,
             getClock(),
-            triggerService,
             watcherLifeCycleService.getState(),
-            watcherService::onWatchIndexed,
-            watcherService::onWatchDeleted
+            watcherService::onWatchAdded,
+            watcherService::onWatchRemoved
         );
         clusterService.addListener(listener);
 

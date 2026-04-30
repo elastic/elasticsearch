@@ -27,7 +27,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
@@ -68,35 +67,33 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
 
     private final WatchParser parser;
     private final Clock clock;
-    private final TriggerService triggerService;
     private final Supplier<WatcherState> watcherState;
     /**
-     * Notified about each watch the listener observes so that {@link WatcherService} can pick it up on the next
-     * reload. This covers the window between a reload calling {@code triggerService.pauseExecution()} (which clears
-     * the engine schedules) and {@code triggerService.start(watches)} where {@link TriggerService#add} would be a no-op.
+     * Atomically registers an active watch with the trigger engine and records it in the pending-watches map. Both
+     * mutations happen under the same lock in {@link WatcherService}, so a concurrent {@link #preDelete} cannot
+     * interleave between the engine update and the pending update and leave the two views inconsistent.
      */
-    private final Consumer<Watch> pendingWatchTracker;
+    private final Consumer<Watch> onWatchAdded;
     /**
-     * Removes a previously tracked watch by id. Called from {@link #preDelete} so the next {@code loadWatches} run
-     * does not merge a stale entry for a watch that has since been deleted.
+     * Atomically removes a watch from the pending-watches map and the trigger engine. Same locking guarantee as
+     * {@link #onWatchAdded}: a concurrent {@code postIndex} cannot resurrect a deleted watch by sneaking a put in
+     * between the two halves of the removal.
      */
-    private final Consumer<String> pendingWatchUntracker;
+    private final Consumer<String> onWatchRemoved;
     private volatile Configuration configuration = INACTIVE;
 
     WatcherIndexingListener(
         WatchParser parser,
         Clock clock,
-        TriggerService triggerService,
         Supplier<WatcherState> watcherState,
-        Consumer<Watch> pendingWatchTracker,
-        Consumer<String> pendingWatchUntracker
+        Consumer<Watch> onWatchAdded,
+        Consumer<String> onWatchRemoved
     ) {
         this.parser = parser;
         this.clock = clock;
-        this.triggerService = triggerService;
         this.watcherState = watcherState;
-        this.pendingWatchTracker = pendingWatchTracker;
-        this.pendingWatchUntracker = pendingWatchUntracker;
+        this.onWatchAdded = onWatchAdded;
+        this.onWatchRemoved = onWatchRemoved;
     }
 
     // package private for testing
@@ -159,16 +156,10 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                 if (shouldBeTriggered && EnumSet.of(WatcherState.STOPPING, WatcherState.STOPPED).contains(currentState) == false) {
                     if (watch.status().state().isActive()) {
                         logger.debug("adding watch [{}] to trigger service", watch.id());
-                        triggerService.add(watch);
-                        // Also record the watch in the pending tracker so a reload that is in flight (engine paused,
-                        // schedules cleared) still picks it up via WatcherService.loadWatches when the engine restarts.
-                        pendingWatchTracker.accept(watch);
+                        onWatchAdded.accept(watch);
                     } else {
                         logger.debug("removing watch [{}] from trigger service", watch.id());
-                        triggerService.remove(watch.id());
-                        // The watch is no longer active so make sure a stale pending entry doesn't get merged
-                        // back in by the next loadWatches.
-                        pendingWatchUntracker.accept(watch.id());
+                        onWatchRemoved.accept(watch.id());
                     }
                 } else {
                     logger.debug("watch [{}] should not be triggered. watcher state [{}]", watch.id(), currentState);
@@ -206,10 +197,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
         if (isWatchDocument(shardId.getIndexName())) {
             logger.debug("removing watch [{}] from trigger service via delete", delete.id());
-            triggerService.remove(delete.id());
-            // Drop any pending entry for this id so a subsequent loadWatches does not resurrect a watch that has
-            // just been deleted from the index.
-            pendingWatchUntracker.accept(delete.id());
+            onWatchRemoved.accept(delete.id());
         }
         return delete;
     }
@@ -341,7 +329,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
             }
 
             Collection<String> allocationIds = shards.get(entry.getKey());
-            if (allocationIds.equals(entry.getValue().allocationIds) == false) {
+            if (allocationIds.equals(entry.getValue().allocationIds()) == false) {
                 return true;
             }
         }

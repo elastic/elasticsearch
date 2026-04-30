@@ -185,6 +185,7 @@ class BulkByPaginatedSearchParallelizationHelper {
         // When resuming with completed slices, inflate so forSlice `RPS / totalSlices` yields `RPS / incompleteSlices`
         if (request.getResumeInfo().isPresent()) {
             long incompleteSlices = request.getResumeInfo().get().slices().values().stream().filter(s -> s.isCompleted() == false).count();
+            assert incompleteSlices > 0 : "if resuming, there should be at least one incomplete slice";
             request.setRequestsPerSecond(request.getRequestsPerSecond() * totalSlices / incompleteSlices);
         }
 

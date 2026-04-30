@@ -9,14 +9,17 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ResumeInfo;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -27,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
@@ -34,7 +38,9 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.test.ActionListenerUtils.neverCalledListener;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.theInstance;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
@@ -62,7 +68,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
                 ? null
                 : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong())
         );
-        task.setWorkerCount(slices);
+        task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
     }
 
     /**
@@ -231,6 +237,54 @@ public class TransportRethrottleActionTests extends ESTestCase {
             listener -> listener.onResponse(new ListTasksResponse(emptyList(), emptyList(), singletonList(e))),
             expectException(theInstance(e))
         );
+    }
+
+    public void testRethrottleParentTask503AfterCapture() {
+        task.getLeaderState().captureRequestsPerSecondForRelocation();
+
+        final Client client = mock(Client.class);
+        final String localNodeId = randomAlphaOfLength(5);
+        final float newRequestsPerSecond = randomFloatBetween(0.1f, 1000f, true);
+        final AtomicBoolean listenerCalled = new AtomicBoolean();
+        final ActionListener<TaskInfo> listener = ActionTestUtils.assertNoSuccessListener(e -> {
+            listenerCalled.set(true);
+            assertThat(e, instanceOf(ElasticsearchStatusException.class));
+            assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        });
+
+        TransportRethrottleAction.rethrottle(logger, localNodeId, client, task, newRequestsPerSecond, listener);
+        assertTrue("expected onFailure to be called", listenerCalled.get());
+    }
+
+    public void testRethrottleChildTask503AfterCapture() {
+        final BulkByScrollTask workerTask = new BulkByScrollTask(
+            randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false,
+            randomBoolean()
+                ? null
+                : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong())
+        );
+        final float initialRps = randomFloatBetween(0.1f, 1000f, true);
+        workerTask.setWorker(initialRps, null);
+        workerTask.getWorkerState().captureRequestsPerSecondForRelocation();
+
+        final Client client = mock(Client.class);
+        final String localNodeId = randomAlphaOfLength(5);
+        final float newRequestsPerSecond = randomFloatBetween(0.1f, 1000f, true);
+        final AtomicBoolean listenerCalled = new AtomicBoolean();
+        final ActionListener<TaskInfo> listener = ActionTestUtils.assertNoSuccessListener(e -> {
+            listenerCalled.set(true);
+            assertThat(e, instanceOf(ElasticsearchStatusException.class));
+            assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        });
+
+        TransportRethrottleAction.rethrottle(logger, localNodeId, client, workerTask, newRequestsPerSecond, listener);
+        assertTrue("expected onFailure to be called", listenerCalled.get());
     }
 
     private BulkByScrollTask.Status believeableInProgressStatus(Integer sliceId) {

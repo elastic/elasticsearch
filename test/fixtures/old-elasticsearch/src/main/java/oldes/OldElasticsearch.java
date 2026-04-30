@@ -14,9 +14,6 @@ import org.apache.lucene.util.Constants;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.ConnectException;
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,54 +22,59 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.OptionalInt;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Starts an unpacked Elasticsearch distribution with {@code http.port: 0} (and matching transport settings),
- * reads startup logs until it learns which HTTP port was chosen, then writes that port to a {@code ports} file for
- * Gradle {@code AntFixture}-based tests.
- * <p>
- * This launcher was introduced because Elasticsearch versions before 5.0 did not write a dedicated ports file. The
- * same mechanism is still reused for newer distributions (for example reindex-from-remote coverage against 7.x/8.x/9.x),
- * where tests download an archive and need a single portable process that exposes the dynamic HTTP port to Gradle
- * without hard-coding platform defaults.
+ * Starts a version of Elasticsearch that has been unzipped into an empty directory,
+ * instructing it to ask the OS for an unused port, grepping the logs for the port
+ * it actually got, and writing a {@code ports} file with the port. This is only
+ * required for versions of Elasticsearch before 5.0 because they do not support
+ * writing a "ports" file.
  */
 public class OldElasticsearch {
 
-    private static final Pattern INSTALL_DIR_MAJOR_VERSION = Pattern.compile("^elasticsearch(?:-oss)?-(\\d+)");
+    /**
+     * Log lines that announce the HTTP listen port. Each pattern must expose the port as its last
+     * capturing group ({@code groupCount()}).
+     */
+    private static final Pattern[] HTTP_PORT_PATTERNS = new Pattern[] {
+        // Elasticsearch 2.x (Netty 3): logged before the publish_address / bound_addresses form.
+        Pattern.compile("Bound http to address .*127\\.0\\.0\\.1:(\\d+)"),
+        Pattern.compile("Bound http to address .*\\[::1\\]:(\\d+)"),
+        // Elasticsearch 2.4+ consolidated HTTP line: [org.elasticsearch.http ] ... publish_address {127.0.0.1:port}, ...
+        Pattern.compile("\\[org\\.elasticsearch\\.http\\s*\\][^\\n]*publish_address[^\\n]*127\\.0\\.0\\.1:(\\d+)"),
+        Pattern.compile("\\[org\\.elasticsearch\\.http\\s*\\][^\\n]*publish_address[^\\n]*\\[::1\\]:(\\d+)"),
+        // Elasticsearch 5+ and 2.x when the log4j column uses a short "[http ... ]" logger name.
+        Pattern.compile(
+            "(\\[http\\s+\\]|Netty4HttpServerTransport|NettyHttpServerTransport|HttpServer).+bound_address.+127\\.0\\.0\\.1:(\\d+)"
+        ),
+        Pattern.compile(
+            "(\\[http\\s+\\]|Netty4HttpServerTransport|NettyHttpServerTransport|HttpServer).+bound_address.+\\[::1\\]:(\\d+)"
+        ),
+    };
 
     /**
-     * Match {@code publish_address {host:port}} from HTTP bind logs. Exclude transport lines (logger {@code [o.e.t.*]})
-     * which log the same bound-address shape but for the transport port.
+     * Reads {@code lib/elasticsearch-x.y.z*.jar} to learn the distribution major version. When several
+     * match, the minimum major is used. If nothing matches (unexpected layout), returns {@code 2} so
+     * we keep legacy {@code transport.tcp.port} behavior.
      */
-    private static final Pattern HTTP_PUBLISH_PORT_EXCLUDING_TRANSPORT = Pattern.compile(
-        "^(?!.*\\[o\\.e\\.t\\.[^]]+\\]).*publish_address \\{[^}]*:(\\d+)\\}"
-    );
-
-    /** Prefer HTTP logger prefix when present (structured layouts vary by minor version). */
-    private static final Pattern HTTP_LOGGER_PUBLISH_PORT = Pattern.compile(
-        ".*\\[o\\.e\\.h\\.[^]]+\\].*publish_address \\{[^}]*:(\\d+)\\}"
-    );
-
-    /** Legacy formats used by older distributions (console layout differs by major version). */
-    private static final Pattern[] LEGACY_HTTP_PORT_PATTERNS = new Pattern[] {
-        Pattern.compile("(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+127\\.0\\.0\\.1:(\\d+)"),
-        Pattern.compile("(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+\\[::1\\]:(\\d+)"), };
-
-    /**
-     * Reads the install-directory name (for example {@code elasticsearch-8.12.2}) to decide transport settings.
-     * When the name is unexpected, returns a value below 8 so legacy {@code transport.tcp.port} is used.
-     */
-    private static int majorVersionFromInstallDir(Path esInstallDir) {
-        String name = esInstallDir.getFileName().toString();
-        Matcher m = INSTALL_DIR_MAJOR_VERSION.matcher(name);
-        if (m.find() == false) {
-            return 0;
+    private static int elasticsearchMajorVersionOrDefault(Path esDir) throws IOException {
+        Path libDir = esDir.resolve("lib");
+        if (Files.isDirectory(libDir) == false) {
+            return 2;
         }
-        return Integer.parseInt(m.group(1));
+        Pattern serverJar = Pattern.compile("elasticsearch-(\\d+)\\.(\\d+)\\.(\\d+)(?:-[A-Za-z0-9.]+)?\\.jar");
+        try (var stream = Files.list(libDir)) {
+            OptionalInt major = stream.map(Path::getFileName)
+                .map(Path::toString)
+                .map(serverJar::matcher)
+                .filter(Matcher::matches)
+                .mapToInt(m -> Integer.parseInt(m.group(1)))
+                .min();
+            return major.isPresent() ? major.getAsInt() : 2;
+        }
     }
 
     public static void main(String[] args) throws IOException {
@@ -115,18 +117,16 @@ public class OldElasticsearch {
         Path bin = esDir.resolve("bin").resolve("elasticsearch" + (Constants.WINDOWS ? ".bat" : ""));
         Path config = esDir.resolve("config").resolve("elasticsearch.yml");
 
+        int majorVersion = elasticsearchMajorVersionOrDefault(esDir);
         List<String> configOptions = new ArrayList<>();
         configOptions.add("http.port: 0");
-        if (majorVersionFromInstallDir(esDir) >= 8) {
-            // transport.tcp.port was removed in 8.0; transport.port replaces it
+        // Renamed in 7.0; ES 8+ rejects transport.tcp.port outright.
+        if (majorVersion >= 7) {
             configOptions.add("transport.port: 0");
         } else {
             configOptions.add("transport.tcp.port: 0");
         }
         configOptions.add("network.host: 127.0.0.1");
-        if (majorVersionFromInstallDir(esDir) >= 8) {
-            configOptions.add("http.host: 127.0.0.1");
-        }
         if (args.length > 3) {
             for (int i = 3; i < args.length; i++) {
                 configOptions.add(args[i]);
@@ -144,14 +144,11 @@ public class OldElasticsearch {
         Path pidPath = baseDir.relativize(baseDir.resolve("pid"));
         command.add(pidPath.toString().replace("&", "\\&"));
         ProcessBuilder subprocess = new ProcessBuilder(command);
-        /*
-         * Gradle starts this JVM with CLASSPATH pointing at the fixture (which depends on the repo's Lucene).
-         * Elasticsearch's launch scripts propagate the environment, so a child ES node would then load two
-         * incompatible lucene-core versions. Drop inherited CLASSPATH so only the distribution's lib/ is used.
-         */
-        Map<String, String> childEnv = subprocess.environment();
-        childEnv.remove("CLASSPATH");
-        subprocess.redirectErrorStream(true);
+        // Gradle invokes this launcher with CLASSPATH pointing at this module plus build dependencies
+        // (e.g. Lucene 10). Elasticsearch resolves jars from its own lib/ tree; a non-empty inherited
+        // CLASSPATH makes the boot JVM load duplicate Lucene artifacts and Security fails with
+        // "codebase property already set: codebase.lucene-core".
+        subprocess.environment().remove("CLASSPATH");
         Process process = subprocess.start();
         System.out.println("Running " + command);
 
@@ -170,23 +167,11 @@ public class OldElasticsearch {
                     continue;
                 }
                 if (port == 0) {
-                    m = HTTP_LOGGER_PUBLISH_PORT.matcher(line);
-                    if (m.find()) {
-                        port = Integer.parseInt(m.group(1));
-                        System.out.println("Found port (HTTP publish_address, http logger):  " + port);
-                        continue;
-                    }
-                    m = HTTP_PUBLISH_PORT_EXCLUDING_TRANSPORT.matcher(line);
-                    if (m.find()) {
-                        port = Integer.parseInt(m.group(1));
-                        System.out.println("Found port (HTTP publish_address):  " + port);
-                        continue;
-                    }
-                    for (Pattern legacy : LEGACY_HTTP_PORT_PATTERNS) {
-                        m = legacy.matcher(line);
+                    for (Pattern httpPortPattern : HTTP_PORT_PATTERNS) {
+                        m = httpPortPattern.matcher(line);
                         if (m.find()) {
-                            port = Integer.parseInt(m.group(2));
-                            System.out.println("Found port (legacy HTTP log):  " + port);
+                            port = Integer.parseInt(m.group(m.groupCount()));
+                            System.out.println("Found port:  " + port);
                             break;
                         }
                     }
@@ -199,14 +184,6 @@ public class OldElasticsearch {
             System.exit(1);
         }
 
-        try {
-            awaitHttpAcceptingConnections(port);
-        } catch (IOException | InterruptedException e) {
-            System.err.println("timed out waiting for HTTP port to accept connections");
-            e.printStackTrace(System.err);
-            System.exit(1);
-        }
-
         Path tmp = Files.createTempFile(baseDir, null, null);
         Files.writeString(tmp, Integer.toString(port));
         Files.move(tmp, baseDir.resolve("ports"), StandardCopyOption.ATOMIC_MOVE);
@@ -214,30 +191,5 @@ public class OldElasticsearch {
         tmp = Files.createTempFile(baseDir, null, null);
         Files.writeString(tmp, Integer.toString(pid));
         Files.move(tmp, baseDir.resolve("pid"), StandardCopyOption.ATOMIC_MOVE);
-    }
-
-    /**
-     * Bind logs can appear slightly before the socket accepts; reindex-from-remote integration tests hit HTTP immediately.
-     */
-    private static void awaitHttpAcceptingConnections(int port) throws IOException, InterruptedException {
-        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(120);
-        InetSocketAddress loopbackIpv4 = new InetSocketAddress("127.0.0.1", port);
-        IOException last = null;
-        while (System.nanoTime() < deadlineNanos) {
-            try (Socket socket = new Socket()) {
-                socket.connect(loopbackIpv4, 250);
-                return;
-            } catch (ConnectException e) {
-                last = e;
-            } catch (IOException e) {
-                last = e;
-            }
-            Thread.sleep(50L);
-        }
-        IOException timeout = new IOException("did not accept TCP connections on 127.0.0.1:" + port + " within timeout");
-        if (last != null) {
-            timeout.addSuppressed(last);
-        }
-        throw timeout;
     }
 }

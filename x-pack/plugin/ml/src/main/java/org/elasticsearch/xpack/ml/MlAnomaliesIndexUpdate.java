@@ -329,8 +329,8 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      *
      * @param badIndex     The index to heal.
      * @param state        The cluster state snapshot for this heal run.
-     * @param targetByBase Maps target base name to created target index for this heal run, so related indices use the same new target index.
-
+     * @param targetByBase Maps target base name to created target index for this heal run, so related indices use the
+     *                     same new target index.
      */
     private void healOneBadIndex(String badIndex, ClusterState state, Map<String, String> targetByBase) {
         // Determine if the mapping is broken (absent or non-keyword job_id)

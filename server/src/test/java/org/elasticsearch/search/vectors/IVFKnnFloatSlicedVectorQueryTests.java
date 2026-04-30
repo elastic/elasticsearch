@@ -221,7 +221,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
             }
             float[] vector = randomVector(dimensions);
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = new IndexSearcher(reader);
                 searcher.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
                 Query filterQuery = null;
                 if (applyFilter) {

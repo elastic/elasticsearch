@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.io.IOException;
 import java.util.List;
@@ -70,22 +69,9 @@ public interface RangeAwareFormatReader extends FormatReader {
      * The storage object must represent the full file (not a range-limited view),
      * because columnar formats need access to file-level metadata (e.g. footer).
      *
-     * @param object            the full-file storage object
-     * @param projectedColumns  columns to project
-     * @param batchSize         rows per page
-     * @param rangeStart        start byte offset of the assigned range
-     * @param rangeEnd          end byte offset (exclusive) of the assigned range
-     * @param resolvedAttributes schema attributes resolved from metadata
-     * @param errorPolicy       error handling policy
+     * @param object  the full-file storage object
+     * @param context per-split read parameters and optional cross-split file context
      * @return an iterator that yields pages from the matching row groups
      */
-    CloseableIterator<Page> readRange(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        long rangeStart,
-        long rangeEnd,
-        List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
-    ) throws IOException;
+    CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException;
 }

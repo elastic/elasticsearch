@@ -54,7 +54,7 @@ public class SearchProfileCoordinatorRequestMetadataIT extends ESIntegTestCase {
         assertCheckedResponse(
             prepareSearch(concreteIndex).setProfile(false).setSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())),
             response -> {
-                assertThat(response.getProfileResults().size(), equalTo(0));
+                assertThat(response.getSearchProfileShardResults().size(), equalTo(0));
                 BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, false);
                 Map<String, Object> map = XContentHelper.convertToMap(bytes, false, XContentType.JSON).v2();
                 assertNull(map.get("profile"));
@@ -64,7 +64,7 @@ public class SearchProfileCoordinatorRequestMetadataIT extends ESIntegTestCase {
 
     private static void assertProfileRequestInXContent(SearchResponse response, String expectedIndexExpression, int expectedSize)
         throws IOException {
-        assertThat(response.getProfileResults().size(), greaterThanOrEqualTo(1));
+        assertThat(response.getSearchProfileShardResults().size(), greaterThanOrEqualTo(1));
         BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, false);
         Map<String, Object> map = XContentHelper.convertToMap(bytes, false, XContentType.JSON).v2();
         @SuppressWarnings("unchecked")

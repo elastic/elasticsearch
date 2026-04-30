@@ -25,6 +25,7 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
 import static org.elasticsearch.compute.gen.Methods.getMethod;
+import static org.elasticsearch.compute.gen.Types.LONG_RANGE;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 import static org.elasticsearch.compute.gen.argument.StandardArgument.isBlockType;
@@ -61,6 +62,9 @@ public interface Argument {
         if (v.asType().getKind() == TypeKind.ARRAY) {
             TypeMirror componentType = ((ArrayType) v.asType()).getComponentType();
             return new ArrayArgument(TypeName.get(componentType), name);
+        }
+        if (type.equals(LONG_RANGE)) {
+            return new LongRangeArgument(type, name);
         }
         if (isBlockType(type)) {
             return new BlockArgument(type, name);

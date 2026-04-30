@@ -38,6 +38,7 @@ import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
+import static org.elasticsearch.compute.gen.Types.LONG_RANGE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.ORDINALS_BYTES_REF_VECTOR;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
@@ -175,11 +176,28 @@ public class ConvertEvaluatorImplementer {
         {
             catchingWarnExceptions(builder, () -> {
                 var constVectType = processFunction.resultDataType(true);
-                builder.addStatement(
-                    "return driverContext.blockFactory().newConstant$TWith($N, positionCount)",
-                    constVectType,
-                    evalValueCall("vector", "0", scratchPadName)
-                );
+                if (constVectType.equals(LONG_RANGE_BLOCK)) {
+                    // BlockFactory has no newConstantLongRangeBlockWith — use a 1-element builder
+                    ClassName constBuilderType = builderType(constVectType);
+                    builder.beginControlFlow(
+                        "try ($T constBuilder = driverContext.blockFactory().$L(1))",
+                        constBuilderType,
+                        buildFromFactory(constBuilderType)
+                    );
+                    builder.addStatement(
+                        "constBuilder.$L($N)",
+                        processFunction.appendMethod(),
+                        evalValueCall("vector", "0", scratchPadName)
+                    );
+                    builder.addStatement("return constBuilder.build()");
+                    builder.endControlFlow();
+                } else {
+                    builder.addStatement(
+                        "return driverContext.blockFactory().newConstant$TWith($N, positionCount)",
+                        constVectType,
+                        evalValueCall("vector", "0", scratchPadName)
+                    );
+                }
             }, () -> builder.addStatement("return driverContext.blockFactory().newConstantNullBlock(positionCount)"));
         }
         builder.endControlFlow();

@@ -47,6 +47,9 @@ public class Types {
 
     public static final ClassName BOOLEAN_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanBlock");
     public static final ClassName BYTES_REF_BLOCK = ClassName.get(DATA_PACKAGE, "BytesRefBlock");
+    public static final ClassName LONG_RANGE_BLOCK = ClassName.get(DATA_PACKAGE, "LongRangeBlock");
+    public static final ClassName LONG_RANGE_BLOCK_BUILDER = ClassName.get(DATA_PACKAGE, "LongRangeBlockBuilder");
+    public static final ClassName LONG_RANGE = ClassName.get(DATA_PACKAGE, "LongRangeBlockBuilder", "LongRange");
     public static final ClassName INT_BLOCK = ClassName.get(DATA_PACKAGE, "IntBlock");
     public static final ClassName INT_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntArrayBlock");
     public static final ClassName INT_BIG_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntBigArrayBlock");
@@ -167,7 +170,8 @@ public class Types {
         TypeDef.of(TypeName.DOUBLE, "DOUBLE", "DoubleBlock", "DoubleVector", null),
         TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector", BYTES_REF),
         TypeDef.of(EXPONENTIAL_HISTOGRAM, "EXPONENTIAL_HISTOGRAM", "ExponentialHistogramBlock", null, EXPONENTIAL_HISTOGRAM_SCRATCH),
-        TypeDef.of(TDIGEST, "TDIGEST", "TDigestBlock", null, TDIGEST)
+        TypeDef.of(TDIGEST, "TDIGEST", "TDigestBlock", null, TDIGEST),
+        new TypeDef(LONG_RANGE, "LONG_RANGE", LONG_RANGE_BLOCK, null, null)
     )
         .flatMap(def -> Stream.of(def.type.toString(), def.type + "[]", def.alias).map(alias -> Map.entry(alias, def)))
         .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -251,6 +255,9 @@ public class Types {
         if (resultType.equals(TDIGEST_BLOCK)) {
             return TDIGEST_BLOCK_BUILDER;
         }
+        if (resultType.equals(LONG_RANGE_BLOCK)) {
+            return LONG_RANGE_BLOCK_BUILDER;
+        }
 
         throw new IllegalArgumentException("unknown builder type for [" + resultType + "]");
     }
@@ -298,6 +305,9 @@ public class Types {
         }
         if (t.equals(TDIGEST_BLOCK) || t.equals(TDIGEST_BLOCK_BUILDER)) {
             return TDIGEST;
+        }
+        if (t.equals(LONG_RANGE_BLOCK) || t.equals(LONG_RANGE_BLOCK_BUILDER)) {
+            return LONG_RANGE;
         }
         throw new IllegalArgumentException("unknown element type for [" + t + "]");
     }

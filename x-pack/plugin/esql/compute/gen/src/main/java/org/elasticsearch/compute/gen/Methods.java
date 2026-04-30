@@ -234,6 +234,9 @@ public class Methods {
         if (t.equals(Types.TDIGEST) || t.equals(Types.TDIGEST_BLOCK)) {
             return "appendTDigest";
         }
+        if (t.equals(Types.LONG_RANGE) || t.equals(Types.LONG_RANGE_BLOCK)) {
+            return "appendLongRange";
+        }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");
     }
 
@@ -298,6 +301,9 @@ public class Methods {
         }
         if (t.equals(EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER)) {
             return "newExponentialHistogramBlockBuilder";
+        }
+        if (t.equals(Types.LONG_RANGE_BLOCK_BUILDER)) {
+            return "newLongRangeBlockBuilder";
         }
         throw new IllegalArgumentException("unknown build method for [" + t + "]");
     }

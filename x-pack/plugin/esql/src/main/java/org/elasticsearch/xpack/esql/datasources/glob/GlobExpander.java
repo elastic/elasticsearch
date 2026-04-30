@@ -124,16 +124,35 @@ public final class GlobExpander {
         };
     }
 
+    /**
+     * Returns true if the given path string represents multiple files — either because it contains
+     * glob metacharacters in the path component, or because it is a comma-separated list.
+     *
+     * IPv6 host literals in URL authorities (e.g. {@code http://[::1]/data/*.parquet}) use bracket
+     * notation per RFC 3986 §3.2.2. Those brackets are parsed as part of the authority, not the
+     * path, so they are not treated as glob character-class syntax.
+     */
     public static boolean isMultiFile(String path) {
         if (path == null) {
             return false;
         }
-        for (char c : StoragePath.GLOB_METACHARACTERS) {
-            if (path.indexOf(c) >= 0) {
-                return true;
-            }
+        if (path.indexOf(',') >= 0) {
+            return true;
         }
-        return path.indexOf(',') >= 0;
+        // Only scan the path component for glob metacharacters, not the full URL string.
+        // This prevents IPv6 bracket notation in the authority from being mistaken for
+        // a glob character class.
+        try {
+            return StoragePath.of(path).isPattern();
+        } catch (IllegalArgumentException e) {
+            // Not a parseable URL; fall back to scanning the whole string
+            for (char c : StoragePath.GLOB_METACHARACTERS) {
+                if (path.indexOf(c) >= 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     public static FileList expandGlob(String pattern, StorageProvider provider) throws IOException {

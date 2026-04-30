@@ -9,16 +9,12 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.logical.Explain;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
-import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
@@ -295,31 +291,6 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo("*:foo,foo"));
     }
 
-    public void testExplain() {
-        assumeTrue("requires explain command", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
-        assertExplain("""
-            PROMQL index=k8s step=5m ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
-            | LIMIT 1000
-            """, AcrossSeriesAggregate.class);
-        assertExplain("""
-            PROMQL index=k8s step=5m avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))
-            | LIMIT 1000
-            """, AcrossSeriesAggregate.class);
-        assertExplain(
-            "PROMQL index=k8s step=5m avg by (pod) (avg_over_time(network.bytes_in{pod=~\"host-0|host-1|host-2\"}[1h]))",
-            AcrossSeriesAggregate.class
-        );
-        assertExplain("PROMQL index=k8s step=5m foo", InstantSelector.class);
-    }
-
-    public void assertExplain(String query, Class<? extends UnaryPlan> promqlCommandClass) {
-        assumeTrue("requires explain command", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
-        var plan = TEST_PARSER.parseQuery("EXPLAIN ( " + query + " )");
-        Explain explain = plan.collect(Explain.class).getFirst();
-        PromqlCommand promqlCommand = explain.query().collect(PromqlCommand.class).getFirst();
-        assertThat(promqlCommand.promqlPlan(), instanceOf(promqlCommandClass));
-    }
-
     public void testNamedParameterInDuration() {
         PromqlCommand promql = as(
             TEST_PARSER.parseQuery(
@@ -390,29 +361,11 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Expected parameter [?_bad] to be of type string, but found [INTEGER]"));
     }
 
-    public void testInstantVectorExpected() {
-        ParsingException e = assertThrows(ParsingException.class, () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m avg(foo[5m])"));
-        assertThat(e.getMessage(), containsString("expected type instant_vector in call to function [avg], got range_vector"));
-    }
-
-    public void testInstantVectorExpectedWithGrouping() {
-        ParsingException e = assertThrows(
-            ParsingException.class,
-            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m avg by (pod) (foo[5m])")
-        );
-        assertThat(e.getMessage(), containsString("expected type instant_vector in call to function [avg], got range_vector"));
-    }
-
     public void testRangeVectorExpectedSupportsInstantSelector() {
+        // rate() expects a range vector; an instant selector should be implicitly promoted at analysis time
         PromqlCommand promql = parse("PROMQL index=test step=5m rate(foo)");
-        WithinSeriesAggregate rate = as(promql.promqlPlan(), WithinSeriesAggregate.class);
-        RangeSelector range = as(rate.child(), RangeSelector.class);
-        assertThat(range.range().fold(FoldContext.small()), equalTo(Duration.ofMillis(-1)));
-    }
-
-    public void testRangeVectorExpectedStillRejectsNonSelectorInstantVectors() {
-        ParsingException e = assertThrows(ParsingException.class, () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m rate(avg(foo))"));
-        assertThat(e.getMessage(), containsString("expected type range_vector in call to function [rate], got instant_vector"));
+        assertThat(promql.promqlPlan(), instanceOf(UnresolvedPromqlFunction.class));
+        assertThat(((UnresolvedPromqlFunction) promql.promqlPlan()).functionName(), equalTo("rate"));
     }
 
     public void testCaseInsensitivityOperators() {
@@ -427,15 +380,16 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void testCaseInsensitivityAggregators() {
+        // The parser lowercases function names in visitFunction; this verifies that behaviour directly.
         List.of("Sum", "Avg", "Count", "Min", "Max", "Stddev", "Stdvar").forEach(func -> {
             var promql = parse("promql index=test step=5m " + func.toUpperCase(Locale.ROOT) + "(foo)");
-            String upper = as(promql.promqlPlan(), AcrossSeriesAggregate.class).functionName();
+            String upper = as(promql.promqlPlan(), UnresolvedPromqlFunction.class).functionName();
 
             promql = parse("promql index=test step=5m " + func.toLowerCase(Locale.ROOT) + "(foo)");
-            String lower = as(promql.promqlPlan(), AcrossSeriesAggregate.class).functionName();
+            String lower = as(promql.promqlPlan(), UnresolvedPromqlFunction.class).functionName();
 
             promql = parse("promql index=test step=5m " + func + "(foo)");
-            String camel = as(promql.promqlPlan(), AcrossSeriesAggregate.class).functionName();
+            String camel = as(promql.promqlPlan(), UnresolvedPromqlFunction.class).functionName();
 
             assertThat(upper, equalTo(func.toLowerCase(Locale.ROOT)));
             assertThat(lower, equalTo(func.toLowerCase(Locale.ROOT)));
@@ -445,7 +399,7 @@ public class PromqlParserTests extends ESTestCase {
 
     public void testCaseInsensitivityKeywords() {
         var promql = parse("PROMQL index=test step=5m avg(foo) BY (pod)");
-        assertThat(as(promql.promqlPlan(), AcrossSeriesAggregate.class).grouping(), equalTo(AcrossSeriesAggregate.Grouping.BY));
+        assertThat(as(promql.promqlPlan(), UnresolvedPromqlFunction.class).grouping(), equalTo(AcrossSeriesAggregate.Grouping.BY));
 
         promql = parse("PROMQL index=test step=5m foo OfFsEt 5m");
         assertThat(as(promql.promqlPlan(), InstantSelector.class).evaluation().offset().value(), equalTo(Duration.ofMinutes(5)));
@@ -564,7 +518,6 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T01:00:00Z").toEpochMilli()));
         List<UnresolvedRelation> unresolvedRelations = promql.collect(UnresolvedRelation.class);
         assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo("my-metrics"));
-        assertThat(promql.promqlPlan(), instanceOf(AcrossSeriesAggregate.class));
     }
 
     public void testQueryAsNamedParamWithoutParens() {

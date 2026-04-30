@@ -632,6 +632,7 @@ public class IpFieldMapper extends FieldMapper {
 
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final boolean stored;
     private final boolean ignoreMalformed;
     private final boolean storeIgnored;
@@ -658,6 +659,11 @@ public class IpFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
         this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            fieldType().indexType.hasDocValuesSkipper(),
+            builder.indexSettings.getIndexVersionCreated()
+        );
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.parseNullValue();
@@ -678,6 +684,11 @@ public class IpFieldMapper extends FieldMapper {
 
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
+    }
+
+    @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue().isSingleValued();
     }
 
     @Override
@@ -734,11 +745,14 @@ public class IpFieldMapper extends FieldMapper {
         if (fieldType().indexType.hasDocValues()) {
             if (fieldType().usesBinaryDocValues()) {
                 assert fieldType().indexType.hasDocValuesSkipper() == false : "skippers are not supported for binary doc values";
-                MultiValuedBinaryDocValuesField.SeparateCount.addToBinaryFieldInDoc(doc, fieldType().name(), address.binaryValue());
-            } else if (fieldType().indexType.hasDocValuesSkipper()) {
-                doc.add(SortedSetDocValuesField.indexedField(fieldType().name(), address.binaryValue()));
+                dvFactory.addBinaryField(
+                    doc,
+                    fieldType().name(),
+                    address.binaryValue(),
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
             } else {
-                doc.add(new SortedSetDocValuesField(fieldType().name(), address.binaryValue()));
+                dvFactory.addSortedField(doc, fieldType().name(), address.binaryValue());
             }
         } else if (stored || indexed) {
             context.addToFieldNames(fieldType().name());

@@ -173,6 +173,7 @@ public class IrateTests extends AbstractAggregationTestCase {
         List<Long> timestamps,
         RateTests.TemporalityParameter temporality
     ) {
+        // TODO: implement delta temporality support for irate; for now it returns null
         if (nonNullDataRows.size() < 2
             || temporality == RateTests.TemporalityParameter.DELTA
             || temporality == RateTests.TemporalityParameter.INVALID) {

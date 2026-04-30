@@ -180,10 +180,10 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
     }
 
     /**
-     * When resuming a sliced task with completed slices, the per-child RPS is inflated so that
-     * capturedRPS is distributed only among incomplete slices.
+     * When resuming a sliced task with completed slices, each incomplete child gets
+     * capturedRPS / incompleteSlices rather than capturedRPS / totalSlices.
      */
-    public void testResumedSlicedTaskInflatesRpsForIncompleteSlices() {
+    public void testResumedSlicedTaskDistributesRpsAmongIncompleteSlices() {
         final float capturedRps = 60f;
         final int totalSlices = 4;
         final int completedSliceCount = 2;

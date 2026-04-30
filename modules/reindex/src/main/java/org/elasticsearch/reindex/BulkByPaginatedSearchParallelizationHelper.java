@@ -182,11 +182,12 @@ class BulkByPaginatedSearchParallelizationHelper {
         assert request.getResumeInfo().isEmpty() || totalSlices == request.getResumeInfo().get().getTotalSlices()
             : "If resuming, the total slices in the resume info should match the total slices in the task state";
 
-        // When resuming with completed slices, inflate so forSlice `RPS / totalSlices` yields `RPS / incompleteSlices`
+        final int activeSlices;
         if (request.getResumeInfo().isPresent()) {
-            long incompleteSlices = request.getResumeInfo().get().slices().values().stream().filter(s -> s.isCompleted() == false).count();
-            assert incompleteSlices > 0 : "if resuming, there should be at least one incomplete slice";
-            request.setRequestsPerSecond(request.getRequestsPerSecond() * totalSlices / incompleteSlices);
+            activeSlices = (int) request.getResumeInfo().get().slices().values().stream().filter(s -> s.isCompleted() == false).count();
+            assert activeSlices > 0 : "if resuming, there should be at least one active slice";
+        } else {
+            activeSlices = totalSlices;
         }
 
         SearchRequest[] searchRequests = sliceIntoSubRequests(request.getSearchRequest(), IdFieldMapper.NAME, totalSlices);
@@ -205,7 +206,7 @@ class BulkByPaginatedSearchParallelizationHelper {
 
             TaskId parentTaskId = new TaskId(localNodeId, task.getId());
             SearchRequest searchRequest = searchRequests[sliceId];
-            Request requestForSlice = request.forSlice(parentTaskId, searchRequest, totalSlices);
+            Request requestForSlice = request.forSlice(parentTaskId, searchRequest, totalSlices, activeSlices);
             ActionListener<BulkByScrollResponse> sliceListener = ActionListener.wrap(
                 r -> leader.onSliceResponse(listener, searchRequest.source().slice().getId(), r),
                 e -> leader.onSliceFailure(listener, searchRequest.source().slice().getId(), e)

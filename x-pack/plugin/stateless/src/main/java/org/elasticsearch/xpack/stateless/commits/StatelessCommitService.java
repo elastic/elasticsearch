@@ -63,6 +63,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -200,6 +201,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
 
+    public static final String SHARD_COMMIT_REFERENCES_INFOS_GAUGE_METRIC = "es.stateless.shard.commit_references_infos";
+    public static final String SHARD_BCC_BLOB_REFERENCES_GAUGE_METRIC = "es.stateless.shard.bcc_blob_references";
+    public static final String REFERENCED_BCCS_PER_COMMIT_HISTOGRAM_METRIC = "es.stateless.shard.referenced_bccs_per_commit.histogram";
+
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
     private final IndicesService indicesService;
@@ -231,6 +236,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final LongHistogram bccSizeInMegabytesHistogram;
     private final LongHistogram bccNumberCommitsHistogram;
     private final LongHistogram bccAgeHistogram;
+    private final LongHistogram referencedBccsPerCommitHistogram;
 
     /**
      * An estimate of the maximum size in bytes that the header and replicated contents are likely to fill in a region. This is used when a
@@ -328,6 +334,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 "Histogram for elapsed time in milliseconds of batched compound commits before freezing",
                 "ms"
             );
+        this.referencedBccsPerCommitHistogram = telemetryProvider.getMeterRegistry()
+            .registerLongHistogram(
+                REFERENCED_BCCS_PER_COMMIT_HISTOGRAM_METRIC,
+                "Histogram of distinct batched compound commit blobs referenced per Lucene commit",
+                "unit"
+            );
+        var meterRegistry = telemetryProvider.getMeterRegistry();
+        meterRegistry.registerLongsGauge(
+            SHARD_COMMIT_REFERENCES_INFOS_GAUGE_METRIC,
+            "Number of commit-to-BCC reference map entries retained per indexing shard commit state",
+            "unit",
+            this::observeCommitReferencesInfosCountsPerShard
+        );
+        meterRegistry.registerLongsGauge(
+            SHARD_BCC_BLOB_REFERENCES_GAUGE_METRIC,
+            "Number of live batched compound commit blob references per indexing shard commit state",
+            "unit",
+            this::observeBccBlobReferencesCountsPerShard
+        );
     }
 
     public boolean useReplicatedRanges() {
@@ -383,7 +408,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Iterator<Consumer<RecoveredCommitsReleasable>> extraReferenceConsumers
     ) {
         assert recoveredBcc != null;
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         commitState.markBccRecovered(recoveredBcc, otherBlobs, extraReferenceConsumers);
     }
 
@@ -391,7 +416,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ShardId shardId,
         @Nullable Map<PrimaryTermAndGeneration, Set<String>> searchNodesPerCommit
     ) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         commitState.setTrackedSearchNodesPerCommitOnRelocationTarget(searchNodesPerCommit);
     }
 
@@ -406,7 +431,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * This method returns an ActionListener with must be triggered when the relocation either fails or succeeds.
      */
     public ActionListener<Void> markRelocating(ShardId shardId, long minRelocatedGeneration, ActionListener<Void> listener) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         commitState.markRelocating(minRelocatedGeneration, listener);
 
         return new ActionListener<>() {
@@ -431,7 +456,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * @param targetShardId the target shard ID.
      */
     public void markSplitting(ShardId sourceShardId, ShardId targetShardId) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, sourceShardId);
+        ShardCommitState commitState = getShardCommitState(sourceShardId);
         commitState.markSplitting(targetShardId);
     }
 
@@ -445,22 +470,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * @param failed true if transition to handoff failed
      */
     public void markSplitEnding(ShardId sourceShardId, ShardId targetShardId, boolean failed) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, sourceShardId);
+        ShardCommitState commitState = getShardCommitState(sourceShardId);
         commitState.markSplitEnding(targetShardId, failed);
     }
 
     public void readVirtualBatchedCompoundCommitChunk(final GetVirtualBatchedCompoundCommitChunkRequest request, final StreamOutput output)
         throws IOException {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, request.getShardId());
+        ShardCommitState commitState = getShardCommitState(request.getShardId());
         commitState.readVirtualBatchedCompoundCommitChunk(request, output);
     }
 
     public long getRecoveredGeneration(ShardId shardId) {
-        return getSafe(shardsCommitsStates, shardId).recoveredGeneration;
+        return getShardCommitState(shardId).recoveredGeneration;
     }
 
     public void markCommitDeleted(ShardId shardId, long generation) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         commitState.markCommitDeleted(generation);
     }
 
@@ -629,7 +654,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             var shardId = reference.getShardId();
             var generation = reference.getGeneration();
 
-            ShardCommitState commitState = getSafe(shardsCommitsStates, reference.getShardId());
+            ShardCommitState commitState = getShardCommitState(reference.getShardId());
             if (commitState.recoveredGeneration == generation) {
                 logger.debug("{} skipping upload of recovered commit [{}]", shardId, generation);
                 IOUtils.closeWhileHandlingException(reference);
@@ -932,7 +957,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public boolean hasPendingBccUploads(ShardId shardId) {
         try {
-            ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+            ShardCommitState commitState = getShardCommitState(shardId);
             return commitState.pendingUploadBccGenerations.isEmpty() == false;
         } catch (AlreadyClosedException ace) {
             return false;
@@ -981,22 +1006,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public void markIndexDeleting(List<ShardId> shardIds) {
         shardIds.forEach(shardId -> {
-            ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+            ShardCommitState commitState = getShardCommitState(shardId);
             commitState.markIndexDeleting();
         });
     }
 
     public void closeShard(ShardId shardId) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         commitState.close();
     }
 
     public boolean isShardClosed(ShardId shardId) {
-        return getSafe(shardsCommitsStates, shardId).isClosed();
+        return getShardCommitState(shardId).isClosed();
     }
 
     public boolean isShardDeletingIndex(ShardId shardId) {
-        return getSafe(shardsCommitsStates, shardId).isDeletingIndex();
+        return getShardCommitState(shardId).isDeletingIndex();
     }
 
     public void unregister(ShardId shardId) {
@@ -1014,28 +1039,28 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * @param shardId the shard to mark as deleted
      */
     public void delete(ShardId shardId) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         commitState.delete();
     }
 
     public void onGenerationalFileDeletion(ShardId shardId, String filename) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         commitState.onGenerationalFileDeletion(filename);
     }
 
     public void addListenerForUploadedGeneration(ShardId shardId, long generation, ActionListener<Void> listener) {
         requireNonNull(listener, "listener cannot be null");
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         commitState.addListenerForUploadedGeneration(generation, listener);
     }
 
     public void ensureMaxGenerationToUploadForFlush(ShardId shardId, long generation) {
-        final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        final ShardCommitState commitState = getShardCommitState(shardId);
         commitState.ensureMaxGenerationToUploadForFlush(generation);
     }
 
     public long getMaxGenerationToUploadForFlush(ShardId shardId) {
-        final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        final ShardCommitState commitState = getShardCommitState(shardId);
         return commitState.getMaxGenerationToUploadForFlush();
     }
 
@@ -1044,13 +1069,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * reflected in the returned Map.
      */
     public Map<String, BlobLocation> getBlobLocations(ShardId shardId) {
-        final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        final ShardCommitState commitState = getShardCommitState(shardId);
         return commitState.blobLocations.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().blobLocation()));
     }
 
     // Visible for testing
     public VirtualBatchedCompoundCommit getCurrentVirtualBcc(ShardId shardId) {
-        final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        final ShardCommitState commitState = getShardCommitState(shardId);
         return commitState.getCurrentVirtualBcc();
     }
 
@@ -1070,19 +1095,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public void addConsumerForNewUploadedBcc(ShardId shardId, Consumer<UploadedBccInfo> listener) {
         requireNonNull(listener, "listener cannot be null");
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         commitState.addConsumerForNewUploadedBcc(listener);
     }
 
     // Visible for testing
     Set<String> getFilesWithBlobLocations(ShardId shardId) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         return commitState.blobLocations.keySet();
     }
 
     @Nullable
     public BlobLocation getBlobLocation(ShardId shardId, String fileName) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         var commitAndBlobLocation = commitState.blobLocations.get(fileName);
         if (commitAndBlobLocation != null) {
             return commitAndBlobLocation.blobLocation;
@@ -1097,7 +1122,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      */
     public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long maxUploadedGeneration) {
         Set<BlobFile> blobFiles = new HashSet<>();
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         // The order of loops is the reverse of BlobReference#closeInternal to avoid missing pending deletes.
         for (var primaryTermAndGeneration : commitState.primaryTermAndGenToBlobReference.keySet()) {
             if (primaryTermAndGeneration.generation() > maxUploadedGeneration) {
@@ -1135,29 +1160,29 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
 
     public @Nullable RecoveryInfoFromSource getRecoveryInfoFromSourceEntry(ShardId shardId) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         return commitState.recoveryInfoFromSource;
     }
 
     public void clearRecoveryInfoFromSourceEntry(ShardId shardId) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         commitState.recoveryInfoFromSource = null;
     }
 
     public void putRecoveryInfoFromSourceEntry(ShardId shardId, RecoveryInfoFromSource recoveryInfoFromSource) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         commitState.recoveryInfoFromSource = recoveryInfoFromSource;
     }
 
     @Nullable
     public BatchedCompoundCommit getLatestUploadedBcc(ShardId shardId) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         return commitState.latestUploadedBcc;
     }
 
     // Visible for testing
     Set<String> getAllSearchNodesRetainingCommitsForShard(ShardId shardId) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        ShardCommitState commitState = getShardCommitState(shardId);
         return commitState.getAllSearchNodesRetainingCommits();
     }
 
@@ -1173,6 +1198,30 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
         }
         return commitState;
+    }
+
+    private List<LongWithAttributes> observeCommitReferencesInfosCountsPerShard() {
+        return captureCountPerShard(ShardCommitState::commitReferencesInfosCount);
+    }
+
+    private List<LongWithAttributes> observeBccBlobReferencesCountsPerShard() {
+        return captureCountPerShard(ShardCommitState::bccBlobReferencesCount);
+    }
+
+    private List<LongWithAttributes> captureCountPerShard(Function<ShardCommitState, Integer> f) {
+        if (shardsCommitsStates.isEmpty()) {
+            return List.of();
+        }
+        List<LongWithAttributes> values = new ArrayList<>(shardsCommitsStates.size());
+        for (var entry : shardsCommitsStates.entrySet()) {
+            ShardId shardId = entry.getKey();
+            values.add(new LongWithAttributes(f.apply(entry.getValue()), shardCommitGaugeAttributes(shardId)));
+        }
+        return values;
+    }
+
+    private static Map<String, Object> shardCommitGaugeAttributes(ShardId shardId) {
+        return Map.of("index", shardId.getIndexName(), "shard", Integer.valueOf(shardId.id()));
     }
 
     class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
@@ -1677,7 +1726,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             Set<PrimaryTermAndGeneration> referencedBCCs = new HashSet<>(
                 BatchedCompoundCommit.computeReferencedBCCGenerations(statelessCompoundCommit)
             );
-
             // For generational files used by local readers we must reference the original blob that contained them as Lucene might
             // delete the file and rely on the fact that in POSIX deleted files are kept around until the last process releases the
             // file handle, hence the generational files deletion tracking is not enough.
@@ -1690,6 +1738,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     }
                 }
             }
+
+            referencedBccsPerCommitHistogram.record(referencedBCCs.size());
+
             var previousCommitReferencesInfo = commitReferencesInfos.put(
                 commitPrimaryTermAndGeneration,
                 new CommitReferencesInfo(currentVirtualBcc.getPrimaryTermAndGeneration(), Collections.unmodifiableSet(referencedBCCs))
@@ -1710,6 +1761,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             } else {
                 return ephemeralNodeIdSupplier.get();
             }
+        }
+
+        // Visible for tests
+        final int commitReferencesInfosCount() {
+            return commitReferencesInfos.size();
+        }
+
+        // Visible for tests
+        final int bccBlobReferencesCount() {
+            return primaryTermAndGenToBlobReference.size();
         }
 
         /**
@@ -3304,7 +3365,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     ) {
         // todo: assert clusterStateVersion <= clusterService.state().version();
         waitForClusterStateProcessed(state.version(), ActionRunnable.wrap(listener, (l) -> {
-            var shardCommitsState = getSafe(shardsCommitsStates, shardId);
+            var shardCommitsState = getShardCommitState(shardId);
             shardCommitsState.registerCommitForUnpromotableRecovery(
                 batchedCompoundGeneration,
                 compoundCommitGeneration,
@@ -3336,15 +3397,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     public IndexEngineLocalReaderListener getIndexEngineLocalReaderListenerForShard(ShardId shardId) {
+        return getShardCommitState(shardId);
+    }
+
+    // Visible for tests
+    final ShardCommitState getShardCommitState(ShardId shardId) {
         return getSafe(shardsCommitsStates, shardId);
     }
 
     public CommitBCCResolver getCommitBCCResolverForShard(ShardId shardId) {
-        return getSafe(shardsCommitsStates, shardId);
+        return getShardCommitState(shardId);
     }
 
     public ShardLocalCommitsTracker getShardLocalCommitsTracker(ShardId shardId) {
-        return getSafe(shardsCommitsStates, shardId).shardLocalCommitsTracker();
+        return getShardCommitState(shardId).shardLocalCommitsTracker();
     }
 
     private void waitForClusterStateProcessed(long clusterStateVersion, Runnable whenDone) {
@@ -3376,7 +3442,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * the shard on the target node we don't delete blobs that are used for actively executing searches.
      */
     public Map<PrimaryTermAndGeneration, Set<String>> getSearchNodesPerCommit(ShardId shardId) {
-        var commitState = getSafe(shardsCommitsStates, shardId);
+        var commitState = getShardCommitState(shardId);
         return commitState.primaryTermAndGenToBlobReference.entrySet()
             .stream()
             .map(e -> Tuple.tuple(e.getKey(), e.getValue().searchNodesRef.get()))

@@ -108,7 +108,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             try {
                 validateRequest(request, model);
             } catch (Exception e) {
-                inferenceStats.inferenceDuration().withModel(model).withFailure(unwrapCause(e)).record(timer.elapsedMillis());
+                inferenceStats.inferenceDuration().withModel(model).withThrowable(unwrapCause(e)).record(timer.elapsedMillis());
                 listener.onFailure(e);
                 return;
             }
@@ -130,7 +130,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             inferOnServiceWithMetrics(model, request, service, timer, listener);
 
         }, e -> {
-            inferenceStats.inferenceDuration().withFailure(e).record(timer.elapsedMillis());
+            inferenceStats.inferenceDuration().withThrowable(e).record(timer.elapsedMillis());
             listener.onFailure(e);
         });
 
@@ -182,7 +182,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 listener.onResponse(new InferenceAction.Response(inferenceResults));
             }
         }, e -> {
-            inferenceStats.inferenceDuration().withModel(model).withFailure(unwrapCause(e)).record(timer.elapsedMillis());
+            inferenceStats.inferenceDuration().withModel(model).withThrowable(unwrapCause(e)).record(timer.elapsedMillis());
             listener.onFailure(e);
         }));
     }
@@ -213,7 +213,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
                 @Override
                 public void onError(Throwable throwable) {
-                    inferenceStats.inferenceDuration().withModel(model).withFailure(unwrapCause(throwable)).record(timer.elapsedMillis());
+                    inferenceStats.inferenceDuration().withModel(model).withThrowable(unwrapCause(throwable)).record(timer.elapsedMillis());
                     downstream.onError(throwable);
                 }
 

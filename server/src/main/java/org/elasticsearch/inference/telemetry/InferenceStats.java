@@ -9,11 +9,11 @@
 
 package org.elasticsearch.inference.telemetry;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -40,7 +40,7 @@ public class InferenceStats {
 
     // Attribute keys must start with "es_" prefix see org.elasticsearch.telemetry.apm.internal.MetricValidator#validateAttributeKey
     static final String STACK_VERSION_ATTRIBUTE = "es_stack_version";
-    // Indicates whether the node is a production release (i.e. not a snapshot, alpha, etc)
+    // Indicates whether the node is a production release (i.e. not a snapshot, alpha, etc.)
     static final String PRODUCTION_RELEASE_ATTRIBUTE = "es_production_release";
 
     private static final Logger logger = LogManager.getLogger(InferenceStats.class);
@@ -50,7 +50,14 @@ public class InferenceStats {
     private final LongHistogram deploymentDurationInstrument;
     private final Map<String, Object> constantAttributes;
 
-    // This should be an internal constructor. It's public to enable testing
+    /**
+     * This should be an internal constructor. It's public to enable testing.
+     * @param requestCountInstrument long counter for inference request counts
+     * @param inferenceDurationInstrument long histogram for inference request latency
+     * @param deploymentDurationInstrument long histogram for trained model deployment wait time
+     * @param constantAttributes attributes to be included with every metric recorded by this instance,
+     *                           such as the node's stack version and whether it's a production release (i.e. not a snapshot, alpha, etc.)
+     */
     public InferenceStats(
         LongCounter requestCountInstrument,
         LongHistogram inferenceDurationInstrument,
@@ -72,7 +79,7 @@ public class InferenceStats {
             ),
             meterRegistry.registerLongHistogram(
                 INFERENCE_REQUEST_DURATION,
-                "Inference API request counts for a particular service and task type",
+                "Inference API request duration for a particular service and task type",
                 "ms"
             ),
             meterRegistry.registerLongHistogram(
@@ -85,7 +92,7 @@ public class InferenceStats {
     }
 
     /**
-     * Returns a fluent counter recording. Call {@link CounterBuilder#withSuccess()} or {@link CounterBuilder#withFailure(Throwable)}
+     * Returns a fluent counter recording. Call {@link CounterBuilder#withSuccess()} or {@link CounterBuilder#withThrowable(Throwable)}
      * to set the outcome before calling the terminal {@link CounterBuilder#incrementBy}. Omitting both records no {@code status_code},
      * which is appropriate when counting a request attempt before the outcome is known.
      */
@@ -114,17 +121,21 @@ public class InferenceStats {
             this.attributes = new HashMap<>(constantAttributes);
         }
 
-        @SuppressWarnings("unchecked")
         public B withModel(Model model) {
             attributes.put(SERVICE_ATTRIBUTE, model.getConfigurations().getService());
             attributes.put(TASK_TYPE_ATTRIBUTE, model.getTaskType().toString());
-            return (B) this;
+
+            @SuppressWarnings("unchecked")
+            var castedThis = (B) this;
+            return castedThis;
         }
 
-        @SuppressWarnings("unchecked")
         public B withSuccess() {
             attributes.put(STATUS_CODE_ATTRIBUTE, 200);
-            return (B) this;
+
+            @SuppressWarnings("unchecked")
+            var castedThis = (B) this;
+            return castedThis;
         }
 
         /**
@@ -132,24 +143,28 @@ public class InferenceStats {
          * {@link #withSuccess()} and sets {@code status_code=200}. Prefer {@link #withSuccess()} when the outcome is known to be
          * successful.
          */
-        @SuppressWarnings("unchecked")
-        public B withFailure(@Nullable Throwable throwable) {
+        public B withThrowable(@Nullable Throwable throwable) {
             if (throwable == null) {
                 return withSuccess();
             }
             applyThrowable(throwable, attributes);
-            return (B) this;
+
+            @SuppressWarnings("unchecked")
+            var castedThis = (B) this;
+            return castedThis;
         }
 
-        @SuppressWarnings("unchecked")
         public B withAttribute(String key, Object value) {
             attributes.put(key, value);
-            return (B) this;
+
+            @SuppressWarnings("unchecked")
+            var castedThis = (B) this;
+            return castedThis;
         }
     }
 
     /**
-     * Builder for {@link LongCounter} metrics. Call {@link #withSuccess()} or {@link #withFailure(Throwable)} to set the outcome.
+     * Builder for {@link LongCounter} metrics. Call {@link #withSuccess()} or {@link #withThrowable(Throwable)} to set the outcome.
      * Omitting both leaves the metric without a {@code status_code} attribute, which is correct when recording a request attempt
      * before the outcome is known.
      */
@@ -165,13 +180,13 @@ public class InferenceStats {
             try {
                 counter.incrementBy(value, attributes);
             } catch (Exception e) {
-                logger.atDebug().withThrowable(e).log("Failed to record inference counter metric for [{}]", counter.getName());
+                logger.debug("Failed to record inference counter metric for [{}]", counter.getName(), e);
             }
         }
     }
 
     /**
-     * Builder for {@link LongHistogram} metrics. Call {@link #withSuccess()} or {@link #withFailure(Throwable)} to set the outcome.
+     * Builder for {@link LongHistogram} metrics. Call {@link #withSuccess()} or {@link #withThrowable(Throwable)} to set the outcome.
      * Omitting both leaves the metric without a {@code status_code} attribute, which is correct when recording duration before the
      * outcome is known.
      */
@@ -187,7 +202,7 @@ public class InferenceStats {
             try {
                 histogram.record(durationMs, attributes);
             } catch (Exception e) {
-                logger.atDebug().withThrowable(e).log("Failed to record inference duration metric for [{}]", histogram.getName());
+                logger.debug("Failed to record inference duration metric for [{}]", histogram.getName(), e);
             }
         }
     }

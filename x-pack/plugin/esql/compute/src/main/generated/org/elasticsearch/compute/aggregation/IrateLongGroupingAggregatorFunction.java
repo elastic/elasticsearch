@@ -10,6 +10,7 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link IrateLongAggregator}.
@@ -30,17 +32,20 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
 
   private final IrateLongAggregator.LongIrateGroupingState state;
 
+  private final Warnings warnings;
+
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   private final boolean isDateNanos;
 
-  IrateLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      boolean isDateNanos) {
+  IrateLongGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
+      DriverContext driverContext, boolean isDateNanos) {
     this.isDateNanos = isDateNanos;
+    this.warnings = warnings;
     this.channels = channels;
-    this.state = IrateLongAggregator.initGrouping(driverContext, isDateNanos);
+    this.state = IrateLongAggregator.initGrouping(driverContext, isDateNanos, warnings);
     this.driverContext = driverContext;
   }
 
@@ -58,6 +63,7 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
       Page page) {
     LongBlock valueBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
+    BytesRefBlock temporalityBlock = page.getBlock(channels.get(2));
     if (valueBlock.areAllValuesNull()) {
       /*
        * All values are null so we can skip processing this block. But we
@@ -78,21 +84,21 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
     }
     LongVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
-      maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
+      maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock, temporalityBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock, temporalityBlock);
         }
 
         @Override
         public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock, temporalityBlock);
         }
 
         @Override
         public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock, temporalityBlock);
         }
 
         @Override
@@ -102,21 +108,21 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
     }
     LongVector timestampVector = timestampBlock.asVector();
     if (timestampVector == null) {
-      maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
+      maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock, temporalityBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock, temporalityBlock);
         }
 
         @Override
         public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock, temporalityBlock);
         }
 
         @Override
         public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock, temporalityBlock);
         }
 
         @Override
@@ -127,17 +133,17 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valueVector, timestampVector);
+        addRawInput(positionOffset, groupIds, valueVector, timestampVector, temporalityBlock);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valueVector, timestampVector);
+        addRawInput(positionOffset, groupIds, valueVector, timestampVector, temporalityBlock);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, valueVector, timestampVector);
+        addRawInput(positionOffset, groupIds, valueVector, timestampVector, temporalityBlock);
       }
 
       @Override
@@ -147,7 +153,7 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, LongBlock valueBlock,
-      LongBlock timestampBlock) {
+      LongBlock timestampBlock, BytesRefBlock temporalityBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -171,7 +177,7 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            IrateLongAggregator.combine(state, groupId, valueValue, timestampValue);
+            IrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
           }
         }
       }
@@ -179,7 +185,7 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, LongVector valueVector,
-      LongVector timestampVector) {
+      LongVector timestampVector, BytesRefBlock temporalityBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -191,7 +197,7 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
         int groupId = groups.getInt(g);
         long valueValue = valueVector.getLong(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        IrateLongAggregator.combine(state, groupId, valueValue, timestampValue);
+        IrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
       }
     }
   }
@@ -201,32 +207,8 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
     LongBlock timestamps = (LongBlock) timestampsUncast;
     Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
     LongBlock values = (LongBlock) valuesUncast;
     assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -244,7 +226,7 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongBlock valueBlock,
-      LongBlock timestampBlock) {
+      LongBlock timestampBlock, BytesRefBlock temporalityBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -268,7 +250,7 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            IrateLongAggregator.combine(state, groupId, valueValue, timestampValue);
+            IrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
           }
         }
       }
@@ -276,7 +258,7 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongVector valueVector,
-      LongVector timestampVector) {
+      LongVector timestampVector, BytesRefBlock temporalityBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -288,7 +270,7 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
         int groupId = groups.getInt(g);
         long valueValue = valueVector.getLong(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        IrateLongAggregator.combine(state, groupId, valueValue, timestampValue);
+        IrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
       }
     }
   }
@@ -298,32 +280,8 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
     LongBlock timestamps = (LongBlock) timestampsUncast;
     Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
     LongBlock values = (LongBlock) valuesUncast;
     assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -341,7 +299,7 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
   }
 
   private void addRawInput(int positionOffset, IntVector groups, LongBlock valueBlock,
-      LongBlock timestampBlock) {
+      LongBlock timestampBlock, BytesRefBlock temporalityBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       if (valueBlock.isNull(valuesPosition)) {
@@ -359,20 +317,20 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
         int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          IrateLongAggregator.combine(state, groupId, valueValue, timestampValue);
+          IrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
         }
       }
     }
   }
 
   private void addRawInput(int positionOffset, IntVector groups, LongVector valueVector,
-      LongVector timestampVector) {
+      LongVector timestampVector, BytesRefBlock temporalityBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       long valueValue = valueVector.getLong(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
-      IrateLongAggregator.combine(state, groupId, valueValue, timestampValue);
+      IrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
     }
   }
 
@@ -381,32 +339,8 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
     LongBlock timestamps = (LongBlock) timestampsUncast;
     Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
     LongBlock values = (LongBlock) valuesUncast;
     assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -417,7 +351,7 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, LongBlock valueBlock,
-      LongBlock timestampBlock) {
+      LongBlock timestampBlock, BytesRefBlock temporalityBlock) {
     if (valueBlock.mayHaveNulls()) {
       /*
        * Some values in the block are null so some group ids may not
@@ -427,6 +361,14 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
       state.enableGroupIdTracking(seenGroupIds);
     }
     if (timestampBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+    if (temporalityBlock.mayHaveNulls()) {
       /*
        * Some values in the block are null so some group ids may not
        * be seen. We need to track which ones so we can initialize

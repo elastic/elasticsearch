@@ -567,6 +567,29 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
         assertHitCount(safeGet(prepareSearch(indexName).setSize(0).execute()), 20);
     }
 
+    public void testRestartNodeWithClosedIndex() throws Exception {
+        final var node0 = startMasterOnlyNode();
+        final var node1 = startMasterAndIndexNode();
+        final var node2 = startSearchNode();
+        ensureStableCluster(3);
+
+        final var indexName = "index";
+        createIndex(indexName, 1, 1);
+        indexDocs(indexName, 10);
+        flush(indexName);
+        safeGet(indicesAdmin().prepareClose(indexName).execute());
+
+        internalCluster().restartNode(node1);
+        ensureGreen(indexName);
+
+        // Open the index and it should work
+        safeGet(indicesAdmin().prepareOpen(indexName).execute());
+        ensureGreen(indexName);
+        // Index also works and we get expected number of docs
+        indexDocsAndRefresh(indexName, 10);
+        assertHitCount(safeGet(prepareSearch(indexName).setSize(0).execute()), 20);
+    }
+
     public void testSetsRecyclableBigArraysInTranslogReplicator() throws Exception {
         final String masterAndIndexNode = startMasterAndIndexNode();
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

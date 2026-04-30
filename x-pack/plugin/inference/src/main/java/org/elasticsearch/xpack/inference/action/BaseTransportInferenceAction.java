@@ -163,7 +163,10 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         InferenceTimer timer,
         ActionListener<InferenceAction.Response> listener
     ) {
-        recordRequestCountMetrics(model);
+        // Record request count metric before executing the inference to ensure it's captured
+        // even if there are validation errors or exceptions during inference execution
+        // This won't include a status code attribute since the outcome is not yet known
+        inferenceStats.requestCount().withModel(model).incrementBy(1);
         inferOnService(model, request, service, ActionListener.wrap(inferenceResults -> {
             if (request.isStreaming()) {
                 var taskProcessor = streamingTaskManager.<InferenceServiceResults.Result>create(
@@ -228,10 +231,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
     protected <T> Flow.Publisher<T> streamErrorHandler(Flow.Publisher<T> upstream) {
         return upstream;
-    }
-
-    private void recordRequestCountMetrics(Model model) {
-        inferenceStats.requestCount().withModel(model).incrementBy(1);
     }
 
     private void inferOnService(Model model, Request request, InferenceService service, ActionListener<InferenceServiceResults> listener) {

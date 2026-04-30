@@ -42,13 +42,17 @@ import java.util.Set;
 import java.util.concurrent.Flow;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.inference.telemetry.InferenceStats.SERVICE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATTRIBUTE;
+import static org.elasticsearch.telemetry.metric.MetricAttributes.ERROR_TYPE;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -128,15 +132,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         doExecute(taskType);
 
-        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), nullValue());
-            assertThat(attributes.get("task_type"), nullValue());
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error_type"), is(expectedError));
-            assertThat(attributes.get("rerouted"), nullValue());
-            assertThat(attributes.get("node_id"), nullValue());
-        }));
+        verify(mockInferenceDurationHistogram).record(anyLong(), eq(Map.of(ERROR_TYPE, expectedError)));
     }
 
     protected ActionListener<InferenceAction.Response> doExecute(TaskType taskType) {
@@ -171,15 +167,21 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(e.getMessage(), is("Unknown service [" + serviceId + "] for model [" + inferenceId + "]"));
             assertThat(((ElasticsearchException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
-        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
-            assertThat(attributes.get("error_type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
-            assertThat(attributes.get("rerouted"), nullValue());
-            assertThat(attributes.get("node_id"), nullValue());
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    serviceId,
+                    TASK_TYPE_ATTRIBUTE,
+                    taskType.toString(),
+                    STATUS_CODE_ATTRIBUTE,
+                    RestStatus.BAD_REQUEST.getStatus(),
+                    ERROR_TYPE,
+                    String.valueOf(RestStatus.BAD_REQUEST.getStatus())
+                )
+            )
+        );
     }
 
     protected void mockInferenceEndpointRegistry(TaskType expectedTaskType) {
@@ -212,15 +214,21 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             );
             assertThat(((ElasticsearchException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
-        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(modelTaskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
-            assertThat(attributes.get("error_type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
-            assertThat(attributes.get("rerouted"), nullValue());
-            assertThat(attributes.get("node_id"), nullValue());
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    serviceId,
+                    TASK_TYPE_ATTRIBUTE,
+                    modelTaskType.toString(),
+                    STATUS_CODE_ATTRIBUTE,
+                    RestStatus.BAD_REQUEST.getStatus(),
+                    ERROR_TYPE,
+                    String.valueOf(RestStatus.BAD_REQUEST.getStatus())
+                )
+            )
+        );
     }
 
     public void testMetricsAfterInferError() {
@@ -230,13 +238,10 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         var listener = doExecute(taskType);
 
-        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error_type"), is(expectedError));
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString(), ERROR_TYPE, expectedError))
+        );
     }
 
     public void testMetricsAfterStreamUnsupported() {
@@ -252,13 +257,21 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(ese.getMessage(), is("Streaming is not allowed for service [" + serviceId + "]."));
             assertThat(ese.status(), is(expectedStatus));
         }));
-        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), is(expectedStatus.getStatus()));
-            assertThat(attributes.get("error_type"), is(expectedError));
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    serviceId,
+                    TASK_TYPE_ATTRIBUTE,
+                    taskType.toString(),
+                    STATUS_CODE_ATTRIBUTE,
+                    expectedStatus.getStatus(),
+                    ERROR_TYPE,
+                    expectedError
+                )
+            )
+        );
     }
 
     public void testMetricsAfterInferSuccess() {
@@ -267,13 +280,10 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         var listener = doExecute(taskType);
 
         verify(listener).onResponse(any());
-        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error_type"), nullValue());
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString(), STATUS_CODE_ATTRIBUTE, 200))
+        );
     }
 
     public void testRequestCountMetricsHaveNoStatusCode() {
@@ -281,36 +291,28 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         doExecute(taskType);
 
-        verify(mockRequestCountCounter).incrementBy(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error_type"), nullValue());
-        }));
+        verify(mockRequestCountCounter).incrementBy(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString()))
+        );
     }
 
     public void testMetricsAfterStreamInferSuccess() {
         mockStreamResponse(Flow.Subscriber::onComplete).subscribe(mock());
-        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error_type"), nullValue());
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString(), STATUS_CODE_ATTRIBUTE, 200))
+        );
     }
 
     public void testMetricsAfterStreamInferFailure() {
         var expectedException = new IllegalStateException("hello");
         var expectedError = expectedException.getClass().getSimpleName();
         mockStreamResponse(subscriber -> subscriber.onError(expectedException)).subscribe(mock());
-        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error_type"), is(expectedError));
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString(), ERROR_TYPE, expectedError))
+        );
     }
 
     public void testMetricsAfterStreamCancel() {
@@ -337,13 +339,10 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             }
         });
 
-        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error_type"), nullValue());
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString(), STATUS_CODE_ATTRIBUTE, 200))
+        );
     }
 
     public void testProductUseCaseHeaderPresentInThreadContextIfPresent() {

@@ -12,6 +12,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -162,6 +166,38 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
             false,
             false,
             "foo"
+        );
+        PlainActionFuture<GetInferenceFieldsInternalAction.Response> future = new PlainActionFuture<>();
+        remoteClusterClient.execute(GetInferenceFieldsInternalAction.REMOTE_TYPE, request, future);
+
+        var response = future.actionGet(TEST_REQUEST_TIMEOUT);
+        assertInferenceFieldsMap(
+            response.getInferenceFieldsMap(),
+            Map.of(
+                EMBEDDING_INDEX_NAME,
+                Set.of(new GetInferenceFieldsIT.InferenceFieldWithTestMetadata(EMBEDDING_INFERENCE_FIELD, EMBEDDING_INFERENCE_ID, 1.0f))
+            )
+        );
+        assertInferenceResultsMap(response.getInferenceResultsMap(), Map.of(EMBEDDING_INFERENCE_ID, MlDenseEmbeddingResults.class));
+    }
+
+    public void testRemoteClusterActionWithImageEmbeddingTaskType() {
+        RemoteClusterClient remoteClusterClient = client().getRemoteClusterClient(
+            REMOTE_CLUSTER,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
+
+        var imageInput = new InferenceStringGroup(
+            new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8=")
+        );
+        var request = new GetInferenceFieldsInternalAction.Request(
+            new String[] { EMBEDDING_INDEX_NAME },
+            generateDefaultWeightFieldMap(Set.of(EMBEDDING_INFERENCE_FIELD)),
+            false,
+            false,
+            imageInput,
+            null
         );
         PlainActionFuture<GetInferenceFieldsInternalAction.Response> future = new PlainActionFuture<>();
         remoteClusterClient.execute(GetInferenceFieldsInternalAction.REMOTE_TYPE, request, future);

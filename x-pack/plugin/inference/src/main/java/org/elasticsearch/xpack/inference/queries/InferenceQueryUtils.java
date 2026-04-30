@@ -149,11 +149,6 @@ public final class InferenceQueryUtils {
      * {@code false}. This can be determined using only the connection(s) to the remote cluster(s), so no roundtrip is
      * necessary.
      * </p>
-     * <p>
-     * NOTE: Non-text inputs (e.g. images) in {@link InferenceInfoRequest#input()} are only supported for local inference.
-     * Remote clusters are queried using a plain text string extracted from the input; non-text inputs are not forwarded
-     * to remote clusters.
-     * </p>
      *
      * @param queryRewriteContext The query rewrite context
      * @param inferenceInfoRequest The inference info request args
@@ -302,19 +297,6 @@ public final class InferenceQueryUtils {
             createRemoteInferenceInfoGroupedActionListener(remoteIndices.size(), remoteInferenceInfoListener);
 
         InferenceStringGroup input = inferenceInfoRequest.input();
-        String remoteQuery = null;
-        if (input != null) {
-            if (input.containsNonTextEntry() || input.containsMultipleInferenceStrings()) {
-                // Remote clusters accept only a plain text string; extract it when the input is a single text entry.
-                gal.onFailure(
-                    new IllegalArgumentException(
-                        "Remote inference info requests do not support non-text or multiple inputs. Input must be a single text entry."
-                    )
-                );
-                return;
-            }
-            remoteQuery = input.textValue();
-        }
 
         for (var entry : remoteIndices.entrySet()) {
             String clusterAlias = entry.getKey();
@@ -325,7 +307,7 @@ public final class InferenceQueryUtils {
                 inferenceInfoRequest.fields(),
                 inferenceInfoRequest.resolveWildcards(),
                 inferenceInfoRequest.useDefaultFields(),
-                remoteQuery,
+                input,
                 originalIndices.indicesOptions()
             );
 

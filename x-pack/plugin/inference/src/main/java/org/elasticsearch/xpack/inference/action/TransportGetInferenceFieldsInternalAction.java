@@ -92,7 +92,7 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
         final Map<String, Float> fields = request.fields();
         final boolean resolveWildcards = request.resolveWildcards();
         final boolean useDefaultFields = request.useDefaultFields();
-        final String query = request.query();
+        final InferenceStringGroup input = request.input();
         final IndicesOptions indicesOptions = request.indicesOptions();
 
         try {
@@ -115,14 +115,14 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
                 inferenceFieldsMap.put(index, inferenceFieldMetadataList);
             });
 
-            if (query != null) {
+            if (input != null) {
                 Set<String> inferenceIds = inferenceFieldsMap.values()
                     .stream()
                     .flatMap(List::stream)
                     .map(eifm -> eifm.inferenceFieldMetadata().getSearchInferenceId())
                     .collect(Collectors.toSet());
 
-                getInferenceResults(query, inferenceIds, inferenceFieldsMap, listener);
+                getInferenceResults(input, inferenceIds, inferenceFieldsMap, listener);
             } else {
                 listener.onResponse(new GetInferenceFieldsInternalAction.Response(inferenceFieldsMap, Map.of()));
             }
@@ -154,7 +154,7 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
     }
 
     private void getInferenceResults(
-        String query,
+        InferenceStringGroup input,
         Set<String> inferenceIds,
         Map<String, List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap,
         ActionListener<GetInferenceFieldsInternalAction.Response> listener
@@ -192,14 +192,14 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
                         );
                     }
                     TaskType taskType = endpoints.getFirst().getTaskType();
-                    executeInferenceForTaskType(query, inferenceId, taskType, l);
+                    executeInferenceForTaskType(input, inferenceId, taskType, l);
                 })
             );
         }
     }
 
     private void executeInferenceForTaskType(
-        String query,
+        InferenceStringGroup input,
         String inferenceId,
         TaskType taskType,
         ActionListener<Tuple<String, InferenceResults>> listener
@@ -220,7 +220,7 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
                     null,
                     null,
                     null,
-                    List.of(query),
+                    List.of(input.textValue()),
                     Map.of(),
                     InputType.INTERNAL_SEARCH,
                     null,
@@ -235,7 +235,7 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
                 new EmbeddingAction.Request(
                     inferenceId,
                     taskType,
-                    new EmbeddingRequest(List.of(new InferenceStringGroup(query)), InputType.INTERNAL_SEARCH, Map.of()),
+                    new EmbeddingRequest(List.of(input), InputType.INTERNAL_SEARCH, Map.of()),
                     null
                 ),
                 responseListener

@@ -21,7 +21,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
@@ -511,6 +514,48 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
     public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
         ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.TEXT_EMBEDDING, KnnVectorQueryBuilder.NAME);
         ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.EMBEDDING, KnnVectorQueryBuilder.NAME);
+    }
+
+    public void testCcsImageInputSucceedsForRemoteClusters() throws Exception {
+        final String indexName = "test-index";
+        final String inferenceField = "semantic_field";
+        final Map<String, Map<String, String>> localIndexInferenceFields = Map.of(
+            indexName,
+            Map.of(inferenceField, EMBEDDING_INFERENCE_ID)
+        );
+
+        final var remoteInferenceEndpoints = Map.of(EMBEDDING_INFERENCE_ID, EMBEDDING_INFERENCE_ID_SETTINGS);
+        final var remoteIndexConfigs = List.of(
+            new MockInferenceRemoteClusterClient.RemoteIndexConfig(indexName, Map.of(inferenceField, EMBEDDING_INFERENCE_ID))
+        );
+
+        final MockInferenceRemoteClusterClient.RemoteClusterConfig remoteClusterConfig =
+            new MockInferenceRemoteClusterClient.RemoteClusterConfig(
+                remoteInferenceEndpoints,
+                remoteIndexConfigs,
+                TransportVersion.current()
+            );
+
+        QueryRewriteContext context = createQueryRewriteContext(
+            localIndexInferenceFields,
+            TransportVersion.current(),
+            false,
+            Map.of("remote-cluster", remoteClusterConfig)
+        );
+
+        InferenceStringGroup imageInput = new InferenceStringGroup(
+            new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8=")
+        );
+        KnnVectorQueryBuilder imageQuery = new KnnVectorQueryBuilder(
+            inferenceField,
+            new EmbeddingQueryVectorBuilder(EMBEDDING_INFERENCE_ID, imageInput, null),
+            50,
+            500,
+            50f,
+            null
+        );
+
+        assertRewriteAndSerializeOnInferenceField(imageQuery, context, null, null);
     }
 
     private static VectorData assertQueryIsInterceptedKnnWithValidResults(QueryBuilder query) {

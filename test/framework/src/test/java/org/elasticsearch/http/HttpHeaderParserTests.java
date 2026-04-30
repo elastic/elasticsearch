@@ -49,7 +49,7 @@ public class HttpHeaderParserTests extends ESTestCase {
     }
 
     public void testParseRangeHeaderSuffixLength() {
-        var bytes = randomLongBetween(0, Long.MAX_VALUE);
+        var bytes = randomLongBetween(1, Long.MAX_VALUE);
         assertEquals(new HttpHeaderParser.Range(-bytes, null), HttpHeaderParser.parseRangeHeader(Strings.format("bytes=-%d", bytes)));
     }
 
@@ -64,37 +64,31 @@ public class HttpHeaderParserTests extends ESTestCase {
         assertEquals("bytes=" + start + "-" + end, new HttpHeaderParser.Range(start, end).headerString());
     }
 
+    public void testOpenEndedRangeHeaderString() {
+        var start = randomLongBetween(0, 10_000);
+        assertEquals("bytes=" + start + "-", new HttpHeaderParser.Range(start, null).headerString());
+    }
+
     public void testSuffixRangeHeaderString() {
         var bytes = randomLongBetween(1, Long.MAX_VALUE);
         assertEquals("bytes=-" + bytes, new HttpHeaderParser.Range(-bytes, null).headerString());
     }
 
-    public void testParseContentRangeHeaderFull() {
-        final long start = randomLongBetween(0, 10_000);
-        final long end = randomLongBetween(start, start + 10_000);
-        final long size = randomLongBetween(end, Long.MAX_VALUE);
-        assertEquals(
-            new HttpHeaderParser.ContentRange(start, end, size),
-            HttpHeaderParser.parseContentRangeHeader("bytes " + start + "-" + end + "/" + size)
-        );
-    }
+    public void testRangeTypeFlags() {
+        // bounded: neither open-ended nor suffix
+        var bounded = new HttpHeaderParser.Range(10, 50L);
+        assertFalse(bounded.isOpenEnded());
+        assertFalse(bounded.isSuffixRange());
 
-    public void testParseContentRangeHeaderNoSize() {
-        final long start = randomLongBetween(0, 10_000);
-        final long end = randomLongBetween(start, start + 10_000);
-        assertEquals(
-            new HttpHeaderParser.ContentRange(start, end, null),
-            HttpHeaderParser.parseContentRangeHeader("bytes " + start + "-" + end + "/*")
-        );
-    }
+        // open-ended: open-ended but not suffix
+        var openEnded = new HttpHeaderParser.Range(10, null);
+        assertTrue(openEnded.isOpenEnded());
+        assertFalse(openEnded.isSuffixRange());
 
-    public void testParseContentRangeHeaderNoRange() {
-        final long size = randomNonNegativeLong();
-        assertEquals(new HttpHeaderParser.ContentRange(null, null, size), HttpHeaderParser.parseContentRangeHeader("bytes */" + size));
-    }
-
-    public void testParseNoRangeOrSize() {
-        assertEquals(new HttpHeaderParser.ContentRange(null, null, null), HttpHeaderParser.parseContentRangeHeader("bytes */*"));
+        // suffix: suffix but not open-ended (key behavioral distinction)
+        var suffix = new HttpHeaderParser.Range(-30, null);
+        assertFalse(suffix.isOpenEnded());
+        assertTrue(suffix.isSuffixRange());
     }
 
     public void testResolveAgainstBounded() {
@@ -140,6 +134,34 @@ public class HttpHeaderParserTests extends ESTestCase {
         assertEquals(50, resolved.start());
         assertEquals(99, resolved.end());
         assertEquals(50, resolved.length());
+    }
+
+    public void testParseContentRangeHeaderFull() {
+        final long start = randomLongBetween(0, 10_000);
+        final long end = randomLongBetween(start, start + 10_000);
+        final long size = randomLongBetween(end, Long.MAX_VALUE);
+        assertEquals(
+            new HttpHeaderParser.ContentRange(start, end, size),
+            HttpHeaderParser.parseContentRangeHeader("bytes " + start + "-" + end + "/" + size)
+        );
+    }
+
+    public void testParseContentRangeHeaderNoSize() {
+        final long start = randomLongBetween(0, 10_000);
+        final long end = randomLongBetween(start, start + 10_000);
+        assertEquals(
+            new HttpHeaderParser.ContentRange(start, end, null),
+            HttpHeaderParser.parseContentRangeHeader("bytes " + start + "-" + end + "/*")
+        );
+    }
+
+    public void testParseContentRangeHeaderNoRange() {
+        final long size = randomNonNegativeLong();
+        assertEquals(new HttpHeaderParser.ContentRange(null, null, size), HttpHeaderParser.parseContentRangeHeader("bytes */" + size));
+    }
+
+    public void testParseNoRangeOrSize() {
+        assertEquals(new HttpHeaderParser.ContentRange(null, null, null), HttpHeaderParser.parseContentRangeHeader("bytes */*"));
     }
 
     public void testContentRangeHeaderString() {

@@ -87,7 +87,7 @@ public enum HttpHeaderParser {
          * Resolves this (possibly relative) range against a known content length,
          * producing absolute byte offsets clamped to [0, contentLength).
          *
-         * @return resolved absolute range, or null if the range is unsatisfiable (start >= contentLength)
+         * @return resolved absolute range, or null if the range is unsatisfiable (start &gt;= contentLength)
          */
         public ResolvedRange resolveAgainst(long contentLength) {
             long resolvedStart;

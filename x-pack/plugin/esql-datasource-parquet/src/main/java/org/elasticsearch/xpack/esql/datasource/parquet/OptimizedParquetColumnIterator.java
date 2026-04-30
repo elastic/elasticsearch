@@ -10,14 +10,16 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
-import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -30,20 +32,20 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Default Parquet column iterator with vectorized decoding and I/O prefetch.
  *
  * <p>Adds parallel column chunk prefetch: while decoding row group N, prefetches row group N+1's
- * data via {@link CoalescedRangeReader} and installs it into the {@link ParquetStorageObjectAdapter}
- * so that subsequent Parquet reads are served from memory instead of network I/O.
+ * data via {@link CoalescedRangeReader} and feeds it directly to {@link PrefetchedRowGroupBuilder}
+ * so that subsequent reads are served from memory instead of network I/O.
  *
  * <p>Always uses {@link PageColumnReader} for vectorized batch decoding of flat columns and
  * {@code ColumnReader} for list columns. When {@link RowRanges} are provided (from
@@ -73,21 +75,36 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private final ColumnInfo[] columnInfos;
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
-    private final ParquetStorageObjectAdapter adapter;
     private final Set<String> projectedColumnPaths;
     private final CircuitBreaker breaker;
     private final RowRanges[] allRowRanges;
+    /**
+     * Per-row-group survival flag: {@code true} = read this row group; {@code false} = skip
+     * (dropped by row-group level filter — stats, bloom, dictionary). When {@code null}, all
+     * row groups survive.
+     */
+    private final boolean[] survivingRowGroups;
+    /**
+     * Precomputed lookup mapping every ordinal {@code i} to the smallest surviving ordinal
+     * {@code >= i} (or {@code length} if none survive). Built once in the constructor so each
+     * call to {@link #nextSurvivingRowGroupOrdinal(int)} is O(1) instead of O(K).
+     */
+    private final int[] nextSurvivor;
+    private final CompressionCodecFactory codecFactory;
     private int rowBudget;
-    private final AtomicLong prefetchReservedBytes = new AtomicLong();
+    /** Async prefetches allowed ahead of the consumed row group (1-3 based on projected column size). */
+    private final int prefetchDepth;
+    private final ArrayDeque<PendingPrefetch> pendingPrefetches = new ArrayDeque<>();
+    /** Bytes reserved on the breaker for the chunks currently in use by {@link #rowGroup}. */
+    private long currentReservedBytes = 0;
 
-    private PageReadStore rowGroup;
+    private PrefetchedPageReadStore rowGroup;
     private ColumnReader[] columnReaders;
     private PageColumnReader[] pageColumnReaders;
     private long rowsRemainingInGroup;
     private boolean exhausted = false;
     private int rowGroupOrdinal = -1;
     private int pageBatchIndexInRowGroup = 0;
-    private CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> pendingPrefetch;
 
     OptimizedParquetColumnIterator(
         ParquetFileReader reader,
@@ -101,8 +118,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         ColumnInfo[] columnInfos,
         PreloadedRowGroupMetadata preloadedMetadata,
         StorageObject storageObject,
-        ParquetStorageObjectAdapter adapter,
-        RowRanges[] allRowRanges
+        RowRanges[] allRowRanges,
+        boolean[] survivingRowGroups,
+        CompressionCodecFactory codecFactory
     ) {
         this.reader = reader;
         this.projectedSchema = projectedSchema;
@@ -115,13 +133,109 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         this.columnInfos = columnInfos;
         this.preloadedMetadata = preloadedMetadata;
         this.storageObject = storageObject;
-        this.adapter = adapter;
         this.breaker = blockFactory.breaker();
         this.allRowRanges = allRowRanges;
+        this.survivingRowGroups = survivingRowGroups;
+        this.nextSurvivor = buildNextSurvivorLookup(survivingRowGroups);
+        this.codecFactory = codecFactory;
 
         this.projectedColumnPaths = buildProjectedColumnPaths(columnInfos);
+        this.prefetchDepth = computePrefetchDepth(reader.getRowGroups(), this.projectedColumnPaths);
 
         reader.setRequestedSchema(projectedSchema);
+
+        prefetchFirstRowGroup();
+    }
+
+    /**
+     * Seeds the prefetch queue at construction time so that the first {@link #advanceRowGroup()}
+     * call finds ready data instead of falling through to synchronous I/O.
+     */
+    private void prefetchFirstRowGroup() {
+        if (storageObject == null) {
+            return;
+        }
+        int startOrdinal = nextSurvivingRowGroupOrdinal(0);
+        fillPrefetchQueue(startOrdinal);
+    }
+
+    /**
+     * Fills the prefetch queue up to {@link #prefetchDepth} entries, starting from ordinal
+     * {@code fromOrdinal}. Each entry reserves bytes on the circuit breaker before starting
+     * async I/O. Filling stops early if the breaker would trip or if no more surviving row
+     * groups remain.
+     */
+    private void fillPrefetchQueue(int fromOrdinal) {
+        List<BlockMetaData> rowGroups = reader.getRowGroups();
+        int nextOrdinal = fromOrdinal;
+        while (pendingPrefetches.size() < prefetchDepth && nextOrdinal < rowGroups.size()) {
+            BlockMetaData nextBlock = rowGroups.get(nextOrdinal);
+            long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(nextBlock, projectedColumnPaths);
+            if (prefetchBytes <= 0) {
+                nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
+                continue;
+            }
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(prefetchBytes, "esql_parquet_prefetch");
+            } catch (CircuitBreakingException e) {
+                logger.debug(
+                    "Stopping prefetch queue fill at row group [{}] in [{}]: circuit breaker limit reached ({} bytes requested)",
+                    nextOrdinal,
+                    fileLocation,
+                    prefetchBytes
+                );
+                break;
+            }
+            try {
+                RowRanges nextRowRanges = allRowRanges != null && nextOrdinal < allRowRanges.length ? allRowRanges[nextOrdinal] : null;
+                CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future;
+                if (nextRowRanges != null) {
+                    future = ColumnChunkPrefetcher.prefetchAsync(
+                        storageObject,
+                        nextBlock,
+                        projectedColumnPaths,
+                        nextRowRanges,
+                        preloadedMetadata,
+                        nextOrdinal,
+                        nextBlock.getRowCount()
+                    );
+                } else {
+                    future = ColumnChunkPrefetcher.prefetchAsync(storageObject, nextBlock, projectedColumnPaths);
+                }
+                pendingPrefetches.addLast(new PendingPrefetch(nextOrdinal, future, prefetchBytes));
+            } catch (Exception e) {
+                logger.debug("Failed to initiate prefetch for row group [{}] in [{}]: {}", nextOrdinal, fileLocation, e.getMessage());
+                breaker.addWithoutBreaking(-prefetchBytes);
+                break;
+            }
+            nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
+        }
+    }
+
+    private static final long DEEPER_PREFETCH_BYTES = 32_000_000L;
+    private static final long SHALLOW_PREFETCH_BYTES = 8_000_000L;
+
+    private static int computePrefetchDepth(List<BlockMetaData> rowGroups, Set<String> projectedColumnPaths) {
+        if (rowGroups.isEmpty()) {
+            return 1;
+        }
+        BlockMetaData block = rowGroups.get(0);
+        long projectedBytes = 0;
+        for (ColumnChunkMetaData col : block.getColumns()) {
+            if (projectedColumnPaths.contains(col.getPath().toDotString())) {
+                projectedBytes += col.getTotalSize();
+            }
+        }
+        // Larger projected sizes need deeper prefetch: an S3 GET for a 20MB string column takes
+        // ~200ms while decode takes ~10ms, so single-ahead can't hide the latency. The circuit
+        // breaker caps actual memory regardless of depth.
+        if (projectedBytes > DEEPER_PREFETCH_BYTES) {
+            return 3;
+        }
+        if (projectedBytes > SHALLOW_PREFETCH_BYTES) {
+            return 2;
+        }
+        return 1;
     }
 
     private static Set<String> buildProjectedColumnPaths(ColumnInfo[] columnInfos) {
@@ -157,8 +271,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     }
 
     /**
-     * Advances to the next row group, installing any pending prefetch data and
-     * triggering prefetch for the row group after that.
+     * Advances to the next surviving row group: applies the row-group statistics filter to skip
+     * dropped row groups, then builds a {@link PrefetchedPageReadStore} from the prefetched
+     * (or sync-fetched) bytes for the surviving row group. Triggers prefetch for the row group
+     * after that.
      */
     private boolean advanceRowGroup() throws IOException {
         if (rowGroup != null) {
@@ -166,43 +282,92 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             rowGroup = null;
         }
 
-        installPendingPrefetch();
-
-        rowGroup = reader.readNextFilteredRowGroup();
-
-        adapter.clearPrefetchedData();
-        releasePrefetchReservation();
-
-        if (rowGroup == null) {
+        int nextOrdinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
+        if (nextOrdinal >= reader.getRowGroups().size()) {
             exhausted = true;
             cancelPendingPrefetch();
+            releaseCurrentReservation();
             return false;
         }
-        rowGroupOrdinal++;
+        rowGroupOrdinal = nextOrdinal;
         pageBatchIndexInRowGroup = 0;
-        rowsRemainingInGroup = rowGroup.getRowCount();
 
-        RowRanges currentRowRanges = resolveCurrentRowRanges();
-        triggerNextRowGroupPrefetch();
-        initColumnReaders(currentRowRanges);
-        return rowsRemainingInGroup > 0;
+        BlockMetaData block = reader.getRowGroups().get(rowGroupOrdinal);
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = takePendingPrefetch(rowGroupOrdinal);
+        try {
+            RowRanges currentRowRanges = resolveCurrentRowRanges(block);
+            rowGroup = PrefetchedRowGroupBuilder.build(
+                block,
+                rowGroupOrdinal,
+                projectedSchema,
+                projectedColumnPaths,
+                currentRowRanges,
+                preloadedMetadata,
+                chunks,
+                storageObject,
+                codecFactory
+            );
+            // When RowRanges narrow the row group, only the surviving row count is consumed -
+            // mirrors parquet-mr's filtered PageReadStore.getRowCount(). The PageReader's per-page
+            // value count is unchanged; PageColumnReader caps at maxRows on each readBatch call so
+            // columns whose pages span more rows than the filtered count return aligned blocks.
+            rowsRemainingInGroup = currentRowRanges != null ? currentRowRanges.selectedRowCount() : rowGroup.getRowCount();
+            triggerNextRowGroupPrefetch();
+            initColumnReaders(currentRowRanges);
+            return rowsRemainingInGroup > 0;
+        } catch (Exception e) {
+            releaseCurrentReservation();
+            throw e;
+        }
     }
 
     /**
-     * Returns the pre-computed {@link RowRanges} for the current row group. When
-     * {@code allRowRanges} is present, {@code rowGroupOrdinal} directly indexes into it
-     * because we disable {@code useColumnIndexFilter}, causing
-     * {@code readNextFilteredRowGroup()} to iterate row groups sequentially without skipping.
+     * Returns the smallest row group ordinal {@code >= from} that survives the pre-computed
+     * row-group level filter. When no filter is set, {@code from} is returned unchanged.
+     * O(1) thanks to the {@link #nextSurvivor} lookup built in the constructor.
      */
-    private RowRanges resolveCurrentRowRanges() {
-        if (allRowRanges == null || rowGroupOrdinal >= allRowRanges.length) {
+    private int nextSurvivingRowGroupOrdinal(int from) {
+        if (nextSurvivor == null) {
+            return from;
+        }
+        if (from >= nextSurvivor.length) {
+            return nextSurvivor.length;
+        }
+        return nextSurvivor[from];
+    }
+
+    private static int[] buildNextSurvivorLookup(boolean[] survivingRowGroups) {
+        if (survivingRowGroups == null) {
             return null;
         }
-        assert allRowRanges[rowGroupOrdinal].totalRows() == rowGroup.getRowCount()
-            : "RowRanges row count ["
+        int[] next = new int[survivingRowGroups.length];
+        int last = survivingRowGroups.length;
+        for (int i = survivingRowGroups.length - 1; i >= 0; i--) {
+            next[i] = survivingRowGroups[i] ? i : last;
+            if (survivingRowGroups[i]) {
+                last = i;
+            }
+        }
+        return next;
+    }
+
+    /**
+     * Returns the pre-computed {@link RowRanges} for the current row group. {@code rowGroupOrdinal}
+     * is the physical block index in the file (we walk row groups ourselves now), so it directly
+     * indexes {@code allRowRanges}. Slots for row groups dropped by the row-group level filter are
+     * left {@code null} on purpose by {@code ParquetFormatReader} - those ordinals are skipped via
+     * {@link #nextSurvivingRowGroupOrdinal} so this method never sees them, but we guard against a
+     * stray {@code null} just in case.
+     */
+    private RowRanges resolveCurrentRowRanges(BlockMetaData block) {
+        if (allRowRanges == null || rowGroupOrdinal >= allRowRanges.length || allRowRanges[rowGroupOrdinal] == null) {
+            return null;
+        }
+        assert allRowRanges[rowGroupOrdinal].totalRows() == block.getRowCount()
+            : "RowRanges total rows ["
                 + allRowRanges[rowGroupOrdinal].totalRows()
                 + "] != row group row count ["
-                + rowGroup.getRowCount()
+                + block.getRowCount()
                 + "] at ordinal ["
                 + rowGroupOrdinal
                 + "]";
@@ -243,122 +408,89 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     }
 
     /**
-     * Installs any previously prefetched row group data into the adapter so that
-     * the next {@code readNextFilteredRowGroup()} can read from memory instead of
-     * issuing network I/O. Falls back gracefully on failure, releasing the breaker
-     * reservation if the prefetch did not produce usable data.
+     * Dequeues the head of the prefetch queue if it matches {@code expectedOrdinal}, joining its
+     * future and returning the prefetched chunks. Entries whose ordinals don't match (because
+     * the stats filter skipped intermediate row groups) are cancelled and their breaker
+     * reservations released. Returns {@code null} when there is no usable prefetch.
      */
-    private void installPendingPrefetch() {
-        if (pendingPrefetch == null) {
-            return;
-        }
-        try {
-            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> data = pendingPrefetch.join();
-            if (data != null && data.isEmpty() == false) {
-                adapter.installPrefetchedData(data);
-                logger.trace(
-                    "Installed [{}] prefetched column chunks for row group [{}] in [{}]",
-                    data.size(),
-                    rowGroupOrdinal + 1,
-                    fileLocation
-                );
-            } else {
-                releasePrefetchReservation();
+    private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> takePendingPrefetch(int expectedOrdinal) {
+        releaseCurrentReservation();
+
+        while (pendingPrefetches.isEmpty() == false) {
+            PendingPrefetch head = pendingPrefetches.peekFirst();
+            if (head.ordinal() == expectedOrdinal) {
+                break;
             }
+            assert head.ordinal() <= expectedOrdinal : "prefetch queue has ordinal " + head.ordinal() + " > expected " + expectedOrdinal;
+            pendingPrefetches.pollFirst();
+            FutureUtils.cancel(head.future());
+            head.release(breaker);
+        }
+
+        if (pendingPrefetches.isEmpty()) {
+            return null;
+        }
+
+        PendingPrefetch head = pendingPrefetches.pollFirst();
+        try {
+            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> data = head.future().join();
+            if (data != null && data.isEmpty() == false) {
+                logger.trace("Took [{}] prefetched column chunks for row group [{}] in [{}]", data.size(), expectedOrdinal, fileLocation);
+                currentReservedBytes = head.reservedBytes();
+                return data;
+            }
+            head.release(breaker);
+            return null;
         } catch (Exception e) {
             logger.debug(
                 "Prefetch for row group [{}] failed in [{}], falling back to synchronous I/O: {}",
-                rowGroupOrdinal + 1,
+                expectedOrdinal,
                 fileLocation,
                 e.getMessage()
             );
-            releasePrefetchReservation();
-        } finally {
-            pendingPrefetch = null;
+            head.release(breaker);
+            return null;
         }
     }
 
     /**
-     * Triggers an async prefetch of column chunk data for the next row group.
-     * Reserves the estimated bytes on the circuit breaker before starting I/O;
-     * if the breaker would trip, prefetch is skipped and the query falls back
-     * to synchronous I/O for that row group. The reservation is released when
-     * the prefetched data is cleared in {@link #advanceRowGroup()} or on
-     * failure/cancel.
+     * Refills the prefetch queue after consuming an entry in {@link #advanceRowGroup()}.
+     * Starts from the ordinal after the last queued entry (or after the current row group
+     * if the queue is empty). Skips row groups dropped by the statistics filter.
      */
     private void triggerNextRowGroupPrefetch() {
         if (storageObject == null) {
             return;
         }
-        List<BlockMetaData> rowGroups = reader.getRowGroups();
-        int nextRgOrdinal = rowGroupOrdinal + 1;
-        if (nextRgOrdinal >= rowGroups.size()) {
-            return;
+        int startOrdinal;
+        if (pendingPrefetches.isEmpty()) {
+            startOrdinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
+        } else {
+            startOrdinal = nextSurvivingRowGroupOrdinal(pendingPrefetches.peekLast().ordinal() + 1);
         }
-        BlockMetaData nextBlock = rowGroups.get(nextRgOrdinal);
-        long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(nextBlock, projectedColumnPaths);
-        if (prefetchBytes <= 0) {
-            // No data to prefetch (empty projection or zero-byte columns). This is safe because
-            // installPendingPrefetch tolerates pendingPrefetch == null — no invariant is broken.
-            return;
-        }
-        try {
-            breaker.addEstimateBytesAndMaybeBreak(prefetchBytes, "esql_parquet_prefetch");
-            prefetchReservedBytes.set(prefetchBytes);
-        } catch (CircuitBreakingException e) {
-            logger.debug(
-                "Skipping prefetch for row group [{}] in [{}]: circuit breaker limit reached ({} bytes requested)",
-                nextRgOrdinal,
-                fileLocation,
-                prefetchBytes
-            );
-            return;
-        }
-        try {
-            if (allRowRanges != null && nextRgOrdinal < allRowRanges.length) {
-                pendingPrefetch = ColumnChunkPrefetcher.prefetchAsync(
-                    storageObject,
-                    nextBlock,
-                    projectedColumnPaths,
-                    allRowRanges[nextRgOrdinal],
-                    preloadedMetadata,
-                    nextRgOrdinal,
-                    nextBlock.getRowCount()
-                );
-            } else {
-                pendingPrefetch = ColumnChunkPrefetcher.prefetchAsync(storageObject, nextBlock, projectedColumnPaths);
-            }
-        } catch (Exception e) {
-            logger.debug("Failed to initiate prefetch for row group [{}] in [{}]: {}", nextRgOrdinal, fileLocation, e.getMessage());
-            pendingPrefetch = null;
-            releasePrefetchReservation();
-        }
+        fillPrefetchQueue(startOrdinal);
     }
 
     /**
-     * Cancels the pending prefetch future and releases the breaker reservation. Note that
-     * {@link org.elasticsearch.common.util.concurrent.FutureUtils#cancel} only flips the
-     * future's cancelled state — it does not interrupt in-flight storage SDK reads. If the
-     * async read is already in progress, the SDK may still allocate a buffer that becomes
-     * untracked by the breaker until GC. Draining the future before releasing would risk
-     * blocking {@link #close()}, so we accept this brief discrepancy.
+     * Cancels all pending prefetches and releases their breaker reservations. Called when the
+     * iterator is exhausted or closed.
      */
     private void cancelPendingPrefetch() {
-        if (pendingPrefetch != null) {
-            org.elasticsearch.common.util.concurrent.FutureUtils.cancel(pendingPrefetch);
-            pendingPrefetch = null;
+        while (pendingPrefetches.isEmpty() == false) {
+            PendingPrefetch entry = pendingPrefetches.pollFirst();
+            FutureUtils.cancel(entry.future());
+            entry.release(breaker);
         }
-        releasePrefetchReservation();
     }
 
     /**
-     * Releases any circuit breaker reservation held for prefetched data. Idempotent —
-     * safe to call multiple times (subsequent calls are no-ops when reservation is zero).
+     * Releases the breaker reservation held for the chunks currently in use by the row group.
+     * Called when those chunks are about to be replaced (next advance) or dropped (close).
      */
-    private void releasePrefetchReservation() {
-        long reserved = prefetchReservedBytes.getAndSet(0);
-        if (reserved > 0) {
-            breaker.addWithoutBreaking(-reserved);
+    private void releaseCurrentReservation() {
+        if (currentReservedBytes > 0) {
+            breaker.addWithoutBreaking(-currentReservedBytes);
+            currentReservedBytes = 0;
         }
     }
 
@@ -397,6 +529,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                         if (producedRows < 0) {
                             producedRows = blocks[col].getPositionCount();
                         }
+                    } catch (CircuitBreakingException e) {
+                        // Let breaker exceptions flow through unwrapped: callers (and tests) match
+                        // on the exact type to distinguish memory-pressure failures from data errors.
+                        Releasables.closeExpectNoException(blocks);
+                        throw e;
                     } catch (Exception e) {
                         Releasables.closeExpectNoException(blocks);
                         Attribute attr = attributes.get(col);
@@ -463,14 +600,31 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     @Override
     public void close() throws IOException {
         cancelPendingPrefetch();
-        adapter.clearPrefetchedData();
-        releasePrefetchReservation();
         try {
             if (rowGroup != null) {
                 rowGroup.close();
+                rowGroup = null;
             }
         } finally {
+            releaseCurrentReservation();
             reader.close();
+        }
+    }
+
+    /** Bundles an in-flight prefetch future with its breaker reservation for paired release. */
+    private record PendingPrefetch(
+        int ordinal,
+        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future,
+        long reservedBytes
+    ) {
+        PendingPrefetch {
+            assert reservedBytes >= 0 : "reservedBytes must be non-negative: " + reservedBytes;
+        }
+
+        void release(CircuitBreaker breaker) {
+            if (reservedBytes > 0) {
+                breaker.addWithoutBreaking(-reservedBytes);
+            }
         }
     }
 

@@ -31,7 +31,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URLDecoder;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -317,8 +317,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     responseBytes.writeTo(exchange.getResponseBody());
                 }
             } else {
-                // XML API routes — the object_store crate percent-encodes everything, so
-                // match against the decoded path to handle e.g. test%2Dgcs%2Dbucket → test-gcs-bucket
+                // XML API routes — match against the decoded path/request to handle percent-encoded URIs
                 final String decodedRequest = exchange.getRequestMethod()
                     + " "
                     + URLDecoder.decode(exchange.getRequestURI().toString(), UTF_8);
@@ -328,7 +327,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     final String key = decodedPath.substring(("/" + bucket + "/").length());
                     final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, null, null);
                     if (blob != null) {
-                        final String lastModified = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("UTC")));
+                        final String lastModified = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC));
                         exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.contents().length()));
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
@@ -338,7 +337,6 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     } else {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     }
-
                 } else if (Regex.simpleMatch("GET /" + bucket + "/*", decodedRequest)) {
                     // XML API: Get Object
                     final String key = decodedPath.substring(("/" + bucket + "/").length());
@@ -366,7 +364,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                                 .add("Content-Range", "bytes " + resolved.start() + "-" + resolved.end() + "/" + blob.contents().length());
                             statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
                         }
-                        final String lastModified = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("UTC")));
+                        final String lastModified = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC));
                         exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
                         exchange.getResponseHeaders().add("Last-Modified", lastModified);
                         exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
@@ -376,7 +374,6 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     } else {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     }
-
                 } else {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 }

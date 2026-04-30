@@ -257,7 +257,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
         // Split filter condition by AND and reorder by estimated selectivity
         List<Expression> filters = splitAnd(filterExec.condition());
-        SplitStats effectiveStats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
+        var effectiveStats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
         filters = FilterEvaluationOrderEstimator.orderByEstimatedCost(filters, effectiveStats);
 
         // Use the SPI to push filters

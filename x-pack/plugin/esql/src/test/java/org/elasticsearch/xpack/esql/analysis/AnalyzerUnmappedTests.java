@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
@@ -425,6 +426,43 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
             containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
         );
+    }
+
+    public void testNullifyLookupJoinUnknownLeftField() {
+        test().addLanguagesLookup()
+            .statementError(
+                setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON language_code"),
+                containsString("Unknown column [language_code] in left side of join")
+            );
+    }
+
+    public void testNullifyLookupJoinUnknownRightField() {
+        test().addLanguagesLookup()
+            .statementError(
+                setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON does_not_exist"),
+                containsString("Unknown column [does_not_exist] in right side of join")
+            );
+    }
+
+    public void testNullifyLookupJoinExpressionWithNullifiedFields() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        for (var onClauseAndError : List.of(
+            Tuple.tuple("does_not_exist == does_not_exist2", null),
+            Tuple.tuple("emp_no == does_not_exist", null),
+            Tuple.tuple("languages == language_code AND emp_no == does_not_exist", "emp_no == does_not_exist")
+        )) {
+            test().addLanguagesLookup()
+                .statementError(
+                    setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON " + onClauseAndError.v1()),
+                    containsString(
+                        "Unsupported join filter expression:"
+                            + (onClauseAndError.v2() == null ? onClauseAndError.v1() : onClauseAndError.v2())
+                    )
+                );
+        }
     }
 
     public void testLoadModeDisallowsLookupJoinAfterFilter() {

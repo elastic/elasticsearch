@@ -42,9 +42,9 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.spi.FileLayout;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -106,7 +106,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
+        SourceMetadata metadata = reader.metadata(storageObject);
         List<Attribute> attributes = metadata.schema();
 
         assertEquals(4, attributes.size());
@@ -345,7 +345,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
+        SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals("orc", metadata.sourceType());
     }
 
@@ -459,7 +459,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
+        SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals(DataType.DATETIME, metadata.schema().get(1).dataType());
 
         readFirstPage(reader, storageObject, null, page -> {
@@ -565,7 +565,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
+        SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals(DataType.KEYWORD, metadata.schema().get(1).dataType());
 
         readFirstPage(reader, storageObject, null, page -> {
@@ -752,7 +752,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
+        SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals(DataType.DATETIME, metadata.schema().get(1).dataType());
 
         readFirstPage(reader, storageObject, null, page -> {
@@ -798,7 +798,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
+        SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals(DataType.DATETIME, metadata.schema().get(1).dataType());
 
         readFirstPage(reader, storageObject, null, page -> {
@@ -828,7 +828,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
+        SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals(DataType.UNSUPPORTED, metadata.schema().get(1).dataType());
 
         readFirstPage(reader, storageObject, null, page -> {
@@ -861,7 +861,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
+        SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals(DataType.DOUBLE, metadata.schema().get(1).dataType());
 
         readFirstPage(reader, storageObject, null, page -> {
@@ -947,7 +947,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
-        SourceMetadata metadata = reader.resolveFileLayout(storageObject).metadata();
+        SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals(DataType.DOUBLE, metadata.schema().get(1).dataType());
 
         readFirstPage(reader, storageObject, null, page -> {
@@ -975,7 +975,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
-        List<SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
+        List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         assertEquals("Single-stripe file should return one range with stats", 1, ranges.size());
         SplitRange range = ranges.getFirst();
         assertTrue("Range offset must be non-negative", range.offset() >= 0);
@@ -993,72 +993,8 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
-        List<SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
+        List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         assertTrue("Empty file (no stripes) should return empty ranges", ranges.isEmpty());
-    }
-
-    /**
-     * Sanity check that two consecutive {@code resolveFileLayout} calls on the same file
-     * produce equivalent metadata and split ranges. Previously this test compared
-     * {@code resolveFileLayout} against the now-removed {@code metadata} +
-     * {@code discoverSplitRanges} primitives; with the SPI collapsed to a single primitive,
-     * it remains useful as an idempotence check across calls.
-     */
-    public void testResolveFileLayoutIsStableAcrossCalls() throws Exception {
-        TypeDescription schema = TypeDescription.createStruct()
-            .addField("id", TypeDescription.createLong())
-            .addField("name", TypeDescription.createString());
-        byte[] orcData = createMultiStripeOrcFile(schema, 3, batchIndex -> {
-            VectorizedRowBatch batch = schema.createRowBatch();
-            batch.size = 50;
-            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
-            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[1];
-            for (int i = 0; i < 50; i++) {
-                idCol.vector[i] = batchIndex * 50L + i;
-                nameCol.setVal(i, ("n_" + (batchIndex * 50 + i)).getBytes(StandardCharsets.UTF_8));
-            }
-            return batch;
-        });
-
-        StorageObject storageObject = createStorageObject(orcData);
-        OrcFormatReader reader = new OrcFormatReader(blockFactory);
-
-        FileLayout firstLayout = reader.resolveFileLayout(storageObject);
-        SourceMetadata expectedMetadata = firstLayout.metadata();
-        List<SplitRange> expectedRanges = firstLayout.splitRanges();
-
-        FileLayout layout = reader.resolveFileLayout(storageObject);
-
-        assertNotNull(layout.metadata());
-        assertEquals("Schema size should match", expectedMetadata.schema().size(), layout.metadata().schema().size());
-        for (int i = 0; i < expectedMetadata.schema().size(); i++) {
-            Attribute expected = expectedMetadata.schema().get(i);
-            Attribute actual = layout.metadata().schema().get(i);
-            assertEquals("attribute name at " + i, expected.name(), actual.name());
-            assertEquals("attribute type at " + i, expected.dataType(), actual.dataType());
-        }
-        assertEquals("Source types should match", expectedMetadata.sourceType(), layout.metadata().sourceType());
-
-        assertEquals("Number of split ranges should match", expectedRanges.size(), layout.splitRanges().size());
-        for (int i = 0; i < expectedRanges.size(); i++) {
-            SplitRange expected = expectedRanges.get(i);
-            SplitRange actual = layout.splitRanges().get(i);
-            assertEquals("Range offset should match at index " + i, expected.offset(), actual.offset());
-            assertEquals("Range length should match at index " + i, expected.length(), actual.length());
-            assertEquals("Range stats should match at index " + i, expected.statistics(), actual.statistics());
-        }
-    }
-
-    public void testResolveFileLayoutEmptyFile() throws Exception {
-        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
-        byte[] orcData = createOrcFile(schema, batch -> batch.size = 0);
-
-        StorageObject storageObject = createStorageObject(orcData);
-        OrcFormatReader reader = new OrcFormatReader(blockFactory);
-
-        FileLayout layout = reader.resolveFileLayout(storageObject);
-        assertNotNull(layout.metadata());
-        assertTrue(layout.splitRanges().isEmpty());
     }
 
     public void testDiscoverSplitRanges_multiStripeFile() throws Exception {
@@ -1080,7 +1016,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
-        List<SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
+        List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
 
         assertTrue("Multi-stripe file should return non-empty ranges", ranges.size() >= 2);
         for (SplitRange range : ranges) {
@@ -1119,7 +1055,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
-        List<SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
+        List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         assertTrue("Should have multiple stripes", ranges.size() >= 2);
 
         // First stripe: all values should be 0
@@ -1172,7 +1108,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
-        List<SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
+        List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         assertTrue("Should have multiple stripes", ranges.size() >= 2);
 
         readFirstRangePage(reader, storageObject, ranges.get(0), List.of("name", "score"), page -> {
@@ -1207,7 +1143,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             .build();
         OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
 
-        List<SplitRange> ranges = reader.resolveFileLayout(storageObject).splitRanges();
+        List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         assertTrue("Should have multiple stripes", ranges.size() >= 2);
 
         assertEquals("Filter should exclude all rows in this stripe", 0, countRangeRows(reader, storageObject, ranges.get(0)));
@@ -1249,12 +1185,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iter = reader.readRange(
                 object,
-                projection,
-                1024,
-                range.offset(),
-                range.offset() + range.length(),
-                List.of(),
-                null
+                new RangeReadContext(projection, 1024, range.offset(), range.offset() + range.length(), List.of(), null)
             )
         ) {
             assertTrue(iter.hasNext());
@@ -1269,12 +1200,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iter = reader.readRange(
                 object,
-                null,
-                1024,
-                range.offset(),
-                range.offset() + range.length(),
-                List.of(),
-                null
+                new RangeReadContext(null, 1024, range.offset(), range.offset() + range.length(), List.of(), null)
             )
         ) {
             while (iter.hasNext()) {
@@ -1295,12 +1221,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iter = reader.readRange(
                 object,
-                null,
-                1024,
-                range.offset(),
-                range.offset() + range.length(),
-                List.of(),
-                null
+                new RangeReadContext(null, 1024, range.offset(), range.offset() + range.length(), List.of(), null)
             )
         ) {
             while (iter.hasNext()) {

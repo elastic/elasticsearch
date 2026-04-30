@@ -1364,13 +1364,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     // nothing to read, skip
                     continue;
                 }
-                final CacheEntry<CacheFileRegion<KeyType>> fileRegion;
-                try {
-                    fileRegion = cache.getIfPresent(cacheKey, region);
-                } catch (AlreadyClosedException exc) {
-                    // consider missing
-                    continue;
-                }
+                final CacheEntry<CacheFileRegion<KeyType>> fileRegion = cache.getIfPresent(cacheKey, region);
                 if (fileRegion == null) {
                     continue;
                 }

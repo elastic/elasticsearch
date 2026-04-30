@@ -139,6 +139,24 @@ setup:
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "[inference_id] must be specified" }
 
+  - do:
+      search:
+        index:
+          - test-dense-vector-index
+          - test-semantic-field-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  input: "test query"
+                  inference_id: embedding-inference-id
+
+  - match: { hits.total.value: 4 }
+
 ---
 "knn query with image input against semantic field infers inference_id from field metadata":
 

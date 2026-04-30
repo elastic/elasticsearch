@@ -27,6 +27,8 @@ import java.util.Optional;
  * a merge table alongside the vocabulary. The in-process tokenizer applies UTF-8 byte mapping and
  * BPE merges using the same engine as the RoBERTa tokenizer, but special token strings are
  * configurable so deployments can align with Hugging Face tokenizer metadata.
+ * {@code do_lower_case} is not applied by the byte-level BPE analyzer and must not be set to {@code true};
+ * requests that set it to {@code true} are rejected like {@link RobertaTokenization}.
  */
 public class ByteLevelBpeTokenization extends Tokenization {
 
@@ -102,17 +104,49 @@ public class ByteLevelBpeTokenization extends Tokenization {
         @Nullable String eosToken,
         @Nullable String maskToken
     ) {
-        super(doLowerCase, withSpecialTokens, maxSequenceLength, truncate, span);
+        this(
+            withSpecialTokens,
+            maxSequenceLength,
+            truncate,
+            span,
+            addPrefixSpace,
+            resolveSpecialToken(unkToken, DEFAULT_UNK_TOKEN),
+            resolveSpecialToken(padToken, DEFAULT_PAD_TOKEN),
+            resolveSpecialToken(bosToken, DEFAULT_BOS_TOKEN),
+            resolveSpecialToken(eosToken, DEFAULT_EOS_TOKEN),
+            resolveSpecialToken(maskToken, DEFAULT_MASK_TOKEN)
+        );
+        if (Boolean.TRUE.equals(doLowerCase)) {
+            throw new IllegalArgumentException("unable to set [do_lower_case] to [true] for byte_level_bpe tokenizer");
+        }
+    }
+
+    private ByteLevelBpeTokenization(
+        @Nullable Boolean withSpecialTokens,
+        @Nullable Integer maxSequenceLength,
+        @Nullable Truncate truncate,
+        @Nullable Integer span,
+        @Nullable Boolean addPrefixSpace,
+        String unkToken,
+        String padToken,
+        String bosToken,
+        String eosToken,
+        String maskToken
+    ) {
+        super(false, withSpecialTokens, maxSequenceLength, truncate, span);
         this.addPrefixSpace = Optional.ofNullable(addPrefixSpace).orElse(DEFAULT_ADD_PREFIX_SPACE);
-        this.unkToken = resolveSpecialToken(unkToken, DEFAULT_UNK_TOKEN);
-        this.padToken = resolveSpecialToken(padToken, DEFAULT_PAD_TOKEN);
-        this.bosToken = resolveSpecialToken(bosToken, DEFAULT_BOS_TOKEN);
-        this.eosToken = resolveSpecialToken(eosToken, DEFAULT_EOS_TOKEN);
-        this.maskToken = resolveSpecialToken(maskToken, DEFAULT_MASK_TOKEN);
+        this.unkToken = unkToken;
+        this.padToken = padToken;
+        this.bosToken = bosToken;
+        this.eosToken = eosToken;
+        this.maskToken = maskToken;
     }
 
     public ByteLevelBpeTokenization(StreamInput in) throws IOException {
         super(in);
+        if (doLowerCase) {
+            throw new IllegalArgumentException("unable to set [do_lower_case] to [true] for byte_level_bpe tokenizer");
+        }
         this.addPrefixSpace = in.readBoolean();
         this.unkToken = in.readString();
         this.padToken = in.readString();
@@ -151,7 +185,7 @@ public class ByteLevelBpeTokenization extends Tokenization {
     @Override
     Tokenization buildWindowingTokenization(int updatedMaxSeqLength, int updatedSpan) {
         return new ByteLevelBpeTokenization(
-            doLowerCase,
+            false,
             withSpecialTokens,
             updatedMaxSeqLength,
             Truncate.NONE,

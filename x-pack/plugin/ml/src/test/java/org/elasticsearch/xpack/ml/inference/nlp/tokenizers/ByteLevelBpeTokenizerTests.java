@@ -107,4 +107,28 @@ public class ByteLevelBpeTokenizerTests extends ESTestCase {
             );
         }
     }
+
+    /** User-configured {@code bos_token} and {@code eos_token} may be identical when both exist in the vocabulary. */
+    public void testIdenticalBosAndEosSpecialTokensBuild() {
+        var tokenization = new ByteLevelBpeTokenization(
+            false,
+            false,
+            null,
+            Tokenization.Truncate.NONE,
+            -1,
+            false,
+            "<unk>",
+            "<pad>",
+            "</s>",
+            "</s>",
+            "<mask>"
+        );
+        try (
+            ByteLevelBpeTokenizer tokenizer = ByteLevelBpeTokenizer.builder(TEST_CASED_VOCAB, TEST_CASE_MERGE, tokenization)
+                .setWithSpecialTokens(true)
+                .build()
+        ) {
+            assertEquals(tokenizer.clsTokenId(), tokenizer.sepTokenId());
+        }
+    }
 }

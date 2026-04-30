@@ -61,9 +61,17 @@ public class ByteLevelBpeTokenizationTests extends AbstractBWCSerializationTestC
         assertEquals(20, update.getSpan());
     }
 
+    public void testDoLowerCaseTrueRejected() {
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ByteLevelBpeTokenization(true, true, 512, Tokenization.Truncate.FIRST, -1, false, null, null, null, null, null)
+        );
+        assertEquals("unable to set [do_lower_case] to [true] for byte_level_bpe tokenizer", e.getMessage());
+    }
+
     public static ByteLevelBpeTokenization createRandom() {
         return new ByteLevelBpeTokenization(
-            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : false,
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomIntBetween(1, 1024),
             randomBoolean() ? null : randomFrom(Tokenization.Truncate.values()),
@@ -81,7 +89,7 @@ public class ByteLevelBpeTokenizationTests extends AbstractBWCSerializationTestC
         Tokenization.Truncate truncate = randomBoolean() ? null : randomFrom(Tokenization.Truncate.values());
         Integer maxSeq = randomBoolean() ? null : randomIntBetween(1, 1024);
         return new ByteLevelBpeTokenization(
-            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : false,
             randomBoolean() ? null : randomBoolean(),
             maxSeq,
             truncate,

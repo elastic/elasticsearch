@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.Set;
@@ -77,7 +78,11 @@ public class ByteLevelBpeTokenizer extends NlpTokenizer {
         }
         this.padTokenId = vocab.get(padToken);
         if (withSpecialTokens) {
-            Set<String> missingSpecialTokens = Sets.difference(Set.of(eosToken, bosToken), vocab.keySet());
+            // Use a mutable set: bos/eos strings are user-configurable and may match; Set.of would throw on duplicates.
+            Set<String> requiredSpecialTokens = new HashSet<>();
+            requiredSpecialTokens.add(eosToken);
+            requiredSpecialTokens.add(bosToken);
+            Set<String> missingSpecialTokens = Sets.difference(requiredSpecialTokens, vocab.keySet());
             if (missingSpecialTokens.isEmpty() == false) {
                 throw ExceptionsHelper.conflictStatusException("stored vocabulary is missing required {} token(s)", missingSpecialTokens);
             }

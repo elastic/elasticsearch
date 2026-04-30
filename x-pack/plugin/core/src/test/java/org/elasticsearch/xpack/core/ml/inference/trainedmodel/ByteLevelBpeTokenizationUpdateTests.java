@@ -40,23 +40,23 @@ public class ByteLevelBpeTokenizationUpdateTests extends AbstractBWCWireSerializ
         );
 
         var updatedTruncate = new ByteLevelBpeTokenizationUpdate(Tokenization.Truncate.FIRST, null).apply(
-            new ByteLevelBpeTokenization(true, true, 512, Tokenization.Truncate.SECOND, null, true, null, null, null, null, null)
+            new ByteLevelBpeTokenization(false, true, 512, Tokenization.Truncate.SECOND, null, true, null, null, null, null, null)
         );
         assertEquals(
-            new ByteLevelBpeTokenization(true, true, 512, Tokenization.Truncate.FIRST, null, true, null, null, null, null, null),
+            new ByteLevelBpeTokenization(false, true, 512, Tokenization.Truncate.FIRST, null, true, null, null, null, null, null),
             updatedTruncate
         );
 
         var updatedNone = new ByteLevelBpeTokenizationUpdate(Tokenization.Truncate.NONE, null).apply(
-            new ByteLevelBpeTokenization(true, true, 512, Tokenization.Truncate.SECOND, null, false, null, null, null, null, null)
+            new ByteLevelBpeTokenization(false, true, 512, Tokenization.Truncate.SECOND, null, false, null, null, null, null, null)
         );
         assertEquals(
-            new ByteLevelBpeTokenization(true, true, 512, Tokenization.Truncate.NONE, null, false, null, null, null, null, null),
+            new ByteLevelBpeTokenization(false, true, 512, Tokenization.Truncate.NONE, null, false, null, null, null, null, null),
             updatedNone
         );
 
         var unmodified = new ByteLevelBpeTokenization(
-            true,
+            false,
             true,
             512,
             Tokenization.Truncate.NONE,

@@ -52,7 +52,7 @@ public class ByteLevelBpeTokenizationUpdate extends AbstractTokenizationUpdate {
 
             if (getTruncate() != null && getTruncate().isInCompatibleWithSpan() == false) {
                 return new ByteLevelBpeTokenization(
-                    byteLevelBpeTokenization.doLowerCase(),
+                    false,
                     byteLevelBpeTokenization.withSpecialTokens(),
                     byteLevelBpeTokenization.maxSequenceLength(),
                     getTruncate(),
@@ -67,7 +67,7 @@ public class ByteLevelBpeTokenizationUpdate extends AbstractTokenizationUpdate {
             }
 
             return new ByteLevelBpeTokenization(
-                byteLevelBpeTokenization.doLowerCase(),
+                false,
                 byteLevelBpeTokenization.withSpecialTokens(),
                 byteLevelBpeTokenization.maxSequenceLength(),
                 Optional.ofNullable(this.getTruncate()).orElse(originalConfig.getTruncate()),

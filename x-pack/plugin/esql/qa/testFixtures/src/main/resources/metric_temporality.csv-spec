@@ -82,7 +82,7 @@ TS metric_temporality
  | SORT cluster
 ;
 warning:Line 2:27: evaluation of [irate(network.total_bytes_in)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:27: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.
+warning:Line 2:27: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality for counters yet. The affected time series are excluded from irate calculations. Upgrade your cluster to fix this.
 
 cluster:keyword | irate_bytes:double
 prod-cumulative | 0.5786293
@@ -104,7 +104,7 @@ TS metric_temporality
  | SORT my_temporality
 ;
 warning:Line 2:27: evaluation of [irate(network.total_bytes_in)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:27: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.
+warning:Line 2:27: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality for counters yet. The affected time series are excluded from irate calculations. Upgrade your cluster to fix this.
 
 my_temporality:keyword | irate_bytes:double
 cumulative             | 0.5786293
@@ -126,7 +126,7 @@ TS metric_temporality
  | SORT bucket, cluster
 ;
 warning:Line 2:27: evaluation of [irate(network.total_bytes_in)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:27: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.
+warning:Line 2:27: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality for counters yet. The affected time series are excluded from irate calculations. Upgrade your cluster to fix this.
 
 bucket:datetime          | cluster:keyword | irate_bytes:double
 2024-05-10T00:00:00.000Z | prod-cumulative | 0.5703784

@@ -7,15 +7,22 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IrateV1DoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IrateV1IntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IrateV1LongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IrateV2DoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IrateV2IntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IrateV2LongAggregatorFunctionSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,13 +41,14 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Irate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware {
+public class Irate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware, TransportVersionAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Irate", Irate::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Irate.class)
         .ternary(Irate::createWithImplicitTemporality)
@@ -52,8 +60,15 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         .example("irate(http_requests_total[5m])")
         .name("irate");
 
+    private static final TransportVersion IRATE_VERSION_PARAMETER = TransportVersion.fromName("esql_irate_version_parameter");
+
+    static final Literal AGGREGATOR_V1 = Literal.keyword(Source.EMPTY, "V1");
+    static final Literal AGGREGATOR_V2 = Literal.keyword(Source.EMPTY, "V2");
+
     private final Expression timestamp;
     private final Expression temporality;
+
+    private final Expression aggregatorVersion;
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
@@ -97,9 +112,23 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         Expression timestamp,
         @Nullable Expression temporality
     ) {
+        this(source, field, filter, window, timestamp, AGGREGATOR_V2, temporality);
+    }
+
+    Irate(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        Expression timestamp,
+        Expression aggregatorVersion,
+        @Nullable Expression temporality
+    ) {
         super(source, field, filter, window, temporality == null ? List.of(timestamp) : List.of(timestamp, temporality));
         this.timestamp = timestamp;
         this.temporality = temporality;
+        this.aggregatorVersion = aggregatorVersion;
+        assert aggregatorVersion instanceof Literal : "Aggregator version must be a literal";
     }
 
     private static Irate readFrom(StreamInput in) throws IOException {
@@ -108,7 +137,33 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         Expression filter = in.readNamedWriteable(Expression.class);
         Expression window = readWindow(in);
         List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
-        return new Irate(source, field, filter, window, parameters.getFirst(), parameters.size() > 1 ? parameters.get(1) : null);
+        Expression timestamp = parameters.getFirst();
+        Expression aggregatorVersion;
+        Expression temporality;
+        if (in.getTransportVersion().supports(IRATE_VERSION_PARAMETER)) {
+            aggregatorVersion = parameters.get(1);
+            temporality = parameters.size() > 2 ? parameters.get(2) : null;
+        } else {
+            // Old transport version only supports V1 aggregator
+            aggregatorVersion = AGGREGATOR_V1;
+            temporality = parameters.size() > 1 ? parameters.get(1) : null;
+        }
+        return new Irate(source, field, filter, window, timestamp, aggregatorVersion, temporality);
+    }
+
+    @Override
+    protected void writeParametersTo(StreamOutput out) throws IOException {
+        List<Expression> parameters = new ArrayList<>();
+        parameters.add(timestamp);
+        if (out.getTransportVersion().supports(IRATE_VERSION_PARAMETER)) {
+            parameters.add(aggregatorVersion);
+        } else {
+            assert aggregatorVersion.equals(AGGREGATOR_V1) : "Can only serialize V1 aggregator version for old transport version";
+        }
+        if (temporality != null) {
+            parameters.add(temporality);
+        }
+        out.writeNamedWriteableCollection(parameters);
     }
 
     @Override
@@ -119,15 +174,16 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
     @Override
     protected NodeInfo<Irate> info() {
         if (temporality != null) {
-            return NodeInfo.create(this, Irate::new, field(), filter(), window(), timestamp, temporality);
+            return NodeInfo.create(this, Irate::new, field(), filter(), window(), timestamp, aggregatorVersion, temporality);
         } else {
             return NodeInfo.create(
                 this,
-                (source, field, filter, window, timestamp) -> new Irate(source, field, filter, window, timestamp, null),
+                (source, field, filter, window, timestamp, aggregatorVersion) -> new Irate(source, field, filter, window, timestamp, aggregatorVersion, null),
                 field(),
                 filter(),
                 window(),
-                timestamp
+                timestamp,
+                aggregatorVersion
             );
         }
     }
@@ -140,13 +196,14 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
             newChildren.get(1),
             newChildren.get(2),
             newChildren.get(3),
+            aggregatorVersion,
             newChildren.size() > 4 ? newChildren.get(4) : null
         );
     }
 
     @Override
     public Irate withFilter(Expression filter) {
-        return new Irate(source(), field(), filter, window(), timestamp, temporality);
+        return new Irate(source(), field(), filter, window(), timestamp, aggregatorVersion, temporality);
     }
 
     @Override
@@ -164,12 +221,24 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         final DataType type = field().dataType();
         final DataType tsType = timestamp().dataType();
         final boolean isDateNanos = tsType == DataType.DATE_NANOS;
-        return switch (type) {
-            case COUNTER_LONG -> new IrateV1LongAggregatorFunctionSupplier(source(), isDateNanos);
-            case COUNTER_INTEGER -> new IrateV1IntAggregatorFunctionSupplier(source(), isDateNanos);
-            case COUNTER_DOUBLE -> new IrateV1DoubleAggregatorFunctionSupplier(source(), isDateNanos);
-            default -> throw EsqlIllegalArgumentException.illegalDataType(type);
-        };
+
+        if (AGGREGATOR_V1.equals(aggregatorVersion)) {
+            return switch (type) {
+                case COUNTER_LONG -> new IrateV1LongAggregatorFunctionSupplier(source(), isDateNanos);
+                case COUNTER_INTEGER -> new IrateV1IntAggregatorFunctionSupplier(source(), isDateNanos);
+                case COUNTER_DOUBLE -> new IrateV1DoubleAggregatorFunctionSupplier(source(), isDateNanos);
+                default -> throw EsqlIllegalArgumentException.illegalDataType(type);
+            };
+        } else if (AGGREGATOR_V2.equals(aggregatorVersion)) {
+            return switch (type) {
+                case COUNTER_LONG -> new IrateV2LongAggregatorFunctionSupplier(source(), isDateNanos);
+                case COUNTER_INTEGER -> new IrateV2IntAggregatorFunctionSupplier(source(), isDateNanos);
+                case COUNTER_DOUBLE -> new IrateV2DoubleAggregatorFunctionSupplier(source(), isDateNanos);
+                default -> throw EsqlIllegalArgumentException.illegalDataType(type);
+            };
+        } else {
+            throw new IllegalArgumentException("Unexpected aggregator version: " + aggregatorVersion);
+        }
     }
 
     @Override
@@ -194,6 +263,15 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     public Irate withTemporality(Expression newTemporality) {
-        return new Irate(source(), field(), filter(), window(), timestamp, newTemporality);
+        return new Irate(source(), field(), filter(), window(), timestamp, aggregatorVersion, newTemporality);
+    }
+
+    @Override
+    public Expression forTransportVersion(TransportVersion minTransportVersion) {
+        if (minTransportVersion.supports(IRATE_VERSION_PARAMETER) == false) {
+            // For older nodes in the cluster / CCS we need to fallback to the V1 aggregator for compatibility
+            return new Irate(source(), field(), filter(), window(), timestamp, AGGREGATOR_V1, temporality);
+        }
+        return this;
     }
 }

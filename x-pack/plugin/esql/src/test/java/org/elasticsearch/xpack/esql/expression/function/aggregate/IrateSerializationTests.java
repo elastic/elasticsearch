@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
@@ -21,8 +22,9 @@ public class IrateSerializationTests extends AbstractExpressionSerializationTest
         Expression filter = randomChild();
         Expression window = randomChild();
         Expression timestamp = randomChild();
+        Literal aggregatorVersion = randomFrom(Irate.AGGREGATOR_V1, Irate.AGGREGATOR_V2);
         Expression temporality = randomChild();
-        return new Irate(source, field, filter, window, timestamp, temporality);
+        return new Irate(source, field, filter, window, timestamp, aggregatorVersion, temporality);
     }
 
     @Override
@@ -40,6 +42,7 @@ public class IrateSerializationTests extends AbstractExpressionSerializationTest
             case 3 -> timestamp = randomValueOtherThan(timestamp, AbstractExpressionSerializationTests::randomChild);
             case 4 -> temporality = randomValueOtherThan(temporality, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Irate(source, field, filter, window, timestamp, temporality);
+        Literal aggregatorVersion = randomFrom(Irate.AGGREGATOR_V1, Irate.AGGREGATOR_V2);
+        return new Irate(source, field, filter, window, timestamp, aggregatorVersion, temporality);
     }
 }

@@ -42,8 +42,8 @@ import org.elasticsearch.core.Releasables;
 )
 public class IrateV2DoubleAggregator {
 
-    public static final String DELTA_UNSUPPORTED_WARNING =
-        "Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.";
+    public static final String DELTA_UNSUPPORTED_WARNING = "Some nodes in your cluster don't support delta temporality for counters yet."
+        + " The affected time series are excluded from irate calculations. Upgrade your cluster to fix this.";
 
     public static DoubleIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos, Warnings warnings) {
         final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;

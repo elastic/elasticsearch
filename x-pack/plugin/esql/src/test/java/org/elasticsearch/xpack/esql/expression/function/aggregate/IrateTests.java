@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -48,7 +49,9 @@ public class IrateTests extends AbstractAggregationTestCase {
         for (List<TestCaseSupplier.TypedDataSupplier> valuesSupplier : valuesSuppliers) {
             for (TestCaseSupplier.TypedDataSupplier fieldSupplier : valuesSupplier) {
                 for (RateTests.TemporalityParameter temporality : RateTests.TemporalityParameter.values()) {
-                    suppliers.add(makeSupplier(fieldSupplier, temporality));
+                    for (var aggVersion : List.of(Irate.AGGREGATOR_V1, Irate.AGGREGATOR_V2)) {
+                        suppliers.add(makeSupplier(fieldSupplier, temporality, aggVersion));
+                    }
                 }
             }
         }
@@ -57,7 +60,7 @@ public class IrateTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Irate(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1), args.get(2));
+        return new Irate(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1), args.get(2), args.get(3));
     }
 
     @Override
@@ -86,12 +89,14 @@ public class IrateTests extends AbstractAggregationTestCase {
 
     private static TestCaseSupplier makeSupplier(
         TestCaseSupplier.TypedDataSupplier fieldSupplier,
-        RateTests.TemporalityParameter temporality
+        RateTests.TemporalityParameter temporality,
+        Literal aggregatorVersion
     ) {
         DataType type = counterType(fieldSupplier.type());
+        String versionStr = ((BytesRef) aggregatorVersion.value()).utf8ToString();
         return new TestCaseSupplier(
-            fieldSupplier.name() + " temporality=" + temporality,
-            List.of(type, DataType.DATETIME, DataType.KEYWORD, DataType.INTEGER, DataType.LONG),
+            fieldSupplier.name() + " temporality=" + temporality + " version=" + versionStr,
+            List.of(type, DataType.DATETIME, DataType.KEYWORD, DataType.KEYWORD, DataType.INTEGER, DataType.LONG),
             () -> {
                 TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
                 List<Object> dataRows = fieldTypedData.multiRowData();
@@ -125,6 +130,11 @@ public class IrateTests extends AbstractAggregationTestCase {
                     DataType.DATETIME,
                     "timestamps"
                 );
+                TestCaseSupplier.TypedData aggregatorVersionField = new TestCaseSupplier.TypedData(
+                    aggregatorVersion.value(),
+                    DataType.KEYWORD,
+                    "aggregatorVersion"
+                ).forceLiteral();
                 TestCaseSupplier.TypedData temporalityField = TestCaseSupplier.TypedData.multiRow(
                     temporalities,
                     DataType.KEYWORD,
@@ -140,8 +150,15 @@ public class IrateTests extends AbstractAggregationTestCase {
                 List<Object> nonNullDataRows = dataRows.stream().filter(Objects::nonNull).toList();
                 final Matcher<?> matcher = irateMatcher(nonNullDataRows, timestamps, temporality);
                 TestCaseSupplier.TestCase result = new TestCaseSupplier.TestCase(
-                    List.of(fieldTypedData, timestampsField, temporalityField, sliceIndexType, nextTimestampType),
-                    standardAggregatorName("Irate", fieldTypedData.type()),
+                    List.of(
+                        fieldTypedData,
+                        timestampsField,
+                        aggregatorVersionField,
+                        temporalityField,
+                        sliceIndexType,
+                        nextTimestampType
+                    ),
+                    standardAggregatorName("Irate" + versionStr, fieldTypedData.type()),
                     DataType.DOUBLE,
                     matcher
                 );
@@ -159,8 +176,9 @@ public class IrateTests extends AbstractAggregationTestCase {
                         "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
                     )
                         .withWarning(
-                            "Line 1:1: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality yet,"
-                                + " delta temporality series will be ignored. Upgrade your cluster to fix this."
+                            "Line 1:1: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality"
+                                + " for counters yet. The affected time series are excluded from irate calculations."
+                                + " Upgrade your cluster to fix this."
                         );
                 }
                 return result;
@@ -194,11 +212,12 @@ public class IrateTests extends AbstractAggregationTestCase {
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
-        assertThat(params, hasSize(5));
+        assertThat(params, hasSize(6));
         assertThat(params.get(1).dataType(), equalTo(DataType.DATETIME));
         assertThat(params.get(2).dataType(), equalTo(DataType.KEYWORD));
-        assertThat(params.get(3).dataType(), equalTo(DataType.INTEGER));
-        assertThat(params.get(4).dataType(), equalTo(DataType.LONG));
+        assertThat(params.get(3).dataType(), equalTo(DataType.KEYWORD));
+        assertThat(params.get(4).dataType(), equalTo(DataType.INTEGER));
+        assertThat(params.get(5).dataType(), equalTo(DataType.LONG));
         ArrayList<DocsV3Support.Param> result = new ArrayList<>();
         result.add(params.get(0));
         var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);

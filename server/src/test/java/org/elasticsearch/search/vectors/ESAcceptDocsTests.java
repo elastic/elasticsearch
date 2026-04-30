@@ -97,28 +97,6 @@ public class ESAcceptDocsTests extends ESTestCase {
         }
     }
 
-    public void testLazyIteratorAcceptDocs() throws IOException {
-        int[] docIds = new int[] { 1, 3, 5, 7, 9 };
-        BitSet bitSet = new FixedBitSet(10);
-        for (int docId : docIds) {
-            bitSet.set(docId);
-        }
-        // basic iteration, no live docs
-        {
-            DocIdSetIterator iterator = new BitSetIterator(bitSet, bitSet.cardinality());
-            DenseVectorQuery.LazyIteratorAcceptDocs acceptDocs = new DenseVectorQuery.LazyIteratorAcceptDocs(
-                new TestScorerSupplier(iterator)
-            );
-            expectThrows(UnsupportedOperationException.class, () -> acceptDocs.cost());
-            expectThrows(UnsupportedOperationException.class, () -> acceptDocs.bits());
-            DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
-            for (int docId : docIds) {
-                assertEquals(docId, acceptDocsIterator.nextDoc());
-            }
-            assertEquals(DocIdSetIterator.NO_MORE_DOCS, acceptDocsIterator.nextDoc());
-        }
-    }
-
     public void testFromScorerSupplierWithSlice() throws IOException {
         int[] docIds = new int[] { 1, 3, 5, 7, 9 };
         BitSet bitSet = new FixedBitSet(10);

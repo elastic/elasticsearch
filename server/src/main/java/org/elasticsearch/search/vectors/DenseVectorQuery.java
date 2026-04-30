@@ -12,7 +12,6 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
@@ -96,23 +95,6 @@ public abstract class DenseVectorQuery extends Query {
 
         abstract VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException;
 
-        /**
-         * Builds an {@link AcceptDocs} for the given leaf. Returns {@code null} when the
-         * filter matches no documents in this leaf (the leaf should be skipped entirely).
-         * The returned instance is guaranteed never to have {@link AcceptDocs#bits()} or
-         * {@link AcceptDocs#cost()} called on it, keeping filter evaluation fully lazy.
-         */
-        private AcceptDocs buildAcceptDocs(LeafReaderContext context) throws IOException {
-            if (filterWeight == null) {
-                return ESAcceptDocs.ESAcceptDocsAll.INSTANCE;
-            }
-            ScorerSupplier filterSupplier = filterWeight.scorerSupplier(context);
-            if (filterSupplier == null) {
-                return null;
-            }
-            return new LazyIteratorAcceptDocs(filterSupplier);
-        }
-
         @Override
         public Explanation explain(LeafReaderContext leafReaderContext, int i) throws IOException {
             if (filterWeight != null) {
@@ -140,24 +122,31 @@ public abstract class DenseVectorQuery extends Query {
             if (vectorScorer == null) {
                 return null;
             }
-            AcceptDocs acceptDocs = buildAcceptDocs(context);
-            if (acceptDocs == null) {
-                return null;
+            final DocIdSetIterator filterIterator;
+            final long cost;
+            if (filterWeight != null) {
+                ScorerSupplier filterSupplier = filterWeight.scorerSupplier(context);
+                if (filterSupplier == null) {
+                    return null;
+                }
+                filterIterator = filterSupplier.get(Long.MAX_VALUE).iterator();
+                cost = Math.min(vectorScorer.iterator().cost(), filterIterator.cost());
+            } else {
+                filterIterator = null;
+                cost = vectorScorer.iterator().cost();
             }
-            long cost = vectorScorer.iterator().cost();
             return new ScorerSupplier() {
                 @Override
                 public Scorer get(long leadCost) throws IOException {
-                    DocIdSetIterator acceptIter = acceptDocs.iterator();
-                    DocIdSetIterator iterator = acceptIter == null
+                    DocIdSetIterator iterator = filterIterator == null
                         ? vectorScorer.iterator()
-                        : ConjunctionUtils.intersectIterators(List.of(vectorScorer.iterator(), acceptIter));
+                        : ConjunctionUtils.intersectIterators(List.of(vectorScorer.iterator(), filterIterator));
                     return new DenseVectorScorer(vectorScorer, iterator, boost);
                 }
 
                 @Override
                 public BulkScorer bulkScorer() throws IOException {
-                    return new DenseVectorBulkScorer(vectorScorer, acceptDocs.iterator(), boost, cost);
+                    return new DenseVectorBulkScorer(vectorScorer, filterIterator, boost, cost);
                 }
 
                 @Override
@@ -375,31 +364,4 @@ public abstract class DenseVectorQuery extends Query {
         }
     }
 
-    /**
-     * An {@link AcceptDocs} backed by a {@link ScorerSupplier} that supports only lazy iterator
-     * access. Calling {@link #bits()} or {@link #cost()} throws {@link UnsupportedOperationException}
-     * to prevent accidental eager bitset materialization. Only {@link #iterator()} may be called.
-     */
-    static final class LazyIteratorAcceptDocs extends AcceptDocs {
-        private final ScorerSupplier scorerSupplier;
-
-        LazyIteratorAcceptDocs(ScorerSupplier scorerSupplier) {
-            this.scorerSupplier = scorerSupplier;
-        }
-
-        @Override
-        public Bits bits() throws IOException {
-            throw new UnsupportedOperationException("LazyIteratorAcceptDocs does not support bits()");
-        }
-
-        @Override
-        public DocIdSetIterator iterator() throws IOException {
-            return scorerSupplier.get(Long.MAX_VALUE).iterator();
-        }
-
-        @Override
-        public int cost() throws IOException {
-            throw new UnsupportedOperationException("LazyIteratorAcceptDocs does not support cost()");
-        }
-    }
 }

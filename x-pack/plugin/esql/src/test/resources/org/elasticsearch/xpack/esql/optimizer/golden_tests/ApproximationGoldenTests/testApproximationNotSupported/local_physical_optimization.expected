@@ -1,0 +1,5 @@
+LimitExec[1000[INTEGER],null]
+\_ExchangeExec[[mv{f}#0, sv{f}#1, sv_and_one_mv{f}#2],false]
+  \_ProjectExec[[mv{f}#0, sv{f}#1, sv_and_one_mv{f}#2]]
+    \_FieldExtractExec[mv{f}#0, sv{f}#1, sv_and_one_mv{f}#2]<[],[],[]>
+      \_EsQueryExec[many_numbers], indexMode[standard], [_doc{f}#3], limit[1000], sort[] estimatedRowSize[16] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

@@ -41,6 +41,8 @@ import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage.C
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -48,7 +50,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
@@ -95,6 +96,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -117,7 +119,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -557,18 +558,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         try (var service = createService(factory)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             MatcherAssert.assertThat(
@@ -577,7 +567,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -599,7 +588,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 false,
                 new HashMap<>(),
                 InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -622,18 +611,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         try (var service = createService(factory)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             MatcherAssert.assertThat(
@@ -647,7 +625,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -675,18 +652,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("input text"),
-                false,
-                new HashMap<>(),
-                InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("input text"), false, new HashMap<>(), InputType.SEARCH, null, listener);
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             assertThat(
@@ -731,18 +697,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var input = "input text";
             var inputType = "search";
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of(input),
-                false,
-                new HashMap<>(),
-                InputType.fromString(inputType),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of(input), false, new HashMap<>(), InputType.fromString(inputType), null, listener);
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
@@ -789,7 +744,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 false,
                 new HashMap<>(),
                 InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -855,18 +810,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("input text"),
-                false,
-                new HashMap<>(),
-                InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("input text"), false, new HashMap<>(), InputType.SEARCH, null, listener);
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             // Verify the response was processed correctly
@@ -933,7 +877,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.unifiedCompletionInfer(model, request, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.unifiedCompletionInfer(model, request, null, listener);
 
             // We don't need to check the actual response as we're only testing header propagation
             listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -990,7 +934,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.unifiedCompletionInfer(model, request, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.unifiedCompletionInfer(model, request, null, listener);
 
             // We don't need to check the actual response as we're only testing header propagation
             listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -1017,6 +961,266 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 }
                 """);
             assertThat(requestBody, is(expectedJson));
+        }
+    }
+
+    public void testUnifiedCompletionInfer_SupportsReasoning() throws Exception {
+        var elasticInferenceServiceURL = getUrl(webServer);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (
+            var service = createService(senderFactory, elasticInferenceServiceURL);
+            var ignored = threadPool.getThreadContext().stashContext()
+        ) {
+            // Mock a successful streaming response with reasoning
+            String mockedResponseJson = Strings.format("""
+                data: %s
+
+                data: %s
+
+                data: [DONE]
+
+                """, XContentHelper.stripWhitespace("""
+                {
+                    "id": "1",
+                    "object": "completion",
+                    "created": 1677858242,
+                    "model": "some model id",
+                    "choices": [{
+                            "finish_reason": null,
+                            "index": 0,
+                            "delta": {
+                                "role": "assistant",
+                                "content": "Hello",
+                                "reasoning": "some_reasoning",
+                                "reasoning_details": [{
+                                        "type": "reasoning.encrypted",
+                                        "format": "some_encrypted_reasoning_detail_format",
+                                        "id": "some_id_0",
+                                        "index": 0,
+                                        "data": "some_encrypted_data"
+                                    }, {
+                                        "type": "reasoning.summary",
+                                        "format": "some_summary_reasoning_detail_format",
+                                        "id": "some_id_1",
+                                        "index": 1,
+                                        "summary": "some_summary"
+                                    }, {
+                                        "type": "reasoning.text",
+                                        "format": "some_text_reasoning_detail_format",
+                                        "id": "some_id_2",
+                                        "index": 2,
+                                        "text": "some_text",
+                                        "signature": "some_signature"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+                """), XContentHelper.stripWhitespace("""
+                {
+                    "id": "2",
+                    "object": "completion",
+                    "created": 1677858242,
+                    "model": "some model id",
+                    "choices": [{
+                            "finish_reason": "stop",
+                            "index": 0,
+                            "delta": {
+                                "content": " world!"
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "completion_tokens": 15,
+                        "prompt_tokens": 5,
+                        "total_tokens": 30,
+                        "prompt_tokens_details": {
+                            "cached_tokens": 0
+                        },
+                        "completion_tokens_details": {
+                            "reasoning_tokens": 10
+                        }
+                    }
+                }
+                """));
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(mockedResponseJson));
+
+            // Create completion model
+            var model = new ElasticInferenceServiceCompletionModel(
+                INFERENCE_ENTITY_ID,
+                TaskType.CHAT_COMPLETION,
+                new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),
+                ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
+            );
+
+            var request = new UnifiedCompletionRequest(
+                List.of(
+                    new Message(
+                        new ContentString("Say `Hello world!`"),
+                        "user",
+                        null,
+                        null,
+                        "some_reasoning",
+                        List.of(
+                            new ReasoningDetail.EncryptedReasoningDetail(
+                                "some_encrypted_reasoning_detail_format",
+                                "some_id_0",
+                                0L,
+                                "some_encrypted_data"
+                            ),
+                            new ReasoningDetail.SummaryReasoningDetail(
+                                "some_summary_reasoning_detail_format",
+                                "some_id_1",
+                                1L,
+                                "some_summary"
+                            ),
+                            new ReasoningDetail.TextReasoningDetail(
+                                "some_text_reasoning_detail_format",
+                                "some_id_2",
+                                2L,
+                                "some_text",
+                                "some_signature"
+                            )
+                        )
+                    )
+                ),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, Reasoning.ReasoningSummary.DETAILED, false, false)
+            );
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            service.unifiedCompletionInfer(model, request, null, listener);
+
+            // Receiving results for validation
+            InferenceServiceResults inferenceServiceResults = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            // Verify the request was sent
+            assertThat(webServer.requests(), hasSize(1));
+            var requestBody = webServer.requests().getFirst().getBody();
+
+            // Check that reasoning was included in request
+            String expectedRequestJson = stripWhitespace("""
+                {
+                    "messages": [{
+                            "content": "Say `Hello world!`",
+                            "role": "user",
+                            "reasoning": "some_reasoning",
+                            "reasoning_details": [{
+                                    "type": "reasoning.encrypted",
+                                    "format": "some_encrypted_reasoning_detail_format",
+                                    "id": "some_id_0",
+                                    "index": 0,
+                                    "data": "some_encrypted_data"
+                                }, {
+                                    "type": "reasoning.summary",
+                                    "format": "some_summary_reasoning_detail_format",
+                                    "id": "some_id_1",
+                                    "index": 1,
+                                    "summary": "some_summary"
+                                }, {
+                                    "type": "reasoning.text",
+                                    "format": "some_text_reasoning_detail_format",
+                                    "id": "some_id_2",
+                                    "index": 2,
+                                    "text": "some_text",
+                                    "signature": "some_signature"
+                                }
+                            ]
+                        }
+                    ],
+                    "model": "some model id",
+                    "reasoning": {
+                        "effort": "medium",
+                        "summary": "detailed",
+                        "exclude": false,
+                        "enabled": false
+                    },
+                    "n": 1,
+                    "stream": true,
+                    "stream_options": {
+                        "include_usage": true
+                    }
+                }
+
+                """);
+            assertThat(requestBody, is(expectedRequestJson));
+            // Check that reasoning details were mapped correctly
+            InferenceEventsAssertion.assertThat(inferenceServiceResults)
+                .hasFinishedStream()
+                .hasNoErrors()
+                .hasEvent(XContentHelper.stripWhitespace("""
+                    {
+                        "id": "1",
+                        "choices": [{
+                                "delta": {
+                                    "content": "Hello",
+                                    "role": "assistant",
+                                    "reasoning": "some_reasoning",
+                                    "reasoning_details": [{
+                                            "type": "reasoning.encrypted",
+                                            "format": "some_encrypted_reasoning_detail_format",
+                                            "id": "some_id_0",
+                                            "index": 0,
+                                            "data": "some_encrypted_data"
+                                        }, {
+                                            "type": "reasoning.summary",
+                                            "format": "some_summary_reasoning_detail_format",
+                                            "id": "some_id_1",
+                                            "index": 1,
+                                            "summary": "some_summary"
+                                        }, {
+                                            "type": "reasoning.text",
+                                            "format": "some_text_reasoning_detail_format",
+                                            "id": "some_id_2",
+                                            "index": 2,
+                                            "text": "some_text",
+                                            "signature": "some_signature"
+                                        }
+                                    ]
+                                },
+                                "index": 0
+                            }
+                        ],
+                        "model": "some model id",
+                        "object": "completion"
+                    }
+                    """))
+                .hasEvent(XContentHelper.stripWhitespace("""
+                    {
+                        "id": "2",
+                        "choices": [{
+                                "delta": {
+                                    "content": " world!"
+                                },
+                                "finish_reason": "stop",
+                                "index": 0
+                            }
+                        ],
+                        "model": "some model id",
+                        "object": "completion",
+                        "usage": {
+                            "completion_tokens": 15,
+                            "prompt_tokens": 5,
+                            "total_tokens": 30,
+                            "prompt_tokens_details": {
+                                "cached_tokens": 0
+                            },
+                            "completion_tokens_details": {
+                                "reasoning_tokens": 10
+                            }
+                        }
+                    }
+                    """));
         }
     }
 
@@ -1061,7 +1265,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 List.of(new ChunkInferenceInput("hello world"), new ChunkInferenceInput("dense embedding")),
                 new HashMap<>(),
                 InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1116,7 +1320,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             service.embeddingInfer(
                 model,
                 new EmbeddingRequest(List.of(new InferenceStringGroup("first_input")), InputType.INGEST, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1180,7 +1384,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 List.of(new ChunkInferenceInput(firstInput), new ChunkInferenceInput(secondInput)),
                 new HashMap<>(),
                 InputType.fromString(inputType),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1251,15 +1455,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         try (var service = createService(senderFactory, getUrl(webServer))) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INGEST, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());
@@ -1293,18 +1489,13 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             var inputs = List.of(
                 new InferenceStringGroup("first_input"),
-                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, "second_input"))
+                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_DATA_URI))
             );
 
             var inputType = randomFrom(InputType.INGEST, InputType.SEARCH);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.embeddingInfer(
-                model,
-                new EmbeddingRequest(inputs, inputType, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.embeddingInfer(model, new EmbeddingRequest(inputs, inputType, Map.of()), null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -1337,12 +1528,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var inputType = randomFrom(InputType.INGEST, InputType.SEARCH);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.embeddingInfer(
-                model,
-                new EmbeddingRequest(inputs, inputType, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.embeddingInfer(model, new EmbeddingRequest(inputs, inputType, Map.of()), null, listener);
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -1649,7 +1835,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1715,31 +1901,22 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
-        var modelConfigurations = new ModelConfigurations(
-            INFERENCE_ENTITY_ID,
-            TaskType.ANY,
-            ElasticInferenceService.NAME,
-            mock(ServiceSettings.class)
-        );
+        // Need to use a mock here because ModelConfigurations does not accept TaskType.ANY as a valid argument
+        var modelConfigurationsMock = mock(ModelConfigurations.class);
+        when(modelConfigurationsMock.getInferenceEntityId()).thenReturn(INFERENCE_ENTITY_ID);
+        when(modelConfigurationsMock.getTaskType()).thenReturn(TaskType.ANY);
+        when(modelConfigurationsMock.getService()).thenReturn(ElasticInferenceService.NAME);
+        when(modelConfigurationsMock.getServiceSettings()).thenReturn(mock(ServiceSettings.class));
+
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var inferenceService = createService(senderFactory)) {
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurationsMock, mock(ModelSecrets.class))
             );
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ENTITY_ID,
-                        ElasticInferenceService.NAME,
-                        ElasticInferenceService.NAME,
-                        TaskType.ANY
-                    )
-                )
+                is(Strings.format("The [%s] service does not support task type [%s]", ElasticInferenceService.NAME, TaskType.ANY))
 
             );
         }

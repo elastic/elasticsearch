@@ -188,6 +188,13 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     }
 
     /**
+     * Clears {@link #getProjectRouting()}
+     */
+    public void clearProjectRouting() {
+        this.projectRouting = null;
+    }
+
+    /**
      * Creates a new sub-search request starting from the original search request that is provided.
      * For internal use only, allows to fork a search request into multiple search requests that will be executed independently.
      * Such requests will not be finally reduced, so that their results can be merged together in one response at completion.

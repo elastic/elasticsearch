@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 146716
+pr: 146780
+summary: Remove Hadoop JARs from Parquet plugin
+type: enhancement

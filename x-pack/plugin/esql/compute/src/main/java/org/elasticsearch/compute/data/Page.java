@@ -84,7 +84,6 @@ public final class Page implements Writeable, Releasable {
 
     private Page(boolean copyBlocks, int positionCount, Block[] blocks, @Nullable BatchMetadata batchMetadata) {
         Objects.requireNonNull(blocks, "blocks is null");
-        // assert assertPositionCount(blocks);
         this.positionCount = positionCount;
         this.blocks = copyBlocks ? blocks.clone() : blocks;
         this.batchMetadata = batchMetadata;
@@ -317,6 +316,10 @@ public final class Page implements Writeable, Releasable {
         }
     }
 
+    /**
+     * Makes a shallow copy of the {@link Page},
+     * {@link Block#incRef}ing all of the {@link Block}s.
+     */
     public Page shallowCopy() {
         for (Block b : blocks) {
             b.incRef();
@@ -371,11 +374,35 @@ public final class Page implements Writeable, Releasable {
             }
             success = true;
         } finally {
-            releaseBlocks();
             if (success == false) {
                 Releasables.closeExpectNoException(filteredBlocks);
             }
         }
         return new Page(false, positions.length, filteredBlocks, batchMetadata);
+    }
+
+    /**
+     * Return a subset of this {@link Page} from position {@code beginInclusive} to
+     * position {@code endExclusive}. This will always return a new {@linkplain Page}
+     * but will skip performing any copies if the slice is a noop.
+     * <p>
+     *     NOTE: Implementations will not try to optimize zero length slices
+     *     as we expect them to be rare.
+     * </p>
+     */
+    public Page slice(int beginInclusive, int endExclusive) {
+        Block[] slicedBlocks = new Block[blocks.length];
+        boolean success = false;
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                slicedBlocks[i] = getBlock(i).slice(beginInclusive, endExclusive);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(slicedBlocks);
+            }
+        }
+        return new Page(false, endExclusive - beginInclusive, slicedBlocks, batchMetadata);
     }
 }

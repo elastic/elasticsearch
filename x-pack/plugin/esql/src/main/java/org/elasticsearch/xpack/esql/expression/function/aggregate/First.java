@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -52,12 +53,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class First extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "First", First::readFrom);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(First.class).binary(First::new).name("first");
 
     private final Expression sort;
 
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        preview = true,
         returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
         description = """
             This function calculates the earliest occurrence of the search field
@@ -78,7 +79,7 @@ public class First extends AggregateFunction implements ToAggregator {
             number of unique values, and even more so if the search field
             has multi-values of high cardinality.
             ::::""",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = @Example(file = "stats_first_last", tag = "first")
     )
     public First(

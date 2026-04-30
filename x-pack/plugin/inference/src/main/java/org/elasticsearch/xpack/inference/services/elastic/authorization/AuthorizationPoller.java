@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -328,9 +329,31 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(
             authModelListener -> authorizationHandler.getAuthorization(authModelListener, sender)
         )
+            .<ElasticInferenceServiceAuthorizationModel>andThen(
+                (nextListener, authModel) -> deleteRemovedEndpoints(authModel, nextListener)
+            )
             .andThenApply(this::selectEndpointsToPersist)
             .<Void>andThen((storeListener, inferenceIdsToPersist) -> storePreconfiguredModels(inferenceIdsToPersist, storeListener))
             .addListener(listener);
+    }
+
+    private void deleteRemovedEndpoints(
+        ElasticInferenceServiceAuthorizationModel authModel,
+        ActionListener<ElasticInferenceServiceAuthorizationModel> listener
+    ) {
+        var toDelete = new HashSet<>(authModel.getRemovedEndpoints());
+        toDelete.retainAll(modelRegistry.getInferenceIds());
+
+        if (toDelete.isEmpty()) {
+            listener.onResponse(authModel);
+            return;
+        }
+
+        logger.info("Deleting removed EIS inference endpoints: {}", toDelete);
+        modelRegistry.deleteModels(toDelete, ActionListener.wrap(success -> listener.onResponse(authModel), e -> {
+            logger.atWarn().withThrowable(e).log("Failed to delete removed EIS inference endpoints: {}", toDelete);
+            listener.onResponse(authModel);
+        }));
     }
 
     private List<Model> selectEndpointsToPersist(ElasticInferenceServiceAuthorizationModel authModel) {
@@ -364,7 +387,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         }
 
         EndpointMetadata existingMetadata = existingEndpoint.endpointMetadata();
-        if (existingMetadata.fingerprintMatches(newEndpoint.getConfigurations().getEndpointMetadata()) == false) {
+        if (existingMetadata.fingerprintMatches(newEndpoint.getConfigurations().getEndpointMetadataOrEmpty()) == false) {
             logger.debug(
                 () -> Strings.format(
                     "[%s] selected for persistence, because its fingerprint has changed",
@@ -373,7 +396,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             );
             return true;
         }
-        if (newEndpoint.getConfigurations().getEndpointMetadata().hasNewerVersionThan(existingMetadata)) {
+        if (newEndpoint.getConfigurations().getEndpointMetadataOrEmpty().hasNewerVersionThan(existingMetadata)) {
             logger.debug(
                 () -> Strings.format("[%s] selected for persistence, because its version is higher", newEndpoint.getInferenceEntityId())
             );

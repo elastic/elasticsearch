@@ -169,11 +169,11 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     private void assertProfiles(boolean profiled, int totalShards, SearchResponse searchResponse) {
         if (false == profiled) {
-            assertThat(searchResponse.getProfileResults(), equalTo(Map.of()));
+            assertThat(searchResponse.getSearchProfileShardResults(), equalTo(Map.of()));
             return;
         }
-        assertThat(searchResponse.getProfileResults().values().size(), equalTo(totalShards));
-        for (SearchProfileShardResult profileShardResult : searchResponse.getProfileResults().values()) {
+        assertThat(searchResponse.getSearchProfileShardResults().values().size(), equalTo(totalShards));
+        for (SearchProfileShardResult profileShardResult : searchResponse.getSearchProfileShardResults().values()) {
             assertThat(profileShardResult.getFetchPhase().getTime(), equalTo(FETCH_PROFILE_TIME));
         }
     }
@@ -239,7 +239,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
@@ -350,7 +351,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     if (request.contextId().getId() == 321) {
@@ -392,14 +394,14 @@ public class FetchSearchPhaseTests extends ESTestCase {
                  * profiling information for the search on both shards but only
                  * for the fetch on the successful shard.
                  */
-                assertThat(searchResponse.getProfileResults().values().size(), equalTo(2));
-                assertThat(searchResponse.getProfileResults().get(shard1Target.toString()).getFetchPhase(), nullValue());
+                assertThat(searchResponse.getSearchProfileShardResults().values().size(), equalTo(2));
+                assertThat(searchResponse.getSearchProfileShardResults().get(shard1Target.toString()).getFetchPhase(), nullValue());
                 assertThat(
-                    searchResponse.getProfileResults().get(shard2Target.toString()).getFetchPhase().getTime(),
+                    searchResponse.getSearchProfileShardResults().get(shard2Target.toString()).getFetchPhase().getTime(),
                     equalTo(FETCH_PROFILE_TIME)
                 );
             } else {
-                assertThat(searchResponse.getProfileResults(), equalTo(Map.of()));
+                assertThat(searchResponse.getSearchProfileShardResults(), equalTo(Map.of()));
             }
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(ctx));
         } finally {
@@ -453,7 +455,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     new Thread(() -> {
@@ -507,9 +510,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertEquals(0, searchResponse.getFailedShards());
             assertEquals(numHits, searchResponse.getSuccessfulShards());
             if (profiled) {
-                assertThat(searchResponse.getProfileResults().values().size(), equalTo(numHits));
+                assertThat(searchResponse.getSearchProfileShardResults().values().size(), equalTo(numHits));
                 int count = 0;
-                for (SearchProfileShardResult profileShardResult : searchResponse.getProfileResults().values()) {
+                for (SearchProfileShardResult profileShardResult : searchResponse.getSearchProfileShardResults().values()) {
                     if (profileShardResult.getFetchPhase() != null) {
                         count++;
                         assertThat(profileShardResult.getFetchPhase().getTime(), equalTo(FETCH_PROFILE_TIME));
@@ -517,7 +520,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 }
                 assertThat(count, equalTo(Math.min(numHits, resultSetSize)));
             } else {
-                assertThat(searchResponse.getProfileResults(), equalTo(Map.of()));
+                assertThat(searchResponse.getSearchProfileShardResults(), equalTo(Map.of()));
             }
             int sizeReleasedContexts = Math.max(0, numHits - resultSetSize); // all non fetched results will be freed
             assertEquals(
@@ -591,7 +594,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
@@ -706,7 +710,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
@@ -741,10 +746,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertEquals(0, searchResponse.getFailedShards());
             assertEquals(2, searchResponse.getSuccessfulShards());
             if (profiled) {
-                assertThat(searchResponse.getProfileResults().size(), equalTo(2));
-                assertThat(searchResponse.getProfileResults().get(shard1Target.toString()).getFetchPhase(), nullValue());
+                assertThat(searchResponse.getSearchProfileShardResults().size(), equalTo(2));
+                assertThat(searchResponse.getSearchProfileShardResults().get(shard1Target.toString()).getFetchPhase(), nullValue());
                 assertThat(
-                    searchResponse.getProfileResults().get(shard2Target.toString()).getFetchPhase().getTime(),
+                    searchResponse.getSearchProfileShardResults().get(shard2Target.toString()).getFetchPhase().getTime(),
                     equalTo(FETCH_PROFILE_TIME)
                 );
             }
@@ -759,7 +764,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     }
 
-    private static BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> searchPhaseFactory(
+    static BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> searchPhaseFactory(
         MockSearchPhaseContext mockSearchPhaseContext
     ) {
         return (searchResponse, scrollId) -> new SearchPhase("test") {
@@ -770,13 +775,13 @@ public class FetchSearchPhaseTests extends ESTestCase {
         };
     }
 
-    private static void addProfiling(boolean profiled, QuerySearchResult queryResult) {
+    static void addProfiling(boolean profiled, QuerySearchResult queryResult) {
         if (profiled) {
             queryResult.profileResults(new SearchProfileQueryPhaseResult(List.of(), null));
         }
     }
 
-    private static ProfileResult fetchProfile(boolean profiled) {
+    public static ProfileResult fetchProfile(boolean profiled) {
         return profiled ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), FETCH_PROFILE_TIME, List.of()) : null;
     }
 

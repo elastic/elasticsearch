@@ -34,7 +34,29 @@ public interface QueryLogging {
      */
     String QUERY_FIELD_SHARDS = ES_QUERY_FIELDS_PREFIX + "shards.";
     /**
+     * Is this search only targeting system indices?
+     */
+    String QUERY_FIELD_IS_SYSTEM = ES_QUERY_FIELDS_PREFIX + "is_system";
+
+    /**
      * This is the name Log4j logger will use.
      */
     String QUERY_LOGGER_NAME = "elasticsearch.querylog";
+
+    /**
+     * Did this query come from another cluster?
+     */
+    String QUERY_FIELD_IS_REMOTE = ES_QUERY_FIELDS_PREFIX + "is_remote";
+    /**
+     * Counts of the statuses of the clusters - successful, skipped, failed, etc.
+     */
+    String QUERY_FIELD_REMOTE_STATUS = ES_QUERY_FIELDS_PREFIX + "clusters.";
+    /**
+     * How many remote clusters were involved in this query?
+     */
+    String QUERY_FIELD_REMOTE_COUNT = QUERY_FIELD_REMOTE_STATUS + "remote_count";
+    /**
+     * List of remote clusters involved in this query.
+     */
+    String QUERY_FIELD_REMOTES = QUERY_FIELD_REMOTE_STATUS + "remotes";
 }

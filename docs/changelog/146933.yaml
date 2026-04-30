@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 141830
+pr: 146933
+summary: Fix NPE when having double nested field with knn query
+type: bug

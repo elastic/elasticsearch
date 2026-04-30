@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
@@ -33,10 +35,14 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         Accountable,
         RawIndexingDataTransportRequest {
 
+    public static final TransportVersion BULK_SHARD_BATCH = TransportVersion.fromName("bulk_shard_batch");
+
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
     private final BulkItemRequest[] items;
     private final boolean isSimulated;
+    @Nullable
+    private BulkShardBatch bulkShardBatch = null;
 
     private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
 
@@ -44,6 +50,12 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
         isSimulated = in.readBoolean();
+        if (in.getTransportVersion().supports(BULK_SHARD_BATCH)) {
+            bulkShardBatch = in.readOptionalWriteable(BulkShardBatch::new);
+            if (bulkShardBatch != null) {
+                BulkShardBatch.attachBatchToItems(bulkShardBatch.getEirfBatch(), items);
+            }
+        }
     }
 
     public BulkShardRequest(
@@ -98,6 +110,19 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
      */
     public Map<String, InferenceFieldMetadata> getInferenceFieldMap() {
         return inferenceFieldMap;
+    }
+
+    /**
+     * Sets the batch for batch indexing. When non-null, the batch indexing path
+     * will be used instead of the standard per-document parsing path.
+     */
+    public void setBulkShardBatch(@Nullable BulkShardBatch bulkShardBatch) {
+        this.bulkShardBatch = bulkShardBatch;
+    }
+
+    @Nullable
+    public BulkShardBatch getBulkShardBatch() {
+        return bulkShardBatch;
     }
 
     public long totalSizeInBytes() {
@@ -159,9 +184,16 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             // Inferencing metadata should have been consumed as part of the ShardBulkInferenceActionFilter processing
             throw new IllegalStateException("Inference metadata should have been consumed before writing to the stream");
         }
+        boolean supportsBatch = out.getTransportVersion().supports(BULK_SHARD_BATCH);
+        if (supportsBatch == false && bulkShardBatch != null) {
+            throw new IllegalStateException("BulkShardBatch should not be set when transport version does not support it");
+        }
         super.writeTo(out);
         out.writeArray((o, item) -> o.writeOptional(BulkItemRequest.THIN_WRITER, item), items);
         out.writeBoolean(isSimulated);
+        if (supportsBatch) {
+            out.writeOptionalWriteable(bulkShardBatch);
+        }
     }
 
     @Override

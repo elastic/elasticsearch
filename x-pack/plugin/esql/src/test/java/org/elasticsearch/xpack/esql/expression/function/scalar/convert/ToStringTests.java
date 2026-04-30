@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CART
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -275,11 +276,12 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         suppliers.addAll(casesForDate("2020-02-03T10:12:14+01:00", "Europe/Madrid", "2020-02-03T10:12:14.000+01:00"));
         suppliers.addAll(casesForDate("2020-06-30T10:12:14+02:00", "Europe/Madrid", "2020-06-30T10:12:14.000+02:00"));
 
-        FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
         suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
             DataType type = typedData.type();
             if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM) {
-                return typedData.withAppliesTo(histogramAppliesTo);
+                return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
             }
             return typedData;
         }).toList()));
@@ -327,7 +329,8 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
                             new TestCaseSupplier.TypedData(
-                                new LongRangeBlockBuilder.LongRange(dateAsLong, dateAsLong),
+                                // Half-open [from, to): one millisecond window so both bounds format distinctly
+                                new LongRangeBlockBuilder.LongRange(dateAsLong, dateAsLong + 1),
                                 DataType.DATE_RANGE,
                                 "date"
                             )
@@ -335,7 +338,13 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
                         "ToStringFromDateRangeEvaluator[field=Attribute[channel=0], "
                             + "formatter=format[strict_date_optional_time] locale[]]",
                         DataType.KEYWORD,
-                        matchesBytesRef(expectedString + ".." + expectedString)
+                        matchesBytesRef(
+                            EsqlDataTypeConverter.dateRangeToString(
+                                dateAsLong,
+                                dateAsLong + 1,
+                                DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId)
+                            )
+                        )
                     ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
                 )
             );

@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -28,8 +27,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
 
@@ -108,15 +105,9 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
         /* Decider Testing */
 
         // Set up RoutingAllocation in non-simulation mode.
-        var routingAllocation = new RoutingAllocation(
-            null,
-            harness.mutableRoutingNodes,
-            harness.clusterState,
-            ClusterInfo.builder().build(),
-            null,
-            System.nanoTime(),
-            false // Turn off isSimulating
-        );
+        var routingAllocation = TestRoutingAllocationFactory.forClusterState(harness.clusterState)
+            .routingNodes(harness.mutableRoutingNodes)
+            .mutable();
 
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.unthrottle_replica_assignment_in_simulation", randomBoolean() ? true : false)
@@ -182,15 +173,10 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
         /* Decider Testing */
 
         // Set up RoutingAllocation in simulation mode.
-        var routingAllocation = new RoutingAllocation(
-            null,
-            mutableRoutingNodes,
-            harness.clusterState,
-            ClusterInfo.builder().build(),
-            null,
-            System.nanoTime(),
-            true // Turn on isSimulating
-        );
+        var routingAllocation = TestRoutingAllocationFactory.forClusterState(harness.clusterState)
+            .routingNodes(mutableRoutingNodes)
+            .mutable()
+            .mutableCloneForSimulation();
 
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.unthrottle_replica_assignment_in_simulation", true)

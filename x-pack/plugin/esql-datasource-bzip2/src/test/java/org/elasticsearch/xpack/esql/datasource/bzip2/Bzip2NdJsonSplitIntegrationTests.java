@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.bzip2;
 
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -18,6 +18,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2TestHelpers.reassembleLineAligned;
 
 /**
  * Integration tests for bzip2 split decompression with NDJSON and CSV data,
@@ -35,7 +37,7 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         byte[] data = ndjson.getBytes(StandardCharsets.UTF_8);
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         try (InputStream stream = codec.decompress(new ByteArrayInputStream(compressed))) {
             String result = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             assertEquals("Decompressed data should match original", ndjson, result);
@@ -49,22 +51,17 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         }
     }
 
-    public void testFullDecompressionMatchesStandard() throws IOException {
+    public void testFullDecompressionMatchesOriginal() throws IOException {
         String data = "line1\nline2\nline3\n";
         byte[] compressed = bzip2(data.getBytes(StandardCharsets.UTF_8), BZip2CompressorOutputStream.MIN_BLOCKSIZE);
 
-        String standard;
-        try (InputStream stream = new BZip2CompressorInputStream(new ByteArrayInputStream(compressed))) {
-            standard = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-        }
-
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         String codecResult;
         try (InputStream stream = codec.decompress(new ByteArrayInputStream(compressed))) {
             codecResult = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
 
-        assertEquals("Codec decompression should match standard", standard, codecResult);
+        assertEquals("Codec decompression should match original data", data, codecResult);
     }
 
     public void testSplitDecompressionMatchesFullDecompression() throws IOException {
@@ -72,28 +69,18 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
-        // Full decompression
         String fullResult;
         try (InputStream stream = codec.decompress(new ByteArrayInputStream(compressed))) {
             fullResult = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
 
-        // Split decompression
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
         assertTrue("Need multiple blocks", boundaries.length >= 2);
 
-        ByteArrayOutputStream splitResult = new ByteArrayOutputStream();
-        for (int i = 0; i < boundaries.length; i++) {
-            long start = boundaries[i];
-            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-            try (InputStream stream = codec.decompressRange(object, start, end)) {
-                splitResult.write(stream.readAllBytes());
-            }
-        }
-
-        assertEquals("Split decompression must match full decompression", fullResult, splitResult.toString(StandardCharsets.UTF_8));
+        String splitResult = reassembleLineAligned(codec, object, boundaries, compressed.length);
+        assertEquals("Split decompression must match full decompression", fullResult, splitResult);
     }
 
     public void testSplitDecompressionCsvMatchesFullDecompression() throws IOException {
@@ -101,7 +88,7 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         String fullResult;
         try (InputStream stream = codec.decompress(new ByteArrayInputStream(compressed))) {
@@ -111,16 +98,8 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
         assertTrue("Need multiple blocks for CSV", boundaries.length >= 2);
 
-        ByteArrayOutputStream splitResult = new ByteArrayOutputStream();
-        for (int i = 0; i < boundaries.length; i++) {
-            long start = boundaries[i];
-            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-            try (InputStream stream = codec.decompressRange(object, start, end)) {
-                splitResult.write(stream.readAllBytes());
-            }
-        }
-
-        assertEquals("Split CSV decompression must match full decompression", fullResult, splitResult.toString(StandardCharsets.UTF_8));
+        String splitResult = reassembleLineAligned(codec, object, boundaries, compressed.length);
+        assertEquals("Split CSV decompression must match full decompression", fullResult, splitResult);
     }
 
     public void testSplitDecompressionPreservesAllNdJsonRecords() throws IOException {
@@ -129,21 +108,12 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
 
-        ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
-        for (int i = 0; i < boundaries.length; i++) {
-            long start = boundaries[i];
-            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-            try (InputStream stream = codec.decompressRange(object, start, end)) {
-                reassembled.write(stream.readAllBytes());
-            }
-        }
-
-        String result = reassembled.toString(StandardCharsets.UTF_8);
+        String result = reassembleLineAligned(codec, object, boundaries, compressed.length);
         String[] lines = result.split("\n");
-        assertEquals("All NDJSON records must be present", recordCount, lines.length);
+        assertEquals("All NDJSON records must be present (no duplicates, none dropped)", recordCount, lines.length);
         for (int i = 0; i < lines.length; i++) {
             assertTrue("Line " + i + " should contain its id", lines[i].contains("\"id\":" + i));
         }
@@ -161,23 +131,11 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
             byte[] compressed = bzip2(data, blockSize);
             ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-            Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+            Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
             long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
 
-            ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
-            for (int i = 0; i < boundaries.length; i++) {
-                long start = boundaries[i];
-                long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-                try (InputStream stream = codec.decompressRange(object, start, end)) {
-                    reassembled.write(stream.readAllBytes());
-                }
-            }
-
-            assertEquals(
-                "Block size " + blockSize + " split decompression should match",
-                ndjson,
-                reassembled.toString(StandardCharsets.UTF_8)
-            );
+            String reassembled = reassembleLineAligned(codec, object, boundaries, compressed.length);
+            assertEquals("Block size " + blockSize + " split decompression should match", ndjson, reassembled);
         }
     }
 

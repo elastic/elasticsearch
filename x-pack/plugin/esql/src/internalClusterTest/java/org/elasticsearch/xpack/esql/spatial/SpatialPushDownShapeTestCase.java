@@ -22,6 +22,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
@@ -418,6 +419,128 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         }
     }
 
+    public void testStatsCentroidOneShard() throws IOException, ParseException {
+        statsCentroidManyShards(1);
+    }
+
+    public void testStatsCentroidManyShards() throws IOException, ParseException {
+        statsCentroidManyShards(16);
+    }
+
+    /**
+     * Test ST_CENTROID_AGG on shapes. This verifies that results are the same with and without doc-values,
+     * testing the EXTRACT_SPATIAL_CENTROID optimization.
+     */
+    private void statsCentroidManyShards(int numShards) throws IOException, ParseException {
+        assumeTrue("Test for shapes only", fieldType().contains("shape"));
+        initIndexes(numShards);
+
+        ArrayList<CentroidTest> data = new ArrayList<>();
+        // Various shapes for centroid testing
+        data.add(new CentroidTest("POINT(5 5)", true, true));
+        data.add(new CentroidTest("POINT(-5 -5)", true, true));
+        data.add(new CentroidTest("LINESTRING(0 0, 10 0)", true, true));
+        data.add(new CentroidTest("LINESTRING(-5 -5, 5 5)", true, true));
+        data.add(new CentroidTest("POLYGON ((-5 -5, 5 -5, 5 5, -5 5, -5 -5))", true, true));
+        data.add(new CentroidTest("POLYGON ((0 0, 8 0, 8 8, 0 8, 0 0))", true, true));
+        // Shapes that intersect but are not within
+        data.add(new CentroidTest("LINESTRING(5 5, 15 15)", true, false));
+        data.add(new CentroidTest("POLYGON ((-15 -15, 15 -15, 15 15, -15 15, -15 -15))", true, false));
+        // Shapes outside the test polygon
+        data.add(new CentroidTest("POINT(20 20)", false, false));
+        data.add(new CentroidTest("LINESTRING(15 15, 25 25)", false, false));
+        data.add(new CentroidTest("POLYGON ((15 15, 25 15, 25 25, 15 25, 15 15))", false, false));
+        // Null data
+        data.add(new CentroidTest(null, false, false));
+        data.add(new CentroidTest(null, false, false));
+
+        int expectedIntersects = 0;
+        int expectedWithin = 0;
+        int expectedDisjoint = 0;
+        CentroidCalculator intersectsCentroid = new CentroidCalculator();
+        CentroidCalculator withinCentroid = new CentroidCalculator();
+        CentroidCalculator disjointCentroid = new CentroidCalculator();
+        CentroidCalculator totalCentroid = new CentroidCalculator();
+
+        for (int i = 0; i < data.size(); i++) {
+            CentroidTest test = data.get(i);
+            if (test.data == null) {
+                addEmptyToIndexes(i, "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+            } else {
+                addToIndexes(i, "\"" + test.data + "\"", "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+                Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, test.data);
+                totalCentroid.add(geometry);
+                if (test.intersects) {
+                    expectedIntersects++;
+                    intersectsCentroid.add(geometry);
+                } else {
+                    expectedDisjoint++;
+                    disjointCentroid.add(geometry);
+                }
+                if (test.within) {
+                    expectedWithin++;
+                    withinCentroid.add(geometry);
+                }
+            }
+        }
+        refresh("indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+
+        for (String polygon : new String[] {
+            "POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))",
+            "POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))" }) {
+            assertCentroidFunction("ST_WITHIN", polygon, expectedWithin, withinCentroid, numShards);
+            assertCentroidFunction("ST_INTERSECTS", polygon, expectedIntersects, intersectsCentroid, numShards);
+            assertCentroidFunction("ST_DISJOINT", polygon, expectedDisjoint, disjointCentroid, numShards);
+            assertCentroidFunction(null, polygon, data.size(), totalCentroid, numShards);
+        }
+    }
+
+    private record CentroidTest(String data, boolean intersects, boolean within) {}
+
+    protected void assertCentroidFunction(
+        String spatialFunction,
+        String wkt,
+        long expected,
+        CentroidCalculator expectedCentroid,
+        int expectedShards
+    ) throws IOException, ParseException {
+        String prefix = spatialFunction == null ? "ALL[expected=" : spatialFunction + "[expected=";
+        String filter = spatialFunction == null
+            ? ""
+            : String.format(Locale.ROOT, " | WHERE %s(location, %s(\"%s\"))", spatialFunction, castingFunction(), wkt);
+        List<String> queries = getQueries("FROM indexed" + filter + " | STATS COUNT(*), ST_CENTROID_AGG(location)");
+        try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
+            for (int i = 0; i < ALL_INDEXES.length; i++) {
+                NumShards numShards = getNumShards(ALL_INDEXES[i]);
+                assertThat("Number of shards for " + ALL_INDEXES[i], numShards.numPrimaries, equalTo(expectedShards));
+                Object resultCount = responses.getResponse(i, 0);
+                Object resultCentroid = responses.getResponse(i, 1);
+                assertEquals(prefix + expected + "] for " + ALL_INDEXES[i], expected, resultCount);
+                if (expected > 0) {
+                    assertThat(
+                        prefix + centroidToString(expectedCentroid) + "] for " + ALL_INDEXES[i],
+                        expectedCentroid,
+                        matchesCentroid(resultCentroid)
+                    );
+                }
+            }
+            long allIndexesCount = (long) responses.getResponse(ALL_INDEXES.length, 0);
+            assertEquals(prefix + expected + "] for all indexes", expected * 4, allIndexesCount);
+            if (expected > 0) {
+                Object allIndexesCentroid = responses.getResponse(ALL_INDEXES.length, 1);
+                assertThat(
+                    prefix + centroidToString(expectedCentroid) + "] for all indexes",
+                    expectedCentroid,
+                    matchesCentroid(allIndexesCentroid)
+                );
+            }
+        }
+    }
+
+    private String centroidToString(CentroidCalculator centroid) {
+        return "Centroid (x:" + centroid.getX() + ", y:" + centroid.getY() + ")";
+    }
+
     private record ExtentTest(String data, boolean intersects, boolean within, Rectangle extent) {
         private ExtentTest(String data, boolean intersects, boolean within, boolean isCartesian) throws IOException, ParseException {
             this(data, intersects, within, getExtent(data, isCartesian));
@@ -550,10 +673,6 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         return shape.visit(visitor);
     }
 
-    private List<Double> getExtentBoundSorted(List<Rectangle> extents, Function<Rectangle, Double> extractor) {
-        return extents.stream().map(extractor).sorted().toList();
-    }
-
     private List<Double> getResponseSorted(TestQueryResponseCollection responses, int index, int column) {
         return responses.getResponses(index, column).stream().map(o -> (Double) o).sorted().toList();
     }
@@ -572,11 +691,15 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         boolean isCartesian = fieldType().equals("shape");
         try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
             List<Geometry> quantizedShapes = getQuantizedResponsesAsType(responses, 0, 0, Geometry.class);
-            List<Rectangle> quantizedExtents = quantizedShapes.stream().map(s -> getExtent(s, isCartesian)).toList();
-            List<Double> xMinQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMinX);
-            List<Double> xMaxQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMaxX);
-            List<Double> yMinQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMinY);
-            List<Double> yMaxQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMaxY);
+            // ST_X/YMIN/MAX on shapes is evaluated server-side as "envelope of raw shape, then quantize the bound",
+            // so the expected values must be computed the same way - not by quantizing each point before taking
+            // the envelope, which can disagree with the server at the dateline wrap tiebreak.
+            List<Geometry> rawShapes = getResponsesAsType(responses, 0, 0, Geometry.class);
+            List<Rectangle> rawExtents = rawShapes.stream().map(s -> getExtent(s, isCartesian)).toList();
+            List<Double> xMinQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMinX, this::quantizeX);
+            List<Double> xMaxQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMaxX, this::quantizeX);
+            List<Double> yMinQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMinY, this::quantizeY);
+            List<Double> yMaxQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMaxY, this::quantizeY);
             for (int index = 0; index < ALL_INDEXES.length; index++) {
                 List<Geometry> resultShapes = getResponsesAsType(responses, index, 0, Geometry.class);
                 int countDifferent = 0;
@@ -617,6 +740,20 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
                 }
             }
         }
+    }
+
+    /**
+     * Extract a bound from each extent, quantize it the same way the server does in
+     * {@code St{X,Y}{Min,Max}#buildEnvelopeResults}, and return the sorted list. Quantizing after the envelope
+     * (rather than quantizing every point first) is what the WKB-backed server evaluator does - pre-quantizing
+     * points can flip the wrap/no-wrap tiebreak in {@code GeoPointVisitor} for shapes that span both datelines.
+     */
+    private List<Double> getQuantizedExtentBoundSorted(
+        List<Rectangle> extents,
+        Function<Rectangle, Double> extractor,
+        Function<Double, Double> quantizer
+    ) {
+        return extents.stream().map(r -> quantizer.apply(extractor.apply(r))).sorted().toList();
     }
 
     protected class TestQuantizedGeometryVisitor implements GeometryVisitor<Geometry, RuntimeException> {

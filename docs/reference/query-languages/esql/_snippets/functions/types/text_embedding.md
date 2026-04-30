@@ -2,7 +2,7 @@
 
 ## Supported types
 
-| text | inference_id | result |
-| --- | --- | --- |
-| keyword | keyword | dense_vector |
+| text | inference_id | options | result |
+| --- | --- | --- | --- |
+| keyword | keyword | named parameters | dense_vector |
 

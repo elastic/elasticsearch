@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
-import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_META_CODEC_NAME;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_META_EXTENSION;
@@ -64,6 +63,7 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_VERS
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
 import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousMemorySegment;
 import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousPackedMemorySegment;
+import static org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 
 /**
  * Writer that builds an Nvidia Carga Graph on GPU and then writes it into the Lucene99 HNSW format,
@@ -330,13 +330,14 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             if (algorithm == CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT) {
                 logger.debug(
                     "Building CAGRA graph: numVectors=[{}], dims=[{}], algorithm=[{}], similarity=[{}], "
-                        + "graphDegree=[{}], intermediateGraphDegree=[{}], nnDescentIterations=[5], dataType=[{}]",
+                        + "graphDegree=[{}], intermediateGraphDegree=[{}], nnDescentIterations=[{}], dataType=[{}]",
                     dataset.size(),
                     dataset.columns(),
                     algorithm,
                     fieldInfo.getVectorSimilarityFunction(),
                     M,
                     beamWidth,
+                    cagraIndexParams.getNNDescentNumIterations(),
                     dataType
                 );
             } else {
@@ -344,11 +345,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 var ivfPqIndexParams = cagraIndexParams.getCuVSIvfPqParams().getIndexParams();
                 logger.debug(
                     "Building CAGRA graph: numVectors=[{}], dims=[{}], algorithm=[{}], similarity=[{}], "
-                        + "pqDim=[{}], pqBits=[{}], nLists=[{}], dataType=[{}]",
+                        + "graphDegree=[{}], intermediateGraphDegree=[{}], pqDim=[{}], pqBits=[{}], nLists=[{}], dataType=[{}]",
                     dataset.size(),
                     dataset.columns(),
                     algorithm,
                     fieldInfo.getVectorSimilarityFunction(),
+                    cagraIndexParams.getGraphDegree(),
+                    cagraIndexParams.getIntermediateGraphDegree(),
                     ivfPqIndexParams.getPqDim(),
                     ivfPqIndexParams.getPqBits(),
                     ivfPqIndexParams.getnLists(),
@@ -368,6 +371,32 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     }
 
     private CagraIndexParams createCagraIndexParams(VectorSimilarityFunction similarityFunction, int numVectors, int dims) {
+        int nnDescentNumIterations = ES92GpuHnswVectorsFormat.cagraNNDescentNumIterations(beamWidth);
+        return createCagraIndexParams(
+            similarityFunction,
+            numVectors,
+            dims,
+            M,
+            beamWidth,
+            nnDescentNumIterations,
+            dataType,
+            totalDeviceMemory
+        );
+    }
+
+    static CagraIndexParams createCagraIndexParams(
+        VectorSimilarityFunction similarityFunction,
+        int numVectors,
+        int dims,
+        int graphDegree,
+        int intermediateGraphDegree,
+        int nnDescentNumIterations,
+        CuVSMatrix.DataType dataType,
+        long totalDeviceMemory
+    ) {
+        // CAGRA requires the intermediate graph degree to be strictly larger than the graph degree
+        intermediateGraphDegree = Math.max(graphDegree + 1, intermediateGraphDegree);
+
         CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
             case COSINE -> CagraIndexParams.CuvsDistanceType.CosineExpanded;
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
@@ -405,18 +434,21 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
 
         if (useIvfPQ) {
-            var ivfPqParams = CuVSIvfPqParamsFactory.create(numVectors, dims, distanceType, beamWidth);
+            var ivfPqParams = CuVSIvfPqParamsFactory.create(numVectors, dims, distanceType, intermediateGraphDegree);
             params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
                 .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ)
                 .withCuVSIvfPqParams(ivfPqParams)
+                .withGraphDegree(graphDegree)
+                .withIntermediateGraphDegree(intermediateGraphDegree)
+                .withNNDescentNumIterations(nnDescentNumIterations)
                 .withMetric(distanceType)
                 .build();
         } else {
             params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
                 .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
-                .withGraphDegree(M)
-                .withIntermediateGraphDegree(beamWidth)
-                .withNNDescentNumIterations(5)
+                .withGraphDegree(graphDegree)
+                .withIntermediateGraphDegree(intermediateGraphDegree)
+                .withNNDescentNumIterations(nnDescentNumIterations)
                 .withMetric(distanceType)
                 .build();
         }
@@ -530,7 +562,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
             @Override
             public NodesIterator getNodesOnLevel(int level) {
-                return new ArrayNodesIterator(size());
+                return new DenseNodesIterator(size());
             }
         };
     }
@@ -587,7 +619,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
-            var input = FilterIndexInput.unwrapOnlyTest(slice);
+            var input = FilterIndexInput.unwrap(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
                 // Direct access to mmapped file
                 // for int8_hnsw, the raw vector data has extra 4-byte at the end of each vector to encode a correction constant
@@ -630,9 +662,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
                 try (IndexInput clonedSlice = slice.clone()) {
                     clonedSlice.seek(0);
-                    byte[] vector = new byte[fieldInfo.getVectorDimension()];
+                    int dims = fieldInfo.getVectorDimension();
+                    byte[] vector = new byte[dims];
                     for (int i = 0; i < numVectors; ++i) {
-                        clonedSlice.readBytes(vector, 0, fieldInfo.getVectorDimension());
+                        clonedSlice.readBytes(vector, 0, dims);
+                        clonedSlice.skipBytes(4); // skip scalar quantization correction constant
                         builder.addVector(vector);
                     }
                 }
@@ -687,7 +721,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
-            var input = FilterIndexInput.unwrapOnlyTest(slice);
+            var input = FilterIndexInput.unwrap(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
                 // Fast path, possible direct access to mmapped file
                 try (

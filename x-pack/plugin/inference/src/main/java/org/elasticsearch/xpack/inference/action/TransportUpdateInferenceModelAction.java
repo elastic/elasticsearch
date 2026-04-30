@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -40,6 +39,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.ingest.IngestDocument.deepCopyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveTaskType;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 
@@ -169,8 +170,14 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     ActionListener<Model> updateModelListener = listener.delegateFailureAndWrap(
                         (delegate, verifiedModel) -> modelRegistry.updateModelTransaction(verifiedModel, existingParsedModel, delegate)
                     );
-                    ModelValidatorBuilder.buildModelValidator(mergedParsedModel.getTaskType(), service.get())
-                        .validate(service.get(), mergedParsedModel, TimeValue.THIRTY_SECONDS, updateModelListener);
+                    var taskType = mergedParsedModel.getTaskType();
+                    ModelValidatorBuilder.buildModelValidator(taskType, service.get())
+                        .validate(
+                            service.get(),
+                            mergedParsedModel,
+                            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType),
+                            updateModelListener
+                        );
                 }
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {
@@ -210,7 +217,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
      * @param serviceName the name of the service
      * @return a new object representing the updated model configurations
      */
-    protected ModelConfigurations combineExistingModelConfigurationsWithNewSettings(
+    ModelConfigurations combineExistingModelConfigurationsWithNewSettings(
         Model existingParsedModel,
         UpdateInferenceModelAction.Settings newSettings,
         String serviceName
@@ -223,10 +230,10 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         ServiceSettings mergedServiceSettings = existingServiceSettings;
 
         if (newSettings.serviceSettings() != null) {
-            mergedServiceSettings = mergedServiceSettings.updateServiceSettings(newSettings.serviceSettings());
+            mergedServiceSettings = mergedServiceSettings.updateServiceSettings(deepCopyMap(newSettings.serviceSettings()));
         }
         if (newSettings.taskSettings() != null) {
-            mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(newSettings.taskSettings());
+            mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(deepCopyMap(newSettings.taskSettings()));
         }
 
         return new ModelConfigurations(
@@ -245,12 +252,12 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
      * @param newSettingsMap new secrets to update
      * @return a new object representing the updated model secrets
      */
-    protected ModelSecrets combineExistingSecretsWithNewSecrets(Model existingParsedModel, Map<String, Object> newSettingsMap) {
+    ModelSecrets combineExistingSecretsWithNewSecrets(Model existingParsedModel, Map<String, Object> newSettingsMap) {
         SecretSettings existingSecretSettings = existingParsedModel.getSecretSettings();
         SecretSettings mergedSecretSettings = existingSecretSettings;
 
         if (newSettingsMap != null && existingSecretSettings != null) {
-            mergedSecretSettings = existingSecretSettings.newSecretSettings(newSettingsMap);
+            mergedSecretSettings = existingSecretSettings.newSecretSettings(deepCopyMap(newSettingsMap));
         }
 
         return new ModelSecrets(mergedSecretSettings);

@@ -1,0 +1,6 @@
+area: Codec
+issues: []
+pr: 145658
+summary: Use `DirectAccessInput` in `ZstdDecompressor` to avoid intermediate heap
+  copy
+type: enhancement

@@ -3,7 +3,7 @@
 ## Parameters
 
 `interval`
-:   Interval; expressed using the timespan literal syntax.
+:   Interval; [time span](/reference/query-languages/esql/esql-time-spans.md) (DATE_PERIOD or TIME_DURATION).
 
 `date`
 :   Date expression

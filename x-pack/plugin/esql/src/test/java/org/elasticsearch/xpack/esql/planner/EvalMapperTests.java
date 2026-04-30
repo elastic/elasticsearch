@@ -86,6 +86,7 @@ public class EvalMapperTests extends ESTestCase {
         10000000,
         100000,
         null,
+        null,
         Map.of()
     );
 

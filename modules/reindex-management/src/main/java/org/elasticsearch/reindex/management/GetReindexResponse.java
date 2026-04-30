@@ -4,7 +4,7 @@
  * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
  * Public License v 1"; you may not use this file except in compliance with, at
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v 3.0 only", or the "Server Side Public License, v 1".
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex.management;
@@ -25,11 +25,9 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.util.Objects.requireNonNull;
-
 public class GetReindexResponse extends ActionResponse implements ToXContentObject {
 
-    private final TaskResult task;
+    private final TaskResult taskResult;
 
     /**
      * Matches a reindex description and captures only the safe fields we want to expose:
@@ -37,63 +35,70 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
      * group(2) = source indices
      * group(3) = destination index
      */
-    private static final Pattern DESCRIPTION_PATTERN = Pattern.compile(
-        "(?s)^reindex from (?:\\[((?:scheme=\\S+ )?host=\\S+ port=\\d+(?:\\s+pathPrefix=\\S+)?) .+\\])?\\[([^\\]]*)].*to \\[([^\\]]*)]$"
-    );
+    private static final Pattern DESCRIPTION_PATTERN = Pattern.compile("(?s)^reindex from " +
+    // group(1): optional remote info
+        "(?:\\[((?:scheme=\\S+ )?host=\\S+ port=\\d+(?:\\s+pathPrefix=\\S+)?)(?: .+)?\\])?" +
+        // group(2): source indices
+        "\\[([^\\]]*)].*" +
+        // group(3): destination index
+        "to \\[([^\\]]*)]$");
 
-    public GetReindexResponse(TaskResult task) {
-        this.task = requireNonNull(task, "task is required");
+    public GetReindexResponse(final TaskResult taskResult) {
+        this.taskResult = Objects.requireNonNull(taskResult, "taskResult is required");
     }
 
     public GetReindexResponse(StreamInput in) throws IOException {
-        task = in.readOptionalWriteable(TaskResult::new);
+        this(new TaskResult(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(task);
+        taskResult.writeTo(out);
     }
 
     public TaskResult getTaskResult() {
-        return task;
+        return taskResult;
     }
 
     /**
-     * Only selected fields are exposed, to hide task related implementation details
+     * Only selected fields are exposed, to hide task related implementation details.
+     * If relocation occurred, the Get Task API already merged timing so the result reflects the full duration.
      */
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        TaskInfo taskInfo = task.getTask();
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field("completed", task.isCompleted());
-        taskInfoToXContent(builder, params, taskInfo);
-        if (task.getError() != null) {
-            XContentHelper.writeRawField("error", task.getError(), builder.contentType(), builder, params);
+        builder.field("completed", taskResult.isCompleted());
+        taskInfoToXContent(builder, params, taskResult.getTask());
+        if (taskResult.getError() != null) {
+            XContentHelper.writeRawField("error", taskResult.getError(), builder.contentType(), builder, params);
         }
-        if (task.getResponse() != null) {
-            XContentHelper.writeRawField("response", task.getResponse(), builder.contentType(), builder, params);
+        if (taskResult.getResponse() != null) {
+            XContentHelper.writeRawField("response", taskResult.getResponse(), builder.contentType(), builder, params);
         }
         builder.endObject();
         return builder;
     }
 
-    // reindex specific TaskInfo serialization
-    static XContentBuilder taskInfoToXContent(XContentBuilder builder, Params params, TaskInfo taskInfo) throws IOException {
-        builder.field("id", taskInfo.node() + ":" + taskInfo.id());
-        Optional<String> description = sanitizeDescription(taskInfo.description());
+    /**
+     * Renders reindex-specific task info fields.
+     * Uses {@link TaskInfo#originalTaskId()} as the user-facing identity so that the originally-returned task ID is always shown,
+     * even after relocation. Start time and running time are already adjusted by the relocation-aware Get Task API.
+     */
+    static XContentBuilder taskInfoToXContent(final XContentBuilder builder, final Params params, final TaskInfo info) throws IOException {
+        builder.field("id", info.originalTaskId().toString());
+        Optional<String> description = sanitizeDescription(info.description());
         if (description.isPresent()) {
             builder.field("description", description.get());
         }
-        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", taskInfo.startTime());
+        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", info.startTime());
         if (builder.humanReadable()) {
-            builder.field("running_time", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString());
+            builder.field("running_time", TimeValue.timeValueNanos(info.runningTimeNanos()).toString());
         }
-        builder.field("running_time_in_nanos", taskInfo.runningTimeNanos());
-        builder.field("cancelled", taskInfo.cancelled());
-        if (taskInfo.status() != null) {
-            builder.field("status", taskInfo.status(), params);
+        builder.field("running_time_in_nanos", info.runningTimeNanos());
+        builder.field("cancelled", info.cancelled());
+        if (info.status() != null) {
+            builder.field("status", info.status(), params);
         }
-
         return builder;
     }
 
@@ -121,15 +126,20 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
     }
 
     @Override
+    public String toString() {
+        return "GetReindexResponse{result=" + taskResult + '}';
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetReindexResponse that = (GetReindexResponse) o;
-        return Objects.equals(task, that.task);
+        return Objects.equals(taskResult, that.taskResult);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(task);
+        return Objects.hash(taskResult);
     }
 }

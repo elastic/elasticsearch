@@ -1058,7 +1058,18 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             case DATE_RANGE -> {
                 if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
-                    yield equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z");
+                    // Older nodes in snapshot-to-snapshot BWC
+                    // had a bug: they leaked the doc-value upper bound (last millisecond before
+                    // `to` in `from..to`)
+                    // into the output instead of `to` itself. Accept the buggy form too while the
+                    // feature is still under construction.
+                    if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false) == false) {
+                        yield anyOf(
+                            equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z"),
+                            equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z")
+                        );
+                    }
+                    yield equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z");
                 }
                 yield nullValue();
             }
@@ -1089,7 +1100,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             // TODO: current versions already support _tsid; update this once we can tell whether all nodes support it.
             case OBJECT, SOURCE, DOC_DATA_TYPE, TSID_DATA_TYPE,
                 // Internal only
-                UNSUPPORTED,
+                UNSUPPORTED, PARTIAL_AGG,
                 // You can't index these - they are just constants.
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
                 // TODO fix geo
@@ -1396,7 +1407,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
             case TEXT -> syntheticSourceByDefault()
-                ? matchesList().item("column_at_a_time:BlockDocValuesReader.BytesCustom")
+                ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             default -> matchesList();

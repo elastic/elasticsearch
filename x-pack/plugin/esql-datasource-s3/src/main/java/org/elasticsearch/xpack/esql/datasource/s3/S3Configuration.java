@@ -6,103 +6,73 @@
  */
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
 import java.util.Map;
-import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.secret;
 
 /**
  * Configuration for S3 access including credentials and endpoint settings.
+ * <p>
+ * Supports authentication modes:
+ * <ul>
+ *   <li>Access key + secret key (static credentials)</li>
+ *   <li>{@code auth=none} for anonymous access to public buckets</li>
+ *   <li>Default credentials (IAM role, instance profile) when no explicit credentials are provided</li>
+ * </ul>
  */
-public class S3Configuration {
+public class S3Configuration extends FileDataSourceConfiguration {
 
-    private final String accessKey;
-    private final String secretKey;
-    private final String endpoint;
-    private final String region;
+    private static final DataSourceConfigDefinition ACCESS_KEY = secret("access_key");
+    private static final DataSourceConfigDefinition SECRET_KEY = secret("secret_key");
+    private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
+    private static final DataSourceConfigDefinition REGION = plaintext("region");
 
-    private S3Configuration(String accessKey, String secretKey, String endpoint, String region) {
-        this.accessKey = accessKey;
-        this.secretKey = secretKey;
-        this.endpoint = endpoint;
-        this.region = region;
+    private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
+        ACCESS_KEY,
+        SECRET_KEY,
+        ENDPOINT,
+        REGION,
+        AUTH
+    );
+
+    private S3Configuration(Map<String, Object> raw) {
+        super(raw, FIELDS);
     }
 
-    public static S3Configuration fromParams(Map<String, Expression> params) {
-        if (params == null || params.isEmpty()) {
-            return null;
-        }
-
-        String accessKey = extractStringParam(params, "access_key");
-        String secretKey = extractStringParam(params, "secret_key");
-        String endpoint = extractStringParam(params, "endpoint");
-        String region = extractStringParam(params, "region");
-
-        if (accessKey == null && secretKey == null && endpoint == null && region == null) {
-            return null;
-        }
-
-        return new S3Configuration(accessKey, secretKey, endpoint, region);
+    public static S3Configuration fromMap(Map<String, Object> raw) {
+        return raw == null || raw.isEmpty() ? null : new S3Configuration(raw);
     }
 
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region) {
-        if (accessKey == null && secretKey == null && endpoint == null && region == null) {
-            return null;
-        }
-        return new S3Configuration(accessKey, secretKey, endpoint, region);
+        return fromFields(accessKey, secretKey, endpoint, region, null);
     }
 
-    private static String extractStringParam(Map<String, Expression> params, String key) {
-        Expression expr = params.get(key);
-        if (expr instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal) {
-            Object value = literal.value();
-            if (value instanceof BytesRef bytesRef) {
-                return BytesRefs.toString(bytesRef);
-            }
-            return value != null ? value.toString() : null;
-        }
-        return null;
+    public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region, String auth) {
+        var raw = buildRawMap(ACCESS_KEY, accessKey, SECRET_KEY, secretKey, ENDPOINT, endpoint, REGION, region, AUTH, auth);
+        return raw != null ? fromMap(raw) : null;
     }
 
     public String accessKey() {
-        return accessKey;
+        return get(ACCESS_KEY.name());
     }
 
     public String secretKey() {
-        return secretKey;
+        return get(SECRET_KEY.name());
     }
 
     public String endpoint() {
-        return endpoint;
+        return get(ENDPOINT.name());
     }
 
     public String region() {
-        return region;
+        return get(REGION.name());
     }
 
     public boolean hasCredentials() {
-        return accessKey != null && secretKey != null;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        S3Configuration that = (S3Configuration) o;
-        return Objects.equals(accessKey, that.accessKey)
-            && Objects.equals(secretKey, that.secretKey)
-            && Objects.equals(endpoint, that.endpoint)
-            && Objects.equals(region, that.region);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(accessKey, secretKey, endpoint, region);
+        return accessKey() != null && secretKey() != null;
     }
 }

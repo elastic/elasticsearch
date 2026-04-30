@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.inference.services.fireworksai.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsModel;
@@ -27,7 +30,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * HTTP request wrapper for FireworksAI embeddings API calls.
  * Handles request construction, authentication, truncation, and serialization.
  */
-public class FireworksAiEmbeddingsRequest implements Request {
+public class FireworksAiEmbeddingsRequest implements DenseEmbeddingRequest {
 
     private final List<String> input;
     private final FireworksAiEmbeddingsModel model;
@@ -38,7 +41,7 @@ public class FireworksAiEmbeddingsRequest implements Request {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.uri());
 
         // Only include dimensions in the request if explicitly set by the user.
@@ -57,7 +60,7 @@ public class FireworksAiEmbeddingsRequest implements Request {
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override
@@ -78,5 +81,10 @@ public class FireworksAiEmbeddingsRequest implements Request {
     @Override
     public boolean[] getTruncationInfo() {
         return null;
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

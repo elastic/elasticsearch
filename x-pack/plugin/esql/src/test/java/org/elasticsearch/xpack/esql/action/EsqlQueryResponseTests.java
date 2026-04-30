@@ -221,7 +221,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.TIME_DURATION
                 || t == DataType.AGGREGATE_METRIC_DOUBLE
                 || t == DataType.TSID_DATA_TYPE
-                || t == DataType.DATE_RANGE,
+                || t == DataType.DATE_RANGE
+                || t == DataType.PARTIAL_AGG,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());
@@ -1180,7 +1181,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             DriverSleeps.empty()
                         )
                     ),
-                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree", null)),
+                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree", null, null)),
                     minimumVersion
                 ),
                 false,

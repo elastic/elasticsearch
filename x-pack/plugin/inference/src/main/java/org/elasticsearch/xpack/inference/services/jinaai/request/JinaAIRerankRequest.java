@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.inference.services.jinaai.request;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.RerankRequest;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
 
 import java.net.URI;
@@ -20,7 +22,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class JinaAIRerankRequest extends JinaAIRequest {
+import static org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIRequestUtils.decorateWithAuthHeader;
+
+public class JinaAIRerankRequest implements RerankRequest {
 
     private final String query;
     private final List<String> input;
@@ -43,7 +47,7 @@ public class JinaAIRerankRequest extends JinaAIRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -53,7 +57,7 @@ public class JinaAIRerankRequest extends JinaAIRequest {
 
         decorateWithAuthHeader(httpPost, model.apiKey());
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override

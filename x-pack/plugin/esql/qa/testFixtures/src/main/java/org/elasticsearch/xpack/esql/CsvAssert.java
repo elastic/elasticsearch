@@ -268,7 +268,7 @@ public final class CsvAssert {
             }
             if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
                 if (value instanceof String s) {
-                    value = s.replaceAll("\\\\n", "\n");
+                    value = s.replaceAll("\\\\n", "\n").replaceAll("\\\\#", "#");
                 }
             }
             if (type == CsvTestUtils.Type.DOUBLE) {
@@ -588,7 +588,7 @@ public final class CsvAssert {
                 LongRangeBlockBuilder.LongRange.class,
                 x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
             );
-            case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, NULL, BOOLEAN,
+            case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
                 DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
         };
     }

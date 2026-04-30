@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
@@ -69,7 +70,7 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
             // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
             crossClusterAccessHeaders = CrossClusterAccessHeaders.readFromContext(threadContext);
             // Extract credentials, including certificate identity from the optional signature without actually verifying the signature
-            final ApiKeyService.ApiKeyCredentials apiKeyCredentials = crossClusterAccessHeaders.credentials();
+            final ApiKeyCredentials apiKeyCredentials = crossClusterAccessHeaders.credentials();
             assert ApiKey.Type.CROSS_CLUSTER == apiKeyCredentials.getExpectedType();
             // authn must verify only the provided api key and not try to extract any other credential from the thread context
             authcContext = authenticationService.newContext(action, request, apiKeyCredentials);
@@ -154,7 +155,7 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
 
     @Override
     public void authenticateHeaders(Map<String, String> headers, ActionListener<Void> listener) {
-        final ApiKeyService.ApiKeyCredentials credentials;
+        final ApiKeyCredentials credentials;
         try {
             credentials = extractApiKeyCredentialsFromHeaders(headers);
         } catch (Exception e) {
@@ -165,7 +166,7 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
     }
 
     // package-private for testing
-    void tryAuthenticate(ApiKeyService.ApiKeyCredentials credentials, ActionListener<Void> listener) {
+    void tryAuthenticate(ApiKeyCredentials credentials, ActionListener<Void> listener) {
         Objects.requireNonNull(credentials);
         apiKeyService.tryAuthenticate(clusterService.threadPool().getThreadContext(), credentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
@@ -196,7 +197,7 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
         }, e -> listener.onFailure(Exceptions.authenticationError("failed to authenticate cross cluster credentials", e))));
     }
 
-    public ApiKeyService.ApiKeyCredentials extractApiKeyCredentialsFromHeaders(Map<String, String> headers) {
+    public ApiKeyCredentials extractApiKeyCredentialsFromHeaders(Map<String, String> headers) {
         try {
             apiKeyService.ensureEnabled();
             final String credentials = headers == null ? null : headers.get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);

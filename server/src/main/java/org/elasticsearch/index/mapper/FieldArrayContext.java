@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexVersion;
@@ -25,8 +26,8 @@ import java.util.TreeMap;
 
 public class FieldArrayContext {
 
-    private static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
-    private final Map<String, Offsets> offsetsPerField = new HashMap<>();
+    protected static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
+    protected final Map<String, Offsets> offsetsPerField = new HashMap<>();
 
     public void recordOffset(String field, Comparable<?> value) {
         Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
@@ -45,37 +46,48 @@ public class FieldArrayContext {
         offsetsPerField.computeIfAbsent(field, k -> new Offsets());
     }
 
-    void addToLuceneDocument(DocumentParserContext context) throws IOException {
+    public void addToLuceneDocument(DocumentParserContext context) throws IOException {
         for (var entry : offsetsPerField.entrySet()) {
             var fieldName = entry.getKey();
             var offset = entry.getValue();
 
-            int currentOrd = 0;
-            // This array allows to retain the original ordering of elements in leaf arrays and retain duplicates.
-            int[] offsetToOrd = new int[offset.currentOffset];
-            for (var offsetEntry : offset.valueToOffsets.entrySet()) {
-                for (var offsetAndLevel : offsetEntry.getValue()) {
-                    offsetToOrd[offsetAndLevel] = currentOrd;
-                }
-                currentOrd++;
-            }
-            for (var nullOffset : offset.nullValueOffsets) {
-                offsetToOrd[nullOffset] = -1;
-            }
-
-            int expectedSize = offsetToOrd.length + 1; // Initialize buffer to avoid unnecessary resizing, assume 1 byte per offset + size.
-            try (var streamOutput = new BytesStreamOutput(expectedSize)) {
-                // Could just use vint for array length, but this allows for decoding my_field: null as -1
-                streamOutput.writeVInt(BitUtil.zigZagEncode(offsetToOrd.length));
-                for (int ord : offsetToOrd) {
-                    streamOutput.writeVInt(BitUtil.zigZagEncode(ord));
-                }
-                context.doc().add(new SortedDocValuesField(fieldName, streamOutput.bytes().toBytesRef()));
-            }
+            context.doc().add(new SortedDocValuesField(fieldName, encodeOffsetArray(offset)));
         }
     }
 
-    static int[] parseOffsetArray(StreamInput in) throws IOException {
+    /**
+     * Encodes per-array offsets (in document parsing order) recording which distinct value occupies each slot in a recorded array.
+     * <p>
+     * The array takes the form {@code [slot count][ordinal 0][ordinal 1]...}, where {@code slot count} is the number of leaf positions
+     * (one per indexed array element, including {@code null}s) and each following ordinal is either a non-negative index into the
+     * per-document sorted set of array values, or {@code -1} when that slot is {@code null}. Decoding uses {@link #parseOffsetArray}.
+     */
+    protected static BytesRef encodeOffsetArray(Offsets offset) throws IOException {
+        int currentOrd = 0;
+        // This array allows to retain the original ordering of elements in leaf arrays and retain duplicates.
+        int[] offsetToOrd = new int[offset.currentOffset];
+        for (var offsetEntry : offset.valueToOffsets.entrySet()) {
+            for (var offsetAndLevel : offsetEntry.getValue()) {
+                offsetToOrd[offsetAndLevel] = currentOrd;
+            }
+            currentOrd++;
+        }
+        for (var nullOffset : offset.nullValueOffsets) {
+            offsetToOrd[nullOffset] = -1;
+        }
+
+        int expectedSize = offsetToOrd.length + 1; // Initialize buffer to avoid unnecessary resizing, assume 1 byte per offset + size.
+        try (var streamOutput = new BytesStreamOutput(expectedSize)) {
+            // Could just use vint for array length, but this allows for decoding my_field: null as -1
+            streamOutput.writeVInt(BitUtil.zigZagEncode(offsetToOrd.length));
+            for (int ord : offsetToOrd) {
+                streamOutput.writeVInt(BitUtil.zigZagEncode(ord));
+            }
+            return streamOutput.bytes().toBytesRef();
+        }
+    }
+
+    public static int[] parseOffsetArray(StreamInput in) throws IOException {
         int[] offsetToOrd = new int[BitUtil.zigZagDecode(in.readVInt())];
         for (int i = 0; i < offsetToOrd.length; i++) {
             offsetToOrd[i] = BitUtil.zigZagDecode(in.readVInt());
@@ -124,7 +136,7 @@ public class FieldArrayContext {
             );
     }
 
-    private static class Offsets {
+    protected static class Offsets {
 
         int currentOffset;
         // Need to use TreeMap here, so that we maintain the order in which each value (with offset) stored inserted,
@@ -133,6 +145,13 @@ public class FieldArrayContext {
         final Map<Comparable<?>, List<Integer>> valueToOffsets = new TreeMap<>();
         final List<Integer> nullValueOffsets = new ArrayList<>(2);
 
+        public int currentOffset() {
+            return currentOffset;
+        }
+
+        public boolean hasNulls() {
+            return nullValueOffsets.isEmpty() == false;
+        }
     }
 
 }

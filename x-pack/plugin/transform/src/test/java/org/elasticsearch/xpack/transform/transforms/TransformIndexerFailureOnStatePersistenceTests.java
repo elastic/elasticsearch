@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -244,7 +245,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         mock(TransformAuditor.class),
                         new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                         mock(TransformNode.class),
-                        mock(CrossProjectModeDecider.class)
+                        mock(CrossProjectModeDecider.class),
+                        projectId -> false,
+                        mock(ProjectResolver.class)
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -331,7 +334,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         mock(TransformAuditor.class),
                         new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                         mock(TransformNode.class),
-                        mock(CrossProjectModeDecider.class)
+                        mock(CrossProjectModeDecider.class),
+                        projectId -> false,
+                        mock(ProjectResolver.class)
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -467,7 +472,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
-                    mock(CrossProjectModeDecider.class)
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false,
+                    mock(ProjectResolver.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),

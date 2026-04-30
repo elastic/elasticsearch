@@ -269,9 +269,24 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
         // Collect estimates into an array.
         double[] estimates = new double[estimatesCount];
+        boolean allNaNs = true;
         int offset = estimatesBlock.getFirstValueIndex(position);
         for (int i = 0; i < estimatesCount; i++) {
             estimates[i] = estimatesBlock.getDouble(offset + i);
+            if (Double.isNaN(estimates[i]) == false) {
+                allNaNs = false;
+            }
+        }
+
+        // Every single bucket being NaN indicates that the bestEstimate is exact,
+        // hence the confidence intervals should be zero width.
+        if (allNaNs) {
+            resultBuilder.beginPositionEntry();
+            resultBuilder.appendDouble(bestEstimate);
+            resultBuilder.appendDouble(bestEstimate);
+            resultBuilder.appendDouble(1.0);
+            resultBuilder.endPositionEntry();
+            return;
         }
 
         // When a bucket is empty (indicated by a NaN value), it's not clear how to use it to
@@ -408,15 +423,18 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         double lower = mm + scale * sm * zl;
         double upper = mm + scale * sm * zu;
 
-        if (lower <= bestEstimate && bestEstimate <= upper) {
+        // If the bestEstimate is outside the confidence interval, it is not a sensible interval,
+        // so return null instead. TODO: this criterion is not ideal, and should be revisited.
+        // Allow a little bit of numerical imprecision in the consistency check, which can happen
+        // due to round-off errors when aggregating zero-variance stats (e.g. AVG(x) BY x).
+        if (lower - 1e-12 * Math.abs(lower) <= bestEstimate && bestEstimate <= upper + 1e-12 * Math.abs(upper)) {
             resultBuilder.beginPositionEntry();
             resultBuilder.appendDouble(lower);
             resultBuilder.appendDouble(upper);
             resultBuilder.appendDouble((double) reliableCount / trialCount);
             resultBuilder.endPositionEntry();
         } else {
-            // If the bestEstimate is outside the confidence interval, it is not a sensible interval,
-            // so return null instead. TODO: this criterion is not ideal, and should be revisited.
+
             resultBuilder.appendNull();
         }
     }

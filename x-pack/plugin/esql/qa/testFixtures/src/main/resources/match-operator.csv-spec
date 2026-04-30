@@ -894,3 +894,150 @@ year:integer | author:text            | host:keyword
 2005         | Gabriel Garcia Marquez | null
 2014         | Gabriel Garcia Marquez | null
 ;
+
+matchOperatorAfterSimpleRename
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| where writer : "Faulkner"
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOperatorAfterChainedRename
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as x
+| rename x as writer
+| where writer : "Faulkner"
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOperatorAfterRenameWithKeep
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| keep book_no, writer
+| where writer : "Faulkner"
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOperatorAfterEvalAndRename
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| eval x = 1
+| rename author as writer
+| where writer : "Faulkner"
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOperatorAfterRenameWithEvalAndSort
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| eval yr = year
+| sort book_no
+| where writer : "Faulkner"
+| keep book_no, writer
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOperatorAfterRenameShadowing
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename title as author
+| where author : "Return" and book_no == "7350"
+| keep book_no, author
+;
+
+book_no:keyword | author:text
+7350            | Return of the Shadow
+;
+
+matchOperatorOnConstantKeywordField
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_constant_keyword
+
+from all_types
+| where `constant_keyword-foo` : "foo"
+| keep `constant_keyword-foo`, keyword
+| sort keyword
+;
+
+constant_keyword-foo:keyword | keyword:keyword
+foo                          | key1
+foo                          | key2
+foo                          | key3
+foo                          | key4
+foo                          | key5
+;
+
+matchOperatorOnConstantKeywordFieldNoMatch
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_constant_keyword
+
+from all_types
+| where `constant_keyword-foo` : "bar"
+| keep `constant_keyword-foo`, keyword
+;
+
+constant_keyword-foo:keyword | keyword:keyword
+;

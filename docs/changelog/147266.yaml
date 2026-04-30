@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147266
+summary: Fix row over-read and lost-wakeup hang on external source
+type: bug

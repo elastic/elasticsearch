@@ -30,9 +30,11 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -81,6 +83,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_RO
 import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
 import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
 import static org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService.AllocationState.MAX_AMOUNT_OF_SHARD_DECISIONS;
+import static org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderServiceTests.mockAllocationService;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -561,10 +564,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         DiscoveryNodeRole role,
         AllocationDecider... allocationDeciders
     ) {
+        AllocationService allocationService = mockAllocationService(createAllocationDeciders(allocationDeciders));
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             createContext(state, Set.of(role)),
             DISK_THRESHOLD_SETTINGS,
-            createAllocationDeciders(allocationDeciders),
+            allocationService,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         ShardsAllocationResults shardsAllocationResults = subject.invoke(allocationState);
@@ -591,10 +595,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         Predicate<Map<ShardId, NodeDecisions>> unassignedNodeDecisions,
         AllocationDecider... allocationDeciders
     ) {
+        AllocationService allocationService = mockAllocationService(createAllocationDeciders(allocationDeciders));
         ReactiveStorageDeciderService decider = new ReactiveStorageDeciderService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            createAllocationDeciders(allocationDeciders),
+            allocationService,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         TestAutoscalingDeciderContext context = createContext(state, Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
@@ -671,14 +676,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static RoutingAllocation createRoutingAllocation(ClusterState state, AllocationDeciders allocationDeciders) {
-        return new RoutingAllocation(
-            allocationDeciders,
-            state.mutableRoutingNodes(),
-            state,
-            createClusterInfo(state),
-            null,
-            System.nanoTime()
-        );
+        return TestRoutingAllocationFactory.forClusterState(state)
+            .allocationDeciders(allocationDeciders)
+            .clusterInfo(createClusterInfo(state))
+            .mutable();
     }
 
     private void withRoutingAllocation(Consumer<RoutingAllocation> block) {

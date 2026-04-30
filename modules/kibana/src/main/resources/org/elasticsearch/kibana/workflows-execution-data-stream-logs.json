@@ -1,0 +1,32 @@
+{
+  "index_patterns": [
+    ".workflows-execution-data-stream-logs*"
+  ],
+  "data_stream": {
+    "allow_custom_routing": false
+  },
+  "template": {
+    "lifecycle": {
+      "data_retention": "90d"
+    },
+    "settings": {
+      "index.auto_expand_replicas": "0-1",
+      "index.hidden": true
+    },
+    "mappings": {
+      "_meta": {
+        "version": "${kibana.workflows.version}",
+        "managed_index_mappings_version": ${kibana.workflows.execution.logs.managed.index.version}
+      },
+      "dynamic": true,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  },
+  "composed_of": [],
+  "priority": 200,
+  "version": 2
+}

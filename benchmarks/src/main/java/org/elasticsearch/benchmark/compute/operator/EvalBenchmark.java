@@ -108,13 +108,9 @@ public class EvalBenchmark {
 
     static void selfTest() {
         Logger log = LogManager.getLogger(EvalBenchmark.class);
-        try {
-            for (String operation : EvalBenchmark.class.getField("operation").getAnnotationsByType(Param.class)[0].value()) {
-                log.info("self testing {}", operation);
-                run(operation);
-            }
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError();
+        for (String operation : Utils.possibleValues(EvalBenchmark.class, "operation")) {
+            log.info("self testing {}", operation);
+            run(operation);
         }
     }
 
@@ -395,6 +391,7 @@ public class EvalBenchmark {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            null,
             null,
             Map.of()
         );

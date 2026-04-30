@@ -97,9 +97,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
             // Make sure the process is stopped, otherwise wait
             execute(() -> nodes.parallelStream().forEach(Node::waitForExit));
         }
-        // Per-node addresses may change across restarts; drop cached health-check resources and probe timestamp.
-        cachedHealthChecks = null;
-        lastHealthCheckNanos.set(null);
+        invalidateHealthCheckCache();
     }
 
     @Override
@@ -191,6 +189,9 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         node.stop(false);
         LOGGER.info("Upgrading node '{}' to version {}", node.getName(), version);
         node.start(version);
+        // Per-node addresses may change across restarts; drop cached health-check resources and probe timestamp
+        // so subsequent checkNodesAlive() calls re-probe the upgraded node's current address.
+        invalidateHealthCheckCache();
         waitUntilReady();
     }
 
@@ -403,6 +404,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
             cachedHealthChecks = checks;
         }
         return checks;
+    }
+
+    private void invalidateHealthCheckCache() {
+        cachedHealthChecks = null;
+        lastHealthCheckNanos.set(null);
     }
 
     private <T> T execute(Callable<T> task) {

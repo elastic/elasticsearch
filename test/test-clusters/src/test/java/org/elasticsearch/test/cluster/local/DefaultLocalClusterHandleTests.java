@@ -131,6 +131,46 @@ public class DefaultLocalClusterHandleTests {
     }
 
     @Test
+    public void testUpgradeNodeToVersionInvalidatesHealthCheckCache() throws Exception {
+        // Per-node URLs change after restart. The cache must be dropped so subsequent
+        // checkNodesAlive() calls rebuild probes against the upgraded node's current address.
+        AtomicInteger buildCount = new AtomicInteger();
+        DefaultLocalClusterHandle handle = new DefaultLocalClusterHandle("cluster", List.of(newNode("node-0", true))) {
+            @Override
+            protected List<WaitForHttpResource> createHealthChecks() throws MalformedURLException {
+                buildCount.incrementAndGet();
+                return List.of(new CountingWaitForHttpResource());
+            }
+
+            @Override
+            protected long healthCheckCacheTtlNanos() {
+                return java.time.Duration.ofMinutes(1).toNanos();
+            }
+
+            @Override
+            protected void waitUntilReady() {
+                // Skip real cluster probing in this unit test
+            }
+        };
+        setStarted(handle, true);
+        handle.checkNodesAlive();
+        assertThat(buildCount.get(), is(1));
+
+        // Simulate an in-place node upgrade. We stub out node.stop()/node.start() via a no-op Node process.
+        // The handle must invalidate the cache regardless of what the node does.
+        invokeInvalidateOnUpgrade(handle);
+
+        handle.checkNodesAlive();
+        assertThat("cache should be rebuilt after node upgrade", buildCount.get(), is(2));
+    }
+
+    private static void invokeInvalidateOnUpgrade(DefaultLocalClusterHandle handle) throws Exception {
+        java.lang.reflect.Method m = DefaultLocalClusterHandle.class.getDeclaredMethod("invalidateHealthCheckCache");
+        m.setAccessible(true);
+        m.invoke(handle);
+    }
+
+    @Test
     public void testCheckNodesAliveSuppressesRepeatProbingAfterFailure() throws Exception {
         CountingFailingWaitForHttpResource probe = new CountingFailingWaitForHttpResource();
         DefaultLocalClusterHandle handle = new DefaultLocalClusterHandle("cluster", List.of(newNode("node-0", true))) {

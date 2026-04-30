@@ -16,6 +16,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.ConjunctionUtils;
+import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnByteVectorQuery;
@@ -27,6 +28,8 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.VectorScorer;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -34,7 +37,6 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 
@@ -261,7 +263,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             assert innerRewritten.getClass() != MatchAllDocsQuery.class;
 
             List<ScoreDoc> results = new ArrayList<>(10);
-            List<CheckedRunnable<IOException>> buffer = new LinkedList<>();
             for (var leaf : indexSearcher.getIndexReader().leaves()) {
                 var knnVectorValues = leaf.reader().getFloatVectorValues(fieldName);
                 if (knnVectorValues == null) {
@@ -278,20 +279,9 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                     continue;
                 }
                 var filterIterator = scorer.iterator();
-                rescoreIndividually(
-                    leaf.docBase,
-                    knnVectorValues,
-                    leaf.reader().getFieldInfos().fieldInfo(fieldName).getVectorSimilarityFunction(),
-                    buffer,
-                    results,
-                    filterIterator
-                );
+                bulkRescore(leaf.docBase, knnVectorValues, results, filterIterator);
             }
 
-            for (var runnable : buffer) {
-                runnable.run();
-            }
-            buffer.clear();
             // Remove any remaining sentinel values
             ScoreDoc[] arrayResults = results.toArray(new ScoreDoc[0]);
             return new KnnScoreDocQuery(arrayResults, indexSearcher.getIndexReader());
@@ -321,43 +311,98 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
          * Adds rescoring work to {@code buffer}. If {@code buffer} is non-empty after this call,
          * the caller must run the queued {@link CheckedRunnable}s to materialize results into {@code queue}.
          */
-        private void rescoreIndividually(
-            int docBase,
-            FloatVectorValues knnVectorValues,
-            VectorSimilarityFunction function,
-            List<CheckedRunnable<IOException>> buffer,
-            List<ScoreDoc> queue,
-            DocIdSetIterator filterIterator
-        ) throws IOException {
-            final int vectorByteSize = knnVectorValues.getVectorByteLength();
-            final HasIndexSlice sliceable = (knnVectorValues instanceof HasIndexSlice h) ? h : null;
-            final var input = sliceable != null ? sliceable.getSlice() : null;
+        private void bulkRescore(int docBase, FloatVectorValues knnVectorValues, List<ScoreDoc> queue, DocIdSetIterator filterIterator)
+            throws IOException {
+            int vectorByteSize = knnVectorValues.getVectorByteLength();
+            IndexInput input = (knnVectorValues instanceof HasIndexSlice h) ? h.getSlice() : null;
 
             KnnVectorValues.DocIndexIterator vectorIter = knnVectorValues.iterator();
             DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIter, filterIterator));
-            int doc;
-            while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                assert doc == vectorIter.docID();
-                final int docID = doc;
-                final int ord = vectorIter.index();
 
-                if (buffer.size() == PREFETCH_BUFFER_SIZE) {
-                    for (var runnable : buffer) {
-                        runnable.run();
+            VectorScorer scorer = knnVectorValues.rescorer(floatTarget);
+            int[] docs = new int[PREFETCH_BUFFER_SIZE];
+            DocAndFloatFeatureBuffer scoreBuffer = new DocAndFloatFeatureBuffer();
+            scoreBuffer.growNoCopy(PREFETCH_BUFFER_SIZE);
+
+            // sequentially copy the doc ids into the docs array for bulk rescoring in batches
+            int nextDocIdx = 0;
+            while ((docs[nextDocIdx++] = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+
+                if (nextDocIdx == PREFETCH_BUFFER_SIZE) {
+                    // do the bulk rescore
+                    var bulk = scorer.bulk(new ArrayDocIdSetIterator(docs));
+                    bulk.nextDocsAndScores(docs[PREFETCH_BUFFER_SIZE - 1], null, scoreBuffer);
+
+                    for (int s = 0; s < scoreBuffer.size; s++) {
+                        if (!Float.isNaN(scoreBuffer.features[s])) {
+                            queue.add(new ScoreDoc(scoreBuffer.docs[s] + docBase, scoreBuffer.features[s]));
+                        }
                     }
-                    buffer.clear();
+                    nextDocIdx = 0; // don't need to explicitly clear the arrays, they just get overwritten
                 }
 
                 if (input != null) {
-                    input.prefetch((long) ord * vectorByteSize, vectorByteSize);
+                    input.prefetch((long) vectorIter.index() * vectorByteSize, vectorByteSize);
                 }
-                buffer.add(() -> {
-                    float[] vector = knnVectorValues.vectorValue(ord);
-                    float score = function.compare(floatTarget, vector);
-                    if (Float.isNaN(score) == false) {
-                        queue.add(new ScoreDoc(docID + docBase, score));
+            }
+
+            if (nextDocIdx > 0) {
+                // rescore the remaining docs
+                var bulk = scorer.bulk(new ArrayDocIdSetIterator(Arrays.copyOf(docs, nextDocIdx)));
+                bulk.nextDocsAndScores(docs[nextDocIdx - 1], null, scoreBuffer);
+
+                for (int s = 0; s < scoreBuffer.size; s++) {
+                    if (!Float.isNaN(scoreBuffer.features[s])) {
+                        queue.add(new ScoreDoc(scoreBuffer.docs[s] + docBase, scoreBuffer.features[s]));
                     }
-                });
+                }
+            }
+        }
+
+        private static class ArrayDocIdSetIterator extends DocIdSetIterator {
+
+            private final int[] ids;
+            private int idx = -1;
+
+            private ArrayDocIdSetIterator(int[] ids) {
+                this.ids = ids;
+            }
+
+            @Override
+            public int docID() {
+                if (idx == -1) {
+                    return -1;
+                }
+                return idx < ids.length ? ids[idx] : NO_MORE_DOCS;
+            }
+
+            @Override
+            public int nextDoc() {
+                if (++idx >= ids.length) {
+                    return NO_MORE_DOCS;
+                } else {
+                    return ids[idx];
+                }
+            }
+
+            @Override
+            public int advance(int target) {
+                if (idx >= ids.length) {
+                    return NO_MORE_DOCS;
+                }
+
+                int pos = Arrays.binarySearch(ids, idx + 1, ids.length, target);
+                if (pos < 0) {
+                    pos = -pos - 1;
+                }
+                idx = pos;
+
+                return docID();
+            }
+
+            @Override
+            public long cost() {
+                return ids.length;
             }
         }
     }

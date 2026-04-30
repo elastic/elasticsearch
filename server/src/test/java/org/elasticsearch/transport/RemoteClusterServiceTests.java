@@ -179,28 +179,21 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 {
                     Map<String, List<String>> perClusterIndices = service.groupClusterIndices(
                         service.getRegisteredRemoteClusterNames(),
-                        new String[] {
-                            "cluster_1:bar",
-                            "cluster_2:foo:bar",
-                            "cluster_1:test",
-                            "cluster_2:foo*",
-                            "foo",
-                            "cluster*:baz",
-                            "*:boo" }
+                        new String[] { "cluster_1:bar", "cluster_1:test", "cluster_2:foo*", "foo", "cluster*:baz", "*:boo" }
                     );
                     List<String> localIndices = perClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
                     assertNotNull(localIndices);
                     assertEquals("foo", localIndices.get(0));
                     assertEquals(2, perClusterIndices.size());
                     assertEquals(Arrays.asList("bar", "test", "baz", "boo"), perClusterIndices.get("cluster_1"));
-                    assertEquals(Arrays.asList("foo:bar", "foo*", "baz", "boo"), perClusterIndices.get("cluster_2"));
+                    assertEquals(Arrays.asList("foo*", "baz", "boo"), perClusterIndices.get("cluster_2"));
                 }
 
                 expectThrows(
                     NoSuchRemoteClusterException.class,
                     () -> service.groupClusterIndices(
                         service.getRegisteredRemoteClusterNames(),
-                        new String[] { "foo:bar", "cluster_1:bar", "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo" }
+                        new String[] { "foo:bar", "cluster_1:bar", "cluster_1:test", "cluster_2:foo*", "foo" }
                     )
                 );
 
@@ -208,8 +201,16 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     NoSuchRemoteClusterException.class,
                     () -> service.groupClusterIndices(
                         service.getRegisteredRemoteClusterNames(),
-                        new String[] { "cluster_1:bar", "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "does_not_exist:*" }
+                        new String[] { "cluster_1:bar", "cluster_1:test", "cluster_2:foo*", "does_not_exist:*" }
                     )
+                );
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> service.groupClusterIndices(service.getRegisteredRemoteClusterNames(), new String[] { "cluster1:foo:bar" })
+                );
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> service.groupClusterIndices(service.getRegisteredRemoteClusterNames(), new String[] { "does_not_exist:foo:bar" })
                 );
 
                 // test cluster exclusions
@@ -370,27 +371,24 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 {
                     Map<String, OriginalIndices> perClusterIndices = service.groupIndices(
                         IndicesOptions.LENIENT_EXPAND_OPEN,
-                        new String[] {
-                            "cluster_1:bar",
-                            "cluster_2:foo:bar",
-                            "cluster_1:test",
-                            "cluster_2:foo*",
-                            "foo",
-                            "cluster*:baz",
-                            "*:boo" }
+                        new String[] { "cluster_1:bar", "cluster_1:test", "cluster_2:foo*", "foo", "cluster*:baz", "*:boo" }
                     );
                     assertEquals(3, perClusterIndices.size());
                     assertArrayEquals(new String[] { "foo" }, perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).indices());
                     assertArrayEquals(new String[] { "bar", "test", "baz", "boo" }, perClusterIndices.get("cluster_1").indices());
-                    assertArrayEquals(new String[] { "foo:bar", "foo*", "baz", "boo" }, perClusterIndices.get("cluster_2").indices());
+                    assertArrayEquals(new String[] { "foo*", "baz", "boo" }, perClusterIndices.get("cluster_2").indices());
                 }
                 {
                     expectThrows(
                         NoSuchRemoteClusterException.class,
                         () -> service.groupClusterIndices(
                             service.getRegisteredRemoteClusterNames(),
-                            new String[] { "foo:bar", "cluster_1:bar", "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo" }
+                            new String[] { "foo:bar", "cluster_1:bar", "cluster_1:test", "cluster_2:foo*", "foo" }
                         )
+                    );
+                    expectThrows(
+                        IllegalArgumentException.class,
+                        () -> service.groupClusterIndices(service.getRegisteredRemoteClusterNames(), new String[] { "cluster_2:foo:bar" })
                     );
                 }
                 {

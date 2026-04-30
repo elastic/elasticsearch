@@ -2923,6 +2923,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
          *                     representation). When {@code false} or an override is set, scoring iterates the
          *                     raw vectors and applies the resolved {@link VectorSimilarityFunction} directly,
          *                     producing full-precision scores regardless of index type.
+         *                     {@code useQuantized=true} combined with a non-{@code null} {@code similarityOverride}
+         *                     is illegal and throws {@link IllegalArgumentException}.
          */
         public Query createExactKnnQuery(
             VectorData queryVector,
@@ -2940,6 +2942,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             if (similarityOverride != null && element.elementType() == ElementType.BIT && similarityOverride != VectorSimilarity.L2_NORM) {
                 throw new IllegalArgumentException("[" + VectorSimilarity.L2_NORM + "] is the only supported similarity for bit vectors");
+            }
+            if (useQuantized && similarityOverride != null) {
+                throw new IllegalArgumentException("[similarity_function] cannot be used when [quantized] is true");
             }
             VectorSimilarity effectiveSimilarity = similarityOverride != null ? similarityOverride : similarity;
             // null function ⇒ use codec-bound scorer; non-null ⇒ raw iteration with this function.

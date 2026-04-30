@@ -416,6 +416,20 @@ setup:
               similarity_function: cosine
 
 ---
+"similarity_function and quantized: true are mutually exclusive":
+  - do:
+      catch: bad_request
+      search:
+        index: dv_flat
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              similarity_function: l2_norm
+              quantized: true
+
+---
 "similarity_function override changes the score function":
   # Override the cosine-mapped int8_hnsw index to l2_norm. Top hit is still doc 3 (its stored vector
   # equals the query post-normalization), but the score formula is 1/(1+distance²) instead of cosine,

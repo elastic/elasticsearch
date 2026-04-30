@@ -48,6 +48,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * {@code quantized: true} switches to the codec's quantized scorer (a no-op on non-quantized
  * fields). The {@code similarity_function} parameter can override the scoring metric per query;
  * by default the field's mapped similarity is used.
+ * <p>
+ * {@code quantized: true} and {@code similarity_function} are mutually exclusive: the codec scorer
+ * uses the index-configured similarity and does not support per-query overrides.
  */
 public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBuilder> {
 
@@ -155,6 +158,16 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
                 )
             );
         }
+        if (Boolean.TRUE.equals(quantized) && similarityFunction != null) {
+            throw new IllegalArgumentException(
+                format(
+                    "[%s] [%s] cannot be used when [%s] is true",
+                    NAME,
+                    SIMILARITY_FUNCTION_FIELD.getPreferredName(),
+                    QUANTIZED_FIELD.getPreferredName()
+                )
+            );
+        }
         this.fieldName = fieldName;
         this.queryVector = queryVector;
         this.queryVectorBuilder = queryVectorBuilder;
@@ -171,6 +184,16 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
         String similarityFn = in.readOptionalString();
         this.similarityFunction = similarityFn == null ? null : VectorSimilarity.valueOf(similarityFn);
         this.quantized = in.readOptionalBoolean();
+        if (Boolean.TRUE.equals(this.quantized) && this.similarityFunction != null) {
+            throw new IllegalArgumentException(
+                format(
+                    "[%s] [%s] cannot be used when [%s] is true",
+                    NAME,
+                    SIMILARITY_FUNCTION_FIELD.getPreferredName(),
+                    QUANTIZED_FIELD.getPreferredName()
+                )
+            );
+        }
         this.queryVectorSupplier = null;
     }
 

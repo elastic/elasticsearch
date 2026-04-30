@@ -172,7 +172,9 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
      * @param tolerance per-doc score delta tolerance.
      */
     private void runAndCompare(DenseVectorQueryBuilder query, TestParams params, double tolerance) {
-        SearchRequestBuilder search = prepareSearch(INDEX_NAME).setQuery(query).setSize(params.numDocs()).setTrackTotalHits(randomBoolean());
+        SearchRequestBuilder search = prepareSearch(INDEX_NAME).setQuery(query)
+            .setSize(params.numDocs())
+            .setTrackTotalHits(randomBoolean());
         assertNoFailuresAndResponse(
             search,
             denseResponse -> compareWithExactSearch(denseResponse, params.queryVector(), params.numDocs(), tolerance)

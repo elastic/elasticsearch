@@ -58,6 +58,10 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
         }
         VectorSimilarity similarityFn = randomBoolean() ? null : randomFrom(VectorSimilarity.L2_NORM, VectorSimilarity.MAX_INNER_PRODUCT);
         Boolean quantized = randomBoolean() ? null : randomBoolean();
+        // quantized=true is incompatible with similarity_function
+        if (Boolean.TRUE.equals(quantized) && similarityFn != null) {
+            quantized = null;
+        }
         return new DenseVectorQueryBuilder(VECTOR_FIELD, queryVector, similarityFn, quantized);
     }
 
@@ -89,7 +93,7 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
             }""";
         assertEquals(expected, query.toString());
 
-        query = new DenseVectorQueryBuilder("field", new float[] { 1.0f, 2.0f, 3.0f }, VectorSimilarity.DOT_PRODUCT, true);
+        query = new DenseVectorQueryBuilder("field", new float[] { 1.0f, 2.0f, 3.0f }, VectorSimilarity.DOT_PRODUCT, null);
         expected = """
             {
               "dense_vector" : {
@@ -99,8 +103,7 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
                   2.0,
                   3.0
                 ],
-                "similarity_function" : "dot_product",
-                "quantized" : true
+                "similarity_function" : "dot_product"
               }
             }""";
         assertEquals(expected, query.toString());
@@ -142,15 +145,12 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
         assertThat(rewritten, instanceOf(DenseVectorQueryBuilder.class));
     }
 
-    public void testSimilarityFunctionOverrideDoesNotRewriteToExactKnn() throws IOException {
-        DenseVectorQueryBuilder builder = new DenseVectorQueryBuilder(
-            VECTOR_FIELD,
-            new float[] { 0.1f, 0.2f, 0.3f },
-            VectorSimilarity.L2_NORM,
-            true
+    public void testSimilarityFunctionAndQuantizedTrueIsRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DenseVectorQueryBuilder(VECTOR_FIELD, new float[] { 0.1f, 0.2f, 0.3f }, VectorSimilarity.L2_NORM, true)
         );
-        QueryRewriteContext rewriteContext = createSearchExecutionContext();
-        var rewritten = builder.rewrite(rewriteContext);
-        assertThat(rewritten, instanceOf(DenseVectorQueryBuilder.class));
+        assertThat(e.getMessage(), containsString("similarity_function"));
+        assertThat(e.getMessage(), containsString("quantized"));
     }
 }

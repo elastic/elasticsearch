@@ -548,6 +548,7 @@ name = "esql-parquet-rs"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "bytes",
  "futures",
  "jni",
  "object_store",

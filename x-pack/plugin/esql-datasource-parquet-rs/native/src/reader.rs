@@ -8,6 +8,7 @@ use super::jni_utils::extract_storage_config;
 use arrow::array::{Array, StructArray};
 use arrow::ffi;
 use arrow::record_batch::RecordBatch;
+use bytes::{Buf, Bytes};
 use tokio::sync::mpsc;
 use jni::EnvUnowned;
 use jni::errors::{Error as JniError, Result as JniResult, ThrowRuntimeExAndDefault};
@@ -17,7 +18,11 @@ use super::store::{StorageConfig, resolve_store, needs_file_size_hint};
 use object_store::{ObjectStore, ObjectStoreExt};
 use parquet::arrow::ProjectionMask;
 use parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
+use parquet::basic::Type as PhysicalType;
+use parquet::column::page::{Page, PageReader};
 use parquet::file::metadata::PageIndexPolicy;
+use parquet::file::reader::{ChunkReader, Length};
+use parquet::file::serialized_reader::SerializedPageReader;
 use parquet::arrow::async_reader::ParquetObjectReader;
 use parquet::errors::ParquetError;
 use parquet::schema::types::SchemaDescriptor;
@@ -399,6 +404,12 @@ fn open_async_for_range(
                     .collect()
             };
 
+            let pre_selected = if let Some(ref expr) = filter {
+                prune_by_dictionary(&store, &object_path, arrow_meta.metadata(), arrow_meta.parquet_schema(), pre_selected, expr).await
+            } else {
+                pre_selected
+            };
+
             let n_workers = max_concurrency;
             let (tx, rx) = mpsc::channel::<Result<RecordBatch, ParquetError>>(n_workers * 2);
 
@@ -417,6 +428,161 @@ fn open_async_for_range(
     })?;
 
     Ok(ReaderKind::Async(rx))
+}
+
+// ---------------------------------------------------------------------------
+// Dictionary-based row group pruning
+// ---------------------------------------------------------------------------
+
+/// An offset-adjusting `ChunkReader` backed by a `Bytes` slice fetched from remote storage.
+///
+/// `SerializedPageReader` calls `get_bytes(absolute_file_offset, len)`. When we pre-fetch
+/// only the dictionary page range `[base, base+data.len())`, all offsets from parquet's
+/// perspective start at `base`. `SlicedFile` subtracts `base` to convert to local indices.
+struct SlicedFile {
+    data: Bytes,
+    base: u64,
+}
+
+impl Length for SlicedFile {
+    fn len(&self) -> u64 {
+        self.base + self.data.len() as u64
+    }
+}
+
+impl ChunkReader for SlicedFile {
+    type T = bytes::buf::Reader<Bytes>;
+
+    fn get_read(&self, start: u64) -> parquet::errors::Result<Self::T> {
+        let local = start.saturating_sub(self.base) as usize;
+        Ok(self.data.slice(local..).reader())
+    }
+
+    fn get_bytes(&self, start: u64, length: usize) -> parquet::errors::Result<Bytes> {
+        let local = start.saturating_sub(self.base) as usize;
+        Ok(self.data.slice(local..local + length))
+    }
+}
+
+/// Returns true if `target` is present in the PLAIN-encoded dictionary buffer.
+fn dict_contains_value(buf: &Bytes, num_values: usize, phys_type: PhysicalType, target: &filter::StatValue) -> bool {
+    use filter::StatValue;
+    match (phys_type, target) {
+        (PhysicalType::INT64, StatValue::Long(v)) => {
+            buf.chunks_exact(8).any(|c: &[u8]| i64::from_le_bytes(c.try_into().unwrap()) == *v)
+        }
+        (PhysicalType::INT32, StatValue::Int(v)) => {
+            buf.chunks_exact(4).any(|c: &[u8]| i32::from_le_bytes(c.try_into().unwrap()) == *v)
+        }
+        (PhysicalType::INT32, StatValue::Long(v)) => {
+            if *v < i32::MIN as i64 || *v > i32::MAX as i64 { return false; }
+            let v32 = *v as i32;
+            buf.chunks_exact(4).any(|c: &[u8]| i32::from_le_bytes(c.try_into().unwrap()) == v32)
+        }
+        (PhysicalType::BYTE_ARRAY, StatValue::Str(s)) => {
+            let target = s.as_bytes();
+            let data = buf.as_ref();
+            let mut pos = 0usize;
+            for _ in 0..num_values {
+                if pos + 4 > data.len() { break; }
+                let len = u32::from_le_bytes(data[pos..pos + 4].try_into().unwrap()) as usize;
+                pos += 4;
+                if pos + len > data.len() { break; }
+                if &data[pos..pos + len] == target { return true; }
+                pos += len;
+            }
+            false
+        }
+        _ => true // unknown combo → conservative, don't prune
+    }
+}
+
+/// Prunes `candidates` by checking each row group's column dictionary for equality predicates.
+///
+/// For each AND-connected `Eq(col, lit)` / `InList(col, lits)` in the filter, fetches the
+/// dictionary page bytes for that column in each candidate row group and scans them. If none
+/// of the target values appear in the dictionary, the row group is removed from the result.
+///
+/// On any I/O or parse error the row group is kept (conservative). Only called when the filter
+/// has at least one equality predicate on a dictionary-encoded column.
+async fn prune_by_dictionary(
+    store: &Arc<dyn ObjectStore>,
+    path: &object_store::path::Path,
+    metadata: &parquet::file::metadata::ParquetMetaData,
+    parquet_schema: &SchemaDescriptor,
+    candidates: Vec<usize>,
+    filter: &FilterExpr,
+) -> Vec<usize> {
+    let eq_preds = filter::collect_eq_predicates(filter);
+    if eq_preds.is_empty() {
+        return candidates;
+    }
+
+    // Resolve column indices once; skip predicates referencing unknown columns.
+    let col_preds: Vec<(usize, Vec<filter::StatValue>)> = eq_preds
+        .into_iter()
+        .filter_map(|(name, vals)| {
+            let idx = (0..parquet_schema.num_columns())
+                .find(|&i| parquet_schema.column(i).name().eq_ignore_ascii_case(&name))?;
+            Some((idx, vals))
+        })
+        .collect();
+
+    if col_preds.is_empty() {
+        return candidates;
+    }
+
+    let mut surviving = Vec::with_capacity(candidates.len());
+
+    for rg_idx in candidates {
+        let rg = metadata.row_group(rg_idx);
+        let mut prune = false;
+
+        'predicates: for (col_idx, values) in &col_preds {
+            let col_meta = rg.column(*col_idx);
+
+            let dict_start = match col_meta.dictionary_page_offset() {
+                Some(o) if o > 0 => o as u64,
+                _ => continue, // no dictionary page — can't prune via this predicate
+            };
+            let data_start = col_meta.data_page_offset() as u64;
+            if data_start <= dict_start {
+                continue;
+            }
+
+            // Fetch only the dictionary page bytes (a ranged GET, not the full column chunk).
+            let bytes = match store.get_range(path, dict_start..data_start).await {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
+
+            let sliced = Arc::new(SlicedFile { data: bytes, base: dict_start });
+            let mut page_reader = match SerializedPageReader::new(
+                sliced,
+                col_meta,
+                col_meta.num_values() as usize,
+                None,
+            ) {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
+
+            if let Ok(Some(Page::DictionaryPage { buf, num_values, .. })) = page_reader.get_next_page() {
+                let phys_type = col_meta.column_descr().physical_type();
+                let found = values.iter().any(|v| dict_contains_value(&buf, num_values as usize, phys_type, v));
+                if !found {
+                    prune = true;
+                    break 'predicates;
+                }
+            }
+        }
+
+        if !prune {
+            surviving.push(rg_idx);
+        }
+    }
+
+    surviving
 }
 
 /// Spawn worker tasks for a single file, sending decoded batches into `tx`.
@@ -548,12 +714,19 @@ fn open_async(
                 &mut obj_reader, ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required),
             ).await.map_err(err)?;
 
+            let candidates: Vec<usize> = (0..arrow_meta.metadata().num_row_groups()).collect();
+            let candidates = if let Some(ref expr) = filter {
+                prune_by_dictionary(&store, &object_path, arrow_meta.metadata(), arrow_meta.parquet_schema(), candidates, expr).await
+            } else {
+                candidates
+            };
+
             let n_workers = max_concurrency;
             let (tx, rx) = mpsc::channel::<Result<RecordBatch, ParquetError>>(n_workers * 2);
 
             spawn_file_workers(
                 obj_reader, arrow_meta, &projected_cols, batch_size, limit,
-                &filter, max_concurrency, &tx, None,
+                &filter, max_concurrency, &tx, Some(candidates),
             ).await?;
 
             drop(tx);

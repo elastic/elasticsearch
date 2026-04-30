@@ -185,6 +185,41 @@ fn literal_to_stat(expr: &FilterExpr) -> Option<StatValue> {
     }
 }
 
+/// Collects AND-connected equality predicates as `(column_name, candidate_values)` pairs.
+///
+/// Only traverses `And` nodes — `Or` nodes are not traversed because pruning requires that
+/// the predicate must hold for all candidate rows (not just one branch).
+/// Used for dictionary-based row group pruning: if none of the candidate values appear in a
+/// row group's column dictionary, that row group can be skipped without reading any data.
+pub fn collect_eq_predicates(expr: &FilterExpr) -> Vec<(String, Vec<StatValue>)> {
+    let mut out = Vec::new();
+    collect_eq_inner(expr, &mut out);
+    out
+}
+
+fn collect_eq_inner(expr: &FilterExpr, out: &mut Vec<(String, Vec<StatValue>)>) {
+    match expr {
+        FilterExpr::Eq(left, right) => {
+            if let (FilterExpr::Column(col), Some(val)) = (left.as_ref(), literal_to_stat(right)) {
+                out.push((col.clone(), vec![val]));
+            }
+        }
+        FilterExpr::InList(col_expr, items) => {
+            if let FilterExpr::Column(col) = col_expr.as_ref() {
+                let vals: Vec<StatValue> = items.iter().filter_map(literal_to_stat).collect();
+                if !vals.is_empty() {
+                    out.push((col.clone(), vals));
+                }
+            }
+        }
+        FilterExpr::And(a, b) => {
+            collect_eq_inner(a, out);
+            collect_eq_inner(b, out);
+        }
+        _ => {}
+    }
+}
+
 /// Returns false if the row group can definitely be skipped (no matching rows).
 pub fn row_group_matches(
     expr: &FilterExpr,

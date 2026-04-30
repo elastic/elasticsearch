@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -2321,14 +2322,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * deserializable on older nodes during a rolling upgrade.
          */
         private static EsField buildMultiTypeEsField(
-            InvalidMappedField imf,
+            TypeConflictField imf,
             Map<String, Expression> typesToConversionExpressions,
             @Nullable Expression unmappedConversionExpression,
             AnalyzerContext context
         ) {
             return context.minimumVersion().supports(CompactMultiTypeEsField.ESQL_MULTI_TYPE_ES_FIELD_2)
                 ? CompactMultiTypeEsField.resolveFrom(imf, typesToConversionExpressions, unmappedConversionExpression)
-                : MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions)
+                : MultiTypeEsField.resolveFrom((InvalidMappedField) imf, typesToConversionExpressions)
                     .withPotentiallyUnmappedExpression(unmappedConversionExpression);
         }
 
@@ -2417,7 +2418,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             AnalyzerContext context
         ) {
             Expression convertExpression = (Expression) convert;
-            if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
+            if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof TypeConflictField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
                 if (convert instanceof FoldablesConvertFunction fcf) {
@@ -2565,7 +2566,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             AnalyzerContext context
         ) {
             Map<String, Expression> typesToConversionExpressions = new HashMap<>();
-            InvalidMappedField imf = (InvalidMappedField) fa.field();
+            TypeConflictField imf = (TypeConflictField) fa.field();
             imf.getTypesToIndices().forEach((typeName, indexNames) -> {
                 DataType type = DataType.fromTypeName(typeName);
                 TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
@@ -2587,7 +2588,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
         }
 
-        private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
+        private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, TypeConflictField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable(), mtf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
@@ -2647,7 +2648,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static Attribute cleanTypeConflicts(FieldAttribute fa) {
             EsField field = fa.field();
-            if (field instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped() && imf.types().size() == 1) {
+            if (field instanceof TypeConflictField imf && imf.isPotentiallyUnmapped() && imf.types().size() == 1) {
                 DataType type = imf.types().iterator().next();
                 var restoredField = new EsField(imf.getName(), type, imf.getProperties(), false, imf.getTimeSeriesFieldType());
                 // TODO: add test where not passing on the parent name fails the test
@@ -2693,7 +2694,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return relation;
                 }
                 return relation.transformExpressionsUp(FieldAttribute.class, f -> {
-                    if (f.field() instanceof InvalidMappedField imf && allDates(context, imf)) {
+                    if (f.field() instanceof TypeConflictField imf && allDates(context, imf)) {
                         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         var convert = new ToDateNanos(f.source(), f, context.configuration());
                         imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
@@ -2718,7 +2719,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
         }
 
-        private static boolean allDates(AnalyzerContext context, InvalidMappedField imf) {
+        private static boolean allDates(AnalyzerContext context, TypeConflictField imf) {
             if (imf.types().stream().allMatch(DataType::isDate) == false) {
                 return false;
             }
@@ -2735,7 +2736,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         FieldAttribute fieldAttribute,
         ConvertFunction convert,
         DataType type,
-        InvalidMappedField imf,
+        TypeConflictField imf,
         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions
     ) {
         ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fieldAttribute.name(), type);
@@ -2798,7 +2799,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<String, FieldAttribute> unionFields,
             AnalyzerContext context
         ) {
-            if (original instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf && canBeCasted(imf)) {
+            if (original instanceof FieldAttribute fa && fa.field() instanceof TypeConflictField imf && canBeCasted(imf)) {
                 Map<String, Expression> typeConverters = new HashMap<>();
                 for (DataType type : imf.types()) {
                     ConvertFunction convert = type == AGGREGATE_METRIC_DOUBLE
@@ -2826,7 +2827,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return original;
         }
 
-        private static boolean canBeCasted(InvalidMappedField imf) {
+        private static boolean canBeCasted(TypeConflictField imf) {
             return imf.types().contains(AGGREGATE_METRIC_DOUBLE)
                 && imf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric());
         }
@@ -2838,7 +2839,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<String, FieldAttribute> unionFields,
             AnalyzerContext context
         ) {
-            if (field instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
+            if (field instanceof FieldAttribute fa && fa.field() instanceof TypeConflictField imf) {
                 if (canBeCasted(imf) == false) {
                     aborted.set(Boolean.TRUE);
                     return aggFunc;
@@ -2888,7 +2889,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return aggFunc;
         }
 
-        private Map<String, Expression> typeConverters(AggregateFunction aggFunc, FieldAttribute fa, InvalidMappedField mtf) {
+        private Map<String, Expression> typeConverters(AggregateFunction aggFunc, FieldAttribute fa, TypeConflictField mtf) {
             var metric = getMetric(aggFunc, isTimeSeries);
             Map<String, Expression> typeConverter = new HashMap<>();
             for (DataType type : mtf.types()) {
@@ -2909,7 +2910,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return typeConverter;
         }
 
-        private Expression countConvert(UnaryScalarFunction convert, Source source, DataType type, InvalidMappedField imf) {
+        private Expression countConvert(UnaryScalarFunction convert, Source source, DataType type, TypeConflictField imf) {
             EsField field = new EsField(imf.getName(), type, imf.getProperties(), imf.isAggregatable(), imf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
@@ -3432,7 +3433,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> dataTypes = new ArrayList<>();
             for (List<Attribute> out : outputs) {
                 Attribute attr = out.get(columnIndex);
-                if (attr instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
+                if (attr instanceof FieldAttribute fa && fa.field() instanceof TypeConflictField imf) {
                     dataTypes.addAll(imf.types().stream().map(DataType::typeName).toList());
                 } else {
                     dataTypes.add(attr.dataType().typeName());

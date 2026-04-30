@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictField;
 
 import java.util.Locale;
 import java.util.StringJoiner;
@@ -250,7 +250,7 @@ public final class TypeResolutions {
         // TODO: Shouldn't we perform widening of small numerical types here?
         if (allowUnionTypes
             && e instanceof FieldAttribute fa
-            && fa.field() instanceof InvalidMappedField imf
+            && fa.field() instanceof TypeConflictField imf
             && imf.types().stream().allMatch(predicate)) {
             return TypeResolution.TYPE_RESOLVED;
         }

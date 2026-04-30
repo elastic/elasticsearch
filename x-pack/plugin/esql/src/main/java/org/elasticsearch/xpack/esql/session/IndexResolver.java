@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -551,7 +552,7 @@ public class IndexResolver {
             case KEYWORD -> new PotentiallyUnmappedKeywordEsField(fullName);
             default -> InvalidMappedField.potentiallyUnmapped(
                 name,
-                field instanceof InvalidMappedField imf
+                field instanceof TypeConflictField imf
                     ? imf.getTypesToIndices()
                     : Map.of(field.getDataType().widenSmallNumeric().typeName(), mappedIndices)
             );

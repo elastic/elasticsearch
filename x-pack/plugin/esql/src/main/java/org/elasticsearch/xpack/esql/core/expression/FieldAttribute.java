@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -247,12 +247,12 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
     }
 
     /**
-     * If the underlying field is an {@link InvalidMappedField} (ambiguous type across indices),
+     * If the underlying field is a {@link TypeConflictField} (ambiguous type across indices),
      * converts this attribute into an {@link UnsupportedAttribute} with a descriptive error message
      * so the analyzer can surface a clear user-facing error.
      */
     public Attribute flagTypeConflicts() {
-        if (field instanceof InvalidMappedField imf) {
+        if (field instanceof TypeConflictField imf) {
             // Field has conflicting types across indices — build a user-facing error message.
             String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + imf.errorMessage();
             List<String> types = imf.getTypesToIndices().keySet().stream().toList();

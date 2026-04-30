@@ -33,8 +33,8 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -646,7 +646,7 @@ public class Verifier {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
             EsField field = entry.getValue();
-            if (field instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped()) {
+            if (field instanceof TypeConflictField imf && imf.isPotentiallyUnmapped()) {
                 aggregator.add(name);
             }
             if (field.getProperties() != null && field.getProperties().isEmpty() == false) {

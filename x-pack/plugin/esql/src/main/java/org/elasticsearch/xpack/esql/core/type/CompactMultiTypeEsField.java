@@ -111,12 +111,12 @@ public class CompactMultiTypeEsField extends EsField implements UnionTypeEsField
     }
 
     /**
-     * Build a {@link CompactMultiTypeEsField} from the per-type resolutions previously computed against an
-     * {@link InvalidMappedField}. Only types present in {@code imf.getTypesToIndices()} for which a
+     * Build a {@link CompactMultiTypeEsField} from the per-type resolutions previously computed against a
+     * {@link TypeConflictField}. Only types present in {@code imf.getTypesToIndices()} for which a
      * conversion was supplied are included.
      */
     public static CompactMultiTypeEsField resolveFrom(
-        InvalidMappedField imf,
+        TypeConflictField imf,
         Map<String, Expression> typesToConversionExpressions,
         @Nullable Expression unmappedConversionExpression
     ) {

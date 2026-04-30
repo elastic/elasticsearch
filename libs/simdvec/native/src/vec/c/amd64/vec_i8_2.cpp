@@ -194,19 +194,29 @@ static inline int32_t doti8_inner_bulk(const int8_t* a, const int8_t* b, const i
 // reusing it across all batched documents to amortise b-side L1D bandwidth
 // across the batch.
 //
-// The single-pair scorer `doti8_inner_bulk` above uses a multi-accumulator
-// pattern on the dim axis under its local `batches` constant; that pattern
-// is independent of the cross-document `batches` parallelism here.
+// Two independent unroll axes:
+//   batches    - number of distinct document vectors scored in parallel;
+//                amortises the query load and adds independent vpdpbusd chains
+//                across documents.
+//   unroll_dim - number of consecutive 64-byte blocks of the same document
+//                processed per inner-loop iteration, each into its own
+//                accumulator. Hides vpdpbusd latency (Sapphire Rapids:
+//                ~4-cyc latency, ~0.5-cyc throughput on ports 0/5).
+//
+// The single-pair scorer `doti8_inner_bulk` above uses the same dim-axis
+// pattern under its local `batches` constant.
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int batches = 4
+    int batches = 4,
+    int unroll_dim = 1
 >
 static inline void doti8_bulk(
     const TData* a, const int8_t* b, const int32_t dims, const int32_t pitch,
     const int32_t* offsets, const int32_t count, f32_t* results
 ) {
     constexpr int stride = sizeof(__m512i);
+    constexpr int dimStride = stride * unroll_dim;
     const int blk = dims & ~(stride - 1);
     const __m512i xor_mask = _mm512_set1_epi8((char)0x80);
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
@@ -226,18 +236,40 @@ static inline void doti8_bulk(
             });
         }
 
-        __m512i acc[batches];
-        apply_indexed<batches>([&](auto I) {
+        // Row-major layout: acc[I * unroll_dim + U] keeps the unroll_dim
+        // accumulators for batch member I contiguous, so tree_reduce can fold
+        // them in one call.
+        __m512i acc[batches * unroll_dim];
+        apply_indexed<batches * unroll_dim>([&](auto I) {
             acc[I] = _mm512_setzero_si512();
         });
 
         int i = 0;
-        for (; i + stride <= blk; i += stride) {
-            __m512i bv = _mm512_loadu_si512((const __m512i*)(b + i));
-            apply_indexed<batches>([&](auto I) {
-                __m512i av = _mm512_loadu_si512((const __m512i*)(current_vecs[I] + i));
-                acc[I] = _mm512_dpbusd_epi32(acc[I], _mm512_xor_si512(av, xor_mask), bv);
+        for (; i + dimStride <= blk; i += dimStride) {
+            apply_indexed<unroll_dim>([&](auto U) {
+                __m512i bv = _mm512_loadu_si512((const __m512i*)(b + i + U * stride));
+                apply_indexed<batches>([&](auto I) {
+                    __m512i av = _mm512_loadu_si512((const __m512i*)(current_vecs[I] + i + U * stride));
+                    acc[I * unroll_dim + U] = _mm512_dpbusd_epi32(
+                        acc[I * unroll_dim + U], _mm512_xor_si512(av, xor_mask), bv);
+                });
             });
+        }
+
+        // Fold the unroll_dim accumulators per batch back into acc[I] before
+        // the unroll_dim=1 tail and the masked tail. Skipped at unroll_dim=1,
+        // where the main loop already wrote into acc[I*1+0] = acc[I].
+        if constexpr (unroll_dim > 1) {
+            apply_indexed<batches>([&](auto I) {
+                acc[I] = tree_reduce<unroll_dim, __m512i, _mm512_add_epi32>(&acc[I * unroll_dim]);
+            });
+            for (; i + stride <= blk; i += stride) {
+                __m512i bv = _mm512_loadu_si512((const __m512i*)(b + i));
+                apply_indexed<batches>([&](auto I) {
+                    __m512i av = _mm512_loadu_si512((const __m512i*)(current_vecs[I] + i));
+                    acc[I] = _mm512_dpbusd_epi32(acc[I], _mm512_xor_si512(av, xor_mask), bv);
+                });
+            }
         }
 
         const int rem = dims - i;
@@ -266,7 +298,7 @@ static inline void doti8_bulk(
 }
 
 EXPORT void vec_doti8_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    doti8_bulk<int8_t, sequential_mapper>(a, b, dims, dims, NULL, count, results);
+    doti8_bulk<int8_t, sequential_mapper, 4, 2>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_doti8_bulk_offsets_2(
@@ -277,7 +309,7 @@ EXPORT void vec_doti8_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    doti8_bulk<int8_t, offsets_mapper>(a, b, dims, pitch, offsets, count, results);
+    doti8_bulk<int8_t, offsets_mapper, 4, 1>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_doti8_bulk_sparse_2(
@@ -286,7 +318,7 @@ EXPORT void vec_doti8_bulk_sparse_2(
     const int32_t dims,
     const int32_t count,
     f32_t* results) {
-    doti8_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
+    doti8_bulk<const int8_t*, sparse_mapper, 4, 2>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
 // Accumulates acc += sqr_distance(pa, pb) for signed int8. Sign-extends to 16-bit,

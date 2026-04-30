@@ -65,10 +65,10 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
         }
         addSpanId(builder, logRecord.getSpanId().toByteArray());
         addTraceId(builder, logRecord.getTraceId().toByteArray());
-        buildResource(resource, resourceSchemaUrl, builder);
+        buildResourceWithGeoPoints(resource, resourceSchemaUrl, builder);
         buildDataStream(builder, targetIndex);
-        buildScope(builder, scope, scopeSchemaUrl);
-        buildAttributes(builder, logRecord.getAttributesList(), logRecord.getDroppedAttributesCount());
+        buildScopeWithGeoPoints(builder, scope, scopeSchemaUrl);
+        buildAttributesWithGeoPoints(builder, logRecord.getAttributesList(), logRecord.getDroppedAttributesCount());
         buildBody(builder, logRecord);
         builder.endObject();
     }

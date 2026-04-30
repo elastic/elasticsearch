@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -76,6 +77,7 @@ import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServ
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE;
+import static org.elasticsearch.xpack.stateless.engine.IndexEngine.TRANSLOG_RELEASE_END_FILE;
 
 class StatelessIndexEventListener implements IndexEventListener {
 
@@ -144,10 +146,16 @@ class StatelessIndexEventListener implements IndexEventListener {
                 return;
             }
             final var startFileValue = Long.parseLong(startFile);
+            final var currentNodeStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
             if (startFileValue == HOLLOW_TRANSLOG_RECOVERY_START_FILE) {
+                logger.debug("restoring {} from a hollow commit, updating hollow commit markers", indexShard.shardId());
+                final var updatedUserData = new HashMap<>(userData);
+                updatedUserData.put(TRANSLOG_RECOVERY_START_FILE, Long.toString(currentNodeStartFileForNextCommit));
+                final var removed = updatedUserData.remove(TRANSLOG_RELEASE_END_FILE);
+                assert removed != null : "TRANSLOG_RELEASE_END_FILE should be present in userData for hollow commit";
+                store.associateIndexWithNewUserData(updatedUserData);
                 return;
             }
-            final var currentNodeStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
             if (startFileValue != currentNodeStartFileForNextCommit) {
                 store.associateIndexWithNewUserKeyValueData(TRANSLOG_RECOVERY_START_FILE, Long.toString(currentNodeStartFileForNextCommit));
             }

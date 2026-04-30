@@ -353,6 +353,8 @@ tests:
 - class: org.elasticsearch.cluster.routing.IndexRoutingTests
   method: testRequiredRoutingUsesSliceMessageWhenSliceEnabled
   issue: https://github.com/elastic/elasticsearch/issues/147777
+- class: org.elasticsearch.xpack.esql.CsvIT
+  issue: https://github.com/elastic/elasticsearch/issues/147971
 
 # Examples:
 #
@@ -487,21 +489,12 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
   method: testNextPageText
   issue: https://github.com/elastic/elasticsearch/issues/147950
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testDoExecuteReleasesRegistrationOnLastChunkDeserializationFailure
-  issue: https://github.com/elastic/elasticsearch/issues/147967
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
   issue: https://github.com/elastic/elasticsearch/issues/147972
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testDataStreamStatsActionBroadcastedToSearchNodesOnly
   issue: https://github.com/elastic/elasticsearch/issues/147973
-- class: org.elasticsearch.search.suggest.completion.CategoryQueryContextTests
-  method: testToXContext
-  issue: https://github.com/elastic/elasticsearch/issues/147974
-- class: org.elasticsearch.search.rescore.QueryRescoreModeTests
-  method: testQueryRescoreMode
-  issue: https://github.com/elastic/elasticsearch/issues/147812
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/147988
@@ -520,9 +513,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.shutdown.SigtermTerminationHandlerTests
   method: testShutdownBlockIgnoreOtherRoles
   issue: https://github.com/elastic/elasticsearch/issues/148037
-- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
-  method: testDoExecuteReleasesRegistrationWhenDataNodeFailsAfterChunkStreaming
-  issue: https://github.com/elastic/elasticsearch/issues/147870
 - class: org.elasticsearch.search.profile.TimerTests
   method: testTimingInterval
   issue: https://github.com/elastic/elasticsearch/issues/148038
@@ -559,3 +549,15 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeTermVectorsIT
   method: testUpdatedDocsNotInLiveVersionMapDoNotRefresh
   issue: https://github.com/elastic/elasticsearch/issues/148067
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTrackTotalHitsUpTo
+  issue: https://github.com/elastic/elasticsearch/issues/148071
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testSortByFieldOneClusterHasNoResults
+  issue: https://github.com/elastic/elasticsearch/issues/148074
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testFieldCollapsingSortByField
+  issue: https://github.com/elastic/elasticsearch/issues/148079
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testDateHistogram
+  issue: https://github.com/elastic/elasticsearch/issues/148080

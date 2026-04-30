@@ -64,13 +64,16 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String dfaJobId = "dfa";
         startDataFrameAnalyticsJob(dfaJobId);
 
-        MlMemoryAction.Response response = client().execute(MlMemoryAction.INSTANCE, new MlMemoryAction.Request("_all")).actionGet();
-
-        assertThat(response.failures(), empty());
-
-        List<MlMemoryStats> statsList = response.getNodes();
-        // There are 4 nodes: 3 in the external cluster plus the test harness
-        assertThat(statsList, hasSize(4));
+        // Retry until the test-harness node has joined the cluster and all 4 nodes report stats.
+        MlMemoryAction.Response[] holder = new MlMemoryAction.Response[1];
+        assertBusy(() -> {
+            MlMemoryAction.Response r = client().execute(MlMemoryAction.INSTANCE, new MlMemoryAction.Request("_all")).actionGet();
+            assertThat(r.failures(), empty());
+            // There are 4 nodes: 3 in the external cluster plus the test harness
+            assertThat(r.getNodes(), hasSize(4));
+            holder[0] = r;
+        });
+        List<MlMemoryStats> statsList = holder[0].getNodes();
 
         int mlNodes = 0;
         int nodesWithPytorchModel = 0;

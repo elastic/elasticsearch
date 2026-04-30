@@ -26,7 +26,6 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BulkIndexByScrollResponseTests extends ESTestCase {
@@ -85,7 +84,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
         assertEquals(reasonCancelled, merged.getReasonCancelled());
     }
 
-    /** Verifies the 3-arg merge constructor with pitId preserves the pitId in the merged response. */
+    /** Verifies the merge constructor with pitId preserves the pitId in the merged response. */
     public void testMergeConstructorWithPitId() {
         BytesReference pitId = new BytesArray("merged-pit-id".getBytes(StandardCharsets.UTF_8));
         List<BulkByScrollResponse> responses = new ArrayList<>();

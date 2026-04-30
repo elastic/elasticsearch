@@ -497,6 +497,10 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     protected Self doForSlice(Self request, TaskId slicingTask, int totalSlices, int activeSlices) {
         if (totalSlices < 1) {
             throw new IllegalArgumentException("Number of total slices must be at least 1 but was [" + totalSlices + "]");
+        } else if (activeSlices < 1 || activeSlices > totalSlices) {
+            throw new IllegalArgumentException(
+                "Number of active slices must be between 1 and totalSlices [" + totalSlices + "] but was [" + activeSlices + "]"
+            );
         }
 
         request.setAbortOnVersionConflict(abortOnVersionConflict)

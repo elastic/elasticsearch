@@ -587,13 +587,6 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         /**
-         * Constructor merging many statuses.
-         *
-         * @param sliceStatuses Statuses of sub requests that this task was sliced into.
-         * @param reasonCancelled Reason that this *this* task was cancelled. Note that each entry in {@code sliceStatuses} can be cancelled
-         *        independently of this task but if this task is cancelled then the workers *should* be cancelled.
-         */
-        /**
          * Constructor merging many statuses. The caller provides the authoritative requestsPerSecond rather than
          * summing from children, which can be stale after rethrottle with completed slices.
          */

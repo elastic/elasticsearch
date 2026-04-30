@@ -147,6 +147,8 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         assertThat(response.getNodes().stream().map(r -> r.getNode().getId()).toList(), containsInAnyOrder(nodesWithFrozenShards));
         assertThat(response.hasFailures(), equalTo(false));
 
+        // include all nodes' stats in the assertion message so that any failure
+        // provides enough context to debug edge cases not captured in #129863
         final var allNodesStats = String.join(
             ",",
             response.getNodes()

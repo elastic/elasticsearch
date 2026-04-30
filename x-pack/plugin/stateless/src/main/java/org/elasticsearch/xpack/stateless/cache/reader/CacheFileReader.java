@@ -8,15 +8,19 @@
 package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.common.SparseFileTracker;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -27,8 +31,10 @@ import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.blobcache.BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY;
@@ -57,6 +63,7 @@ public class CacheFileReader {
     private final BlobFileRanges blobFileRanges;
     private final BlobCacheMetrics blobCacheMetrics;
     private final LongSupplier relativeTimeInMillisSupplier;
+    private final int regionAdvice;
 
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
@@ -65,18 +72,37 @@ public class CacheFileReader {
         BlobCacheMetrics blobCacheMetrics,
         LongSupplier relativeTimeInMillisSupplier
     ) {
+        this(cacheFile, cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier, SharedBytes.MADV_NORMAL);
+    }
+
+    public CacheFileReader(
+        StatelessSharedBlobCacheService.CacheFile cacheFile,
+        CacheBlobReader cacheBlobReader,
+        BlobFileRanges blobFileRanges,
+        BlobCacheMetrics blobCacheMetrics,
+        LongSupplier relativeTimeInMillisSupplier,
+        int regionAdvice
+    ) {
         this.cacheFile = Objects.requireNonNull(cacheFile);
         this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
         this.blobFileRanges = Objects.requireNonNull(blobFileRanges);
         this.blobCacheMetrics = blobCacheMetrics;
         this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
+        this.regionAdvice = regionAdvice;
     }
 
     /**
      * @return a new instance that is a copy of the current instance
      */
     public CacheFileReader copy() {
-        return new CacheFileReader(cacheFile.copy(), cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier);
+        return new CacheFileReader(
+            cacheFile.copy(),
+            cacheBlobReader,
+            blobFileRanges,
+            blobCacheMetrics,
+            relativeTimeInMillisSupplier,
+            regionAdvice
+        );
     }
 
     /**
@@ -186,6 +212,19 @@ public class CacheFileReader {
 
             int bytesRead = 0;
             try {
+                // Can be executed on different thread pool depending on whether we read from
+                // the ObjectStoreCacheBlobReader (SHARD_READ pool) or the IndexingShardCacheBlobReader (VBCC pool)
+                SharedBlobCacheService.RangeMissingHandler rangeMissingHandler = new SequentialRangeMissingHandler(
+                    initiator,
+                    cacheFile.getCacheKey().fileName(),
+                    rangeToWrite,
+                    cacheBlobReader,
+                    () -> writeBuffer.get().clear(),
+                    bytesCopied -> {},
+                    StatelessPlugin.SHARD_READ_THREAD_POOL,
+                    StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                );
+                rangeMissingHandler = new AdvisingRangeMissingHandler(rangeMissingHandler, regionAdvice);
                 bytesRead = cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
                     logger.trace(
                         "{}: reading cached [{}][{}-{}]",
@@ -195,21 +234,7 @@ public class CacheFileReader {
                         rangeToRead.start() + len
                     );
                     return SharedBytes.readCacheFile(channel, channelPos, relativePos, len, byteBufferReference);
-                },
-                    // Can be executed on different thread pool depending on whether we read from
-                    // the ObjectStoreCacheBlobReader (SHARD_READ pool) or the IndexingShardCacheBlobReader (VBCC pool)
-                    new SequentialRangeMissingHandler(
-                        initiator,
-                        cacheFile.getCacheKey().fileName(),
-                        rangeToWrite,
-                        cacheBlobReader,
-                        () -> writeBuffer.get().clear(),
-                        bytesCopied -> {},
-                        StatelessPlugin.SHARD_READ_THREAD_POOL,
-                        StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
-                    ),
-                    resourceDescription
-                );
+                }, rangeMissingHandler, resourceDescription);
                 byteBufferReference.finish(bytesRead);
             } catch (Exception e) {
                 if (e instanceof AlreadyClosedException || e.getCause() instanceof AlreadyClosedException) {
@@ -254,4 +279,38 @@ public class CacheFileReader {
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
     );
+
+    /**
+     * Wraps a {@link SharedBlobCacheService.RangeMissingHandler} to apply {@code madvise} on the
+     * region being written to. The advice is set once per region write; the volatile
+     * {@code currentAdvice} field on {@link SharedBytes.IO} ensures redundant syscalls are skipped.
+     */
+    static class AdvisingRangeMissingHandler implements SharedBlobCacheService.RangeMissingHandler {
+        private final SharedBlobCacheService.RangeMissingHandler delegate;
+        private final int advice;
+
+        AdvisingRangeMissingHandler(SharedBlobCacheService.RangeMissingHandler delegate, int advice) {
+            this.delegate = delegate;
+            this.advice = advice;
+        }
+
+        @Override
+        public SharedBlobCacheService.SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+            return delegate.sharedInputStreamFactory(gaps);
+        }
+
+        @Override
+        public void fillCacheRange(
+            SharedBytes.IO channel,
+            int channelPos,
+            @Nullable SharedBlobCacheService.SourceInputStreamFactory streamFactory,
+            int relativePos,
+            int length,
+            IntConsumer progressUpdater,
+            ActionListener<Void> completionListener
+        ) throws IOException {
+            channel.madvise(advice);
+            delegate.fillCacheRange(channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener);
+        }
+    }
 }

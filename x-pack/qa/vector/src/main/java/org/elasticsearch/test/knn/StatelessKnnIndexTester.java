@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.logging.Logger;
 
 /**
  * Thin wrapper around {@link KnnIndexTester} that registers the stateless
@@ -23,15 +24,18 @@ import java.nio.file.Path;
  */
 public class StatelessKnnIndexTester {
 
+    private static final Logger logger = Logger.getLogger(StatelessKnnIndexTester.class.getName());
+    private static final String DISKSTATS_DEVICE = System.getProperty("bench.device", "nvme1n1");
+
     public static void main(String[] args) throws Exception {
-        boolean shared = true; // shared for both read and write
+        boolean shared = true;
         boolean prewarm = true;
         KnnIndexTester.registerDirectoryType(
             "stateless",
             StatelessKnnIndexTester::newStatelessDirectory,
             shared,
             prewarm,
-            StatelessDirectoryFactory::logCacheStats
+            StatelessKnnIndexTester::logDiagnostics
         );
         KnnIndexTester.main(args);
     }
@@ -40,5 +44,26 @@ public class StatelessKnnIndexTester {
         Path workPath = indexPath.resolveSibling(indexPath.getFileName() + ".stateless_work");
         Files.createDirectories(workPath);
         return StatelessDirectoryFactory.create(indexPath, workPath);
+    }
+
+    private static void logDiagnostics(Directory dir, String label) {
+        StatelessDirectoryFactory.logCacheStats(dir, label);
+        logDiskStats(label);
+    }
+
+    private static void logDiskStats(String label) {
+        try {
+            for (String line : Files.readAllLines(Path.of("/proc/diskstats"))) {
+                String[] fields = line.trim().split("\\s+");
+                if (fields.length >= 6 && fields[2].equals(DISKSTATS_DEVICE)) {
+                    logger.info(
+                        String.format("DISKSTATS[%s] device=%s reads=%s sectors_read=%s", label, DISKSTATS_DEVICE, fields[3], fields[5])
+                    );
+                    return;
+                }
+            }
+        } catch (IOException e) {
+            logger.warning("Failed to read /proc/diskstats: " + e.getMessage());
+        }
     }
 }

@@ -9,7 +9,9 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -52,6 +54,31 @@ public class PreallocateTests extends ESTestCase {
         var nativeAccess = NativeAccess.instance();
         nativeAccess.tryPreallocate(file, size);
         OptionalLong foundSize = nativeAccess.allocatedSizeInBytes(file);
+        assertTrue(foundSize.isPresent());
+        assertThat(foundSize.getAsLong(), equalTo(size));
+    }
+
+    public void testPreallocateWithSizeSmallerThanFile() throws IOException {
+        Path file = createTempFile();
+        long size = 1024 * 1024; // 1 MB
+        var nativeAccess = NativeAccess.instance();
+        nativeAccess.tryPreallocate(file, size);
+        OptionalLong foundSize = nativeAccess.allocatedSizeInBytes(file);
+        assertTrue(foundSize.isPresent());
+        assertThat(foundSize.getAsLong(), equalTo(size));
+
+        MockLog.assertThatLogger(
+            () -> nativeAccess.tryPreallocate(file, size - 1),
+            NativeAccess.class,
+            new MockLog.UnseenEventExpectation(
+                "no warning when size is smaller than current file size",
+                NativeAccess.class.getName(),
+                Level.WARN,
+                "*"
+            )
+        );
+
+        foundSize = nativeAccess.allocatedSizeInBytes(file);
         assertTrue(foundSize.isPresent());
         assertThat(foundSize.getAsLong(), equalTo(size));
     }

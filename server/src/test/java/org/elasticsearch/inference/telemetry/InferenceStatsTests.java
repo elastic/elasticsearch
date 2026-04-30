@@ -83,7 +83,7 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testLongCounter_WithNullFailure_Returns200() {
+    public void testLongCounter_WithNullThrowable_Returns200() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
 
@@ -95,7 +95,7 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testLongHistogram_WithNullFailure_Returns200() {
+    public void testLongHistogram_WithNullThrowable_Returns200() {
         var expectedDuration = randomLong();
         var longHistogram = mock(LongHistogram.class);
         var stats = new InferenceStats(mock(), longHistogram, mock(), Map.of());
@@ -189,7 +189,7 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testCounterWithUnknownModelAndElasticsearchStatusException() {
+    public void testCounterWithoutModelAndElasticsearchStatusException() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
         var statusCode = RestStatus.BAD_REQUEST;
@@ -201,7 +201,7 @@ public class InferenceStatsTests extends ESTestCase {
         verify(longCounter).incrementBy(eq(1L), eq(Map.of(STATUS_CODE_ATTRIBUTE, statusCode.getStatus(), ERROR_TYPE, expectedError)));
     }
 
-    public void testCounterWithUnknownModelAndOtherException() {
+    public void testCounterWithoutModelAndOtherException() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
         var exception = new IllegalStateException("ahh");
@@ -304,7 +304,7 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testRecordDurationWithUnknownModelAndElasticsearchStatusException() {
+    public void testRecordDurationWithoutModelAndElasticsearchStatusException() {
         var expectedLong = randomLong();
         var histogramCounter = mock(LongHistogram.class);
         var stats = new InferenceStats(mock(), histogramCounter, mock(), Map.of());
@@ -320,7 +320,7 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testRecordDurationWithUnknownModelAndOtherException() {
+    public void testRecordDurationWithoutModelAndOtherException() {
         var expectedLong = randomLong();
         var histogramCounter = mock(LongHistogram.class);
         var stats = new InferenceStats(mock(), histogramCounter, mock(), Map.of());

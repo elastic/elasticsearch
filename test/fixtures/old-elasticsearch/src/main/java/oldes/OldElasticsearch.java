@@ -52,8 +52,7 @@ public class OldElasticsearch {
         ),
         Pattern.compile(
             "(\\[http\\s+\\]|Netty4HttpServerTransport|NettyHttpServerTransport|HttpServer).+bound_address.+\\[::1\\]:(\\d+)"
-        ),
-    };
+        ), };
 
     /**
      * Reads {@code lib/elasticsearch-x.y.z*.jar} to learn the distribution major version. When several

@@ -1364,7 +1364,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     // nothing to read, skip
                     continue;
                 }
-                var fileRegion = lastAccessedRegion;
+                final CacheEntry<CacheFileRegion<KeyType>> fileRegion;
                 try {
                     fileRegion = cache.getIfPresent(cacheKey, region);
                 } catch (AlreadyClosedException exc) {

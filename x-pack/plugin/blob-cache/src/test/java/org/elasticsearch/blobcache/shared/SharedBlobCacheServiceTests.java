@@ -48,6 +48,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -3008,13 +3009,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     public void testGetIfPresentDoesNotAllocateRegionWhenAbsent() throws Exception {
-        final int regionSize = (int) size(10);
-        final long fileLength = size(8);
+        final long regionSize = size(10);
+        final long fileLength = size(randomIntBetween(5, 19));
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), randomBoolean())
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -3046,8 +3047,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     public void testGetIfPresentFindsPopulatedEntry() throws Exception {
-        final int regionSize = (int) size(10);
-        final long fileLength = size(8);
+        final long regionSize = size(10);
+        final long fileLength = size(randomIntBetween(5, 19));
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
@@ -3090,35 +3091,32 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 "test"
             );
 
-            final int readOffset = randomIntBetween(0, (int) fileLength / 2);
-            final int readLength = randomIntBetween(1, (int) fileLength - readOffset);
-            final ByteBuffer readBuffer = ByteBuffer.allocate(readLength);
-            assertTrue(cacheFile.tryRead(readBuffer, readOffset));
-            readBuffer.flip();
-            assertBufferContainsExpectedData(readBuffer, testData, readOffset, readLength);
+            final int singleRegionBound = (int) Math.min(regionSize, fileLength);
+            final int readOffset = randomIntBetween(0, singleRegionBound / 2);
+            final int readLength = randomIntBetween(1, singleRegionBound - readOffset);
+            final byte[] expected = Arrays.copyOfRange(testData, readOffset, readOffset + readLength);
+            final byte[] actual = new byte[readLength];
 
+            assertTrue(cacheFile.tryRead(ByteBuffer.wrap(actual), readOffset));
+            assertArrayEquals(expected, actual);
+
+            Arrays.fill(actual, (byte) 0);
             final boolean sliceAvailable = cacheFile.withByteBufferSlice(readOffset, readLength, slice -> {
                 assertTrue(slice.isReadOnly());
-                assertBufferContainsExpectedData(slice, testData, readOffset, readLength);
+                slice.get(actual);
             });
             assertTrue(sliceAvailable);
+            assertArrayEquals(expected, actual);
 
+            Arrays.fill(actual, (byte) 0);
             final boolean slicesAvailable = cacheFile.withByteBufferSlices(new long[] { readOffset }, readLength, 1, slices -> {
-                assertEquals(1, slices.length);
-                assertNotNull(slices[0]);
+                assertThat(slices.length, equalTo(1));
+                assertThat(slices[0], notNullValue());
                 assertTrue(slices[0].isReadOnly());
-                assertBufferContainsExpectedData(slices[0], testData, readOffset, readLength);
+                slices[0].get(actual);
             });
             assertTrue(slicesAvailable);
-        }
-    }
-
-    private static void assertBufferContainsExpectedData(ByteBuffer buf, byte[] testData, int offset, int length) {
-        assertEquals(length, buf.remaining());
-        final byte[] actual = new byte[length];
-        buf.get(actual);
-        for (int i = 0; i < length; i++) {
-            assertThat(actual[i], equalTo(testData[offset + i]));
+            assertArrayEquals(expected, actual);
         }
     }
 

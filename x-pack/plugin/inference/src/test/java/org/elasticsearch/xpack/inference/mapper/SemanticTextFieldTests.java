@@ -96,6 +96,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 assertThat(actualChunk.text(), equalTo(expectedChunks.get(i).text()));
                 assertThat(actualChunk.startOffset(), equalTo(expectedChunks.get(i).startOffset()));
                 assertThat(actualChunk.endOffset(), equalTo(expectedChunks.get(i).endOffset()));
+                assertThat(actualChunk.inputIndex(), equalTo(expectedChunks.get(i).inputIndex()));
                 switch (modelSettings.taskType()) {
                     case TEXT_EMBEDDING -> {
                         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(

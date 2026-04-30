@@ -21,6 +21,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.ReindexSettings;
 import org.elasticsearch.reindex.ReindexSslConfig;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.script.ScriptService;
@@ -73,6 +74,8 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             null,
             // can't be injected due to different classloaders between enrich and reindex (enrich doesn't extend reindex).
             ReindexPlugin.getReindexRelocationNodePicker(environment),
+            // Use default reindexer settings values
+            new ReindexSettings(),
             featureService,
             taskResultsService
         );

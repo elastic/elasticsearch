@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.MessageLite;
 
 import org.elasticsearch.ElasticsearchStatusException;
@@ -78,6 +79,10 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 }
             }));
 
+        } catch (InvalidProtocolBufferException e) {
+            listener.onFailure(
+                new ElasticsearchStatusException("Invalid OTLP protobuf payload: " + e.getMessage(), RestStatus.BAD_REQUEST, e)
+            );
         } catch (Exception e) {
             logger.error("failed to execute otlp request", e);
             listener.onFailure(e);

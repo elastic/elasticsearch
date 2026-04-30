@@ -17,8 +17,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.reindex.BulkIndexByScrollResponseMatcher;
 import org.elasticsearch.reindex.BulkByScrollSearchContextMetrics;
+import org.elasticsearch.reindex.BulkIndexByScrollResponseMatcher;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.Reindexer;
 import org.elasticsearch.reindex.TransportReindexAction;
@@ -544,10 +544,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .orElseThrow();
         testTelemetryPlugin.resetMeter();
 
-        BulkByScrollResponse response = deleteByQuery().source("test")
-            .filter(QueryBuilders.matchAllQuery())
-            .refresh(true)
-            .get();
+        BulkByScrollResponse response = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
         assertHitCount(prepareSearch("test").setSize(0), 0);

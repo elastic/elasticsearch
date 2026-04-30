@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 
@@ -19,6 +21,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
+import static org.apache.lucene.tests.util.TestCase.random;
 
 public class TransportVersionUtils {
     /** Returns all released versions */
@@ -50,12 +53,8 @@ public class TransportVersionUtils {
      * Returns a random {@link TransportVersion} that does not support the provided version. Effectively, this returns a version
      * "before" the given version.
      */
-    public static TransportVersion randomVersionNotSupporting(Random random, TransportVersion version) {
-        List<TransportVersion> notSupportingVersions = ALL_VERSIONS.stream().filter(v -> v.supports(version) == false).collect(Collectors.toList());
-        if (notSupportingVersions.isEmpty()) {
-            throw new IllegalArgumentException("couldn't find any released versions not supporting [" + version + "]");
-        }
-        return notSupportingVersions.get(random.nextInt(notSupportingVersions.size()));
+    public static TransportVersion randomVersionNotSupporting(TransportVersion version) {
+        return RandomPicks.randomFrom(random(), allReleasedVersions().stream().filter(v -> v.supports(version) == false).toList());
     }
 
     /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */

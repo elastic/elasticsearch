@@ -571,7 +571,7 @@ public class QueryRewriteContext {
      * @param pattern the field name pattern
      */
     public Set<String> getMatchingFieldNames(String pattern) {
-        if (isSliceFieldAliasEnabled() && Regex.isSimpleMatchPattern(pattern) == false && SliceIndexing.PARAM_NAME.equals(pattern)) {
+        if (isSliceFieldAlias(pattern)) {
             return Set.of(SliceIndexing.PARAM_NAME);
         }
         Set<String> matches;

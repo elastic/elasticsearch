@@ -384,18 +384,30 @@ public class HashAggregationOperator implements Operator {
         long startInNanos = System.nanoTime();
         PreparedForEvaluation prepared = new PreparedForEvaluation();
         try {
-            if (prepared.selected.keys.getPositionCount() <= maxPageSize) {
-                output = ReleasableIterator.single(prepared.buildPage(prepared.selected, aggBlockCounts));
-            } else {
-                output = new MultiPageResult(prepared, aggBlockCounts);
-                prepared = null; // Prepared has moved into the output
-            }
+            output = buildOutput(prepared, aggBlockCounts);
+            prepared = null; // Ownership transferred to output
         } finally {
             rowsAddedInCurrentBatch = 0;
             Releasables.close(prepared);
             emitNanos += System.nanoTime() - startInNanos;
             emitCount++;
         }
+    }
+
+    /**
+     * Build the output page iterator from {@code prepared}. On successful return ownership of
+     * {@code prepared} has been resolved: either consumed eagerly (single-page) or transferred to
+     * the returned iterator (multi-page). On exception, ownership stays with the caller, which
+     * closes {@code prepared}. Subclasses override to customize page assembly.
+     */
+    protected ReleasableIterator<Page> buildOutput(PreparedForEvaluation prepared, int[] aggBlockCounts) {
+        if (prepared.selected.keys.getPositionCount() <= maxPageSize) {
+            Page page = prepared.buildPage(prepared.selected, aggBlockCounts);
+            ReleasableIterator<Page> result = ReleasableIterator.single(page);
+            prepared.close();
+            return result;
+        }
+        return new MultiPageResult(prepared, aggBlockCounts);
     }
 
     /**
@@ -425,10 +437,6 @@ public class HashAggregationOperator implements Operator {
 
     protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash) {
         return new GroupingAggregatorEvaluationContext(driverContext);
-    }
-
-    protected void setOutput(ReleasableIterator<Page> newOutput) {
-        output = newOutput;
     }
 
     @Override
@@ -723,12 +731,12 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    private class PreparedForEvaluation implements Releasable {
-        private final GroupingAggregatorEvaluationContext ctx;
-        private final Selected selected;
-        private final List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators;
+    protected class PreparedForEvaluation implements Releasable {
+        protected final GroupingAggregatorEvaluationContext ctx;
+        protected final Selected selected;
+        protected final List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators;
 
-        private PreparedForEvaluation() {
+        protected PreparedForEvaluation() {
             int count = aggregators.size();
             GroupingAggregatorEvaluationContext ctx = evaluationContext(blockHash);
             Selected selected = null;
@@ -749,6 +757,19 @@ public class HashAggregationOperator implements Operator {
             this.ctx = ctx;
             this.selected = selected;
             this.preparedAggregators = preparedAggregators;
+        }
+
+        /**
+         * Evaluate every aggregator at {@link #selected} and write the results into {@code aggBlocks}.
+         * Block at row {@code p} of agg {@code a} corresponds to {@code selected.aggs[a].getInt(p)} —
+         * for the default identity {@link #customizeSelected}, that's the agg result for group {@code p}.
+         */
+        protected void evaluateAggregatorBlocks(Block[] aggBlocks, int[] aggBlockCounts) {
+            int offset = 0;
+            for (int a = 0; a < preparedAggregators.size(); a++) {
+                preparedAggregators.get(a).evaluate(aggBlocks, offset, selected.aggs[a]);
+                offset += aggBlockCounts[a];
+            }
         }
 
         /**
@@ -783,7 +804,7 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    private record Selected(IntVector keys, IntVector[] aggs) implements Releasable {
+    protected record Selected(IntVector keys, IntVector[] aggs) implements Releasable {
         public Selected slice(int beginInclude, int endExclusive) {
             Selected result = new Selected(keys.slice(beginInclude, endExclusive), new IntVector[aggs.length]);
             try {

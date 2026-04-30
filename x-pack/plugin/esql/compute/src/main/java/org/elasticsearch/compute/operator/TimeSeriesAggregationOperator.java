@@ -146,24 +146,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         if (rowsAddedInCurrentBatch == 0) {
             return;
         }
-        if (collapsed && blockHash instanceof TimeSeriesBlockHash tsBlockHash && aggregatorMode.isOutputPartial() == false) {
-            // Collapsed emit with tsid-contiguous null-fill only activates in FINAL/SINGLE mode.
-            // In INITIAL mode (isOutputPartial=true), emit standard per-(tsid, step) intermediate
-            // rows — the coordinator's FINAL aggregator expects these to hash and combine.
-            if (tsBlockHash.numGroups() == 0) {
-                return;
-            }
-            long startInNanos = System.nanoTime();
-            try {
-                emitCollapsed(tsBlockHash);
-            } finally {
-                rowsAddedInCurrentBatch = 0;
-                emitNanos += System.nanoTime() - startInNanos;
-                emitCount++;
-            }
-            return;
-        }
         if (needsOutputFiltering() == false) {
+            // Collapsed emit (tsid-contiguous null-fill, FINAL/SINGLE only) is dispatched via buildOutput().
+            // In INITIAL mode (isOutputPartial=true) collapsed emits standard per-(tsid, step) intermediate
+            // rows so the coordinator's FINAL aggregator can hash and combine them.
             super.emit();
             return;
         }
@@ -236,7 +222,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     }
 
     private boolean needsOutputFiltering() {
-        return aggregatorMode.isOutputPartial() == false && outputTimeBucket != null && blockHash instanceof TimeSeriesBlockHash;
+        return aggregatorMode.isOutputPartial() == false
+            && collapsed == false
+            && outputTimeBucket != null
+            && blockHash instanceof TimeSeriesBlockHash;
     }
 
     /**
@@ -286,39 +275,49 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         return false;
     }
 
-    private void emitCollapsed(TimeSeriesBlockHash tsBlockHash) {
-        int aggCount = aggregators.size();
-        int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-        int totalAggBlocks = Arrays.stream(aggBlockCounts).sum();
-
-        // Evaluate aggregators on existing groups: position g = value for group g
-        GroupingAggregatorEvaluationContext ctx = evaluationContext(blockHash);
-        IntVector allGroupIds = tsBlockHash.nonEmpty();
-        IntVector[] aggSelectedVecs = new IntVector[aggCount];
-        GroupingAggregatorFunction.PreparedForEvaluation[] preps = new GroupingAggregatorFunction.PreparedForEvaluation[aggCount];
-        Block[] aggBlocks = new Block[totalAggBlocks];
-        boolean evalSuccess = false;
-        try {
-            for (int a = 0; a < aggCount; a++) {
-                aggSelectedVecs[a] = customizeSelected(aggregators.get(a), allGroupIds);
-                preps[a] = aggregators.get(a).prepareForEvaluate(aggSelectedVecs[a], ctx);
-            }
-            int blockOffset = 0;
-            for (int a = 0; a < aggCount; a++) {
-                preps[a].evaluate(aggBlocks, blockOffset, aggSelectedVecs[a]);
-                blockOffset += aggBlockCounts[a];
-            }
-            evalSuccess = true;
-        } finally {
-            Releasables.close(ctx, allGroupIds);
-            Releasables.close(aggSelectedVecs);
-            Releasables.close(preps);
-            if (evalSuccess == false) {
-                Releasables.close(aggBlocks);
-            }
+    @Override
+    protected ReleasableIterator<Page> buildOutput(PreparedForEvaluation prepared, int[] aggBlockCounts) {
+        if (collapsed
+            && aggregatorMode.isOutputPartial() == false
+            && blockHash instanceof TimeSeriesBlockHash tsBlockHash
+            && tsBlockHash.numGroups() > 0) {
+            return buildCollapsedOutput(prepared, aggBlockCounts, tsBlockHash);
         }
+        return super.buildOutput(prepared, aggBlockCounts);
+    }
 
-        // Build tsid-contiguous output pages with inline null-fill
+    /**
+     * Collapsed page assembly: evaluate aggregators once at all groups (group-id order, addressable
+     * by group id thanks to identity {@link #customizeSelected}), then walk the {@code (tsid, step)}
+     * grid and copy each aggregator block cell into the output. Cells with no group are null-filled,
+     * except for {@code VALUES}-style aggregators where the dimension value is propagated from a
+     * representative group of the same tsid so downstream label-contiguity holds.
+     */
+    private ReleasableIterator<Page> buildCollapsedOutput(
+        PreparedForEvaluation prepared,
+        int[] aggBlockCounts,
+        TimeSeriesBlockHash tsBlockHash
+    ) {
+        int totalAggBlocks = Arrays.stream(aggBlockCounts).sum();
+        Block[] aggBlocks = new Block[totalAggBlocks];
+        try {
+            prepared.evaluateAggregatorBlocks(aggBlocks, aggBlockCounts);
+            Page page = buildCollapsedPage(tsBlockHash, aggBlocks, aggBlockCounts, totalAggBlocks);
+            ReleasableIterator<Page> result;
+            try {
+                result = ReleasableIterator.single(page);
+            } catch (Throwable t) {
+                page.releaseBlocks();
+                throw t;
+            }
+            prepared.close();
+            return result;
+        } finally {
+            Releasables.close(aggBlocks);
+        }
+    }
+
+    private Page buildCollapsedPage(TimeSeriesBlockHash tsBlockHash, Block[] aggBlocks, int[] aggBlockCounts, int totalAggBlocks) {
         Rounding.Prepared optimized = optimizeRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
         Rounding.Prepared optimizedOutput = outputTimeBucket != null
             ? optimizeOutputRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp())
@@ -328,30 +327,22 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         int numUniqueTsids = tsBlockHash.numUniqueTsids();
         boolean reverseOutput = tsBlockHash.isReverseOutput();
 
-        // Determine which agg blocks are "values" (dimension) blocks.
-        // Dimension values are constant per tsid, so null-fill rows must propagate
-        // the dimension value from a representative group rather than emitting null.
-        // Otherwise, null-dimension rows break the label-contiguity assumption of
-        // downstream operators like TimeSeriesCollapseOperator.
+        // Mark "values" (dimension) blocks: null-fill cells must propagate a representative group's
+        // dimension value rather than emit null, so downstream label-contiguity is preserved.
         boolean[] isValuesBlock = new boolean[totalAggBlocks];
+        boolean hasValuesBlocks = false;
         {
             int blockIdx = 0;
-            for (int a = 0; a < aggCount; a++) {
+            for (int a = 0; a < aggregators.size(); a++) {
                 boolean isValues = isValuesAggregator(aggregators.get(a).aggregatorFunction());
+                hasValuesBlocks |= isValues;
                 for (int i = 0; i < aggBlockCounts[a]; i++) {
                     isValuesBlock[blockIdx++] = isValues;
                 }
             }
         }
-        boolean hasValuesBlocks = false;
-        for (boolean v : isValuesBlock) {
-            if (v) {
-                hasValuesBlocks = true;
-                break;
-            }
-        }
 
-        // Pre-compute a representative group ID per tsid (for propagating dimension values on null-fill).
+        // Representative group per tsid for VALUES propagation on null-fill cells.
         int[] representativeGroup = null;
         if (hasValuesBlocks) {
             representativeGroup = new int[numUniqueTsids];
@@ -400,7 +391,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     } else {
                         for (int b = 0; b < totalAggBlocks; b++) {
                             if (isValuesBlock[b] && representativeGroup[tsidOrdinal] >= 0) {
-                                // Propagate the dimension value from a representative group of the same tsid
                                 outAggBuilders[b].copyFrom(
                                     aggBlocks[b],
                                     representativeGroup[tsidOrdinal],
@@ -414,7 +404,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 }
             }
             outputBlocks = new Block[2 + totalAggBlocks];
-            // Output key blocks in the same order as regular emit (reverseOutput mirrors TimeSeriesBlockHash)
             if (reverseOutput) {
                 outputBlocks[0] = tsBuilder.build();
                 outputBlocks[1] = tsidBuilder.build();
@@ -425,11 +414,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             for (int b = 0; b < totalAggBlocks; b++) {
                 outputBlocks[2 + b] = outAggBuilders[b].build();
             }
-            Page page = new Page(outputBlocks);
+            Page result = new Page(outputBlocks);
             outputBlocks = null;
-            setOutput(ReleasableIterator.single(page));
+            return result;
         } finally {
-            Releasables.close(aggBlocks);
             Releasables.close(tsidBuilder, tsBuilder);
             Releasables.close(outAggBuilders);
             if (outputBlocks != null) {
@@ -551,7 +539,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             return selectedForValuesAggregator(driverContext.blockFactory(), selected);
         }
         if (aggregator.aggregatorFunction() instanceof FirstDocIdGroupingAggregatorFunction && collapsed == false) {
-            // In collapsed mode, emitCollapsed() iterates per-tsid per-step, so remapping all
+            // In collapsed mode, buildCollapsedPage() iterates per-tsid per-step, so remapping all
             // groups of the same tsid to one doc ID would produce duplicate docs in the output.
             return selectedForDocIdsAggregator(driverContext.blockFactory(), selected);
         }

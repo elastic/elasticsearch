@@ -688,11 +688,11 @@ public final class DateFieldMapper extends FieldMapper {
                     if (indexType.hasPoints()) {
                         query = LongPoint.newRangeQuery(name(), l, u);
                         if (hasDocValues()) {
-                            Query dvQuery = new SortedNumericDocValuesRangeQuery(name(), l, u);
+                            Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
                             query = new IndexOrDocValuesQuery(query, dvQuery);
                         }
                     } else {
-                        query = new SortedNumericDocValuesRangeQuery(name(), l, u);
+                        query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
                     }
                     if (hasDocValues() && context.indexSortedOnField(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
@@ -805,11 +805,11 @@ public final class DateFieldMapper extends FieldMapper {
             if (indexType.hasPoints()) {
                 query = LongPoint.newRangeQuery(name(), l, u);
                 if (hasDocValues()) {
-                    Query dvQuery = new SortedNumericDocValuesRangeQuery(name(), l, u);
+                    Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
                     query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
             } else {
-                query = new SortedNumericDocValuesRangeQuery(name(), l, u);
+                query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
             }
             if (hasDocValues() && context.indexSortedOnField(name())) {
                 query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);

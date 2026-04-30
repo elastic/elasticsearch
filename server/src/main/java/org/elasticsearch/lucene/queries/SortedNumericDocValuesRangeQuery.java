@@ -9,6 +9,7 @@
 
 package org.elasticsearch.lucene.queries;
 
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
@@ -32,6 +33,21 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRangeQuery {
 
     public static final FeatureFlag NUMERIC_RANGE_COLLECT_PUSHDOWN = new FeatureFlag("numeric_range_collect_pushdown");
+
+    /**
+     * Returns a range query over sorted numeric doc values for the given field.
+     * When {@link #NUMERIC_RANGE_COLLECT_PUSHDOWN} is enabled, returns this Elasticsearch
+     * subclass which supports SIMD-based collect pushdown into TSDB codec blocks.
+     * When disabled, returns Lucene's own (package-private) implementation via
+     * {@link SortedNumericDocValuesField#newSlowRangeQuery} to avoid shipping the
+     * diverged copy of that code on the hot path.
+     */
+    public static Query newRangeQuery(String field, long lowerValue, long upperValue) {
+        if (NUMERIC_RANGE_COLLECT_PUSHDOWN.isEnabled()) {
+            return new SortedNumericDocValuesRangeQuery(field, lowerValue, upperValue);
+        }
+        return SortedNumericDocValuesField.newSlowRangeQuery(field, lowerValue, upperValue);
+    }
 
     public SortedNumericDocValuesRangeQuery(String field, long lowerValue, long upperValue) {
         super(field, lowerValue, upperValue);
@@ -246,9 +262,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                     scoreMode,
                     maxDoc
                 );
-                if (NUMERIC_RANGE_COLLECT_PUSHDOWN.isEnabled()
-                    && skipper != null
-                    && singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
+                if (skipper != null && singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
                     var rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue, skipper);
                     if (rangeIterator != null) {
                         return ConstantScoreScorerSupplier.fromIterator(rangeIterator, score(), scoreMode, maxDoc);

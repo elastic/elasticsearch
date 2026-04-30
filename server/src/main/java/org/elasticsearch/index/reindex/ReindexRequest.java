@@ -79,6 +79,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         super(in);
         destination = new IndexRequest(in);
         if (in.getTransportVersion().supports(SliceIndexing.REINDEX_DEST_ROUTING_PROVENANCE_VERSION)) {
+            assert !destination.isRoutingFromSlice() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
             destination.setRoutingFromSlice(in.readBoolean());
         }
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
@@ -155,6 +156,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             return true;
         }
         if (destination.isRoutingFromSlice()) {
+            assert SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
             return isValidSliceRoutingCommand(routing);
         }
         if (routing.startsWith("=")) {
@@ -336,6 +338,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         super.writeTo(out);
         destination.writeTo(out);
         if (out.getTransportVersion().supports(SliceIndexing.REINDEX_DEST_ROUTING_PROVENANCE_VERSION)) {
+            assert !destination.isRoutingFromSlice() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
             out.writeBoolean(destination.isRoutingFromSlice());
         }
         out.writeOptionalWriteable(remoteInfo);
@@ -372,6 +375,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             builder.startObject("dest");
             builder.field("index", getDestination().index());
             if (getDestination().routing() != null) {
+                assert !getDestination().isRoutingFromSlice() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
                 builder.field(getDestination().isRoutingFromSlice() ? SliceIndexing.PARAM_NAME : "routing", getDestination().routing());
             }
             builder.field("op_type", getDestination().opType().getLowercase());

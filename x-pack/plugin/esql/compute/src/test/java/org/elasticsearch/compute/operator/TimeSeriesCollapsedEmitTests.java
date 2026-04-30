@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.WindowAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -21,7 +22,9 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class TimeSeriesCollapsedEmitTests extends ComputeTestCase {
 
     private static final Rounding.Prepared TIME_BUCKET = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+    private static final DateFieldMapper.Resolution MILLIS = DateFieldMapper.Resolution.MILLISECONDS;
 
     private static final long BASE_TIME = 1_000_000L;
     private static final long ONE_MINUTE = 60_000L;
@@ -129,32 +133,17 @@ public class TimeSeriesCollapsedEmitTests extends ComputeTestCase {
         long min5 = TIME_BUCKET.round(5 * ONE_MINUTE);    // 300_000 ms — 5-min aligned
         long min10 = TIME_BUCKET.round(10 * ONE_MINUTE);  // 600_000 ms — 5-min aligned
 
-        BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null, "test");
-        TimeSeriesAggregationOperator op = new TimeSeriesAggregationOperator(
-            TIME_BUCKET,
-            org.elasticsearch.index.mapper.DateFieldMapper.Resolution.MILLISECONDS,
-            AggregatorMode.SINGLE,
-            List.of(
-                new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
-                    AggregatorMode.SINGLE,
-                    List.of(2)
-                )
-            ),
-            () -> new TimeSeriesBlockHash(0, 1, false, true, blockFactory),
-            fiveMinBucket,
-            true,
-            driverContext
-        );
+        DriverContext driverContext = driverContext();
+        TimeSeriesAggregationOperator op = createOperator(driverContext, List.of(sumLongFactory()), fiveMinBucket, false);
 
         // tsid1: data at min0, min1 (not 5-min aligned), and min10; min5 has no data -> null-fill
         feedInput(
+            driverContext,
             op,
-            blockFactory,
             List.of(new InputRow("tsid1", min0, 10), new InputRow("tsid1", min1, 20), new InputRow("tsid1", min10, 30))
         );
         op.finish();
-        List<Row> result = drainExpandedRows(op);
+        List<Row> result = drainRows(op, 0, 1, 2);
 
         // Range [min0, min10]. 5-min-aligned steps: min0, min5, min10.
         // min1 has data but is not 5-min aligned -> excluded.
@@ -171,28 +160,15 @@ public class TimeSeriesCollapsedEmitTests extends ComputeTestCase {
      * break the label-contiguity assumption of downstream operators like TimeSeriesCollapseOperator.
      */
     public void testSparseDimensionValuesPropagatedOnNullFill() {
-        BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null, "test");
-
-        // 4-channel input: tsid, timestamp, value (long), cluster (bytes_ref)
-        var sumFactory = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
-            AggregatorMode.SINGLE,
-            List.of(2)
-        );
+        DriverContext driverContext = driverContext();
         var dimFactory = new DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier().groupingAggregatorFactory(
             AggregatorMode.SINGLE,
             List.of(3)
         );
-        TimeSeriesAggregationOperator op = createOperator(
-            AggregatorMode.SINGLE,
-            List.of(sumFactory, dimFactory),
-            blockFactory,
-            driverContext
-        );
+        TimeSeriesAggregationOperator op = createOperator(driverContext, List.of(sumLongFactory(), dimFactory), null, false);
 
-        // Sparse: tsid1 has step(0) only, tsid2 has step(1) only
-        BytesRef clusterA = new BytesRef("clusterA");
-        BytesRef clusterB = new BytesRef("clusterB");
+        // Sparse: tsid1 has step(0) only, tsid2 has step(1) only — 4-channel input: tsid, timestamp, value, cluster
+        BlockFactory blockFactory = driverContext.blockFactory();
         try (
             var tsidBuilder = blockFactory.newBytesRefBlockBuilder(2);
             var tsBuilder = blockFactory.newLongBlockBuilder(2);
@@ -202,12 +178,12 @@ public class TimeSeriesCollapsedEmitTests extends ComputeTestCase {
             tsidBuilder.appendBytesRef(new BytesRef("tsid1"));
             tsBuilder.appendLong(step(0));
             valBuilder.appendLong(100);
-            clusterBuilder.appendBytesRef(clusterA);
+            clusterBuilder.appendBytesRef(new BytesRef("clusterA"));
 
             tsidBuilder.appendBytesRef(new BytesRef("tsid2"));
             tsBuilder.appendLong(step(1));
             valBuilder.appendLong(200);
-            clusterBuilder.appendBytesRef(clusterB);
+            clusterBuilder.appendBytesRef(new BytesRef("clusterB"));
 
             try (var page = new Page(tsidBuilder.build(), tsBuilder.build(), valBuilder.build(), clusterBuilder.build())) {
                 op.addInput(page);
@@ -245,42 +221,138 @@ public class TimeSeriesCollapsedEmitTests extends ComputeTestCase {
         assertThat(result.get(3), equalTo(new DimRow("tsid2", step(1), 200L, "clusterB")));
     }
 
+    /**
+     * When both window expansion and collapsed expansion fire, the combined output must still be
+     * tsid-contiguous with null-fill for missing steps. Window-expanded groups are created first,
+     * then collapsed expansion fills the remaining gaps.
+     */
+    public void testWindowPlusCollapsed() {
+        Duration window = Duration.ofMinutes(3);
+        DriverContext driverContext = driverContext();
+        TimeSeriesAggregationOperator op = createOperator(driverContext, List.of(windowSumFactory(window)), null, false);
+
+        // tsid1 has step(0), tsid2 has step(2) — range is [step(0), step(2)]
+        feedInput(driverContext, op, List.of(new InputRow("tsid1", step(0), 10), new InputRow("tsid2", step(2), 200)));
+        op.finish();
+        List<Row> result = drainRows(op, 0, 1, 2);
+
+        // Both tsids must cover the full range [step(0), step(2)] = 3 steps
+        assertThat(result.size(), equalTo(6));
+        // tsid1: step(0) has data (value=10), step(1) and step(2) are collapsed null-fill
+        assertThat(result.get(0), equalTo(new Row("tsid1", step(0), 10L)));
+        assertThat(result.get(1), equalTo(new Row("tsid1", step(1), null)));
+        assertThat(result.get(2), equalTo(new Row("tsid1", step(2), null)));
+        // tsid2: window expansion fills step(0) and step(1) with the windowed sum from step(2),
+        // so all three steps have value 200 (not null)
+        assertThat(result.get(3), equalTo(new Row("tsid2", step(0), 200L)));
+        assertThat(result.get(4), equalTo(new Row("tsid2", step(1), 200L)));
+        assertThat(result.get(5), equalTo(new Row("tsid2", step(2), 200L)));
+    }
+
+    /**
+     * Feeds input across multiple pages to exercise min/max timestamp tracking across addInput calls.
+     */
+    public void testMultiPageInput() {
+        DriverContext driverContext = driverContext();
+        TimeSeriesAggregationOperator op = createOperator(driverContext, List.of(sumLongFactory()), null, false);
+
+        // Page 1: tsid1 at step(0)
+        feedInput(driverContext, op, List.of(new InputRow("tsid1", step(0), 10)));
+        // Page 2: tsid1 at step(2) — extends the time range
+        feedInput(driverContext, op, List.of(new InputRow("tsid1", step(2), 30)));
+        op.finish();
+        List<Row> result = drainRows(op, 0, 1, 2);
+
+        // Range [step(0), step(2)] = 3 steps; step(1) is null-fill
+        assertThat(result.size(), equalTo(3));
+        assertThat(result.get(0), equalTo(new Row("tsid1", step(0), 10L)));
+        assertThat(result.get(1), equalTo(new Row("tsid1", step(1), null)));
+        assertThat(result.get(2), equalTo(new Row("tsid1", step(2), 30L)));
+    }
+
+    /**
+     * Tests that collapsed output works correctly when the block hash uses reverse output order
+     * (timestamp first, tsid second in the key blocks).
+     */
+    public void testReverseOutput() {
+        DriverContext driverContext = driverContext();
+        TimeSeriesAggregationOperator op = createOperator(driverContext, List.of(sumLongFactory()), null, true);
+
+        // Input channels: [timestamp, tsid, value] (reversed order to match reversed block hash)
+        BlockFactory blockFactory = driverContext.blockFactory();
+        try (
+            var tsBuilder = blockFactory.newLongBlockBuilder(2);
+            var tsidBuilder = blockFactory.newBytesRefBlockBuilder(2);
+            var valBuilder = blockFactory.newLongBlockBuilder(2)
+        ) {
+            tsBuilder.appendLong(step(0));
+            tsidBuilder.appendBytesRef(new BytesRef("tsid1"));
+            valBuilder.appendLong(10);
+
+            tsBuilder.appendLong(step(1));
+            tsidBuilder.appendBytesRef(new BytesRef("tsid2"));
+            valBuilder.appendLong(200);
+
+            try (var page = new Page(tsBuilder.build(), tsidBuilder.build(), valBuilder.build())) {
+                op.addInput(page);
+            }
+        }
+        op.finish();
+
+        // Output channels are [timestamp, tsid, sum] due to reverseOutput
+        List<Row> result = drainRows(op, 1, 0, 2);
+
+        // Both tsids cover [step(0), step(1)] = 2 steps each
+        assertThat(result.size(), equalTo(4));
+        assertThat(result.get(0), equalTo(new Row("tsid1", step(0), 10L)));
+        assertThat(result.get(1), equalTo(new Row("tsid1", step(1), null)));
+        assertThat(result.get(2), equalTo(new Row("tsid2", step(0), null)));
+        assertThat(result.get(3), equalTo(new Row("tsid2", step(1), 200L)));
+    }
+
     // ---- helpers ----
 
-    private TimeSeriesAggregationOperator createOperator(
-        AggregatorMode mode,
+    private static GroupingAggregator.Factory sumLongFactory() {
+        return new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+            AggregatorMode.SINGLE,
+            List.of(2)
+        );
+    }
+
+    private static GroupingAggregator.Factory windowSumFactory(Duration window) {
+        return new WindowAggregatorFunctionSupplier(new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE), window)
+            .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(2));
+    }
+
+    private DriverContext driverContext() {
+        BlockFactory bf = blockFactory();
+        return new DriverContext(bf.bigArrays(), bf, null, "test");
+    }
+
+    private static TimeSeriesAggregationOperator createOperator(
+        DriverContext driverContext,
         List<GroupingAggregator.Factory> aggFactories,
-        BlockFactory blockFactory,
-        DriverContext driverContext
+        Rounding.Prepared outputTimeBucket,
+        boolean reverseOutput
     ) {
+        BlockFactory blockFactory = driverContext.blockFactory();
+        int tsidChannel = reverseOutput ? 1 : 0;
+        int timestampChannel = reverseOutput ? 0 : 1;
         return new TimeSeriesAggregationOperator(
             TIME_BUCKET,
-            org.elasticsearch.index.mapper.DateFieldMapper.Resolution.MILLISECONDS,
-            mode,
+            MILLIS,
+            AggregatorMode.SINGLE,
             aggFactories,
-            () -> new TimeSeriesBlockHash(0, 1, false, true, blockFactory),
-            null,
+            () -> new TimeSeriesBlockHash(tsidChannel, timestampChannel, reverseOutput, true, blockFactory),
+            outputTimeBucket,
             true,
             driverContext
         );
     }
 
-    private TimeSeriesAggregationOperator createSingleModeOperator(BlockFactory blockFactory, DriverContext driverContext) {
-        return createOperator(
-            AggregatorMode.SINGLE,
-            List.of(
-                new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
-                    AggregatorMode.SINGLE,
-                    List.of(2)
-                )
-            ),
-            blockFactory,
-            driverContext
-        );
-    }
-
     /** Build an input page from the given rows (channels: tsid, timestamp, value) and feed it to the operator. */
-    private void feedInput(TimeSeriesAggregationOperator op, BlockFactory blockFactory, List<InputRow> inputRows) {
+    private static void feedInput(DriverContext driverContext, TimeSeriesAggregationOperator op, List<InputRow> inputRows) {
+        BlockFactory blockFactory = driverContext.blockFactory();
         try (
             var tsidBuilder = blockFactory.newBytesRefBlockBuilder(inputRows.size());
             var tsBuilder = blockFactory.newLongBlockBuilder(inputRows.size());
@@ -297,14 +369,14 @@ public class TimeSeriesCollapsedEmitTests extends ComputeTestCase {
         }
     }
 
-    /** Drain all expanded (flat) output rows from the operator. Channels: 0=tsid, 1=timestamp, 2=sum. */
-    private List<Row> drainExpandedRows(TimeSeriesAggregationOperator op) {
+    /** Drain output rows from the operator, reading tsid/timestamp/sum from the given channel indices. */
+    private static List<Row> drainRows(TimeSeriesAggregationOperator op, int tsidChannel, int timestampChannel, int sumChannel) {
         List<Row> result = new ArrayList<>();
         Page page;
         while ((page = op.getOutput()) != null) {
-            BytesRefBlock tsids = page.getBlock(0);
-            LongBlock timestamps = page.getBlock(1);
-            LongBlock sums = page.getBlock(2);
+            BytesRefBlock tsids = page.getBlock(tsidChannel);
+            LongBlock timestamps = page.getBlock(timestampChannel);
+            LongBlock sums = page.getBlock(sumChannel);
             BytesRef scratch = new BytesRef();
             for (int p = 0; p < page.getPositionCount(); p++) {
                 String tsid = tsids.getBytesRef(tsids.getFirstValueIndex(p), scratch).utf8ToString();
@@ -320,11 +392,10 @@ public class TimeSeriesCollapsedEmitTests extends ComputeTestCase {
 
     /** Run a collapsed operator against the given input rows and return all expanded output rows. */
     private List<Row> runCollapsed(List<InputRow> inputRows) {
-        BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null, "test");
-        TimeSeriesAggregationOperator op = createSingleModeOperator(blockFactory, driverContext);
-        feedInput(op, blockFactory, inputRows);
+        DriverContext driverContext = driverContext();
+        TimeSeriesAggregationOperator op = createOperator(driverContext, List.of(sumLongFactory()), null, false);
+        feedInput(driverContext, op, inputRows);
         op.finish();
-        return drainExpandedRows(op);
+        return drainRows(op, 0, 1, 2);
     }
 }

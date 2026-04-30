@@ -110,7 +110,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
 
         // Make sure we have at least one query that matches docs on all shards.
         prepareSearch(mountedIndex).addAggregation(
-            AggregationBuilders.global("all").subAggregation(AggregationBuilders.terms("by_test").field("test.keyword"))
+            AggregationBuilders.global("all").subAggregation(AggregationBuilders.terms("by_test").field("test.keyword").size(nbDocs))
         ).setSize(0).get().decRef();
 
         for (int i = 0; i < 20; i++) {

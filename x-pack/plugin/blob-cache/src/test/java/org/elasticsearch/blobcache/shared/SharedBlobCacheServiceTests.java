@@ -3015,7 +3015,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), randomBoolean())
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -3049,11 +3049,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testGetIfPresentFindsPopulatedEntry() throws Exception {
         final long regionSize = size(10);
         final long fileLength = size(randomIntBetween(5, 19));
+        final boolean mmapEnabled = randomBoolean();
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), mmapEnabled)
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -3100,23 +3101,25 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertTrue(cacheFile.tryRead(ByteBuffer.wrap(actual), readOffset));
             assertArrayEquals(expected, actual);
 
-            Arrays.fill(actual, (byte) 0);
-            final boolean sliceAvailable = cacheFile.withByteBufferSlice(readOffset, readLength, slice -> {
-                assertTrue(slice.isReadOnly());
-                slice.get(actual);
-            });
-            assertTrue(sliceAvailable);
-            assertArrayEquals(expected, actual);
+            if (mmapEnabled) {
+                Arrays.fill(actual, (byte) 0);
+                final boolean sliceAvailable = cacheFile.withByteBufferSlice(readOffset, readLength, slice -> {
+                    assertTrue(slice.isReadOnly());
+                    slice.get(actual);
+                });
+                assertTrue(sliceAvailable);
+                assertArrayEquals(expected, actual);
 
-            Arrays.fill(actual, (byte) 0);
-            final boolean slicesAvailable = cacheFile.withByteBufferSlices(new long[] { readOffset }, readLength, 1, slices -> {
-                assertThat(slices.length, equalTo(1));
-                assertThat(slices[0], notNullValue());
-                assertTrue(slices[0].isReadOnly());
-                slices[0].get(actual);
-            });
-            assertTrue(slicesAvailable);
-            assertArrayEquals(expected, actual);
+                Arrays.fill(actual, (byte) 0);
+                final boolean slicesAvailable = cacheFile.withByteBufferSlices(new long[] { readOffset }, readLength, 1, slices -> {
+                    assertThat(slices.length, equalTo(1));
+                    assertThat(slices[0], notNullValue());
+                    assertTrue(slices[0].isReadOnly());
+                    slices[0].get(actual);
+                });
+                assertTrue(slicesAvailable);
+                assertArrayEquals(expected, actual);
+            }
         }
     }
 

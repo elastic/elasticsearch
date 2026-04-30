@@ -55,13 +55,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ESTestCase.between;
@@ -70,6 +70,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -2317,27 +2318,26 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
     }
 
-    /**
-     * Verifies that {@link BlockLoader.OptionalNumericRangeReader#tryRangeIterator} returns exactly
-     * the same set of matching documents as a brute-force linear scan, for a variety of range
-     * patterns including exact-match (regression for the [v,v] single-value bug), all-docs, and
-     * random ranges spanning multiple numeric blocks.
-     * <p>
-     * Also validates the {@code docIDRunEnd()} contract: every doc in {@code [docID, docIDRunEnd())}
-     * must be a match, and {@code advance()} must land exactly on requested matching docs.
-     */
     public void testRangeIteratorVsBruteForce() throws IOException {
         final String field = "dense_value";
-        // Use enough docs to span multiple numeric blocks (block size is 128–512 per codec config).
-        int numDocs = 1024 + randomIntBetween(64, 512);
+        int numDocs = randomIntBetween(1, 4096 * 4);
         long currentTimestamp = BASE_TIMESTAMP;
 
+        List<Long> values = new ArrayList<>();
         var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
+        if (randomBoolean()) {
+            config.setIndexSort(new Sort(
+                new SortedNumericSortField(field, SortField.Type.LONG, false),
+                new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
+            ));
+        }
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             for (int i = 0; i < numDocs; i++) {
                 var d = new Document();
                 d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
-                d.add(new SortedNumericDocValuesField(field, random().nextLong()));
+                long v = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
+                values.add(v);
+                d.add(new SortedNumericDocValuesField(field, v));
                 currentTimestamp += 1000L;
                 iw.addDocument(d);
                 if (i % 256 == 0) {
@@ -2346,52 +2346,48 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             }
             iw.forceMerge(1);
 
+            long minValue = Collections.min(values);
+            long maxValue = Collections.max(values);
+            long sampleValue = randomFrom(values);
+
             try (var reader = DirectoryReader.open(iw)) {
                 assertEquals(1, reader.leaves().size());
                 var leafReader = reader.leaves().getFirst().reader();
                 assumeTrue("requires DocValuesSkipper", leafReader.getDocValuesSkipper(field) != null);
 
-                // Sample an existing value for the exact-match regression test.
-                var sample = getBaseDenseNumericValues(leafReader, field);
-                assertNotNull(sample);
-                sample.advance(randomIntBetween(0, numDocs - 1));
-                long existingValue = sample.longValue();
+                assertRangeIterator(leafReader, field, numDocs, sampleValue, sampleValue); // exact match
+                assertRangeIterator(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE); // empty match
 
-                assertRangeIterator(leafReader, field, numDocs, existingValue, existingValue);  // exact match
-                assertRangeIterator(leafReader, field, numDocs, Long.MIN_VALUE, Long.MAX_VALUE); // all docs
-                assertRangeIterator(leafReader, field, numDocs, Long.MIN_VALUE, Long.MIN_VALUE); // likely empty
-                assertRangeIterator(leafReader, field, numDocs, Long.MAX_VALUE, Long.MAX_VALUE); // likely empty
-
+                // Random ranges within [minValue, maxValue].
                 for (int i = 0; i < 5; i++) {
-                    long lo = random().nextLong();
-                    long hi = random().nextLong();
-                    if (lo > hi) {
-                        long t = lo;
-                        lo = hi;
-                        hi = t;
-                    }
-                    assertRangeIterator(leafReader, field, numDocs, lo, hi);
+                    long a = randomLongBetween(minValue, maxValue);
+                    long b = randomLongBetween(minValue, maxValue);
+                    assertRangeIterator(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b));
                 }
             }
         }
     }
 
-    /**
-     * Verifies that {@link BlockLoader.OptionalNumericRangeReader#tryRangeIterator}'s
-     * {@code intoBitSet()} fills a {@link FixedBitSet} with exactly the same set of matching
-     * documents as a brute-force linear scan.
-     */
     public void testRangeIteratorIntoBitSet() throws IOException {
         final String field = "dense_value";
-        int numDocs = 1024 + randomIntBetween(64, 512);
+        int numDocs = randomIntBetween(1, 4096 * 4);
         long currentTimestamp = BASE_TIMESTAMP;
 
+        List<Long> values = new ArrayList<>();
         var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
+        if (randomBoolean()) {
+            config.setIndexSort(new Sort(
+                new SortedNumericSortField(field, SortField.Type.LONG, false),
+                new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
+            ));
+        }
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             for (int i = 0; i < numDocs; i++) {
                 var d = new Document();
                 d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
-                d.add(new SortedNumericDocValuesField(field, random().nextLong()));
+                long v = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
+                values.add(v);
+                d.add(new SortedNumericDocValuesField(field, v));
                 currentTimestamp += 1000L;
                 iw.addDocument(d);
                 if (i % 256 == 0) {
@@ -2399,51 +2395,49 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 }
             }
             iw.forceMerge(1);
+
+            long minValue = Collections.min(values);
+            long maxValue = Collections.max(values);
+            long sampleValue = randomFrom(values);
 
             try (var reader = DirectoryReader.open(iw)) {
                 assertEquals(1, reader.leaves().size());
                 var leafReader = reader.leaves().getFirst().reader();
                 assumeTrue("requires DocValuesSkipper", leafReader.getDocValuesSkipper(field) != null);
 
-                var sample = getBaseDenseNumericValues(leafReader, field);
-                assertNotNull(sample);
-                sample.advance(randomIntBetween(0, numDocs - 1));
-                long existingValue = sample.longValue();
+                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, sampleValue, sampleValue); // exact match
+                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE); // empty
 
-                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, existingValue, existingValue);
-                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, Long.MIN_VALUE, Long.MAX_VALUE);
-
+                // Random ranges within [minValue, maxValue].
                 for (int i = 0; i < 5; i++) {
-                    long lo = random().nextLong();
-                    long hi = random().nextLong();
-                    if (lo > hi) {
-                        long t = lo;
-                        lo = hi;
-                        hi = t;
-                    }
-                    assertRangeIteratorIntoBitSet(leafReader, field, numDocs, lo, hi);
+                    long a = randomLongBetween(minValue, maxValue);
+                    long b = randomLongBetween(minValue, maxValue);
+                    assertRangeIteratorIntoBitSet(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b));
                 }
             }
         }
     }
 
-    /**
-     * End-to-end integration test: runs {@link SortedNumericDocValuesRangeQuery} against a
-     * TSDB-encoded segment via {@link IndexSearcher} and verifies the hit set matches a
-     * brute-force scan. When the range reader is available, the query routes through
-     * {@code tryRangeIterator} instead of the standard two-phase iterator.
-     */
     public void testRangeQueryViaIndexSearcher() throws IOException {
         final String field = "dense_value";
-        int numDocs = 1024 + randomIntBetween(64, 512);
+        int numDocs = randomIntBetween(1, 4096 * 4);
         long currentTimestamp = BASE_TIMESTAMP;
 
+        List<Long> values = new ArrayList<>();
         var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
+        if (randomBoolean()) {
+            config.setIndexSort(new Sort(
+                new SortedNumericSortField(field, SortField.Type.LONG, false),
+                new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
+            ));
+        }
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             for (int i = 0; i < numDocs; i++) {
                 var d = new Document();
                 d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
-                d.add(new SortedNumericDocValuesField(field, random().nextLong()));
+                long v = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
+                values.add(v);
+                d.add(new SortedNumericDocValuesField(field, v));
                 currentTimestamp += 1000L;
                 iw.addDocument(d);
                 if (i % 256 == 0) {
@@ -2451,37 +2445,29 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 }
             }
             iw.forceMerge(1);
+
+            long minValue = Collections.min(values);
+            long maxValue = Collections.max(values);
+            long sampleValue = randomFrom(values);
 
             try (var reader = DirectoryReader.open(iw)) {
                 assertEquals(1, reader.leaves().size());
                 var leafReader = reader.leaves().getFirst().reader();
                 var searcher = new IndexSearcher(reader);
 
-                var sample = getBaseDenseNumericValues(leafReader, field);
-                assertNotNull(sample);
-                sample.advance(randomIntBetween(0, numDocs - 1));
-                long existingValue = sample.longValue();
-
-                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, existingValue, existingValue);
-                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, Long.MIN_VALUE, Long.MAX_VALUE);
-                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, Long.MIN_VALUE, Long.MIN_VALUE);
-                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, Long.MAX_VALUE, Long.MAX_VALUE);
+                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, sampleValue, sampleValue); // exact match
+                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, maxValue + 1, Long.MAX_VALUE); // empty
 
                 for (int i = 0; i < 5; i++) {
-                    long lo = random().nextLong();
-                    long hi = random().nextLong();
-                    if (lo > hi) {
-                        long t = lo;
-                        lo = hi;
-                        hi = t;
-                    }
-                    assertRangeQuerySearcher(leafReader, field, searcher, numDocs, lo, hi);
+                    long a = randomLongBetween(minValue, maxValue);
+                    long b = randomLongBetween(minValue, maxValue);
+                    assertRangeQuerySearcher(leafReader, field, searcher, numDocs, Math.min(a, b), Math.max(a, b));
                 }
             }
         }
     }
 
-    private Set<Integer> bruteForceRange(LeafReader leafReader, String field, long lower, long upper) throws IOException {
+    private Set<Integer> matchingDocs(LeafReader leafReader, String field, long lower, long upper) throws IOException {
         Set<Integer> expected = new HashSet<>();
         var brute = getBaseDenseNumericValues(leafReader, field);
         assertNotNull(brute);
@@ -2495,16 +2481,14 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
     }
 
     private void assertRangeIterator(LeafReader leafReader, String field, int numDocs, long lower, long upper) throws IOException {
-        Set<Integer> expected = bruteForceRange(leafReader, field, lower, upper);
+        Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
 
         // Pass 1: nextDoc() correctness + docIDRunEnd() contract.
         {
             var ndv = getBaseDenseNumericValues(leafReader, field);
             var skipper = leafReader.getDocValuesSkipper(field);
             var iter = ndv.tryRangeIterator(lower, upper, skipper);
-            if (iter == null) {
-                return;
-            }
+            assertNotNull(iter);
             Set<Integer> actual = new HashSet<>();
             int doc;
             while ((doc = iter.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
@@ -2529,15 +2513,13 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             var skipper = leafReader.getDocValuesSkipper(field);
             var iter = ndv.tryRangeIterator(lower, upper, skipper);
             assertNotNull(iter);
-            List<Integer> sortedDocs = expected.stream().sorted().collect(Collectors.toList());
+            List<Integer> sortedDocs = expected.stream().sorted().toList();
             for (int expectedDoc : sortedDocs) {
-                if (iter.docID() < expectedDoc) {
-                    assertEquals(
-                        "advance(" + expectedDoc + ") for range [" + lower + "," + upper + "]",
-                        expectedDoc,
-                        iter.advance(expectedDoc)
-                    );
-                }
+                assertEquals(
+                    "advance(" + expectedDoc + ") for range [" + lower + "," + upper + "]",
+                    expectedDoc,
+                    iter.advance(expectedDoc)
+                );
             }
         }
 
@@ -2553,7 +2535,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
 
     private void assertRangeIteratorIntoBitSet(LeafReader leafReader, String field, int numDocs, long lower, long upper)
         throws IOException {
-        Set<Integer> expected = bruteForceRange(leafReader, field, lower, upper);
+        Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
 
         var ndv = getBaseDenseNumericValues(leafReader, field);
         var skipper = leafReader.getDocValuesSkipper(field);
@@ -2582,7 +2564,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
 
     private void assertRangeQuerySearcher(LeafReader leafReader, String field, IndexSearcher searcher, int numDocs, long lower, long upper)
         throws IOException {
-        Set<Integer> expected = bruteForceRange(leafReader, field, lower, upper);
+        Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
 
         var query = SortedNumericDocValuesRangeQuery.newRangeQuery(field, lower, upper);
         var topDocs = searcher.search(query, numDocs + 1);

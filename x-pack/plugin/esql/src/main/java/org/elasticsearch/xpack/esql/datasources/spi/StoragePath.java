@@ -107,16 +107,37 @@ public final class StoragePath {
             authority = authority.substring(atIndex + 1);
         }
 
-        int portIndex = authority.lastIndexOf(':');
-        if (portIndex >= 0) {
-            host = authority.substring(0, portIndex);
-            try {
-                port = Integer.parseInt(authority.substring(portIndex + 1));
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid port in location: " + location, e);
+        if (authority.startsWith("[")) {
+            // IPv6 literal address per RFC 3986 §3.2.2: [::1] or [::1]:8080
+            // The closing bracket delimits the IP literal; port (if any) follows after ']'.
+            int closingBracket = authority.indexOf(']');
+            if (closingBracket < 0) {
+                throw new IllegalArgumentException("Malformed IPv6 address in location (missing ']'): " + location);
+            }
+            host = authority.substring(0, closingBracket + 1);
+            String afterBracket = authority.substring(closingBracket + 1);
+            if (afterBracket.isEmpty() == false) {
+                if (afterBracket.startsWith(":") == false) {
+                    throw new IllegalArgumentException("Malformed authority in location: " + location);
+                }
+                try {
+                    port = Integer.parseInt(afterBracket.substring(1));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid port in location: " + location, e);
+                }
             }
         } else {
-            host = authority;
+            int portIndex = authority.lastIndexOf(':');
+            if (portIndex >= 0) {
+                host = authority.substring(0, portIndex);
+                try {
+                    port = Integer.parseInt(authority.substring(portIndex + 1));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid port in location: " + location, e);
+                }
+            } else {
+                host = authority;
+            }
         }
 
         return new StoragePath(location, scheme, host, port, path);

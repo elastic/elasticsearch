@@ -348,6 +348,147 @@ public class EirfRowXContentParserTests extends ESTestCase {
         }
     }
 
+    public void testPositionAtLeafValueScalars() throws IOException {
+        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+            builder.startDocument();
+            builder.setLong("ts", 1_700_000_000_000L);
+            builder.setInt("n", 7);
+            builder.setDouble("score", 3.5);
+            builder.setString("host", "alpha");
+            builder.setBoolean("active", true);
+            builder.setNull("maybe");
+            builder.endDocument();
+
+            try (EirfBatch batch = builder.build()) {
+                EirfSchema schema = batch.schema();
+                EirfRowReader row = batch.getRowReader(0);
+                EirfRowXContentParser.SchemaNode tree = EirfRowXContentParser.buildSchemaTree(schema);
+                try (EirfRowXContentParser parser = new EirfRowXContentParser(tree, row)) {
+                    // Look up each leaf by path, then position the parser at it.
+                    int tsLeaf = schema.findLeaf("ts", 0);
+                    assertEquals(Token.VALUE_NUMBER, parser.positionAtLeafValue(tsLeaf));
+                    assertEquals(1_700_000_000_000L, parser.longValue());
+                    assertEquals(XContentParser.NumberType.LONG, parser.numberType());
+                    assertNull(parser.nextToken());
+
+                    int nLeaf = schema.findLeaf("n", 0);
+                    assertEquals(Token.VALUE_NUMBER, parser.positionAtLeafValue(nLeaf));
+                    assertEquals(7, parser.intValue());
+                    assertEquals(XContentParser.NumberType.INT, parser.numberType());
+                    assertNull(parser.nextToken());
+
+                    int scoreLeaf = schema.findLeaf("score", 0);
+                    assertEquals(Token.VALUE_NUMBER, parser.positionAtLeafValue(scoreLeaf));
+                    assertEquals(3.5, parser.doubleValue(), 0.0);
+                    assertNull(parser.nextToken());
+
+                    int hostLeaf = schema.findLeaf("host", 0);
+                    assertEquals(Token.VALUE_STRING, parser.positionAtLeafValue(hostLeaf));
+                    assertEquals("alpha", parser.text());
+                    assertNull(parser.nextToken());
+
+                    int activeLeaf = schema.findLeaf("active", 0);
+                    assertEquals(Token.VALUE_BOOLEAN, parser.positionAtLeafValue(activeLeaf));
+                    assertTrue(parser.booleanValue());
+                    assertNull(parser.nextToken());
+
+                    int maybeLeaf = schema.findLeaf("maybe", 0);
+                    assertEquals(Token.VALUE_NULL, parser.positionAtLeafValue(maybeLeaf));
+                    assertNull(parser.nextToken());
+                }
+            }
+        }
+    }
+
+    public void testPositionAtLeafValueArrayAndKeyValue() throws IOException {
+        // {"items": [1, "two", true], "meta": {}, "trailing": 9}
+        // — "items" is a top-level UNION_ARRAY leaf, "meta" is a top-level empty KEY_VALUE leaf.
+        BytesReference source = new BytesArray("""
+            {"items": [1, "two", true], "meta": {}, "trailing": 9}""");
+        try (EirfBatch batch = EirfEncoder.encode(List.of(source), XContentType.JSON)) {
+            EirfSchema schema = batch.schema();
+            EirfRowReader row = batch.getRowReader(0);
+            EirfRowXContentParser.SchemaNode tree = EirfRowXContentParser.buildSchemaTree(schema);
+            try (EirfRowXContentParser parser = new EirfRowXContentParser(tree, row)) {
+                int itemsLeaf = schema.findLeaf("items", 0);
+                assertEquals(Token.START_ARRAY, parser.positionAtLeafValue(itemsLeaf));
+                assertToken(parser, Token.VALUE_NUMBER);
+                assertEquals(1, parser.intValue());
+                assertToken(parser, Token.VALUE_STRING);
+                assertEquals("two", parser.text());
+                assertToken(parser, Token.VALUE_BOOLEAN);
+                assertTrue(parser.booleanValue());
+                assertToken(parser, Token.END_ARRAY);
+                assertNull(parser.nextToken());
+
+                int metaLeaf = schema.findLeaf("meta", 0);
+                assertEquals(Token.START_OBJECT, parser.positionAtLeafValue(metaLeaf));
+                assertToken(parser, Token.END_OBJECT);
+                assertNull(parser.nextToken());
+
+                // Repositioning to a scalar after compound walks must continue to work.
+                int trailingLeaf = schema.findLeaf("trailing", 0);
+                assertEquals(Token.VALUE_NUMBER, parser.positionAtLeafValue(trailingLeaf));
+                assertEquals(9, parser.intValue());
+                assertNull(parser.nextToken());
+            }
+        }
+    }
+
+    public void testPositionAtLeafValueNonEmptyKeyValue() throws IOException {
+        // Top-level KEY_VALUE column with two entries — built by hand because EirfEncoder only
+        // produces top-level KEY_VALUE leaves for empty objects (non-empty objects are flattened
+        // into the schema tree). This covers the KV-walk path after positioning at the leaf.
+        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+            byte[] kvBytes = new byte[] {
+                // entry 1: key="x" (i32 LE length=1), INT value=42
+                1,
+                0,
+                0,
+                0,
+                'x',
+                EirfType.INT,
+                42,
+                0,
+                0,
+                0,
+                // entry 2: key="s" (i32 LE length=1), STRING value="hi" (i32 LE length=2)
+                1,
+                0,
+                0,
+                0,
+                's',
+                EirfType.STRING,
+                2,
+                0,
+                0,
+                0,
+                'h',
+                'i' };
+            builder.startDocument();
+            builder.setKeyValue("data", kvBytes);
+            builder.endDocument();
+
+            try (EirfBatch batch = builder.build()) {
+                EirfSchema schema = batch.schema();
+                EirfRowReader row = batch.getRowReader(0);
+                EirfRowXContentParser.SchemaNode tree = EirfRowXContentParser.buildSchemaTree(schema);
+                try (EirfRowXContentParser parser = new EirfRowXContentParser(tree, row)) {
+                    int dataLeaf = schema.findLeaf("data", 0);
+                    assertEquals(Token.START_OBJECT, parser.positionAtLeafValue(dataLeaf));
+                    assertFieldName(parser, "x");
+                    assertToken(parser, Token.VALUE_NUMBER);
+                    assertEquals(42, parser.intValue());
+                    assertFieldName(parser, "s");
+                    assertToken(parser, Token.VALUE_STRING);
+                    assertEquals("hi", parser.text());
+                    assertToken(parser, Token.END_OBJECT);
+                    assertNull(parser.nextToken());
+                }
+            }
+        }
+    }
+
     private static void assertToken(EirfRowXContentParser parser, Token expected) throws IOException {
         assertEquals(expected, parser.nextToken());
     }

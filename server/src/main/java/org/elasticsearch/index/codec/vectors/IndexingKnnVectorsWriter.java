@@ -18,7 +18,10 @@ import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
 
-public abstract class HnswKnnVectorsWriter extends KnnVectorsWriter {
+/**
+ * A {@code KnnVectorsWriter} that writes some additional indexing on top of the flat vectors.
+ */
+public abstract class IndexingKnnVectorsWriter extends KnnVectorsWriter {
 
     protected final SegmentWriteState segmentWriteState;
     private final FlatVectorsFormat flatVectorsFormat;
@@ -27,7 +30,7 @@ public abstract class HnswKnnVectorsWriter extends KnnVectorsWriter {
     private boolean flatWriterClosed;
     private boolean finished;
 
-    protected HnswKnnVectorsWriter(
+    protected IndexingKnnVectorsWriter(
         SegmentWriteState segmentWriteState,
         FlatVectorsFormat flatVectorsFormat,
         FlatVectorsWriter flatVectorWriter

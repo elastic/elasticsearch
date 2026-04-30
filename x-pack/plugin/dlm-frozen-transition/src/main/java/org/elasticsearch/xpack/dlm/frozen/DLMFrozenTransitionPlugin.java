@@ -12,6 +12,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -22,6 +24,16 @@ import java.util.Set;
  * the data stream lifecycle. Only active when the searchable snapshots feature flag is enabled.
  */
 public class DLMFrozenTransitionPlugin extends Plugin {
+
+    private final List<AbstractDLMPeriodicMasterOnlyService> managedServices = new ArrayList<>();
+
+    public DLMFrozenTransitionPlugin() {}
+
+    // visible for testing
+    DLMFrozenTransitionPlugin(List<AbstractDLMPeriodicMasterOnlyService> services) {
+        this();
+        managedServices.addAll(services);
+    }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
@@ -40,12 +52,21 @@ public class DLMFrozenTransitionPlugin extends Plugin {
             );
             transitionService.init();
             components.add(transitionService);
+            managedServices.add(transitionService);
 
             var cleanupService = new DLMFrozenCleanupService(services.clusterService(), services.client());
             cleanupService.init();
             components.add(cleanupService);
+            managedServices.add(cleanupService);
         }
         return components;
+    }
+
+    @Override
+    public void close() throws IOException {
+        for (AbstractDLMPeriodicMasterOnlyService service : managedServices) {
+            service.close();
+        }
     }
 
     @Override

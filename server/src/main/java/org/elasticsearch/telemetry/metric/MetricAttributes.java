@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.telemetry.apm.metrics;
+package org.elasticsearch.telemetry.metric;
 
 public interface MetricAttributes {
     /** Node id of the metered node (as opposed to the metering node). */

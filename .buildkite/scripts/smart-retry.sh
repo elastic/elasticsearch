@@ -62,13 +62,15 @@ if [[ -n "$BUILD_JSON" ]]; then
         DEVELOCITY_BASE_URL="${DEVELOCITY_BASE_URL:-https://gradle-enterprise.elastic.co}"
         DEVELOCITY_FAILED_TEST_API_URL="${DEVELOCITY_BASE_URL}/api/tests/build/${BUILD_SCAN_ID}?testOutcomes=failed"
         DEVELOCITY_TEST_PERF_API_URL="${DEVELOCITY_BASE_URL}/api/builds/${BUILD_SCAN_ID}/gradle-test-performance"
+        DEVELOCITY_FAILURES_API_URL="${DEVELOCITY_BASE_URL}/api/builds/${BUILD_SCAN_ID}/gradle-failures"
 
         # Add random delay to prevent API rate limiting from parallel retries
         sleep $((RANDOM % 5))
 
-        # Fetch both API responses in parallel to reduce retry startup latency.
-        # The two Develocity calls are independent; we start them concurrently
-        # and wait for both before processing results.
+        # Fetch all three API responses in parallel to reduce retry startup latency.
+        # 1. Failed tests (foreground) - provides individual test failures
+        # 2. Test performance (background) - provides list of executed test tasks
+        # 3. Gradle failures (background) - provides task-level failure info (buildFailures[].taskPath)
         PERF_RESPONSE_FILE=$(mktemp .test-perf-response.XXXXXX)
         curl --compressed --request GET \
           --url "$DEVELOCITY_TEST_PERF_API_URL" \
@@ -84,6 +86,21 @@ if [[ -n "$BUILD_JSON" ]]; then
           --header 'content-type: application/json' 2>/dev/null > "$PERF_RESPONSE_FILE" &
         PERF_PID=$!
 
+        FAILURES_RESPONSE_FILE=$(mktemp .failures-response.XXXXXX)
+        curl --compressed --request GET \
+          --url "$DEVELOCITY_FAILURES_API_URL" \
+          --max-filesize 10485760 \
+          --max-time 30 \
+          --retry 3 \
+          --retry-delay 2 \
+          --retry-max-time 60 \
+          --retry-connrefused \
+          --connect-timeout 10 \
+          --header 'accept: application/json' \
+          --header "authorization: Bearer $DEVELOCITY_API_ACCESS_KEY" \
+          --header 'content-type: application/json' 2>/dev/null > "$FAILURES_RESPONSE_FILE" &
+        FAILURES_PID=$!
+
         if curl --compressed --request GET \
           --url "$DEVELOCITY_FAILED_TEST_API_URL" \
           --max-filesize 10485760 \
@@ -98,7 +115,7 @@ if [[ -n "$BUILD_JSON" ]]; then
           --header 'content-type: application/json' 2>/dev/null | jq --arg testseed "${TESTS_SEED:-}" '. + {testseed: $testseed}' &> .failed-test-history.json; then
 
           # Wait for the parallel test-performance fetch to complete.
-          # This enables three-state logic: distinguishing "confirmed passed" tasks
+          # This provides executedTestTasks for distinguishing "confirmed passed" tasks
           # from "never executed" tasks (e.g. when Gradle stopped at first failure).
           # If this call fails, executedTestTasks will be null, triggering safe fallback.
           if wait "$PERF_PID" && [[ -s "$PERF_RESPONSE_FILE" ]]; then
@@ -122,36 +139,89 @@ if [[ -n "$BUILD_JSON" ]]; then
           fi
           rm -f "$PERF_RESPONSE_FILE"
 
+          # Wait for the parallel gradle-failures fetch to complete.
+          # This provides failedTestTasks: test tasks that failed at the Gradle level
+          # without having individual test failures (e.g. resource leak detected after
+          # tests passed). These tasks need a full re-run rather than being skipped.
+          # Test-failure-only tasks do not appear in buildFailures (they surface via
+          # testFailures instead), so this set cleanly isolates non-test failures.
+          FAILED_TEST_TASKS_COUNT="0"
+          if wait "$FAILURES_PID" && [[ -s "$FAILURES_RESPONSE_FILE" ]]; then
+
+            # Cross-reference: keep only buildFailures whose taskPath is an executed test
+            # task (present in executedTestTasks from test-performance). Non-test task
+            # failures (e.g. compileJava) are outside the scope of this mechanism.
+            if [[ -n "$EXECUTED_TASK_PATHS" ]] && [[ "$EXECUTED_TASK_PATHS" != "null" ]]; then
+              # Build an O(1) lookup: [":a",":b"] → {":a":true, ":b":true},
+              # then keep only buildFailures whose taskPath is in the lookup.
+              FAILED_TASK_PATHS=$(jq --argjson testTasks "$EXECUTED_TASK_PATHS" \
+                '($testTasks | map({(.): true}) | add // {}) as $lookup
+                 | [.buildFailures[] | .taskPath | select(. != null) | select($lookup[.])]' \
+                "$FAILURES_RESPONSE_FILE" 2>/dev/null)
+            else
+              # Without the test task list we cannot intersect, so take all buildFailure
+              # taskPaths. The downstream plugin only consults this set per Test task,
+              # so non-test entries (e.g. compileJava) are inert.
+              FAILED_TASK_PATHS=$(jq '[.buildFailures[] | .taskPath | select(. != null)]' "$FAILURES_RESPONSE_FILE" 2>/dev/null)
+            fi
+            if [[ -n "$FAILED_TASK_PATHS" ]] && [[ "$FAILED_TASK_PATHS" != "null" ]] && [[ "$FAILED_TASK_PATHS" != "[]" ]]; then
+              (umask 077 && jq --argjson failed "$FAILED_TASK_PATHS" '. + {failedTestTasks: $failed}' .failed-test-history.json > .failed-test-history.json.tmp) \
+                && [[ -s .failed-test-history.json.tmp ]] \
+                && mv .failed-test-history.json.tmp .failed-test-history.json \
+                || { rm -f .failed-test-history.json.tmp; echo "[Smart Retry] Warning: Failed to merge failed test tasks into report"; }
+              FAILED_TEST_TASKS_COUNT=$(printf '%s\n' "$FAILED_TASK_PATHS" | jq 'length' 2>/dev/null || echo "0")
+              echo "[Smart Retry] Fetched $FAILED_TEST_TASKS_COUNT failed tasks from previous run"
+            fi
+          else
+            echo "[Smart Retry] Warning: Failed to fetch task failure data from Develocity API"
+            echo "[Smart Retry] Task-level failures (e.g. resource leaks) may not be targeted on retry"
+          fi
+          rm -f "$FAILURES_RESPONSE_FILE"
+
           # Set secure file permissions
           chmod 600 .failed-test-history.json
 
           # Count filtered tests for visibility
           FILTERED_WORK_UNITS=$(jq -r '.workUnits | length' .failed-test-history.json 2>/dev/null || echo "0")
-          SMART_RETRY_STATUS="enabled"
-          SMART_RETRY_DETAILS="Filtering to $FILTERED_WORK_UNITS work units with failures"
 
-          # Get the origin job name for better annotation labels
-          ORIGIN_JOB_NAME=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg jobId "$ORIGIN_JOB_ID" '.jobs[] | select(.id == $jobId) | .name' 2>/dev/null)
-          if [ -z "$ORIGIN_JOB_NAME" ] || [ "$ORIGIN_JOB_NAME" = "null" ]; then
-            ORIGIN_JOB_NAME="previous attempt"
-          fi
+          if [[ "$FILTERED_WORK_UNITS" -eq 0 ]] && [[ "$FAILED_TEST_TASKS_COUNT" -eq 0 ]]; then
+            # The previous build failed but not due to test failures or task-level
+            # failures (e.g. infrastructure issue, build configuration error).
+            # There is nothing to selectively retry, so run everything.
+            rm -f .failed-test-history.json
+            SMART_RETRY_STATUS="disabled"
+            SMART_RETRY_DETAILS="Previous failure was not caused by test or task failures — rerunning all tests"
+            echo "[Smart Retry] Disabled: previous build had no test or task failures"
+            echo "[Smart Retry] All tests will run."
+          else
+            SMART_RETRY_STATUS="enabled"
+            SMART_RETRY_DETAILS="Filtering to $FILTERED_WORK_UNITS work units with test failures, $FAILED_TEST_TASKS_COUNT tasks with non-test failures"
 
-          echo "[Smart Retry] Enabled: filtering to $FILTERED_WORK_UNITS work units"
+            # Get the origin job name for better annotation labels
+            ORIGIN_JOB_NAME=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg jobId "$ORIGIN_JOB_ID" '.jobs[] | select(.id == $jobId) | .name' 2>/dev/null)
+            if [ -z "$ORIGIN_JOB_NAME" ] || [ "$ORIGIN_JOB_NAME" = "null" ]; then
+              ORIGIN_JOB_NAME="previous attempt"
+            fi
 
-          # Create Buildkite annotation for visibility
-          # Use unique context per job to support multiple retries
-          cat << EOF | buildkite-agent annotate --style info --context "smart-retry-$BUILDKITE_JOB_ID"
+            echo "[Smart Retry] Enabled: $FILTERED_WORK_UNITS work units with test failures, $FAILED_TEST_TASKS_COUNT tasks with non-test failures"
+
+            # Create Buildkite annotation for visibility
+            # Use unique context per job to support multiple retries
+            cat << EOF | buildkite-agent annotate --style info --context "smart-retry-$BUILDKITE_JOB_ID"
 Rerunning failed build job [$ORIGIN_JOB_NAME]($BUILD_SCAN_URL)
 
-**Gradle Tasks with Failures:** $FILTERED_WORK_UNITS
+**Gradle Tasks with Test Failures:** $FILTERED_WORK_UNITS
+**Gradle Tasks with Non-Test Failures:** $FAILED_TEST_TASKS_COUNT
 **Executed Test Tasks in Previous Run:** ${EXECUTED_TASKS_COUNT:-unknown}
 
-This retry will rerun failed tests, skip confirmed-passed tasks, and run all tests for tasks that were not executed in the previous run.
+This retry will rerun failed tests, rerun all tests for tasks that failed at the Gradle level (e.g. resource leaks), skip confirmed-passed tasks, and run all tests for tasks not executed in the previous run.
 EOF
+          fi
         else
-          # First API call failed; clean up the parallel perf fetch
+          # First API call failed; clean up the parallel fetches
           wait "$PERF_PID" 2>/dev/null || true
-          rm -f "$PERF_RESPONSE_FILE"
+          wait "$FAILURES_PID" 2>/dev/null || true
+          rm -f "$PERF_RESPONSE_FILE" "$FAILURES_RESPONSE_FILE"
           echo "[Smart Retry] API Error"
           echo "[Smart Retry] Failed to fetch failed tests from Develocity API"
           echo "[Smart Retry] will be disabled - all tests will run."
@@ -195,4 +265,10 @@ if [[ -n "${FILTERED_WORK_UNITS:-}" ]]; then
 fi
 if [[ -n "${EXECUTED_TASKS_COUNT:-}" ]]; then
   buildkite-agent meta-data set "smart-retry-executed-tasks" "$EXECUTED_TASKS_COUNT" 2>/dev/null || true
+fi
+if [[ -n "${FAILED_TEST_TASKS_COUNT:-}" ]] && [[ "$FAILED_TEST_TASKS_COUNT" -gt 0 ]]; then
+  buildkite-agent meta-data set "smart-retry-failed-tasks" "$FAILED_TEST_TASKS_COUNT" 2>/dev/null || true
+fi
+if [[ "$SMART_RETRY_STATUS" == "disabled" ]]; then
+  buildkite-agent meta-data set "smart-retry-disabled-reason" "no-test-or-task-failures" 2>/dev/null || true
 fi

@@ -45,7 +45,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
                 List.of(new DriverSleeps.Sleep("driver time", Thread.currentThread().getName(), 1, 1))
             )
         );
-        assertThat(Strings.toString(status, true, true), equalTo("""
+        assertThat(Strings.toTruncatedString(status, true, true), equalTo("""
             {
               "description" : "test",
               "cluster_name" : "elasticsearch",

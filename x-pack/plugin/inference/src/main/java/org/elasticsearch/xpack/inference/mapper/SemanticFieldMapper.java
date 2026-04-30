@@ -748,8 +748,12 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
             builder.startObject();
             builder.field("field", fieldName);
-            builder.field("start", chunk.startOffset());
-            builder.field("end", chunk.endOffset());
+            if (chunk.inputIndex() != null) {
+                builder.field("input_index", chunk.inputIndex());
+            } else {
+                builder.field("start", chunk.startOffset());
+                builder.field("end", chunk.endOffset());
+            }
             builder.endObject();
             try (
                 XContentParser subParser = XContentHelper.createParserNotCompressed(

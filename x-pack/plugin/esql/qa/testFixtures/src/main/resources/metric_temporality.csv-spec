@@ -81,6 +81,8 @@ TS metric_temporality
  | KEEP cluster, irate_bytes
  | SORT cluster
 ;
+warning:Line 2:27: evaluation of [irate(network.total_bytes_in)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:27: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.
 
 cluster:keyword | irate_bytes:double
 prod-cumulative | 0.5786293
@@ -101,6 +103,8 @@ TS metric_temporality
  | KEEP my_temporality, irate_bytes
  | SORT my_temporality
 ;
+warning:Line 2:27: evaluation of [irate(network.total_bytes_in)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:27: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.
 
 my_temporality:keyword | irate_bytes:double
 cumulative             | 0.5786293
@@ -121,6 +125,8 @@ TS metric_temporality
  | KEEP bucket, cluster, irate_bytes
  | SORT bucket, cluster
 ;
+warning:Line 2:27: evaluation of [irate(network.total_bytes_in)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:27: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.
 
 bucket:datetime          | cluster:keyword | irate_bytes:double
 2024-05-10T00:00:00.000Z | prod-cumulative | 0.5703784

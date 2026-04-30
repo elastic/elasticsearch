@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link IrateLongAggregator}.
@@ -31,17 +32,20 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
 
   private final IrateLongAggregator.LongIrateGroupingState state;
 
+  private final Warnings warnings;
+
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   private final boolean isDateNanos;
 
-  IrateLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      boolean isDateNanos) {
+  IrateLongGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
+      DriverContext driverContext, boolean isDateNanos) {
     this.isDateNanos = isDateNanos;
+    this.warnings = warnings;
     this.channels = channels;
-    this.state = IrateLongAggregator.initGrouping(driverContext, isDateNanos);
+    this.state = IrateLongAggregator.initGrouping(driverContext, isDateNanos, warnings);
     this.driverContext = driverContext;
   }
 

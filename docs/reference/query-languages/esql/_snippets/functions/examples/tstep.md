@@ -37,7 +37,7 @@ The same query using a target bucket count of 2 instead of a fixed step:
 
 ```esql
 FROM sample_data
-| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(2, "2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(2, "2023-10-23T12:15:00.000Z", "2023-10-23T14:15:00.000Z")
 | SORT bucket
 ```
 

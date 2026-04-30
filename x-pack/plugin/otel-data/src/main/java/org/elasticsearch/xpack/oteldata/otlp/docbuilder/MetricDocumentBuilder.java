@@ -51,9 +51,9 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         if (dataPointGroup.getStartTimestampUnixNano() != 0) {
             builder.field("start_timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getStartTimestampUnixNano()));
         }
-        // Metrics intentionally skip merging paired *.geo.location.lat/.lon attributes into a geo_point: geo_point is not a
-        // supported dimension type for time series metrics, and geo attributes on metrics are expected to be very rare, so the
-        // per-attribute scan is not worth its cost on the metrics hot path.
+        // Metrics intentionally skip merging paired *.geo.location.lat/.lon into a [lon, lat] array:
+        // The *.geo.location dynamic template doesn't apply to metrics because geo_point isn't a supported dimension type.
+        // That would mean the merged value would land as a plain [lon, lat] array with no guaranteed element order.
         buildResource(dataPointGroup.resource(), dataPointGroup.resourceSchemaUrl(), builder);
         buildDataStream(builder, dataPointGroup.targetIndex());
         buildScope(builder, dataPointGroup.scope(), dataPointGroup.scopeSchemaUrl());

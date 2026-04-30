@@ -242,6 +242,10 @@ public sealed class FieldAttribute extends TypedAttribute permits TemporalityAtt
         return lazyFieldName;
     }
 
+    public boolean hasTypeConflicts() {
+        return field instanceof InvalidMappedField;
+    }
+
     /**
      * If the underlying field is an {@link InvalidMappedField} (ambiguous type across indices),
      * converts this attribute into an {@link UnsupportedAttribute} with a descriptive error message

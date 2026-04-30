@@ -282,9 +282,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.KMeansLocalTests
   method: testComputeNeighbours
   issue: https://github.com/elastic/elasticsearch/issues/147649
-- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
-  method: test {yaml=rrf/310_rrf_retriever_simplified/Expansion to equivalent custom sub-retrievers returns the same results}
-  issue: https://github.com/elastic/elasticsearch/issues/146464
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
   method: test {p0=ml/delete_expired_data/Test delete expired data with body parameters}
   issue: https://github.com/elastic/elasticsearch/issues/147656

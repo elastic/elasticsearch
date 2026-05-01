@@ -251,6 +251,15 @@ public class SparseFileTracker {
         return hasGaps ? Optional.of(new Gaps(range)) : Optional.empty();
     }
 
+    /**
+     * Populate `pendingRanges` with a prior range overlapping into `range` (if pending), update targetRange.start to allow
+     * searching for further ranges. Return whether an unclaimed range was added to pendingRanges, i.e., a gap still needs
+     * an owner.
+     * @param range the range that is to be filled, where we want to find the first existing range for.
+     * @param pendingRanges the pendingRanges to add a range that overlaps into the range we want to fill.
+     * @param targetRange the targetRange to populate the start value of.
+     * @return whether a gap still need to be claimed.
+     */
     private boolean determineStartingRange(ByteRange range, List<Range> pendingRanges, Range targetRange) {
         assert invariant();
         final Range lastEarlierRange = ranges.lower(targetRange);

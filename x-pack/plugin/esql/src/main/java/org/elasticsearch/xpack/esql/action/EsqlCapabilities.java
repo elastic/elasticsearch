@@ -1640,6 +1640,11 @@ public class EsqlCapabilities {
         TSTEP_EXPLICIT_BOUNDS(TSTEP.isEnabled()),
 
         /**
+         * Support for tstep bucket count variant: TSTEP(count, from, to)
+         */
+        TSTEP_BUCKET_COUNT(TSTEP.isEnabled()),
+
+        /**
          * Allow qualifiers in attribute names.
          */
         NAME_QUALIFIERS(Build.current().isSnapshot()),

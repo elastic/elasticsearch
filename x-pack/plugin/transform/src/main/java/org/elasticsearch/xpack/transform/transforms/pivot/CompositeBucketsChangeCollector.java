@@ -160,6 +160,10 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
      * enters an "overflowed" state: it stops collecting terms and returns {@code null} from
      * {@link #filterByChanges}, causing the transform to fall back to a full (unfiltered) scan for
      * the remainder of the checkpoint. The overflow state is reset at the start of each new checkpoint.
+     * <p>
+     * When {@code maxTermsForChangeDetection} is {@code 0}, the collector is permanently disabled:
+     * it does not contribute a composite source, does not query for changes, and always reports as
+     * non-optimized. This avoids the cost of running a change detection query only to discard the results.
      */
     static class TermsFieldCollector implements FieldCollector {
 
@@ -186,7 +190,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             this.maxTermsForChangeDetection = maxTermsForChangeDetection;
             this.changedTerms = new HashSet<>();
             this.foundNullBucket = false;
-            this.overflowed = false;
+            this.overflowed = maxTermsForChangeDetection == 0;
             this.totalTermsSeen = 0;
         }
 
@@ -199,6 +203,9 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
         @Override
         public CompositeValuesSourceBuilder<?> getCompositeValueSourceBuilder() {
+            if (maxTermsForChangeDetection == 0) {
+                return null;
+            }
             return new TermsValuesSourceBuilder(targetFieldName).field(sourceFieldName).missingBucket(missingBucket);
         }
 
@@ -234,8 +241,9 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                 overflowed = true;
                 changedTerms.clear();
                 foundNullBucket = false;
-                // return false so that processSearchResponse returns a non-null afterKey,
-                // which triggers the indexer to transition to APPLY_RESULTS
+                // return false (not done) so processSearchResponse returns a non-null afterKey;
+                // on the next IDENTIFY_CHANGES iteration, the overflowed collector immediately
+                // returns true (done) and filterByChanges returns null (full scan)
                 return false;
             }
 
@@ -315,11 +323,14 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
         @Override
         public boolean queryForChanges() {
-            return true;
+            return maxTermsForChangeDetection != 0;
         }
 
         @Override
         public void resetOverflow() {
+            if (maxTermsForChangeDetection == 0) {
+                return;
+            }
             overflowed = false;
             totalTermsSeen = 0;
         }

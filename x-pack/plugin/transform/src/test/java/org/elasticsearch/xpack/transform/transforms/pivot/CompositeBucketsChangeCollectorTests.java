@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSourceTests;
 import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 import org.elasticsearch.xpack.transform.transforms.pivot.CompositeBucketsChangeCollector.FieldCollector;
 
@@ -60,8 +59,8 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
     public void testPageSize() throws IOException {
         Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
-        // a terms group_by is limited by terms query
-        SingleGroupSource termsGroupBy = TermsGroupSourceTests.randomTermsGroupSourceNoScript();
+        // a terms group_by is limited by terms query (use null maxTerms so it contributes a composite source)
+        SingleGroupSource termsGroupBy = new TermsGroupSource(randomAlphaOfLengthBetween(1, 20), null, randomBoolean());
         groups.put("terms", termsGroupBy);
 
         ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, null);
@@ -156,13 +155,31 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         assertNull(buildFilterQuery(collector));
     }
 
-    public void testTermsFieldCollectorOverflowWithThresholdZero() throws IOException {
+    public void testTermsFieldCollectorWithThresholdZeroIsDisabledFromStart() {
         ChangeCollector collector = buildTermsChangeCollector(0);
-        assertTrue(collector.isOptimized());
-
-        processWithTerms(collector, 1);
         assertFalse(collector.isOptimized());
+        assertFalse(collector.queryForChanges());
         assertNull(buildFilterQuery(collector));
+    }
+
+    public void testTermsFieldCollectorWithThresholdZeroStaysDisabledAfterReset() {
+        ChangeCollector collector = buildTermsChangeCollector(0);
+        assertFalse(collector.isOptimized());
+
+        collector.buildChangesQuery(new SearchSourceBuilder(), null, 1000);
+        assertFalse(collector.isOptimized());
+        assertFalse(collector.queryForChanges());
+    }
+
+    public void testTermsFieldCollectorWithThresholdZeroHasNoCompositeSource() {
+        Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
+        groups.put("id", new TermsGroupSource("id", null, false, 0));
+        Map<String, CompositeBucketsChangeCollector.FieldCollector> fieldCollectors = CompositeBucketsChangeCollector.createFieldCollectors(
+            groups,
+            null
+        );
+        assertFalse(fieldCollectors.isEmpty());
+        assertNull(fieldCollectors.get("id").getCompositeValueSourceBuilder());
     }
 
     public void testTermsFieldCollectorBelowThreshold() throws IOException {

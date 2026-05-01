@@ -45,6 +45,7 @@ import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.reindex.PaginatedHitSource;
+import org.elasticsearch.reindex.SearchContextKeepaliveDeadline;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -113,7 +114,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             }
             return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
         }).collect(toList());
-        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null);
+        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
     }
 
     private static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {
@@ -256,7 +257,8 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
                     mock(RestClient.class),
                     remoteInfo(),
                     request,
-                    Version.CURRENT
+                    Version.CURRENT,
+                    keepaliveDeadline()
                 )
             );
         }
@@ -352,7 +354,8 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             client,
             remoteInfo,
             searchRequest,
-            Version.CURRENT
+            Version.CURRENT,
+            keepaliveDeadline()
         );
         hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
@@ -375,7 +378,8 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             client,
             remoteInfo,
             searchRequest,
-            Version.CURRENT
+            Version.CURRENT,
+            keepaliveDeadline()
         );
         hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
@@ -543,7 +547,8 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             restClient,
             remoteInfo(),
             searchRequest,
-            Version.CURRENT
+            Version.CURRENT,
+            keepaliveDeadline()
         );
     }
 
@@ -608,8 +613,13 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             restClient,
             remoteInfo(),
             searchRequest,
-            Version.CURRENT
+            Version.CURRENT,
+            keepaliveDeadline()
         );
+    }
+
+    private SearchContextKeepaliveDeadline keepaliveDeadline() {
+        return new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis);
     }
 
     private RemoteInfo remoteInfo() {

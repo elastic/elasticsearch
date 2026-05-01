@@ -1,5 +1,0 @@
-area: Ingest Node
-issues: []
-pr: 144648
-summary: Fix pipeline resolution cache for bulk requests
-type: bug

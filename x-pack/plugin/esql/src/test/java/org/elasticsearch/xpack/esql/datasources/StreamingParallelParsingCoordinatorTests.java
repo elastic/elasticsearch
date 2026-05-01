@@ -15,9 +15,16 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -29,6 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
@@ -134,6 +142,37 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies the Stage-1 contract: the coordinator infers schema exactly once (from the first
+     * chunk on the segmentator thread) and every parser-thread {@code read()} dispatches against
+     * the schema-bound reader. Without this, each chunk re-inferred the schema from 20K sample
+     * lines — for a 100M-row file split into ~24K chunks, that wasted ~33% of total parsing CPU.
+     */
+    public void testSchemaInferredOnceAndBoundReaderUsedByParsers() throws Exception {
+        int lineCount = 5000;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            // Small chunkSize forces many chunks so per-chunk inference would be obvious.
+            LineFormatReader reader = new LineFormatReader(1024);
+            List<String> allLines = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 100, 4, executor, ErrorPolicy.STRICT)
+            );
+
+            assertEquals(lineCount, allLines.size());
+            assertEquals("metadata() should be called exactly once for the whole stream", 1, reader.metadataCalls.get());
+            assertTrue(
+                "expected many parser invocations against the bound reader, got " + reader.boundReadCalls.get(),
+                reader.boundReadCalls.get() > 1
+            );
+            assertEquals("no parser invocation should land on the unbound root reader", 0, reader.unboundReadCalls.get());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {
@@ -160,12 +199,35 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
     /**
      * A minimal format reader that treats each line as a record, producing one keyword block per page.
+     * <p>
+     * Tracks {@link #metadataCalls}, {@link #boundReadCalls}, and {@link #unboundReadCalls} per
+     * <strong>root</strong> reader (the counters are aliased into every {@link #withSchema}
+     * variant). Tests use these counters to assert that the coordinator infers schema once and
+     * dispatches every parser-thread read to the schema-bound variant.
      */
     private static class LineFormatReader implements SegmentableFormatReader {
         private final long minSegment;
+        private final List<Attribute> resolvedSchema;
+        final AtomicInteger metadataCalls;
+        final AtomicInteger boundReadCalls;
+        final AtomicInteger unboundReadCalls;
 
         LineFormatReader(long minSegment) {
+            this(minSegment, null, new AtomicInteger(), new AtomicInteger(), new AtomicInteger());
+        }
+
+        private LineFormatReader(
+            long minSegment,
+            List<Attribute> resolvedSchema,
+            AtomicInteger metadataCalls,
+            AtomicInteger boundReadCalls,
+            AtomicInteger unboundReadCalls
+        ) {
             this.minSegment = minSegment;
+            this.resolvedSchema = resolvedSchema;
+            this.metadataCalls = metadataCalls;
+            this.boundReadCalls = boundReadCalls;
+            this.unboundReadCalls = unboundReadCalls;
         }
 
         @Override
@@ -188,11 +250,21 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
-            return null;
+            metadataCalls.incrementAndGet();
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
+            );
+            return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            return new LineFormatReader(minSegment, schema, metadataCalls, boundReadCalls, unboundReadCalls);
         }
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            (resolvedSchema != null ? boundReadCalls : unboundReadCalls).incrementAndGet();
             InputStream stream = object.newStream();
             List<String> lines = new ArrayList<>();
             StringBuilder current = new StringBuilder();
@@ -296,7 +368,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
-            return null;
+            // Return a non-null schema so the coordinator's first-chunk inference does not
+            // mask the injected parser failure being tested here.
+            return new SimpleSourceMetadata(
+                List.of(new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)),
+                formatName(),
+                object.path().toString()
+            );
         }
 
         @Override

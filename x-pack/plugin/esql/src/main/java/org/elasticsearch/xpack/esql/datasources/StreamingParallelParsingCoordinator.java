@@ -11,9 +11,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -102,7 +105,14 @@ public final class StreamingParallelParsingCoordinator {
         private static final Page POISON = new Page(0);
         private static final long CLOSE_TIMEOUT_SECONDS = 60;
 
-        private final SegmentableFormatReader reader;
+        /**
+         * The reader used by parser threads. Initially the caller-supplied reader; the segmentator
+         * thread replaces it with a schema-bound variant after inferring the schema from the first
+         * chunk (see {@link #runSegmentator}). The replacement happens-before the first chunk is
+         * dispatched (via the {@link ArrayBlockingQueue} synchronization on {@link #chunkQueue}),
+         * so parser threads always observe the schema-bound reader by the time they pick up work.
+         */
+        private volatile SegmentableFormatReader reader;
         private final List<String> projectedColumns;
         private final int batchSize;
         private final ErrorPolicy errorPolicy;
@@ -208,18 +218,27 @@ public final class StreamingParallelParsingCoordinator {
 
                     if (lastNewline < 0) {
                         if (isEof) {
+                            if (chunkIndex == 0) {
+                                bindSchemaFromFirstChunk(buf, totalBytes);
+                            }
                             dispatchChunk(chunkIndex++, buf, totalBytes, true);
                         } else {
                             // Single record larger than chunk size — grow a temporary buffer
                             byte[] grown = growUntilNewline(stream, buf, totalBytes, chunkSize);
                             int grownNewline = findLastNewline(grown, grown.length);
                             if (grownNewline < 0) {
+                                if (chunkIndex == 0) {
+                                    bindSchemaFromFirstChunk(grown, grown.length);
+                                }
                                 dispatchChunk(chunkIndex++, grown, grown.length, true);
                             } else {
                                 int validLen = grownNewline + 1;
                                 carryLen = grown.length - validLen;
                                 carry = new byte[carryLen];
                                 System.arraycopy(grown, validLen, carry, 0, carryLen);
+                                if (chunkIndex == 0) {
+                                    bindSchemaFromFirstChunk(grown, validLen);
+                                }
                                 dispatchChunk(chunkIndex++, grown, validLen, false);
                             }
                             // The original buffer was consumed by grow; don't recycle it
@@ -236,6 +255,9 @@ public final class StreamingParallelParsingCoordinator {
                         System.arraycopy(buf, validLen, carry, 0, carryLen);
                     }
 
+                    if (chunkIndex == 0) {
+                        bindSchemaFromFirstChunk(buf, validLen);
+                    }
                     dispatchChunk(chunkIndex++, buf, validLen, isEof);
                     if (isEof) break;
                 }
@@ -255,6 +277,36 @@ public final class StreamingParallelParsingCoordinator {
                     }
                 }
                 allDone.countDown();
+            }
+        }
+
+        /**
+         * Infers the schema from the first chunk and swaps {@link #reader} for the schema-bound
+         * variant returned by {@link FormatReader#withSchema(List)}; parser threads thereafter
+         * skip per-chunk inference. Same approach as ClickHouse / DuckDB / Spark.
+         */
+        private void bindSchemaFromFirstChunk(byte[] buffer, int length) throws IOException {
+            ByteArrayStorageObject firstChunkObj = new ByteArrayStorageObject(
+                StoragePath.of("mem://chunk-schema-probe"),
+                buffer,
+                0,
+                length
+            );
+            SourceMetadata metadata = reader.metadata(firstChunkObj);
+            List<Attribute> schema = metadata == null ? null : metadata.schema();
+            if (schema == null) {
+                return;
+            }
+            FormatReader bound = reader.withSchema(schema);
+            if (bound == reader) {
+                return;
+            }
+            if (bound instanceof SegmentableFormatReader segBound) {
+                this.reader = segBound;
+            } else {
+                throw new IllegalStateException(
+                    "FormatReader#withSchema returned a non-SegmentableFormatReader: " + bound.getClass().getName()
+                );
             }
         }
 

@@ -19,7 +19,6 @@ import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -69,9 +68,7 @@ public abstract class DenseVectorQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         if (filter != null && filter.getClass() != MatchAllDocsQuery.class) {
-            BooleanQuery booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
-                .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
-                .build();
+            BooleanQuery booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER).build();
             Query rewritten = searcher.rewrite(booleanQuery);
             return rewritten.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
         } else {
@@ -349,7 +346,6 @@ public abstract class DenseVectorQuery extends Query {
             }
 
             for (scorer.nextDocsAndScores(max, acceptDocs, buffer); buffer.size > 0; scorer.nextDocsAndScores(max, acceptDocs, buffer)) {
-
                 for (int i = 0; i < buffer.size; i++) {
                     int doc = buffer.docs[i];
                     // currentScore is closed over by scorable, which is available to the collector

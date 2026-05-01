@@ -224,7 +224,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
-import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -651,7 +650,6 @@ public class Security extends Plugin
     private final SetOnce<RemoteClusterSecurityExtension.Provider> remoteClusterSecurityExtensionProvider = new SetOnce<>();
     private final SetOnce<RemoteClusterSecurityExtension> remoteClusterSecurityExtension = new SetOnce<>();
     private final SetOnce<RemoteClusterAuthenticationService> remoteClusterAuthenticationService = new SetOnce<>();
-    private final SetOnce<InternalCloudApiKeyService.Provider> internalCloudApiKeyServiceProvider = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
@@ -1230,12 +1228,6 @@ public class Security extends Plugin
         components.add(new PluginComponentBinding<>(RemoteClusterAuthenticationService.class, remoteClusterAuthenticationService.get()));
         var remoteClusterTransportInterceptor = remoteClusterSecurityExtension.get().getTransportInterceptor();
         components.add(new PluginComponentBinding<>(RemoteClusterTransportInterceptor.class, remoteClusterTransportInterceptor));
-        components.add(
-            new PluginComponentBinding<>(
-                InternalCloudApiKeyService.class,
-                internalCloudApiKeyServiceProvider.get().getInternalCloudApiKeyService()
-            )
-        );
 
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
@@ -2609,12 +2601,6 @@ public class Security extends Plugin
             remoteClusterSecurityExtensionProvider,
             RemoteClusterSecurityExtension.Provider.class,
             CrossClusterAccessSecurityExtension.Provider::new
-        );
-        loadSingletonExtensionAndSetOnce(
-            loader,
-            internalCloudApiKeyServiceProvider,
-            InternalCloudApiKeyService.Provider.class,
-            InternalCloudApiKeyService.Provider.Default::new
         );
     }
 

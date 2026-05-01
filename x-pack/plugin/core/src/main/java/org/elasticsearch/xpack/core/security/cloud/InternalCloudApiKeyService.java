@@ -12,11 +12,15 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * SPI for managing UIAM cloud credentials, to enable cross-project search (CPS) support for ML.
  * <p>
- * At transform creation, the authenticating user's cloud credential is extracted from the
- * {@link ThreadContext} and serialized as a base64-encoded string. At execution time, the
+ * When creating persistent jobs (e.g. ML transforms), the authenticating user's cloud credential
+ * is extracted from the {@link ThreadContext} and serialized as a base64-encoded string.
+ * <p>
+ * At execution time, the
  * persisted credential is decoded and injected back into the {@link ThreadContext} so
  * that the CPS transport interceptor can use it to authenticate cross-project requests.
  * <p>
@@ -47,15 +51,18 @@ public interface InternalCloudApiKeyService {
         ActionListener<CloudGrantApiKeyResult> listener
     );
 
-    interface Provider {
-        InternalCloudApiKeyService getInternalCloudApiKeyService();
+    // TODO this is a hack to unblock the ML CPS integration; ideally we'd use something like SPI for this,
+    // but we need to solve:
+    // 1) An implementation (i.e. `Default`) needs to be available when Security is disabled
+    // 2) How to wire the serverless implementation into places that can't use `@Inject` (e.g. `Transform`)
+    AtomicReference<InternalCloudApiKeyService> REFERENCE = new AtomicReference<>(new Default());
 
-        class Default implements Provider {
-            @Override
-            public InternalCloudApiKeyService getInternalCloudApiKeyService() {
-                return new InternalCloudApiKeyService.Default();
-            }
-        }
+    static InternalCloudApiKeyService getInstance() {
+        return REFERENCE.get();
+    }
+
+    static void setInstance(InternalCloudApiKeyService instance) {
+        REFERENCE.set(instance);
     }
 
     class Default implements InternalCloudApiKeyService {

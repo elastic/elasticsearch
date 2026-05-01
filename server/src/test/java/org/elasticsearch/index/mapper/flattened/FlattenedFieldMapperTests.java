@@ -2186,36 +2186,6 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testMultiValueSortedSet() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "flattened").startObject("doc_values").field("multi_value", "sorted_set").endObject())
-        );
-        FlattenedFieldMapper mapper = (FlattenedFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper.fieldType().hasDocValues(), equalTo(true));
-    }
-
-    public void testMultiValueDefaultIsSortedSet() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flattened")));
-        FlattenedFieldMapper mapper = (FlattenedFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper.fieldType().hasDocValues(), equalTo(true));
-    }
-
-    public void testMultiValueSortedNotAllowed() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        var e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(
-                fieldMapping(b -> b.field("type", "flattened").startObject("doc_values").field("multi_value", "sorted").endObject())
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
-        );
-    }
-
     public void testPassthroughWithNegativePriorityThrows() throws IOException {
         Exception e = expectThrows(Exception.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "flattened");

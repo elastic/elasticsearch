@@ -14,6 +14,7 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_MAPPED_SUBFIELDS_FEATURE;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_PASSTHROUGH_FEATURE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
@@ -158,7 +159,8 @@ public class MapperFeatures implements FeatureSpecification {
             IGNORED_VALUES_STORED_IN_BINARY_DV,
             IP_MAPPER_CARDINALITY_OPTION,
             KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
-            KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED
+            KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
+            ROUTING_AS_DOC_VALUES
         );
     }
 }

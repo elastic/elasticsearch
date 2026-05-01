@@ -115,12 +115,12 @@ public class KeyedLockTests extends ESTestCase {
         });
         t.start();
         safeAwait(latch);
-        Thread.yield();
+        Thread.yield(); // give t a chance to acquire the lock (test blocking rather than just scheduling/lag)
         assertEquals(0, test.get());
         List<Releasable> list = Arrays.asList(foo, foo2);
         Collections.shuffle(list, random());
         list.get(0).close();
-        Thread.yield();
+        Thread.yield(); // give t a chance to (incorrectly) acquire after the first release (verifies that hold-count matters)
         assertEquals(0, test.get());
         list.get(1).close();
         t.join();
@@ -206,7 +206,7 @@ public class KeyedLockTests extends ESTestCase {
         });
         t.start();
         safeAwait(latch);
-        Thread.yield();
+        Thread.yield(); // give t a chance to acquire the lock (test blocking rather than just scheduling/lag)
         assertEquals(0, test.get());
         foo.close();
         t.join();
@@ -266,7 +266,7 @@ public class KeyedLockTests extends ESTestCase {
                     if (randomBoolean()) {
                         try (Releasable ignored = connectionLock.acquire(curName)) {
                             // just acquire this and make sure we can :)
-                            Thread.yield();
+                            Thread.yield(); // hold the lock across a yield to increase contention in this stress test
                         }
                     }
                     counter.merge(curName, 1, Integer::sum);

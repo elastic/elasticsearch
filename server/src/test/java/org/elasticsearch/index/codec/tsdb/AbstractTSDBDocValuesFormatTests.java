@@ -2578,9 +2578,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             var iter = ndv.tryRangeIterator(lower, upper);
             assertNotNull(iter);
             int firstDoc = iter.advance(offset);
-            Set<Integer> expectedFromOffset = expected.stream()
-                .filter(d -> d >= offset)
-                .collect(Collectors.toSet());
+            Set<Integer> expectedFromOffset = expected.stream().filter(d -> d >= offset).collect(Collectors.toSet());
 
             if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
                 assertTrue("no docs at or after offset " + offset, expectedFromOffset.isEmpty());

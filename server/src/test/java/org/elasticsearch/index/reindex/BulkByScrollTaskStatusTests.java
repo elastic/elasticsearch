@@ -101,7 +101,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
             }
             return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
         }).collect(toList());
-        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null);
+        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
     }
 
     public static BulkByScrollTask.Status randomStatusWithoutException() {
@@ -115,7 +115,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
             }
             return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
         }).collect(toList());
-        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null);
+        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
     }
 
     public static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {

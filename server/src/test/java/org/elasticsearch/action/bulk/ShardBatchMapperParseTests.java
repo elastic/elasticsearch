@@ -9,12 +9,12 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.action.DocWriteResponse;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowBuilder;
@@ -37,13 +37,15 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end tests for the batch-mapping fast path: verifies {@link ShardBatchMapper} resolves
- * mappers, builds valid {@link org.elasticsearch.index.engine.Engine.Index} operations, and the
- * resulting documents end up in Lucene with the expected field names.
+ * Parse-time tests for the batch-mapping fast path: drives {@link ShardBatchMapper} directly and
+ * verifies the resulting {@link LuceneDocument} fields carry the expected values. Engine indexing
+ * is intentionally not exercised here — those interactions are covered by {@code ShardBatchIndexer}
+ * tests; this file's job is to lock down the mapper's per-row parsing contract.
  */
 public class ShardBatchMapperParseTests extends IndexShardTestCase {
 
@@ -53,8 +55,6 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
     ).build();
 
     private static final Settings STORED_SOURCE_SETTINGS = indexSettings(IndexVersion.current(), 1, 0).build();
-
-    private static final ShardId SHARD_ID = new ShardId("index", "_na_", 0);
 
     private IndexShard newShardWithMapping(String mapping) throws IOException {
         return newShardWithMapping(mapping, SYNTHETIC_SOURCE_SETTINGS);
@@ -71,7 +71,20 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         return new IndexRequest("index").id(id);
     }
 
-    public void testSupportedMapperTypesIndexEndToEnd() throws Exception {
+    private List<Engine.Index> parseBatch(IndexShard shard, EirfBatch batch, BulkItemRequest[] items) throws IOException {
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
+        assertNotNull("expected batch path to support this mapping", resolution);
+        List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, shard, items.length, 0, resolution);
+        assertNotNull("parseMappings returned null (fallback signal)", ops);
+        assertThat(ops, hasSize(items.length));
+        return ops;
+    }
+
+    private static LuceneDocument rootDoc(Engine.Index op) {
+        return op.parsedDoc().rootDoc();
+    }
+
+    public void testSupportedMapperTypes() throws Exception {
         String mapping = """
             {
               "properties": {
@@ -99,63 +112,42 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 builder.endDocument();
             }
             try (EirfBatch batch = builder.build()) {
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
-                BulkPrimaryExecutionContext ctx = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-                PlainActionFuture<Void> future = new PlainActionFuture<>();
-                ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, ctx, future);
-                future.actionGet();
-
-                assertFalse(ctx.hasMoreOperationsToExecute());
+                List<Engine.Index> ops = parseBatch(shard, batch, items);
                 for (int i = 0; i < numDocs; i++) {
-                    BulkItemResponse response = items[i].getPrimaryResponse();
-                    assertThat(response, notNullValue());
-                    assertFalse(response.isFailed());
-                    assertThat(response.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                    LuceneDocument doc = rootDoc(ops.get(i));
+                    assertThat(doc.getField("ts").numericValue().longValue(), equalTo(1_700_000_000_000L + i));
+                    assertThat(doc.getBinaryValue("host"), equalTo(new BytesRef("host-" + i)));
+                    assertThat(doc.getField("value").numericValue().longValue(), equalTo(100L + i));
+                    // Double doc-values field stores Double.doubleToLongBits(value); decode for assertion.
+                    long scoreBits = doc.getField("score").numericValue().longValue();
+                    assertThat(Double.longBitsToDouble(scoreBits), equalTo(1.5 + i));
                 }
             }
-        }
-
-        shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
         }
 
         closeShards(shard);
     }
 
     public void testResolveFallsBackForUnsupportedMapper() throws Exception {
-        // Boolean is not in the v1 support list — the batch path should fall back to sequential,
-        // which still produces valid documents (tests that there's no regression in fallback).
+        // A text field with index_prefixes is not in the v1 support list — resolveMappers should
+        // return null so the caller falls back to the sequential path.
         String mapping = """
             {
               "properties": {
-                "host":   { "type": "keyword" },
-                "active": { "type": "boolean" }
+                "host": { "type": "keyword" },
+                "body": { "type": "text", "index_prefixes": {} }
               }
             }""";
         IndexShard shard = newShardWithMapping(mapping);
 
-        BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
         try (EirfRowBuilder builder = new EirfRowBuilder()) {
             builder.startDocument();
             builder.setString("host", "a");
-            builder.setBoolean("active", true);
+            builder.setString("body", "hello world");
             builder.endDocument();
             try (EirfBatch batch = builder.build()) {
                 BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
-                assertNull("batch path should refuse boolean leaves and trigger sequential fallback", resolution);
-
-                // Also verify the sequential fallback path (via performBatchIndexOnPrimary) leaves items
-                // available for the caller to process via the non-batch path.
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
-                BulkPrimaryExecutionContext ctx = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-                PlainActionFuture<Void> future = new PlainActionFuture<>();
-                ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, ctx, future);
-                future.actionGet();
-                assertTrue(
-                    "fallback contract: context should still have items queued for sequential path",
-                    ctx.hasMoreOperationsToExecute()
-                );
+                assertNull("batch path should refuse text+index_prefixes leaves and trigger sequential fallback", resolution);
             }
         }
 
@@ -170,10 +162,8 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 "host":  { "type": "keyword" }
               }
             }""";
-        // Use stored source here: with synthetic source, the non-batch path would store
-        // the unmapped `extra` in _ignored_source so the reconstructed source still matches
-        // the translog. The v1 batch path does not implement that ignored-source bridge yet,
-        // so we verify the drop behavior against a stored-source index for now.
+        // Stored source: with synthetic source the non-batch path would route the unmapped `extra`
+        // through _ignored_source, which the batch path does not implement yet.
         IndexShard shard = newShardWithMapping(mapping, STORED_SOURCE_SETTINGS);
 
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
@@ -190,22 +180,13 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 assertNotNull(resolution.columnMappers()[hostLeaf]);
                 assertNull(resolution.columnMappers()[extraLeaf]);
 
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
-                BulkPrimaryExecutionContext ctx = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-                PlainActionFuture<Void> future = new PlainActionFuture<>();
-                ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, ctx, future);
-                future.actionGet();
-
-                assertFalse(ctx.hasMoreOperationsToExecute());
-                BulkItemResponse response = items[0].getPrimaryResponse();
-                assertThat(response, notNullValue());
-                assertFalse(response.isFailed());
+                List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, shard, items.length, 0, resolution);
+                assertNotNull(ops);
+                assertThat(ops, hasSize(1));
+                LuceneDocument doc = rootDoc(ops.get(0));
+                assertThat(doc.getBinaryValue("host"), equalTo(new BytesRef("alpha")));
+                assertThat(doc.getFields("extra"), empty());
             }
-        }
-
-        shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertThat(searcher.getIndexReader().numDocs(), equalTo(1));
         }
 
         closeShards(shard);
@@ -228,22 +209,10 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             builder.setString("v", "42"); // string into a long-typed mapper
             builder.endDocument();
             try (EirfBatch batch = builder.build()) {
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
-                BulkPrimaryExecutionContext ctx = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-                PlainActionFuture<Void> future = new PlainActionFuture<>();
-                ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, ctx, future);
-                future.actionGet();
-
-                assertFalse(ctx.hasMoreOperationsToExecute());
-                BulkItemResponse response = items[0].getPrimaryResponse();
-                assertThat(response, notNullValue());
-                assertFalse(response.isFailed());
+                List<Engine.Index> ops = parseBatch(shard, batch, items);
+                LuceneDocument doc = rootDoc(ops.get(0));
+                assertThat(doc.getField("v").numericValue().longValue(), equalTo(42L));
             }
-        }
-
-        shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertThat(searcher.getIndexReader().numDocs(), equalTo(1));
         }
 
         closeShards(shard);
@@ -264,22 +233,14 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             builder.setString("host", "way-too-long-value"); // exceeds ignore_above
             builder.endDocument();
             try (EirfBatch batch = builder.build()) {
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
-                BulkPrimaryExecutionContext ctx = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-                PlainActionFuture<Void> future = new PlainActionFuture<>();
-                ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, ctx, future);
-                future.actionGet();
-
-                assertFalse(ctx.hasMoreOperationsToExecute());
-                BulkItemResponse response = items[0].getPrimaryResponse();
-                assertThat(response, notNullValue());
-                assertFalse(response.isFailed());
+                List<Engine.Index> ops = parseBatch(shard, batch, items);
+                LuceneDocument doc = rootDoc(ops.get(0));
+                assertThat(doc.getFields("host"), empty());
+                assertTrue(
+                    "ignore_above should record the field name in _ignored",
+                    doc.getFields("_ignored").stream().anyMatch(f -> "host".equals(f.stringValue()))
+                );
             }
-        }
-
-        shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertThat(searcher.getIndexReader().numDocs(), equalTo(1));
         }
 
         closeShards(shard);
@@ -312,13 +273,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             builder.setLong("value", 7L);
             builder.endDocument();
             try (EirfBatch batch = builder.build()) {
-                BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
-                assertNotNull("mapping should be resolvable for batch path", resolution);
-
-                List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, shard, 1, 0, resolution);
-                assertNotNull("parseMappings must succeed (no fallback) for this test to be meaningful", ops);
-                assertThat(ops.size(), equalTo(1));
-
+                List<Engine.Index> ops = parseBatch(shard, batch, items);
                 ParsedDocument parsed = ops.getFirst().parsedDoc();
                 LuceneDocument doc = parsed.rootDoc();
 
@@ -378,14 +333,8 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             builder.setString("host", "way-too-long"); // exceeds ignore_above
             builder.endDocument();
             try (EirfBatch batch = builder.build()) {
-                BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
-                assertNotNull(resolution);
-
-                List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, shard, 1, 0, resolution);
-                assertNotNull("parseMappings must succeed (no fallback) for this test to be meaningful", ops);
-                assertThat(ops.size(), equalTo(1));
-
-                LuceneDocument doc = ops.getFirst().parsedDoc().rootDoc();
+                List<Engine.Index> ops = parseBatch(shard, batch, items);
+                LuceneDocument doc = rootDoc(ops.getFirst());
 
                 // Synthetic source: stored _source is absent, but a _recovery_source flavor must be present.
                 assertNull("stored _source must not be present in synthetic mode", doc.getField(SourceFieldMapper.NAME));
@@ -421,25 +370,150 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             builder.setNull("v");
             builder.endDocument();
             try (EirfBatch batch = builder.build()) {
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
-                BulkPrimaryExecutionContext ctx = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-                PlainActionFuture<Void> future = new PlainActionFuture<>();
-                ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, ctx, future);
-                future.actionGet();
-
-                assertFalse(ctx.hasMoreOperationsToExecute());
-                BulkItemResponse response = items[0].getPrimaryResponse();
-                assertThat(response, notNullValue());
-                assertFalse(response.isFailed());
+                List<Engine.Index> ops = parseBatch(shard, batch, items);
+                LuceneDocument doc = rootDoc(ops.get(0));
+                assertThat(doc.getFields("host"), empty());
+                assertThat(doc.getFields("v"), empty());
             }
-        }
-
-        shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertThat(searcher.getIndexReader().numDocs(), equalTo(1));
         }
 
         closeShards(shard);
     }
 
+    public void testBooleanMapper() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "active": { "type": "boolean" }
+              }
+            }""";
+        IndexShard shard = newShardWithMapping(mapping);
+
+        int numDocs = 3;
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, indexRequest("id-" + i));
+        }
+        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+            builder.startDocument();
+            builder.setBoolean("active", true);
+            builder.endDocument();
+            builder.startDocument();
+            builder.setBoolean("active", false);
+            builder.endDocument();
+            builder.startDocument();
+            builder.setNull("active");
+            builder.endDocument();
+            try (EirfBatch batch = builder.build()) {
+                List<Engine.Index> ops = parseBatch(shard, batch, items);
+
+                LuceneDocument trueDoc = rootDoc(ops.get(0));
+                List<IndexableField> trueFields = trueDoc.getFields("active");
+                assertFalse("expected indexable fields for true", trueFields.isEmpty());
+                assertTrue(
+                    "boolean true should encode as numeric 1",
+                    trueFields.stream().anyMatch(f -> f.numericValue() != null && f.numericValue().longValue() == 1L)
+                );
+
+                LuceneDocument falseDoc = rootDoc(ops.get(1));
+                List<IndexableField> falseFields = falseDoc.getFields("active");
+                assertFalse("expected indexable fields for false", falseFields.isEmpty());
+                assertTrue(
+                    "boolean false should encode as numeric 0",
+                    falseFields.stream().anyMatch(f -> f.numericValue() != null && f.numericValue().longValue() == 0L)
+                );
+
+                LuceneDocument nullDoc = rootDoc(ops.get(2));
+                assertThat(nullDoc.getFields("active"), empty());
+            }
+        }
+
+        closeShards(shard);
+    }
+
+    public void testIpMapper() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "addr": { "type": "ip" }
+              }
+            }""";
+        IndexShard shard = newShardWithMapping(mapping);
+
+        int numDocs = 2;
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, indexRequest("id-" + i));
+        }
+        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+            builder.startDocument();
+            builder.setString("addr", "192.168.1.1");
+            builder.endDocument();
+            builder.startDocument();
+            builder.setString("addr", "::1");
+            builder.endDocument();
+            try (EirfBatch batch = builder.build()) {
+                List<Engine.Index> ops = parseBatch(shard, batch, items);
+
+                BytesRef expectedV4 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.1")));
+                BytesRef expectedV6 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1")));
+                assertThat(rootDoc(ops.get(0)).getField("addr").binaryValue(), equalTo(expectedV4));
+                assertThat(rootDoc(ops.get(1)).getField("addr").binaryValue(), equalTo(expectedV6));
+            }
+        }
+
+        closeShards(shard);
+    }
+
+    public void testIpMapperIgnoreMalformed() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "addr": { "type": "ip", "ignore_malformed": true }
+              }
+            }""";
+        IndexShard shard = newShardWithMapping(mapping, STORED_SOURCE_SETTINGS);
+
+        BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
+        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+            builder.startDocument();
+            builder.setString("addr", "not-an-ip");
+            builder.endDocument();
+            try (EirfBatch batch = builder.build()) {
+                List<Engine.Index> ops = parseBatch(shard, batch, items);
+                LuceneDocument doc = rootDoc(ops.get(0));
+                assertThat(doc.getFields("addr"), empty());
+                assertTrue(
+                    "ignore_malformed should record the field name in _ignored",
+                    doc.getFields("_ignored").stream().anyMatch(f -> "addr".equals(f.stringValue()))
+                );
+            }
+        }
+
+        closeShards(shard);
+    }
+
+    public void testTextMapper() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "body": { "type": "text" }
+              }
+            }""";
+        IndexShard shard = newShardWithMapping(mapping, STORED_SOURCE_SETTINGS);
+
+        BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
+        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+            builder.startDocument();
+            builder.setString("body", "the quick brown fox");
+            builder.endDocument();
+            try (EirfBatch batch = builder.build()) {
+                List<Engine.Index> ops = parseBatch(shard, batch, items);
+                LuceneDocument doc = rootDoc(ops.get(0));
+                assertThat(doc.getField("body").stringValue(), equalTo("the quick brown fox"));
+            }
+        }
+
+        closeShards(shard);
+    }
 }

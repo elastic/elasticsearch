@@ -42,19 +42,14 @@ public class FixedLengthSwissHash extends SwissHash implements BytesRefHashTable
 
     private static final int PAGE_MASK = PageCacheRecycler.PAGE_SIZE_IN_BYTES - 1;
 
-    private static final int ID_SIZE = Integer.BYTES;
+    static final int INITIAL_CAPACITY = 1024;
 
-    static final int INITIAL_CAPACITY = PageCacheRecycler.PAGE_SIZE_IN_BYTES / ID_SIZE;
-
-    public static final int BATCH_SIZE = 32;
+    public static final int BATCH_SIZE = 128;
     public static final int MAX_KEY_SIZE = 64;
 
     static {
         if (PageCacheRecycler.PAGE_SIZE_IN_BYTES >> PAGE_SHIFT != 1) {
             throw new AssertionError("bad constants");
-        }
-        if (Integer.highestOneBit(ID_SIZE) != ID_SIZE) {
-            throw new AssertionError("not a power of two");
         }
         if (Integer.highestOneBit(INITIAL_CAPACITY) != INITIAL_CAPACITY) {
             throw new AssertionError("not a power of two");
@@ -67,9 +62,9 @@ public class FixedLengthSwissHash extends SwissHash implements BytesRefHashTable
     private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
     static final int DEFAULT_BULK_THRESHOLD = (int) ((1 << 17) * BigCore.FILL_FACTOR); // ~114k entries
 
-    private byte[][] keyPages;
     private SmallCore smallCore;
     private BigCore bigCore;
+    private byte[][] keyPages;
     private long usedBytesByKeyPages = 0;
     private final int bulkThreshold;
     private final int keyLength;

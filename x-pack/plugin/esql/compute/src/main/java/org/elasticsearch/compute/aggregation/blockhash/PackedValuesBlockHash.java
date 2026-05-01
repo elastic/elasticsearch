@@ -17,11 +17,14 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -75,6 +78,7 @@ final class PackedValuesBlockHash extends BlockHash {
     private final BreakingBytesRefBuilder bytes;
     private final List<GroupSpec> specs;
     private final BatchWork batchWork;
+    private boolean seenNull;
 
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
         this(specs, blockFactory, blockFactory.breaker(), emitBatchSize);
@@ -362,6 +366,7 @@ final class PackedValuesBlockHash extends BlockHash {
             assert group.writtenValues == 0;
             assert group.valueCount == 1;
             if (group.encoder.read(group.valueOffset++, bytes) == 0) {
+                seenNull = true;
                 int nullByte = g / 8;
                 int nullShift = g % 8;
                 bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
@@ -376,6 +381,7 @@ final class PackedValuesBlockHash extends BlockHash {
             group.bytesStart = bytes.length();
             if (group.encoder.read(group.valueOffset + group.writtenValues, bytes) == 0) {
                 assert group.valueCount == 1 : "null value in non-singleton list";
+                seenNull = true;
                 int nullByte = g / 8;
                 int nullShift = g % 8;
                 bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
@@ -415,6 +421,13 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys(IntVector selected) {
+        if (batchWork != null && seenNull == false) {
+            return batchWork.getNonNullKeys(selected, bytesRefHash, blockFactory);
+        }
+        return getKeysWithNulls(selected);
+    }
+
+    private Block[] getKeysWithNulls(IntVector selected) {
         int positions = selected.getPositionCount();
         BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[specs.size()];
         Block.Builder[] builders = new Block.Builder[specs.size()];
@@ -594,9 +607,60 @@ final class PackedValuesBlockHash extends BlockHash {
                             keys[i * keyLength + offset] = booleanVector.getBoolean(positionOffset + i) ? (byte) 1 : (byte) 0;
                         }
                     }
-                    case NULL -> {
+                }
+            }
+        }
+
+        Block[] getNonNullKeys(IntVector selected, BytesRefHashTable hash, BlockFactory blockFactory) {
+            final int positions = selected.getPositionCount();
+            final Block.Builder[] builders = new Block.Builder[specs.size()];
+            final BytesRef[] bytes = new BytesRef[BATCH_SIZE];
+            for (int i = 0; i < BATCH_SIZE; i++) {
+                bytes[i] = new BytesRef();
+            }
+            try {
+                for (int g = 0; g < builders.length; g++) {
+                    builders[g] = specs.get(g).elementType().newBlockBuilder(positions, blockFactory);
+                }
+                for (int p = 0; p < positions; p += BATCH_SIZE) {
+                    final int batchSize = Math.min(BATCH_SIZE, positions - p);
+                    for (int r = 0; r < batchSize; r++) {
+                        hash.get(selected.getInt(p + r), bytes[r]);
+                    }
+                    for (int g = 0; g < specs.size(); g++) {
+                        final int columnOffset = offsets[g];
+                        switch (specs.get(g).elementType()) {
+                            case LONG -> {
+                                var b = (LongBlock.Builder) builders[g];
+                                for (int r = 0; r < batchSize; r++) {
+                                    b.appendLong((long) LONG_HANDLE.get(bytes[r].bytes, bytes[r].offset + columnOffset));
+                                }
+                            }
+                            case INT -> {
+                                var b = (IntBlock.Builder) builders[g];
+                                for (int r = 0; r < batchSize; r++) {
+                                    b.appendInt((int) INT_HANDLE.get(bytes[r].bytes, bytes[r].offset + columnOffset));
+                                }
+                            }
+                            case DOUBLE -> {
+                                var b = (DoubleBlock.Builder) builders[g];
+                                for (int r = 0; r < batchSize; r++) {
+                                    b.appendDouble((double) DOUBLE_HANDLE.get(bytes[r].bytes, bytes[r].offset + columnOffset));
+                                }
+                            }
+                            case BOOLEAN -> {
+                                var b = (BooleanBlock.Builder) builders[g];
+                                for (int r = 0; r < batchSize; r++) {
+                                    b.appendBoolean(bytes[r].bytes[bytes[r].offset + columnOffset] != 0);
+                                }
+                            }
+                            default -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
+                        }
                     }
                 }
+                return Block.Builder.buildAll(builders);
+            } finally {
+                Releasables.closeExpectNoException(builders);
             }
         }
 

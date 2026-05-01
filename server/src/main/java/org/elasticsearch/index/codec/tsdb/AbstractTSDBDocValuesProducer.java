@@ -2402,30 +2402,29 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper) {
-                    // Skips at two levels: skipper blocks (min/max range check), then
-                    // per-numeric-block SIMD bitmasks via inRangeBitmask. Must be obtained
-                    // from a fresh instance since it shares state with the outer reader.
-                    return new DocIdSetIterator() {
-                        private final FixedBitSet matches = new FixedBitSet(numericBlockSize);
-                        private int iterDoc = -1;
+                    // The filtered DISI must be obtained from a fresh instance since it shares state with the outer reader.
 
-                        @Override
-                        public int docID() {
-                            return iterDoc;
-                        }
+                    final FixedBitSet matches = new FixedBitSet(numericBlockSize);
+                    if (skipper != null) {
+                        // Skips at two levels: skipper blocks (coarse min/max range check), then
+                        // per-numeric-block SIMD bitmasks via inRangeBitmask.
+                        return new DocIdSetIterator() {
+                            private int iterDoc = -1;
 
-                        @Override
-                        public int nextDoc() throws IOException {
-                            return advance(iterDoc + 1);
-                        }
+                            @Override
+                            public int docID() {
+                                return iterDoc;
+                            }
 
-                        @Override
-                        public int advance(int target) throws IOException {
-                            iterDoc = target;
-                            while (iterDoc < maxDoc) {
-                                final int firstDocInSkipper, lastDocInSkipper;
-                                if (skipper != null) {
-                                    // Advance the skipper to the skipper block containing iterDoc
+                            @Override
+                            public int nextDoc() throws IOException {
+                                return advance(iterDoc + 1);
+                            }
+
+                            @Override
+                            public int advance(int target) throws IOException {
+                                iterDoc = target;
+                                while (iterDoc < maxDoc) {
                                     if (skipper.maxDocID(0) < iterDoc) {
                                         skipper.advance(iterDoc);
                                         if (skipper.maxDocID(0) == NO_MORE_DOCS) {
@@ -2434,44 +2433,34 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                     }
                                     long minVal = skipper.minValue(0);
                                     long maxVal = skipper.maxValue(0);
-                                    // iterDoc may already be in the middle of the current skipper block
-                                    firstDocInSkipper = Math.max(iterDoc, skipper.minDocID(0));
-                                    lastDocInSkipper = skipper.maxDocID(0);
+                                    int firstDocInSkipper = Math.max(iterDoc, skipper.minDocID(0));
+                                    int lastDocInSkipper = skipper.maxDocID(0);
                                     if (lowerValue <= minVal && maxVal <= upperValue) {
                                         // Entire skipper block is in range: return first doc without decoding values.
                                         return iterDoc = firstDocInSkipper;
-                                    } else if (minVal > upperValue || lowerValue > maxVal) {
-                                        // No overlap with range: skip this skipper block entirely.
-                                        iterDoc = lastDocInSkipper + 1;
-                                        continue;
+                                    } else if (minVal <= upperValue && lowerValue <= maxVal) {
+                                        // Partial overlap: scan SIMD bitmask for each numeric block.
+                                        int firstBlock = firstDocInSkipper >>> numericBlockShift;
+                                        int lastBlock = lastDocInSkipper >>> numericBlockShift;
+                                        for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
+                                            loadRangeBitmaskForBlock(blockId, lowerValue, upperValue, matches);
+                                            int firstInBlock = blockId == firstBlock ? firstDocInSkipper & numericBlockMask : 0;
+                                            int lastInBlock = blockId == lastBlock ? lastDocInSkipper & numericBlockMask : numericBlockMask;
+                                            int bit = matches.nextSetBit(firstInBlock, lastInBlock + 1);
+                                            if (bit != NO_MORE_DOCS) {
+                                                return iterDoc = (blockId << numericBlockShift) + bit;
+                                            }
+                                        }
                                     }
-                                } else {
-                                    firstDocInSkipper = iterDoc;
-                                    lastDocInSkipper = maxDoc - 1;
+                                    // No overlap, or partial overlap with no match: advance past this skipper block.
+                                    iterDoc = lastDocInSkipper + 1;
                                 }
-                                // Partial overlap (or no skipper): scan the SIMD bitmask for each numeric block.
-                                int firstBlock = firstDocInSkipper >>> numericBlockShift;
-                                int lastBlock = lastDocInSkipper >>> numericBlockShift;
-                                for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
-                                    loadRangeBitmaskForBlock(blockId);
-                                    int firstInBlock = blockId == firstBlock ? firstDocInSkipper & numericBlockMask : 0;
-                                    int lastInBlock = blockId == lastBlock ? lastDocInSkipper & numericBlockMask : numericBlockMask;
-                                    int bit = matches.nextSetBit(firstInBlock, lastInBlock + 1);
-                                    if (bit != NO_MORE_DOCS) {
-                                        return iterDoc = (blockId << numericBlockShift) + bit;
-                                    }
-                                }
-                                // No match found; jump past this block.
-                                iterDoc = lastDocInSkipper + 1;
+                                return iterDoc = NO_MORE_DOCS;
                             }
-                            return iterDoc = NO_MORE_DOCS;
-                        }
 
-                        @Override
-                        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
-                            while (iterDoc < upTo) {
-                                final int firstDocInSkipper, lastDocInSkipper;
-                                if (skipper != null) {
+                            @Override
+                            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                                while (iterDoc < upTo) {
                                     if (skipper.maxDocID(0) < iterDoc) {
                                         skipper.advance(iterDoc);
                                         if (skipper.maxDocID(0) == NO_MORE_DOCS) {
@@ -2479,103 +2468,156 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                             return;
                                         }
                                     }
-                                    firstDocInSkipper = Math.max(iterDoc, skipper.minDocID(0));
-                                    // Cap lastDocInSkipper at upTo-1 so we never write bits past the caller's window.
-                                    lastDocInSkipper = Math.min(skipper.maxDocID(0), upTo - 1);
+                                    int firstDocInSkipper = Math.max(iterDoc, skipper.minDocID(0));
+                                    // Cap at upTo-1 so we never write bits past the caller's window.
+                                    int lastDocInSkipper = Math.min(skipper.maxDocID(0), upTo - 1);
                                     long minVal = skipper.minValue(0);
                                     long maxVal = skipper.maxValue(0);
                                     if (lowerValue <= minVal && maxVal <= upperValue) {
-                                        // All docs in the (clipped) skipper block match; bulk-set without decoding.
+                                        // All docs in the (clipped) skipper block match, bulk set them without decoding.
                                         bitSet.set(firstDocInSkipper - offset, lastDocInSkipper + 1 - offset);
-                                        iterDoc = lastDocInSkipper + 1;
-                                        continue;
-                                    } else if (minVal > upperValue || lowerValue > maxVal) {
-                                        // No overlap with range: skip this skipper block entirely.
-                                        iterDoc = lastDocInSkipper + 1;
-                                        continue;
+                                    } else if (minVal <= upperValue && lowerValue <= maxVal) {
+                                        // Partial overlap: scan SIMD bitmask for each numeric block.
+                                        int firstBlock = firstDocInSkipper >>> numericBlockShift;
+                                        int lastBlock = lastDocInSkipper >>> numericBlockShift;
+                                        for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
+                                            loadRangeBitmaskForBlock(blockId, lowerValue, upperValue, matches);
+                                            int firstInBlock = blockId == firstBlock ? firstDocInSkipper & numericBlockMask : 0;
+                                            int lastInBlock = blockId == lastBlock ? lastDocInSkipper & numericBlockMask : numericBlockMask;
+                                            // shift by blockBase to matching bitSet's coordinate space
+                                            int blockBase = (blockId << numericBlockShift) - offset;
+                                            matches.forEach(firstInBlock, lastInBlock + 1, blockBase, bitSet::set);
+                                        }
                                     }
-                                } else {
-                                    firstDocInSkipper = iterDoc;
-                                    // Cap at upTo-1 so we never write bits past the caller's window.
-                                    lastDocInSkipper = upTo - 1;
+                                    // No overlap, all-in-range, or partial overlap: advance past this skipper block.
+                                    iterDoc = lastDocInSkipper + 1;
                                 }
-                                // Partial overlap (or no skipper): scan the SIMD bitmask for each numeric block.
-                                int firstBlock = firstDocInSkipper >>> numericBlockShift;
-                                int lastBlock = lastDocInSkipper >>> numericBlockShift;
+                            }
+
+                            @Override
+                            public int docIDRunEnd() throws IOException {
+                                int blockId = iterDoc >>> numericBlockShift;
+                                if (currentBlockIndex == blockId) {
+                                    // We already have a decoded bitmask, find the first non-matching position after iterDoc
+                                    int firstClearBit = nextClearBit(iterDoc & numericBlockMask, matches);
+                                    return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
+                                }
+                                // No decoded block: if the whole skipper block is in range, claim the run extends to its end.
+                                if (lowerValue <= skipper.minValue(0) && skipper.maxValue(0) <= upperValue) {
+                                    return skipper.maxDocID(0) + 1;
+                                }
+                                return iterDoc + 1;
+                            }
+
+                            @Override
+                            public long cost() {
+                                return maxDoc;
+                            }
+                        };
+                    } else {
+                        // No skipper: scan SIMD bitmasks for every numeric block directly.
+                        return new DocIdSetIterator() {
+                            private int iterDoc = -1;
+
+                            @Override
+                            public int docID() {
+                                return iterDoc;
+                            }
+
+                            @Override
+                            public int nextDoc() throws IOException {
+                                return advance(iterDoc + 1);
+                            }
+
+                            @Override
+                            public int advance(int target) throws IOException {
+                                if (target >= maxDoc) {
+                                    return iterDoc = NO_MORE_DOCS;
+                                }
+                                int firstBlock = target >>> numericBlockShift;
+                                int lastBlock = (maxDoc - 1) >>> numericBlockShift;
                                 for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
-                                    loadRangeBitmaskForBlock(blockId);
-                                    int firstInBlock = blockId == firstBlock ? firstDocInSkipper & numericBlockMask : 0;
-                                    int lastInBlock = blockId == lastBlock ? lastDocInSkipper & numericBlockMask : numericBlockMask;
-                                    // forEach applies a shift so that bit positions become absolute doc IDs
-                                    // minus the caller-supplied offset, matching bitSet's coordinate space.
-                                    matches.forEach(firstInBlock, lastInBlock + 1, (blockId << numericBlockShift) - offset, bitSet::set);
+                                    loadRangeBitmaskForBlock(blockId, lowerValue, upperValue, matches);
+                                    int firstInBlock = blockId == firstBlock ? target & numericBlockMask : 0;
+                                    int lastInBlock = blockId == lastBlock ? (maxDoc - 1) & numericBlockMask : numericBlockMask;
+                                    int bit = matches.nextSetBit(firstInBlock, lastInBlock + 1);
+                                    if (bit != NO_MORE_DOCS) {
+                                        return iterDoc = (blockId << numericBlockShift) + bit;
+                                    }
                                 }
-                                iterDoc = lastDocInSkipper + 1;
+                                return iterDoc = NO_MORE_DOCS;
                             }
-                        }
 
-                        @Override
-                        public int docIDRunEnd() throws IOException {
-                            int blockId = iterDoc >>> numericBlockShift;
-                            if (currentBlockIndex == blockId) {
-                                // We have a decoded bitmask for this numeric block: find the first non-matching
-                                // position within it. Cap at maxDoc to handle the last partial block, whose
-                                // trailing positions beyond the last real doc are garbage in the bitmask.
-                                int firstClearBit = nextClearBit(iterDoc & numericBlockMask);
-                                return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
-                            }
-                            // No decoded block: if the whole skipper block is in range we can claim the run
-                            // extends to its end, otherwise we can only promise a run of 1.
-                            if (skipper != null && lowerValue <= skipper.minValue(0) && skipper.maxValue(0) <= upperValue) {
-                                return skipper.maxDocID(0) + 1;
-                            }
-                            return iterDoc + 1;
-                        }
-
-                        private void loadRangeBitmaskForBlock(int blockIndex) throws IOException {
-                            if (blockIndex != currentBlockIndex) {
-
-                                // Load the next block
-                                assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
-                                if (currentBlockIndex + 1 != blockIndex) {
-                                    valuesData.seek(indexReader.get(blockIndex));
+                            @Override
+                            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                                int firstBlock = iterDoc >>> numericBlockShift;
+                                int lastBlock = (upTo - 1) >>> numericBlockShift;
+                                for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
+                                    loadRangeBitmaskForBlock(blockId, lowerValue, upperValue, matches);
+                                    int firstInBlock = blockId == firstBlock ? iterDoc & numericBlockMask : 0;
+                                    int lastInBlock = blockId == lastBlock ? (upTo - 1) & numericBlockMask : numericBlockMask;
+                                    // shift by blockBase to matching bitSet's coordinate space
+                                    int blockBase = (blockId << numericBlockShift) - offset;
+                                    matches.forEach(firstInBlock, lastInBlock + 1, blockBase, bitSet::set);
                                 }
-                                currentBlockIndex = blockIndex;
-                                decoder.decode(valuesData, currentBlock);
+                                iterDoc = upTo;
+                            }
 
-                                // Run the range query and store the results in the matches bitset
-                                matches.clear();
-                                ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, matches.getBits());
-                                currentBlockIndex = blockIndex;
-                            }
-                        }
-
-                        // Equivalent to FixedBitSet.nextSetBit but for 0-bits (clear bits).
-                        private int nextClearBit(int from) {
-                            long[] bits = matches.getBits();
-                            int wordIdx = from >>> 6;
-                            if (wordIdx >= bits.length) {
-                                return matches.length();
-                            }
-                            // Invert and right-shift to isolate clear bits at or after `from`.
-                            long word = ~bits[wordIdx] >>> (from & 63);
-                            if (word != 0) {
-                                return from + Long.numberOfTrailingZeros(word);
-                            }
-                            for (int i = wordIdx + 1; i < bits.length; i++) {
-                                word = ~bits[i];
-                                if (word != 0) {
-                                    return (i << 6) + Long.numberOfTrailingZeros(word);
+                            @Override
+                            public int docIDRunEnd() throws IOException {
+                                int blockId = iterDoc >>> numericBlockShift;
+                                if (currentBlockIndex == blockId) {
+                                    // We already have a decoded bitmask, find the first non-matching position after iterDoc
+                                    int firstClearBit = nextClearBit(iterDoc & numericBlockMask, matches);
+                                    return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
                                 }
+                                return iterDoc + 1;
                             }
-                            return matches.length();
-                        }
 
-                        @Override
-                        public long cost() {
-                            return maxDoc;
+                            @Override
+                            public long cost() {
+                                return maxDoc;
+                            }
+                        };
+                    }
+                }
+
+                private void loadRangeBitmaskForBlock(int blockIndex, long lowerValue, long upperValue, FixedBitSet matches)
+                    throws IOException {
+                    if (blockIndex != currentBlockIndex) {
+                        // load block
+                        assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
+                        if (currentBlockIndex + 1 != blockIndex) {
+                            valuesData.seek(indexReader.get(blockIndex));
                         }
-                    };
+                        decoder.decode(valuesData, currentBlock);
+                        currentBlockIndex = blockIndex;
+
+                        // run query and set matches bitset
+                        matches.clear();
+                        ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, matches.getBits());
+                    }
+                }
+
+                // Equivalent to FixedBitSet.nextSetBit but for 0-bits (clear bits).
+                private static int nextClearBit(int from, FixedBitSet matches) {
+                    long[] bits = matches.getBits();
+                    int wordIdx = from >>> 6;
+                    if (wordIdx >= bits.length) {
+                        return matches.length();
+                    }
+                    // Invert and right-shift to isolate clear bits at or after `from`.
+                    long word = ~bits[wordIdx] >>> (from & 63);
+                    if (word != 0) {
+                        return from + Long.numberOfTrailingZeros(word);
+                    }
+                    for (int i = wordIdx + 1; i < bits.length; i++) {
+                        word = ~bits[i];
+                        if (word != 0) {
+                            return (i << 6) + Long.numberOfTrailingZeros(word);
+                        }
+                    }
+                    return matches.length();
                 }
 
                 @Override

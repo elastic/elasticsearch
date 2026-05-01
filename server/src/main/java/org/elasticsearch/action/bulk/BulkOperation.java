@@ -651,13 +651,17 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @return true if the request and error should be redirected to the provided data stream's failure store, false if it should not
      */
     private boolean shouldRedirectRequestToFailureStore(boolean isFailureStoreRequest, DataStream failureStoreCandidate, Throwable error) {
-        return isFailureStoreRequest == false
-            && failureStoreCandidate.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings)
-            && error instanceof VersionConflictEngineException == false
-            && error instanceof EsRejectedExecutionException == false
-            && error instanceof CircuitBreakingException == false
-            && error instanceof ClusterBlockException == false
-            && (error instanceof ElasticsearchException && ((ElasticsearchException) error).status().getStatus() != 429);
+        if (isFailureStoreRequest || failureStoreCandidate.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings) == false) {
+            return false;
+        }
+        return switch (error) {
+            case VersionConflictEngineException err -> false;
+            case EsRejectedExecutionException err -> false;
+            case CircuitBreakingException err -> false;
+            case ClusterBlockException err -> false;
+            case ElasticsearchException err -> err.status().getStatus() != 429;
+            default -> true;
+        };
     }
 
     /**

@@ -70,7 +70,6 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -336,12 +335,14 @@ public class SynonymsManagementAPIService {
 
             if (hits.length == 0) {
                 if (accumulated.isEmpty()) {
-                    closePitAndThen(currentPitId.get(), () -> checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
+                    closePitAsync(currentPitId.get());
+                    checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
                         l.onResponse(new PagedResult<>(0, new SynonymRule[0]));
-                    })));
+                    }));
                 } else {
                     PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
-                    closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
+                    closePitAsync(currentPitId.get());
+                    listener.onResponse(result);
                 }
                 return;
             }
@@ -358,25 +359,33 @@ public class SynonymsManagementAPIService {
                 accumulated.add(hitToSynonymRule(hit));
                 if (accumulated.size() >= maxSynonymRules) {
                     PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
-                    closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
+                    closePitAsync(currentPitId.get());
+                    listener.onResponse(result);
                     return;
                 }
             }
 
             Object[] lastSortValues = hits[hits.length - 1].getSortValues();
             fetchPageWithPit(synonymSetId, currentPitId.get(), lastSortValues, accumulated, listener);
-        }, e -> { closePitAndThen(currentPitId.get(), () -> listener.onFailure(e)); }));
+        }, e -> {
+            closePitAsync(currentPitId.get());
+            listener.onFailure(e);
+        }));
     }
 
-    private void closePitAndThen(BytesReference pitId, Runnable andThen) {
+    /**
+     * Closes a PIT context fire-and-forget. The caller is responsible for completing its listener
+     * before or after this call — do not chain completion through the close response, because the
+     * close-PIT callback arrives on the GENERIC thread pool and completing a PlainActionFuture
+     * from the same pool as its waiter triggers a deadlock-prevention assertion.
+     */
+    private void closePitAsync(BytesReference pitId) {
         assert pitId != null;
-        client.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId), ActionListener.wrap(r -> {
-            // specify system_read so that the response isn't completed on the generic thread pool
-            client.threadPool().executor(ThreadPool.Names.SYSTEM_READ).execute(andThen);
-        }, e -> {
-            logger.warn("Failed to close PIT context", e);
-            client.threadPool().executor(ThreadPool.Names.SYSTEM_READ).execute(andThen);
-        }));
+        client.execute(
+            TransportClosePointInTimeAction.TYPE,
+            new ClosePointInTimeRequest(pitId),
+            ActionListener.wrap(r -> {}, e -> logger.warn("Failed to close PIT context", e))
+        );
     }
 
     /**

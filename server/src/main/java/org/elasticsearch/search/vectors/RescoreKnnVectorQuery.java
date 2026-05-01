@@ -27,6 +27,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.VectorScorer;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -335,6 +336,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
 
             KnnVectorValues.DocIndexIterator vectorIter = knnVectorValues.iterator();
             DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIter, filterIterator));
+            VectorScorer scorer = knnVectorValues.rescorer(floatTarget);
             int doc;
             while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                 assert doc == vectorIter.docID();
@@ -352,8 +354,8 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                     input.prefetch((long) ord * vectorByteSize, vectorByteSize);
                 }
                 buffer.add(() -> {
-                    float[] vector = knnVectorValues.vectorValue(ord);
-                    float score = function.compare(floatTarget, vector);
+                    scorer.iterator().advance(ord);
+                    float score = scorer.score();
                     if (Float.isNaN(score) == false) {
                         queue.add(new ScoreDoc(docID + docBase, score));
                     }

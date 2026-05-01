@@ -143,7 +143,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      */
     @Override
     public void run() {
-        // Todo: WIP - steps will be implemented in follow-up PRs
         try {
             maybeMarkIndexReadOnly();
             String forceMergeIndex = maybeCloneIndex();

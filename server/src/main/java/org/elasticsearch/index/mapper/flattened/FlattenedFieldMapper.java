@@ -34,6 +34,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
@@ -166,12 +167,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         return ((FlattenedFieldMapper) in).builder;
     }
 
-    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED_SET
-    );
-
     public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Integer> depthLimit = Parameter.intParam(
@@ -186,10 +181,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         });
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sortedSet(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> builder(m).docValuesParameters.getValue()
-        );
+        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
 
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> builder(m).nullValue.get(), null)
             .acceptsNull();
@@ -213,14 +205,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             false
         );
         private final Parameter<List<String>> dimensions = dimensionsParam(m -> builder(m).dimensions.get()).addValidator(v -> {
-            if (v.isEmpty() == false && (indexed.getValue() == false || docValuesParameters.getValue().enabled() == false)) {
+            if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                 throw new IllegalArgumentException(
                     "Field ["
                         + TIME_SERIES_DIMENSIONS_ARRAY_PARAM
                         + "] requires that ["
                         + indexed.name
                         + "] and ["
-                        + docValuesParameters.name
+                        + hasDocValues.name
                         + "] are true"
                 );
             }
@@ -372,7 +364,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 indexed,
-                docValuesParameters,
+                hasDocValues,
                 depthLimit,
                 nullValue,
                 eagerGlobalOrdinals,
@@ -416,7 +408,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             boolean hasRootDocValues = hasRootDocValues();
             MappedFieldType ft = new RootFlattenedFieldType(
                 context.buildFullName(leafName()),
-                IndexType.terms(indexed.get(), docValuesParameters.get().enabled()),
+                IndexType.terms(indexed.get(), hasDocValues.get()),
                 meta.get(),
                 splitQueriesOnWhitespace.get(),
                 eagerGlobalOrdinals.get(),
@@ -1455,7 +1447,10 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             mappedSubFields,
             builder.storeIgnoredFieldsInBinaryDocValues,
             builder.preserveLeafArrays.get(),
-            builder.indexSettings.getIndexVersionCreated()
+            builder.indexSettings.getIndexVersionCreated(),
+            builder.dimensions.getValue().isEmpty() == false
+                && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
+                && efs.extractDimensionsWhileMapping()
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
     }

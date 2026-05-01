@@ -14,6 +14,7 @@ import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InferenceStringGroupTests;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -27,7 +28,7 @@ import java.util.List;
 
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
-import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
@@ -185,7 +186,10 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
                 ElasticInferenceServiceDenseEmbeddingsModelTests.createModel(randomFrom(TEXT_EMBEDDING, EMBEDDING), URL, MODEL_ID),
                 List.of(input),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata", "1.2.3"),
+                new ElasticInferenceServiceRequestMetadata(
+                    new InferenceProductContext("my-product-use-case-from-metadata", "my-product-origin"),
+                    "1.2.3"
+                ),
                 inputType,
                 CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
@@ -211,7 +215,10 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
                 ElasticInferenceServiceDenseEmbeddingsModelTests.createModel(randomFrom(TEXT_EMBEDDING, EMBEDDING), URL, MODEL_ID),
                 List.of(input),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata", "1.2.3"),
+                new ElasticInferenceServiceRequestMetadata(
+                    new InferenceProductContext("my-product-use-case-from-metadata", "my-product-origin"),
+                    "1.2.3"
+                ),
                 inputType,
                 new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(new SecureString(secret.toCharArray()))
             );

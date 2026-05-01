@@ -10,6 +10,7 @@
 package org.elasticsearch.inference.telemetry;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.logging.LogManager;
@@ -40,6 +41,8 @@ public class InferenceStats {
     static final String STACK_VERSION_ATTRIBUTE = "es_stack_version";
     // Indicates whether the node is a production release (i.e. not a snapshot, alpha, etc.)
     static final String PRODUCTION_RELEASE_ATTRIBUTE = "es_production_release";
+    static final String ES_PRODUCT_ORIGIN_ATTRIBUTE = "es_product_origin";
+
     private static final Logger logger = LogManager.getLogger(InferenceStats.class);
     private final LongCounter requestCountInstrument;
     private final LongHistogram inferenceDurationInstrument;
@@ -161,6 +164,41 @@ public class InferenceStats {
         @SuppressWarnings("unchecked")
         private B cast() {
             return (B) this;
+        }
+
+        /**
+         * Adds product attribution attributes from the given context.
+         * Sets {@code inference_source} from {@link InferenceProductContext#productUseCase()} and
+         * {@code es_product_origin} from {@link InferenceProductContext#productOrigin()} when each is non-empty.
+         * Either or both may be absent; they are recorded independently.
+         */
+        public B withProductContext(@Nullable InferenceProductContext ctx) {
+            @SuppressWarnings("unchecked")
+            var castedThis = (B) this;
+
+            if (ctx == null) {
+                return castedThis;
+            }
+            if (Strings.isNullOrEmpty(ctx.productUseCase()) == false) {
+                attributes.put(INFERENCE_SOURCE_ATTRIBUTE, ctx.productUseCase());
+            }
+            if (Strings.isNullOrEmpty(ctx.productOrigin()) == false) {
+                attributes.put(ES_PRODUCT_ORIGIN_ATTRIBUTE, ctx.productOrigin());
+            }
+
+            return castedThis;
+        }
+
+        /**
+         * Sets the {@code inference_source} attribute to the given value.
+         * Use this when the product use case is known statically at the call site (e.g. {@code "semantic_text_bulk"}).
+         */
+        public B withProductUseCase(String value) {
+            attributes.put(INFERENCE_SOURCE_ATTRIBUTE, value);
+
+            @SuppressWarnings("unchecked")
+            var castedThis = (B) this;
+            return castedThis;
         }
     }
 

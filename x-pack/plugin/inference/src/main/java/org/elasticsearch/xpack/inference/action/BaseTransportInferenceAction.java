@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceService;
@@ -51,7 +48,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     Request,
     InferenceAction.Response> {
 
-    private static final Logger log = LogManager.getLogger(BaseTransportInferenceAction.class);
     private static final String STREAMING_INFERENCE_TASK_TYPE = "streaming_inference";
     private static final String STREAMING_TASK_ACTION = "xpack/inference/streaming_inference[n]";
     private final XPackLicenseState licenseState;
@@ -164,7 +160,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         ActionListener<InferenceAction.Response> listener
     ) {
         // Record request count metric before executing the inference to ensure it's captured
-        // even if there are validation errors or exceptions during inference execution
+        // even if there are exceptions during inference execution
         // This won't include a status code attribute since the outcome is not yet known
         inferenceStats.requestCount().withModel(model).incrementBy(1);
         inferOnService(model, request, service, ActionListener.wrap(inferenceResults -> {
@@ -273,15 +269,5 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             requested,
             expected
         );
-    }
-
-    private record NodeRoutingDecision(boolean currentNodeShouldHandleRequest, DiscoveryNode targetNode) {
-        static NodeRoutingDecision handleLocally() {
-            return new NodeRoutingDecision(true, null);
-        }
-
-        static NodeRoutingDecision routeTo(DiscoveryNode node) {
-            return new NodeRoutingDecision(false, node);
-        }
     }
 }

@@ -33,18 +33,14 @@ public class InferenceStats {
     public static final String TASK_TYPE_ATTRIBUTE = "task_type";
     public static final String STATUS_CODE_ATTRIBUTE = "status_code";
     public static final String INFERENCE_SOURCE_ATTRIBUTE = "inference_source";
-
     public static final String INFERENCE_REQUEST_COUNT_TOTAL = "es.inference.requests.count.total";
     public static final String INFERENCE_REQUEST_DURATION = "es.inference.requests.time";
     public static final String INFERENCE_DEPLOYMENT_DURATION = "es.inference.trained_model.deployment.time";
-
     // Attribute keys must start with "es_" prefix see org.elasticsearch.telemetry.apm.internal.MetricValidator#validateAttributeKey
     static final String STACK_VERSION_ATTRIBUTE = "es_stack_version";
     // Indicates whether the node is a production release (i.e. not a snapshot, alpha, etc.)
     static final String PRODUCTION_RELEASE_ATTRIBUTE = "es_production_release";
-
     private static final Logger logger = LogManager.getLogger(InferenceStats.class);
-
     private final LongCounter requestCountInstrument;
     private final LongHistogram inferenceDurationInstrument;
     private final LongHistogram deploymentDurationInstrument;
@@ -52,11 +48,12 @@ public class InferenceStats {
 
     /**
      * This should be an internal constructor. It's public to enable testing.
-     * @param requestCountInstrument long counter for inference request counts
-     * @param inferenceDurationInstrument long histogram for inference request latency
+     *
+     * @param requestCountInstrument       long counter for inference request counts
+     * @param inferenceDurationInstrument  long histogram for inference request latency
      * @param deploymentDurationInstrument long histogram for trained model deployment wait time
-     * @param constantAttributes attributes to be included with every metric recorded by this instance,
-     *                           such as the node's stack version and whether it's a production release (i.e. not a snapshot, alpha, etc.)
+     * @param constantAttributes           attributes to be included with every metric recorded by this instance,
+     *                                     such as the node's stack version and whether it's a production release (i.e. not a snapshot, alpha, etc.)
      */
     public InferenceStats(
         LongCounter requestCountInstrument,
@@ -92,7 +89,7 @@ public class InferenceStats {
     }
 
     /**
-     * Returns a fluent counter recording. Call {@link CounterBuilder#withSuccess()} or {@link CounterBuilder#withThrowable(Throwable)}
+     * Returns a request counter instrument builder. Call {@link CounterBuilder#withSuccess()} or {@link CounterBuilder#withThrowable(Throwable)}
      * to set the outcome before calling the terminal {@link CounterBuilder#incrementBy}. Omitting both records no {@code status_code},
      * which is appropriate when counting a request attempt before the outcome is known.
      */
@@ -101,20 +98,25 @@ public class InferenceStats {
     }
 
     /**
-     * Returns a fluent histogram for inference request latency.
+     * Returns a request duration histogram instrument builder. Call {@link CounterBuilder#withSuccess()} or
+     * {@link DurationBuilder#withThrowable(Throwable)} to set the outcome before calling the terminal
+     * {@link DurationBuilder#record(long)}. Omitting both records no {@code status_code}.
      */
     public DurationBuilder inferenceDuration() {
         return new DurationBuilder(inferenceDurationInstrument, constantAttributes);
     }
 
     /**
-     * Returns a fluent histogram for trained model deployment wait time.
+     * Returns a deployment duration histogram instrument builder. Call {@link CounterBuilder#withSuccess()} or
+     * {@link DurationBuilder#withThrowable(Throwable)} to set the outcome before calling the terminal
+     * {@link DurationBuilder#record(long)}. Omitting both records no {@code status_code}.
      */
     public DurationBuilder deploymentDuration() {
         return new DurationBuilder(deploymentDurationInstrument, constantAttributes);
     }
 
     abstract static class AbstractBuilder<B extends AbstractBuilder<B>> {
+
         protected final Map<String, Object> attributes;
 
         AbstractBuilder(Map<String, Object> constantAttributes) {
@@ -125,17 +127,13 @@ public class InferenceStats {
             attributes.put(SERVICE_ATTRIBUTE, model.getConfigurations().getService());
             attributes.put(TASK_TYPE_ATTRIBUTE, model.getTaskType().toString());
 
-            @SuppressWarnings("unchecked")
-            var castedThis = (B) this;
-            return castedThis;
+            return cast();
         }
 
         public B withSuccess() {
             attributes.put(STATUS_CODE_ATTRIBUTE, 200);
 
-            @SuppressWarnings("unchecked")
-            var castedThis = (B) this;
-            return castedThis;
+            return cast();
         }
 
         /**
@@ -149,17 +147,18 @@ public class InferenceStats {
             }
             applyThrowable(throwable, attributes);
 
-            @SuppressWarnings("unchecked")
-            var castedThis = (B) this;
-            return castedThis;
+            return cast();
         }
 
         public B withAttribute(String key, Object value) {
             attributes.put(key, value);
 
-            @SuppressWarnings("unchecked")
-            var castedThis = (B) this;
-            return castedThis;
+            return cast();
+        }
+
+        @SuppressWarnings("unchecked")
+        private B cast() {
+            return (B) this;
         }
     }
 
@@ -167,8 +166,17 @@ public class InferenceStats {
      * Builder for {@link LongCounter} metrics. Call {@link #withSuccess()} or {@link #withThrowable(Throwable)} to set the outcome.
      * Omitting both leaves the metric without a {@code status_code} attribute, which is correct when recording a request attempt
      * before the outcome is known.
+     *
+     * <p>Example usage:
+     * <pre>{@code
+     * inferenceStats.requestCount()
+     *     .withModel(model)
+     *     .withSuccess()
+     *     .incrementBy(1);
+     * }</pre>
      */
     public static class CounterBuilder extends AbstractBuilder<CounterBuilder> {
+
         private final LongCounter counter;
 
         CounterBuilder(LongCounter counter, Map<String, Object> constantAttributes) {
@@ -189,8 +197,22 @@ public class InferenceStats {
      * Builder for {@link LongHistogram} metrics. Call {@link #withSuccess()} or {@link #withThrowable(Throwable)} to set the outcome.
      * Omitting both leaves the metric without a {@code status_code} attribute, which is correct when recording duration before the
      * outcome is known.
+     *
+     * <p>Example usage:
+     * <pre>{@code
+     * inferenceStats.inferenceDuration()
+     *     .withModel(model)
+     *     .withThrowable(throwable)
+     *     .record(durationMs);
+     *
+     * inferenceStats.deploymentDuration()
+     *     .withModel(model)
+     *     .withSuccess()
+     *     .record(durationMs);
+     * }</pre>
      */
     public static class DurationBuilder extends AbstractBuilder<DurationBuilder> {
+
         private final LongHistogram histogram;
 
         DurationBuilder(LongHistogram histogram, Map<String, Object> constantAttributes) {

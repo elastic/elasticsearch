@@ -29,7 +29,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -89,12 +91,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.mockito.AdditionalMatchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -852,21 +852,31 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     public void testOnlyTheFirstRegionIsLoadedWhenReplicatedContentIsPresent() throws IOException {
+        var primaryTerm = 1;
         var cacheSize = ByteSizeValue.ofMb(10L);
         var regionSize = ByteSizeValue.ofBytes((long) randomIntBetween(1, 3) * 2 * SharedBytes.PAGE_SIZE);
-        try (var node = new FakeStatelessNodeWithFakeObjectStore() {
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
-                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize)
-                    .put(SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(), regionSize)
-                    .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-                    .build();
+        try (
+            var node = new FakeStatelessNode(
+                TestEnvironment::newEnvironment,
+                settings -> new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)),
+                xContentRegistry(),
+                primaryTerm
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                        .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                        .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize)
+                        .put(SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(), regionSize)
+                        .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+                        .build();
+                }
             }
-        }) {
+        ) {
             final var primaryTermAndGeneration = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
             final var blobFile = new BlobFile(
                 StatelessCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()),
@@ -896,15 +906,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 future
             );
             safeGet(future);
-            verify(node.sharedCacheService, never()).maybeFetchRange(
-                any(),
-                not(eq(0)),
-                any(),
-                anyLong(),
-                any(),
-                any(),
-                anyActionListener()
-            );
+
+            SharedBlobCacheService.Stats stats = node.sharedCacheService.getStats();
+            assertThat(stats.writeCount(), equalTo(0L));
+            assertThat(stats.missCount(), equalTo(0L));
         }
     }
 
@@ -1170,7 +1175,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         boolean preWarmForIdLookupEnabled,
         double idLookupPreWarmRatio
     ) throws IOException {
-        return new FakeStatelessNodeWithFakeObjectStore() {
+        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
             @Override
             protected Settings nodeSettings() {
                 Settings settings = super.nodeSettings();
@@ -1187,6 +1192,43 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING.getKey(), preWarmForIdLookupEnabled)
                     .put(SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING.getKey(), idLookupPreWarmRatio)
                     .build();
+            }
+
+            @Override
+            protected StatelessSharedBlobCacheService createCacheService(
+                NodeEnvironment nodeEnvironment,
+                Settings settings,
+                ThreadPool threadPool,
+                MeterRegistry meterRegistry
+            ) {
+                return spy(super.createCacheService(nodeEnvironment, settings, threadPool, meterRegistry));
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                        return new InputStream() {
+                            private long remaining = length;
+
+                            @Override
+                            public int read() throws IOException {
+                                if (remaining == 0) {
+                                    return -1;
+                                } else {
+                                    remaining -= 1;
+                                    return 1;
+                                }
+                            }
+                        };
+                    }
+                };
             }
         };
     }
@@ -1229,58 +1271,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .build();
             }
         };
-    }
-
-    class FakeStatelessNodeWithFakeObjectStore extends FakeStatelessNode {
-        FakeStatelessNodeWithFakeObjectStore() throws IOException {
-            this(1);
-        }
-
-        FakeStatelessNodeWithFakeObjectStore(int primaryTerm) throws IOException {
-            super(
-                SharedBlobCacheWarmingServiceTests.this::newEnvironment,
-                SharedBlobCacheWarmingServiceTests.this::newNodeEnvironment,
-                xContentRegistry(),
-                primaryTerm
-            );
-        }
-
-        @Override
-        protected StatelessSharedBlobCacheService createCacheService(
-            NodeEnvironment nodeEnvironment,
-            Settings settings,
-            ThreadPool threadPool,
-            MeterRegistry meterRegistry
-        ) {
-            return spy(super.createCacheService(nodeEnvironment, settings, threadPool, meterRegistry));
-        }
-
-        @Override
-        public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
-            return new FilterBlobContainer(innerContainer) {
-                @Override
-                protected BlobContainer wrapChild(BlobContainer child) {
-                    return child;
-                }
-
-                @Override
-                public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
-                    return new InputStream() {
-                        private long remaining = length;
-
-                        @Override
-                        public int read() throws IOException {
-                            if (remaining == 0) {
-                                return -1;
-                            } else {
-                                remaining -= 1;
-                                return 1;
-                            }
-                        }
-                    };
-                }
-            };
-        }
     }
 
     private void appendCommitsToVbcc(

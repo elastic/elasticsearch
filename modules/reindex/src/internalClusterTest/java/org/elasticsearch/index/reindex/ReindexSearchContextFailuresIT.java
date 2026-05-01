@@ -31,6 +31,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
@@ -70,6 +71,7 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "*:*")
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // uncached millis for SearchContextKeepaliveDeadline
             .build();
     }
 

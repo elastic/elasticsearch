@@ -254,7 +254,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     @Override
     public NumericDocValues getNumeric(FieldInfo field) throws IOException {
         NumericEntry entry = numerics.get(field.number);
-        return getNumeric(entry, AbstractTSDBDocValuesConsumer.NO_MAX_ORD);
+        return getNumeric(entry, AbstractTSDBDocValuesConsumer.NO_MAX_ORD, field);
     }
 
     @Override
@@ -1190,7 +1190,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return DocValues.emptySorted();
         }
 
-        final NumericDocValues ords = getNumeric(entry.ordsEntry, entry.termsDictEntry.termsDictSize);
+        final NumericDocValues ords = getNumeric(entry.ordsEntry, entry.termsDictEntry.termsDictSize, null);
         return new BaseSortedDocValues(entry) {
 
             @Override
@@ -1755,7 +1755,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     @Override
     public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
         SortedNumericEntry entry = sortedNumerics.get(field.number);
-        return getSortedNumeric(entry, AbstractTSDBDocValuesConsumer.NO_MAX_ORD);
+        return getSortedNumeric(entry, AbstractTSDBDocValuesConsumer.NO_MAX_ORD, field);
     }
 
     @Override
@@ -1766,7 +1766,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
 
         SortedNumericEntry ordsEntry = entry.ordsEntry;
-        final SortedNumericDocValues ords = getSortedNumeric(ordsEntry, entry.termsDictEntry.termsDictSize);
+        final SortedNumericDocValues ords = getSortedNumeric(ordsEntry, entry.termsDictEntry.termsDictSize, null);
         return new BaseSortedSetDocValues(entry, data, merging, formatConfig.termsBlockLz4Shift()) {
 
             int i = 0;
@@ -2237,7 +2237,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private NumericDocValues getNumeric(NumericEntry entry, long maxOrd) throws IOException {
+    private NumericDocValues getNumeric(NumericEntry entry, long maxOrd, @Nullable FieldInfo fieldInfo) throws IOException {
         if (entry.docsWithFieldOffset == -2) {
             return DocValues.emptyNumeric();
         }
@@ -2401,9 +2401,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper) {
+                public DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue) throws IOException {
                     // The filtered DISI must be obtained from a fresh instance since it shares state with the outer reader.
 
+                    DocValuesSkipper skipper = fieldInfo != null && fieldInfo.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE
+                        ? getSkipper(fieldInfo) : null;
                     final FixedBitSet matches = new FixedBitSet(numericBlockSize);
                     if (skipper != null) {
                         // Skips at two levels: skipper blocks (coarse min/max range check), then
@@ -2809,9 +2811,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         };
     }
 
-    private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, long maxOrd) throws IOException {
+    private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, long maxOrd, @Nullable FieldInfo fieldInfo) throws IOException {
         if (entry.numValues == entry.numDocsWithField) {
-            return DocValues.singleton(getNumeric(entry, maxOrd));
+            return DocValues.singleton(getNumeric(entry, maxOrd, fieldInfo));
         }
 
         final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);

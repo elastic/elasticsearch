@@ -141,7 +141,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
 
                 // 2) TSDB optimization: SIMD bitmask scanning over numeric codec blocks.
                 if (singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
-                    var rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue, skipper);
+                    var rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue);
                     if (rangeIterator != null) {
                         return ConstantScoreScorerSupplier.fromIterator(rangeIterator, score(), scoreMode, maxDoc);
                     }

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -258,9 +257,8 @@ public interface BlockLoader {
 
     /**
      * An interface for numeric doc values readers that can optionally produce a {@link DocIdSetIterator}
-     * optimized for range queries. When a {@link DocValuesSkipper} is provided, implementations may
-     * additionally skip entire skipper blocks that fall outside the query range; when {@code null},
-     * the iterator scans all numeric blocks directly using SIMD bitmasks.
+     * optimized for range queries using SIMD bitmask scanning, with internal skipper-based block skipping
+     * when a skipper is available for the field.
      * <p>
      * The returned iterator shares internal block-decoding state with the reader that produced it.
      * Callers must not use the originating reader after obtaining the iterator; the iterator assumes
@@ -269,7 +267,7 @@ public interface BlockLoader {
      * The default implementation returns {@code null}, indicating no optimized iterator is available.
      */
     interface OptionalNumericRangeReader {
-        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue, DocValuesSkipper skipper) throws IOException {
+        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue) throws IOException {
             return null;
         }
     }

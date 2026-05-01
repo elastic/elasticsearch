@@ -19,7 +19,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
@@ -2356,16 +2355,14 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             try (var reader = DirectoryReader.open(iw)) {
                 assertEquals(1, reader.leaves().size());
                 var leafReader = reader.leaves().getFirst().reader();
-                var skipper = randomBoolean() ? leafReader.getDocValuesSkipper(field) : null;
-
-                assertRangeIterator(leafReader, field, numDocs, sampleValue, sampleValue, skipper); // exact match
-                assertRangeIterator(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE, skipper); // empty match
+                assertRangeIterator(leafReader, field, numDocs, sampleValue, sampleValue); // exact match
+                assertRangeIterator(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE); // empty match
 
                 // Random ranges within [minValue, maxValue].
                 for (int i = 0; i < 5; i++) {
                     long a = randomLongBetween(minValue, maxValue);
                     long b = randomLongBetween(minValue, maxValue);
-                    assertRangeIterator(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b), skipper);
+                    assertRangeIterator(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b));
                 }
             }
         }
@@ -2408,16 +2405,14 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             try (var reader = DirectoryReader.open(iw)) {
                 assertEquals(1, reader.leaves().size());
                 var leafReader = reader.leaves().getFirst().reader();
-                var skipper = randomBoolean() ? leafReader.getDocValuesSkipper(field) : null;
-
-                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, sampleValue, sampleValue, skipper); // exact match
-                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE, skipper); // empty
+                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, sampleValue, sampleValue); // exact match
+                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE); // empty
 
                 // Random ranges within [minValue, maxValue].
                 for (int i = 0; i < 5; i++) {
                     long a = randomLongBetween(minValue, maxValue);
                     long b = randomLongBetween(minValue, maxValue);
-                    assertRangeIteratorIntoBitSet(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b), skipper);
+                    assertRangeIteratorIntoBitSet(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b));
                 }
             }
         }
@@ -2487,14 +2482,13 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         return expected;
     }
 
-    private void assertRangeIterator(LeafReader leafReader, String field, int numDocs, long lower, long upper, DocValuesSkipper skipper)
-        throws IOException {
+    private void assertRangeIterator(LeafReader leafReader, String field, int numDocs, long lower, long upper) throws IOException {
         Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
 
         // Pass 1: nextDoc() correctness + docIDRunEnd() contract.
         {
             var ndv = getBaseDenseNumericValues(leafReader, field);
-            var iter = ndv.tryRangeIterator(lower, upper, skipper);
+            var iter = ndv.tryRangeIterator(lower, upper);
             assertNotNull(iter);
             Set<Integer> actual = new HashSet<>();
             int doc;
@@ -2517,7 +2511,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         // Pass 2: advance() to each matching doc in order.
         if (expected.isEmpty() == false) {
             var ndv = getBaseDenseNumericValues(leafReader, field);
-            var iter = ndv.tryRangeIterator(lower, upper, skipper);
+            var iter = ndv.tryRangeIterator(lower, upper);
             assertNotNull(iter);
             List<Integer> sortedDocs = expected.stream().sorted().toList();
             for (int expectedDoc : sortedDocs) {
@@ -2532,24 +2526,18 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         // Pass 3: advance past the segment → NO_MORE_DOCS.
         {
             var ndv = getBaseDenseNumericValues(leafReader, field);
-            var iter = ndv.tryRangeIterator(lower, upper, skipper);
+            var iter = ndv.tryRangeIterator(lower, upper);
             assertNotNull(iter);
             assertEquals(DocIdSetIterator.NO_MORE_DOCS, iter.advance(numDocs));
         }
     }
 
-    private void assertRangeIteratorIntoBitSet(
-        LeafReader leafReader,
-        String field,
-        int numDocs,
-        long lower,
-        long upper,
-        DocValuesSkipper skipper
-    ) throws IOException {
+    private void assertRangeIteratorIntoBitSet(LeafReader leafReader, String field, int numDocs, long lower, long upper)
+        throws IOException {
         Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
 
         var ndv = getBaseDenseNumericValues(leafReader, field);
-        var iter = ndv.tryRangeIterator(lower, upper, skipper);
+        var iter = ndv.tryRangeIterator(lower, upper);
         if (iter == null) {
             return;
         }

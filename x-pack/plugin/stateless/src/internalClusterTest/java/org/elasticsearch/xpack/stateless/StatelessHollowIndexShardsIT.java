@@ -724,7 +724,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             }
             ensureRed(clusterInfo.indexName);
             updateIndexSettings(
-                Settings.builder().put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1),
+                Settings.builder().put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 5),
                 clusterInfo.indexName
             );
             ClusterRerouteUtils.rerouteRetryFailed(client());

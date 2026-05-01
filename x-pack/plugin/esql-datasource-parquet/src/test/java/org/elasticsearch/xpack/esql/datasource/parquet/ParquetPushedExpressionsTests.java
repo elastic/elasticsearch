@@ -11,6 +11,9 @@ import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -19,13 +22,18 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 
 import static org.apache.parquet.schema.LogicalTypeAnnotation.dateType;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.timestampType;
@@ -39,6 +47,14 @@ import static org.hamcrest.Matchers.containsString;
  * schema-aware translation of DATETIME columns across different Parquet physical types.
  */
 public class ParquetPushedExpressionsTests extends ESTestCase {
+
+    private BlockFactory blockFactory;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+    }
 
     // --- TIMESTAMP_MILLIS (INT64) ---
 
@@ -277,6 +293,45 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     public void testConvertMillisToPhysicalNoAnnotation() {
         assertEquals(5678L, ParquetPushedExpressions.convertMillisToPhysical(5678L, null));
+    }
+
+    // --- predicateColumnNames tests ---
+
+    public void testPredicateColumnNamesSingleComparison() {
+        Expression expr = new GreaterThan(Source.EMPTY, attr("status", DataType.LONG), lit(200L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+        assertEquals(Set.of("status"), pushed.predicateColumnNames());
+    }
+
+    public void testPredicateColumnNamesAndTwoColumns() {
+        Expression left = new GreaterThan(Source.EMPTY, attr("age", DataType.LONG), lit(18L, DataType.LONG), null);
+        Expression right = new LessThan(Source.EMPTY, attr("score", DataType.LONG), lit(100L, DataType.LONG), null);
+        Expression and = new And(Source.EMPTY, left, right);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(and));
+        assertEquals(Set.of("age", "score"), pushed.predicateColumnNames());
+    }
+
+    public void testPredicateColumnNamesDeduplicated() {
+        Expression expr1 = new GreaterThan(Source.EMPTY, attr("x", DataType.LONG), lit(1L, DataType.LONG), null);
+        Expression expr2 = new LessThan(Source.EMPTY, attr("x", DataType.LONG), lit(10L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr1, expr2));
+        assertEquals(Set.of("x"), pushed.predicateColumnNames());
+    }
+
+    public void testPredicateColumnNamesNestedAndOrNot() {
+        Expression a = new GreaterThan(Source.EMPTY, attr("col_a", DataType.LONG), lit(1L, DataType.LONG), null);
+        Expression b = new LessThan(Source.EMPTY, attr("col_b", DataType.LONG), lit(5L, DataType.LONG), null);
+        Expression c = new Equals(Source.EMPTY, attr("col_c", DataType.LONG), lit(0L, DataType.LONG), null);
+        Expression and = new And(Source.EMPTY, a, b);
+        Expression not = new Not(Source.EMPTY, c);
+        Expression or = new Or(Source.EMPTY, and, not);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(or));
+        assertEquals(Set.of("col_a", "col_b", "col_c"), pushed.predicateColumnNames());
+    }
+
+    public void testPredicateColumnNamesEmpty() {
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of());
+        assertEquals(Set.of(), pushed.predicateColumnNames());
     }
 
     // --- helpers ---

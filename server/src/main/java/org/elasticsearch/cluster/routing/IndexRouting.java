@@ -428,6 +428,15 @@ public abstract class IndexRouting {
 
         protected abstract int hashSource(IndexRequest indexRequest);
 
+        /**
+         * Returns true if dimension fields on this index should write to {@link org.elasticsearch.index.mapper.RoutingFields}
+         * during document mapping. Returns false for {@link ForIndexDimensions}, which builds the tsid during routing
+         * on the coordinating node and attaches it to the index request, so the data node does not need to re-extract dimensions.
+         */
+        public boolean extractDimensionsWhileMapping() {
+            return true;
+        }
+
         private static int defaultOnEmpty() {
             throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
         }
@@ -587,6 +596,11 @@ public abstract class IndexRouting {
                     indexRequest.tsid(tsid);
                 }
                 return hash(tsid);
+            }
+
+            @Override
+            public boolean extractDimensionsWhileMapping() {
+                return false;
             }
 
             public BytesRef buildTsid(XContentType sourceType, BytesReference source) {

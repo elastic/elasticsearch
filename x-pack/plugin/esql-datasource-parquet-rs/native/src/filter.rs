@@ -12,7 +12,7 @@ use jni::EnvUnowned;
 use jni::errors::{Result as JniResult, ThrowRuntimeExAndDefault};
 use jni::objects::{JClass, JLongArray, JString};
 use jni::sys::jlong;
-use parquet::arrow::arrow_reader::{ArrowPredicateFn, RowFilter, RowSelector};
+use parquet::arrow::arrow_reader::{ArrowPredicateFn, RowFilter, RowSelection, RowSelector};
 use parquet::arrow::ProjectionMask;
 use parquet::file::metadata::{ParquetMetaData, RowGroupMetaData};
 use parquet::file::page_index::column_index::ColumnIndexMetaData;
@@ -355,11 +355,16 @@ fn col_index_page_stats(col_idx: &ColumnIndexMetaData, page_i: usize) -> (Option
 
 /// Computes page-level `RowSelector`s for one row group using column index statistics.
 ///
-/// Picks the single predicate column that skips the most rows, and emits a selector list
-/// aligned to that column's page boundaries. Returns `None` when no pages can be skipped.
-/// Callers concatenate selectors across row groups to build a `RowSelection` for the whole
-/// chunk, then pass it via `with_row_selection` so parquet-rs skips page I/O accordingly.
-/// A `RowFilter` must still be applied for exact row-level correctness.
+/// For each predicate column, builds a per-column selector list aligned to that column's
+/// page boundaries (`select(n)` for surviving pages, `skip(n)` for prunable ones). The
+/// returned list is the **AND-intersection** of all per-column lists, computed via
+/// `RowSelection::intersection` which handles unaligned page boundaries correctly:
+/// a row is selected iff **every** column's page covering that row could not be pruned.
+///
+/// Returns `None` when no pages can be skipped across any column. Callers concatenate
+/// selectors across row groups to build a `RowSelection` for the whole chunk, then pass
+/// it via `with_row_selection` so parquet-rs skips page I/O accordingly. A `RowFilter`
+/// must still be applied for exact row-level correctness.
 pub fn row_group_page_selection(
     expr: &FilterExpr,
     metadata: &ParquetMetaData,
@@ -405,13 +410,15 @@ pub fn row_group_page_selection(
         }
     }
 
-    // For each predicate column try to build a page-survival selector list.
-    // Keep the one that skips the most rows.
-    let mut best: Option<Vec<RowSelector>> = None;
-    let mut best_skipped = 0usize;
-    let mut best_col: Option<String> = None;
-    let mut best_pages_skipped = 0usize;
-    let mut best_pages_total = 0usize;
+    // Build a per-column page-survival selector list for every predicate column that
+    // actually skips at least one page. Columns that can't prune anything are omitted
+    // (they would contribute an all-`select` identity to the AND, so skipping them is
+    // both correct and cheaper than running them through the intersection fold).
+    //
+    // Intersecting is done with `RowSelection::intersection`, which is row-aligned —
+    // the result splits at the union of page boundaries from every contributing column.
+    let mut accumulated: Option<RowSelection> = None;
+    let mut contributing_cols: Vec<(String, usize, usize, usize)> = Vec::new(); // (col, pages_skipped, pages_total, rows_skipped)
 
     for (col_lower, pred_indices) in &col_groups {
         let col_idx = match (0..parquet_schema.num_columns())
@@ -434,9 +441,43 @@ pub fn row_group_page_selection(
         }
         let num_pages = locs.len();
 
+        // Parquet spec invariants for a column chunk's offset index within a row group:
+        //   1. The first page must start at row-group-relative row 0.
+        //   2. Every page's first_row_index must lie inside [0, total_rows).
+        //   3. The pages partition [0, total_rows): summing page row counts == total_rows.
+        // parquet-mr / parquet-rs writers respect this, but we re-derive page_rows from
+        // these offsets and fold the result into a `RowSelection` that parquet-rs applies
+        // across ALL columns of the row group. A violation here would silently mis-skip
+        // rows. `debug_assert!`s catch this in dev/CI; release builds log a warning and
+        // skip page pruning for this column (correctness-safe — keeps all rows).
+        let first_row_index = locs[0].first_row_index;
+        let last_page_start = locs[num_pages - 1].first_row_index as usize;
+        let first_ok = first_row_index == 0;
+        let last_in_range = last_page_start < total_rows || total_rows == 0;
+        debug_assert!(
+            first_ok,
+            "rg={} col={}: first page first_row_index={} expected 0 (offset-index spec violation)",
+            rg_idx, col_lower, first_row_index
+        );
+        debug_assert!(
+            last_in_range,
+            "rg={} col={}: last page first_row_index={} >= total_rows={} (offset-index spec violation)",
+            rg_idx, col_lower, last_page_start, total_rows
+        );
+        if !first_ok || !last_in_range {
+            log::warn!(
+                target: TGT,
+                "rg={} col={}: malformed offset index (first_row_index={}, last_page_start={}, total_rows={}); \
+                 skipping page pruning for this column to avoid mis-skipping rows",
+                rg_idx, col_lower, first_row_index, last_page_start, total_rows
+            );
+            continue;
+        }
+
         let mut selectors: Vec<RowSelector> = Vec::with_capacity(num_pages);
         let mut skipped = 0usize;
         let mut skipped_pages = 0usize;
+        let mut emitted_rows = 0usize;
 
         for page_i in 0..num_pages {
             let row_start = locs[page_i].first_row_index as usize;
@@ -446,6 +487,7 @@ pub fn row_group_page_selection(
                 total_rows
             };
             let page_rows = row_end.saturating_sub(row_start);
+            emitted_rows += page_rows;
 
             let (pmin, pmax) = col_index_page_stats(col_index, page_i);
             let survives = pred_indices.iter().all(|&pi| {
@@ -467,36 +509,74 @@ pub fn row_group_page_selection(
             }
         }
 
+        // Invariant 3: pages must partition [0, total_rows). Per-page row counts
+        // are derived from successive first_row_index values + total_rows for the
+        // last page, so any mismatch here means either monotonicity is broken or
+        // the offsets straddle total_rows.
+        debug_assert_eq!(
+            emitted_rows, total_rows,
+            "rg={} col={}: page partition sum {} != total_rows {} (offset-index spec violation)",
+            rg_idx, col_lower, emitted_rows, total_rows
+        );
+        if emitted_rows != total_rows {
+            log::warn!(
+                target: TGT,
+                "rg={} col={}: page partition sum {} != total_rows {}; skipping page pruning for this column",
+                rg_idx, col_lower, emitted_rows, total_rows
+            );
+            continue;
+        }
+
         log::debug!(
             target: TGT,
             "rg={} col={} pages={} pages_skipped={} rows={} rows_skipped={}",
             rg_idx, col_lower, num_pages, skipped_pages, total_rows, skipped
         );
 
-        if skipped > best_skipped {
-            best_skipped = skipped;
-            best = Some(selectors);
-            best_col = Some(col_lower.clone());
-            best_pages_skipped = skipped_pages;
-            best_pages_total = num_pages;
+        if skipped == 0 {
+            // Identity contribution to the AND: drop it.
+            continue;
         }
+
+        contributing_cols.push((col_lower.clone(), skipped_pages, num_pages, skipped));
+        let this_sel = RowSelection::from(selectors);
+        accumulated = Some(match accumulated {
+            None => this_sel,
+            Some(prev) => prev.intersection(&this_sel),
+        });
     }
 
-    if let Some(col) = &best_col {
+    let merged = match accumulated {
+        Some(s) => s,
+        None => {
+            log::debug!(
+                target: TGT,
+                "rg={} no column-index pruning possible (rows={}, {} candidate cols)",
+                rg_idx, total_rows, col_groups.len()
+            );
+            return None;
+        }
+    };
+
+    let merged_selectors: Vec<RowSelector> = merged.into();
+    let merged_skipped: usize = merged_selectors.iter().filter(|s| s.skip).map(|s| s.row_count).sum();
+
+    if log::log_enabled!(log::Level::Debug) {
         log::debug!(
             target: TGT,
-            "rg={} CHOSE col={} pages={}/{} skipped, rows={}/{} skipped",
-            rg_idx, col, best_pages_skipped, best_pages_total, best_skipped, total_rows
-        );
-    } else {
-        log::debug!(
-            target: TGT,
-            "rg={} no column-index pruning possible (rows={}, {} candidate cols)",
-            rg_idx, total_rows, col_groups.len()
+            "rg={} INTERSECTED {} contributing col(s) [{}]: rows_skipped={}/{} ({:.1}%) selectors={}",
+            rg_idx,
+            contributing_cols.len(),
+            contributing_cols.iter()
+                .map(|(c, ps, pt, rs)| format!("{}={}/{}p,{}r", c, ps, pt, rs))
+                .collect::<Vec<_>>().join(","),
+            merged_skipped, total_rows,
+            if total_rows > 0 { 100.0 * merged_skipped as f64 / total_rows as f64 } else { 0.0 },
+            merged_selectors.len(),
         );
     }
 
-    best
+    Some(merged_selectors)
 }
 
 /// Returns false if the row group can definitely be skipped (no matching rows).

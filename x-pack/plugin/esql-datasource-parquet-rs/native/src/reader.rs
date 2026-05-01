@@ -41,9 +41,16 @@ fn meta_options_for(filter_present: bool) -> ArrowReaderOptions {
 }
 use parquet::file::reader::{ChunkReader, Length};
 use parquet::file::serialized_reader::SerializedPageReader;
-use parquet::arrow::async_reader::ParquetObjectReader;
+use parquet::arrow::async_reader::{AsyncFileReader, ParquetObjectReader};
+use super::coalescing::CoalescingReader;
 use parquet::errors::ParquetError;
 use parquet::schema::types::SchemaDescriptor;
+
+/// How long a single worker is allowed to go without yielding a row group from
+/// S3 / disk before we treat it as a hang and surface an error to the consumer.
+/// 300 s matches the existing setup timeout and covers even very large row groups
+/// on a degraded S3 link.
+const WORKER_STALL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
 
 // ===== Parquet direct reader (no DataFusion) =====
 
@@ -273,9 +280,11 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
                 }
 
                 let (store, object_path) = resolve_store(&file_path_str, &storage_config).map_err(err)?;
-                let file_size = store.head(&object_path).await.map_err(err)?.size as u64;
-                let mut obj_reader = ParquetObjectReader::new(store, object_path)
-                    .with_file_size(file_size);
+                let mut obj_reader = ParquetObjectReader::new(store.clone(), object_path.clone());
+                if needs_file_size_hint(&file_path_str) {
+                    let file_size = store.head(&object_path).await.map_err(err)?.size as u64;
+                    obj_reader = obj_reader.with_file_size(file_size);
+                }
                 // The cached metadata is reused across many queries with different
                 // filters, so we don't know here whether page-index pruning will be
                 // wanted. Use `Optional`: parse the page index when the file has one
@@ -292,7 +301,10 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
             };
             tokio::time::timeout(std::time::Duration::from_secs(300), inner)
                 .await
-                .map_err(|_| err("Parquet metadata load timed out after 300s"))?
+                .map_err(|_| {
+                    log::error!(target: "esql_parquet_rs::reader", "Parquet metadata load timed out after 300s");
+                    err("Parquet metadata load timed out after 300s")
+                })?
         })?;
 
         Ok(handle)
@@ -438,7 +450,7 @@ fn open_async_for_range(
             let (tx, rx) = mpsc::channel::<Result<RecordBatch, ParquetError>>(n_workers * 2);
 
             spawn_file_workers(
-                obj_reader, arrow_meta, &projected_cols, batch_size, limit,
+                CoalescingReader::new(obj_reader), arrow_meta, &projected_cols, batch_size, limit,
                 &filter, max_concurrency, &tx, Some(pre_selected),
             ).await?;
 
@@ -448,7 +460,10 @@ fn open_async_for_range(
 
         tokio::time::timeout(std::time::Duration::from_secs(300), inner)
             .await
-            .map_err(|_| err("Parquet async open timed out after 300s"))?
+            .map_err(|_| {
+                log::error!(target: "esql_parquet_rs::reader", "Parquet async open (range) timed out after 300s");
+                err("Parquet async open timed out after 300s")
+            })?
     })?;
 
     Ok(ReaderKind::Async(rx))
@@ -523,8 +538,62 @@ fn dict_contains_value(buf: &Bytes, num_values: usize, phys_type: PhysicalType, 
             }
             false
         }
-        _ => true // unknown combo → conservative, don't prune
+        // Unknown (physical_type, literal_type) combination — conservative: keep the
+        // row group rather than risk silently dropping matching rows. This branch
+        // permanently disables dict pruning for that combo, so we emit a one-time
+        // warning per unique combo so the gap surfaces in logs without spamming the
+        // hot path (called once per RG × predicate column × value).
+        _ => {
+            warn_once_unhandled_dict_combo(phys_type, target);
+            true
+        }
     }
+}
+
+/// Emits a single `warn!` per unique (physical_type, StatValue variant) combination
+/// encountered by `dict_contains_value`. Subsequent calls with the same combo are no-ops
+/// (one HashSet lookup under a Mutex). Designed for use on a hot pruning path.
+fn warn_once_unhandled_dict_combo(phys_type: PhysicalType, target: &filter::StatValue) {
+    use std::collections::HashSet;
+    use std::sync::{LazyLock, Mutex};
+
+    static SEEN: LazyLock<Mutex<HashSet<(PhysicalType, &'static str)>>> =
+        LazyLock::new(|| Mutex::new(HashSet::new()));
+
+    let variant: &'static str = match target {
+        filter::StatValue::Int(_)    => "Int",
+        filter::StatValue::Long(_)   => "Long",
+        filter::StatValue::Double(_) => "Double",
+        filter::StatValue::Bool(_)   => "Bool",
+        filter::StatValue::Str(_)    => "Str",
+    };
+
+    let mut guard = SEEN.lock().unwrap_or_else(|e| e.into_inner());
+    if guard.insert((phys_type, variant)) {
+        log::warn!(
+            target: "esql_parquet_rs::pruning",
+            "dict_contains_value: no decoder for (physical_type={:?}, literal={}); \
+             dictionary pruning permanently disabled for this combination — \
+             row groups will be kept rather than pruned (correctness-safe). \
+             Consider adding a decode branch in dict_contains_value.",
+            phys_type, variant
+        );
+    }
+}
+
+/// Maximum number of dictionary-page fetches in flight at once during
+/// `prune_by_dictionary`. Dictionary pages are typically small (~1MB compressed
+/// for INT64 with ~125k distinct values), so the bound is set by S3 connection
+/// pool / RTT × per-fetch latency, not memory. 8 fully overlaps the typical
+/// per-file row-group count (6-9 for the 100M ClickBench dataset) without
+/// piling on connections.
+const DICT_PRUNE_CONCURRENCY: usize = 8;
+
+/// Outcome of dictionary-based pruning for one row group.
+struct RgPruneResult {
+    rg_idx: usize,
+    prune: bool,
+    reason: Option<String>,
 }
 
 /// Prunes `candidates` by checking each row group's column dictionary for equality predicates.
@@ -532,6 +601,9 @@ fn dict_contains_value(buf: &Bytes, num_values: usize, phys_type: PhysicalType, 
 /// For each AND-connected `Eq(col, lit)` / `InList(col, lits)` in the filter, fetches the
 /// dictionary page bytes for that column in each candidate row group and scans them. If none
 /// of the target values appear in the dictionary, the row group is removed from the result.
+///
+/// Per-row-group dictionary fetches run in parallel (bounded by `DICT_PRUNE_CONCURRENCY`)
+/// so that for an 8-RG file we incur ~1 RTT of S3 latency instead of 8.
 ///
 /// On any I/O or parse error the row group is kept (conservative). Only called when the filter
 /// has at least one equality predicate on a dictionary-encoded column.
@@ -563,159 +635,202 @@ async fn prune_by_dictionary(
     }
 
     let candidates_in = candidates.len();
-    let mut surviving = Vec::with_capacity(candidates.len());
 
-    for rg_idx in candidates {
-        let rg = metadata.row_group(rg_idx);
-        let mut prune = false;
-        let mut prune_reason: Option<String> = None;
+    // Per-RG futures are independent: each fetches its own dict pages for the
+    // relevant columns, then scans them. Within an RG predicates are still
+    // evaluated sequentially so we can short-circuit on the first dict miss
+    // (avoiding a useless second range fetch).
+    let results: Vec<RgPruneResult> = futures::stream::iter(candidates.into_iter())
+        .map(|rg_idx| {
+            let store = Arc::clone(store);
+            let path = path.clone();
+            let col_preds = &col_preds;
+            async move {
+                evaluate_rg_dict_prune(&store, &path, metadata, rg_idx, col_preds).await
+            }
+        })
+        .buffer_unordered(DICT_PRUNE_CONCURRENCY)
+        .collect()
+        .await;
 
-        'predicates: for (col_idx, values) in &col_preds {
-            let col_meta = rg.column(*col_idx);
-            let col_name = col_meta.column_descr().name().to_string();
-            let phys_type = col_meta.column_descr().physical_type();
-            let encodings_vec: Vec<parquet::basic::Encoding> = col_meta.encodings().collect();
-            let encodings: Vec<String> = encodings_vec.iter().map(|e| format!("{:?}", e)).collect();
+    let mut surviving: Vec<usize> = results
+        .into_iter()
+        .filter_map(|r| {
+            if r.prune {
+                if let Some(reason) = r.reason {
+                    log::debug!(
+                        target: "esql_parquet_rs::pruning",
+                        "rg={} PRUNED by dictionary: {}", r.rg_idx, reason
+                    );
+                }
+                None
+            } else {
+                Some(r.rg_idx)
+            }
+        })
+        .collect();
+    // `buffer_unordered` returns futures in completion order; downstream
+    // chunking and logging benefit from a deterministic ascending order.
+    surviving.sort_unstable();
 
-            // Dictionary-only pruning is only sound when EVERY data page in the
-            // column chunk is dictionary-encoded. parquet writers (parquet-mr,
-            // parquet-rs) fall back to a raw-value encoding (DELTA_BINARY_PACKED,
-            // DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY, BYTE_STREAM_SPLIT, or
-            // PLAIN for v1) once the dictionary grows past a size threshold; the
-            // fallback values are NOT inserted into the dictionary, so a "dict
-            // miss" would silently drop matching rows. Detect fallback by the
-            // presence of any non-dictionary value encoding in the column chunk.
-            //
-            // Allowed encodings when dict-pruning is sound:
-            //   - PLAIN, PLAIN_DICTIONARY: dictionary page format (legacy + v2 spelling differ)
-            //   - RLE_DICTIONARY:           data pages encode dictionary indices
-            //   - RLE, BIT_PACKED:          definition / repetition level encodings
-            // Any other encoding implies dict fallback occurred.
-            use parquet::basic::Encoding::*;
-            // BIT_PACKED is deprecated in parquet-rs but legitimately appears as a
-            // definition/repetition level encoding in legacy parquet v1 files; treat
-            // it as safe (it never carries values).
-            #[allow(deprecated)]
-            let has_fallback = encodings_vec.iter().any(|e| !matches!(
-                e,
-                PLAIN | PLAIN_DICTIONARY | RLE_DICTIONARY | RLE | BIT_PACKED
-            ));
-            if has_fallback {
+    if log::log_enabled!(log::Level::Debug) {
+        log::debug!(
+            target: "esql_parquet_rs::pruning",
+            "prune_by_dictionary: candidates_in={} surviving={} concurrency={} preds={:?}",
+            candidates_in, surviving.len(), DICT_PRUNE_CONCURRENCY,
+            col_preds.iter().map(|(i, vs)| format!("col_idx={} n_vals={}", i, vs.len())).collect::<Vec<_>>()
+        );
+    }
+
+    surviving
+}
+
+/// Evaluates dictionary pruning for a single row group across all configured predicates.
+/// Sequential within the row group so we can short-circuit on the first dict miss.
+async fn evaluate_rg_dict_prune(
+    store: &Arc<dyn ObjectStore>,
+    path: &object_store::path::Path,
+    metadata: &parquet::file::metadata::ParquetMetaData,
+    rg_idx: usize,
+    col_preds: &[(usize, Vec<filter::StatValue>)],
+) -> RgPruneResult {
+    let rg = metadata.row_group(rg_idx);
+
+    for (col_idx, values) in col_preds {
+        let col_meta = rg.column(*col_idx);
+        let col_name = col_meta.column_descr().name().to_string();
+        let phys_type = col_meta.column_descr().physical_type();
+        let encodings_vec: Vec<parquet::basic::Encoding> = col_meta.encodings().collect();
+
+        // Dictionary-only pruning is only sound when EVERY data page in the
+        // column chunk is dictionary-encoded. parquet writers (parquet-mr,
+        // parquet-rs) fall back to a raw-value encoding (DELTA_BINARY_PACKED,
+        // DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY, BYTE_STREAM_SPLIT, or
+        // PLAIN for v1) once the dictionary grows past a size threshold; the
+        // fallback values are NOT inserted into the dictionary, so a "dict
+        // miss" would silently drop matching rows. Detect fallback by the
+        // presence of any non-dictionary value encoding in the column chunk.
+        //
+        // Allowed encodings when dict-pruning is sound:
+        //   - PLAIN, PLAIN_DICTIONARY: dictionary page format (legacy + v2 spelling differ)
+        //   - RLE_DICTIONARY:           data pages encode dictionary indices
+        //   - RLE, BIT_PACKED:          definition / repetition level encodings
+        // Any other encoding implies dict fallback occurred.
+        use parquet::basic::Encoding::*;
+        // BIT_PACKED is deprecated in parquet-rs but legitimately appears as a
+        // definition/repetition level encoding in legacy parquet v1 files; treat
+        // it as safe (it never carries values).
+        #[allow(deprecated)]
+        let has_fallback = encodings_vec.iter().any(|e| !matches!(
+            e,
+            PLAIN | PLAIN_DICTIONARY | RLE_DICTIONARY | RLE | BIT_PACKED
+        ));
+        if has_fallback {
+            if log::log_enabled!(log::Level::Trace) {
                 log::trace!(
                     target: "esql_parquet_rs::pruning",
                     "rg={} col={} dict-prune SKIPPED: dict fallback detected (encodings={:?})",
-                    rg_idx, col_name, encodings
+                    rg_idx, col_name,
+                    encodings_vec.iter().map(|e| format!("{:?}", e)).collect::<Vec<_>>()
                 );
-                continue;
             }
-
-            let dict_start = match col_meta.dictionary_page_offset() {
-                Some(o) if o > 0 => o as u64,
-                other => {
-                    log::trace!(
-                        target: "esql_parquet_rs::pruning",
-                        "rg={} col={} no dict_page_offset ({:?}), skipping dict prune for this pred (encodings={:?})",
-                        rg_idx, col_name, other, encodings
-                    );
-                    continue;
-                }
-            };
-            let data_start = col_meta.data_page_offset() as u64;
-            if data_start <= dict_start {
-                log::trace!(
-                    target: "esql_parquet_rs::pruning",
-                    "rg={} col={} data_start({}) <= dict_start({}), skipping",
-                    rg_idx, col_name, data_start, dict_start
-                );
-                continue;
-            }
-
-            let bytes = match store.get_range(path, dict_start..data_start).await {
-                Ok(b) => b,
-                Err(e) => {
-                    log::debug!(
-                        target: "esql_parquet_rs::pruning",
-                        "rg={} col={} dict get_range failed: {}", rg_idx, col_name, e
-                    );
-                    continue;
-                }
-            };
-            let dict_bytes_len = bytes.len();
-
-            let sliced = Arc::new(SlicedFile { data: bytes, base: dict_start });
-            let mut page_reader = match SerializedPageReader::new(
-                sliced,
-                col_meta,
-                col_meta.num_values() as usize,
-                None,
-            ) {
-                Ok(r) => r,
-                Err(e) => {
-                    log::debug!(
-                        target: "esql_parquet_rs::pruning",
-                        "rg={} col={} SerializedPageReader::new failed: {}", rg_idx, col_name, e
-                    );
-                    continue;
-                }
-            };
-
-            match page_reader.get_next_page() {
-                Ok(Some(Page::DictionaryPage { buf, num_values, .. })) => {
-                    let found = values.iter().any(|v| dict_contains_value(&buf, num_values as usize, phys_type, v));
-                    log::debug!(
-                        target: "esql_parquet_rs::pruning",
-                        "rg={} col={} dict page: phys={:?} num_values={} buf_len={} fetched_bytes={} encodings={:?} target_count={} found={}",
-                        rg_idx, col_name, phys_type, num_values, buf.len(), dict_bytes_len, encodings, values.len(), found
-                    );
-                    if !found {
-                        prune = true;
-                        prune_reason = Some(format!(
-                            "dict miss col={} phys={:?} num_values={} buf_len={} encodings={:?}",
-                            col_name, phys_type, num_values, buf.len(), encodings
-                        ));
-                        break 'predicates;
-                    }
-                }
-                Ok(Some(other)) => {
-                    log::debug!(
-                        target: "esql_parquet_rs::pruning",
-                        "rg={} col={} first page is not a DictionaryPage: {:?} (encodings={:?}) — skipping prune",
-                        rg_idx, col_name, page_kind(&other), encodings
-                    );
-                }
-                Ok(None) => {
-                    log::debug!(
-                        target: "esql_parquet_rs::pruning",
-                        "rg={} col={} no page returned by reader (encodings={:?})", rg_idx, col_name, encodings
-                    );
-                }
-                Err(e) => {
-                    log::debug!(
-                        target: "esql_parquet_rs::pruning",
-                        "rg={} col={} get_next_page error: {} (encodings={:?})", rg_idx, col_name, e, encodings
-                    );
-                }
-            }
+            continue;
         }
 
-        if !prune {
-            surviving.push(rg_idx);
-        } else if let Some(reason) = prune_reason {
-            log::debug!(
+        let dict_start = match col_meta.dictionary_page_offset() {
+            Some(o) if o > 0 => o as u64,
+            other => {
+                log::trace!(
+                    target: "esql_parquet_rs::pruning",
+                    "rg={} col={} no dict_page_offset ({:?}), skipping dict prune",
+                    rg_idx, col_name, other
+                );
+                continue;
+            }
+        };
+        let data_start = col_meta.data_page_offset() as u64;
+        if data_start <= dict_start {
+            log::trace!(
                 target: "esql_parquet_rs::pruning",
-                "rg={} PRUNED by dictionary: {}", rg_idx, reason
+                "rg={} col={} data_start({}) <= dict_start({}), skipping",
+                rg_idx, col_name, data_start, dict_start
             );
+            continue;
+        }
+
+        let bytes = match store.get_range(path, dict_start..data_start).await {
+            Ok(b) => b,
+            Err(e) => {
+                log::debug!(
+                    target: "esql_parquet_rs::pruning",
+                    "rg={} col={} dict get_range failed: {}", rg_idx, col_name, e
+                );
+                continue;
+            }
+        };
+        let dict_bytes_len = bytes.len();
+
+        let sliced = Arc::new(SlicedFile { data: bytes, base: dict_start });
+        let mut page_reader = match SerializedPageReader::new(
+            sliced,
+            col_meta,
+            col_meta.num_values() as usize,
+            None,
+        ) {
+            Ok(r) => r,
+            Err(e) => {
+                log::debug!(
+                    target: "esql_parquet_rs::pruning",
+                    "rg={} col={} SerializedPageReader::new failed: {}", rg_idx, col_name, e
+                );
+                continue;
+            }
+        };
+
+        match page_reader.get_next_page() {
+            Ok(Some(Page::DictionaryPage { buf, num_values, .. })) => {
+                let found = values.iter().any(|v| dict_contains_value(&buf, num_values as usize, phys_type, v));
+                if log::log_enabled!(log::Level::Debug) {
+                    log::debug!(
+                        target: "esql_parquet_rs::pruning",
+                        "rg={} col={} dict page: phys={:?} num_values={} buf_len={} fetched_bytes={} target_count={} found={}",
+                        rg_idx, col_name, phys_type, num_values, buf.len(), dict_bytes_len, values.len(), found
+                    );
+                }
+                if !found {
+                    return RgPruneResult {
+                        rg_idx,
+                        prune: true,
+                        reason: Some(format!(
+                            "dict miss col={} phys={:?} num_values={} buf_len={}",
+                            col_name, phys_type, num_values, buf.len()
+                        )),
+                    };
+                }
+            }
+            Ok(Some(other)) => {
+                log::debug!(
+                    target: "esql_parquet_rs::pruning",
+                    "rg={} col={} first page is not a DictionaryPage: {:?} — skipping prune",
+                    rg_idx, col_name, page_kind(&other)
+                );
+            }
+            Ok(None) => {
+                log::debug!(
+                    target: "esql_parquet_rs::pruning",
+                    "rg={} col={} no page returned by reader", rg_idx, col_name
+                );
+            }
+            Err(e) => {
+                log::debug!(
+                    target: "esql_parquet_rs::pruning",
+                    "rg={} col={} get_next_page error: {}", rg_idx, col_name, e
+                );
+            }
         }
     }
 
-    log::debug!(
-        target: "esql_parquet_rs::pruning",
-        "prune_by_dictionary: candidates_in={} surviving={} preds={:?}",
-        candidates_in, surviving.len(),
-        col_preds.iter().map(|(i, vs)| format!("col_idx={} n_vals={}", i, vs.len())).collect::<Vec<_>>()
-    );
-
-    surviving
+    RgPruneResult { rg_idx, prune: false, reason: None }
 }
 
 fn page_kind(p: &Page) -> &'static str {
@@ -731,8 +846,8 @@ fn page_kind(p: &Page) -> &'static str {
 ///
 /// When `pre_selected` is provided (range-aware reads), filter-based pruning is applied
 /// only within that subset rather than across all row groups.
-async fn spawn_file_workers(
-    obj_reader: ParquetObjectReader,
+async fn spawn_file_workers<R: AsyncFileReader + Clone + Send + Unpin + 'static>(
+    obj_reader: R,
     arrow_meta: ArrowReaderMetadata,
     projected_cols: &Option<Vec<String>>,
     batch_size: jint,
@@ -862,13 +977,39 @@ async fn spawn_file_workers(
         let tx = tx.clone();
         tokio::spawn(async move {
             let result = std::panic::AssertUnwindSafe(async {
-                while let Some(reader) = stream.next_row_group().await.transpose() {
-                    let reader = match reader {
-                        Ok(r) => r,
+                loop {
+                    // Wrap each row-group fetch in a stall timeout. Unlike the
+                    // setup timeout, this covers the *streaming* phase: a hung S3
+                    // connection or a deadlocked decode would otherwise block
+                    // `nextBatch` forever with no error surfaced to Java.
+                    //
+                    // `next_row_group()` returns `Result<Option<...>, ParquetError>`:
+                    //   Ok(None)    → clean end of stream
+                    //   Ok(Some(r)) → row group ready to iterate
+                    //   Err(e)      → I/O or decode error; forward to consumer
+                    // `tokio::time::timeout` wraps that as `Result<Result<Option<...>>, Elapsed>`.
+                    let rg_result = match tokio::time::timeout(
+                        WORKER_STALL_TIMEOUT,
+                        stream.next_row_group(),
+                    ).await {
+                        Ok(inner) => inner,
+                        Err(_elapsed) => {
+                            let msg = format!(
+                                "parquet worker stalled: no row-group progress for {}s",
+                                WORKER_STALL_TIMEOUT.as_secs()
+                            );
+                            log::error!(target: "esql_parquet_rs::reader", "{}", msg);
+                            let _ = tx.send(Err(ParquetError::General(msg))).await;
+                            break;
+                        }
+                    };
+                    let reader = match rg_result {
+                        Ok(None) => break,        // clean end of stream
+                        Ok(Some(r)) => r,
                         Err(e) => { let _ = tx.send(Err(e)).await; break; }
                     };
                     for batch in reader {
-                        if tx.send(batch.map_err(Into::into)).await.is_err() {
+                        if tx.send(batch.map_err(|e| ParquetError::from(e))).await.is_err() {
                             return;
                         }
                     }
@@ -930,7 +1071,7 @@ fn open_async(
             let (tx, rx) = mpsc::channel::<Result<RecordBatch, ParquetError>>(n_workers * 2);
 
             spawn_file_workers(
-                obj_reader, arrow_meta, &projected_cols, batch_size, limit,
+                CoalescingReader::new(obj_reader), arrow_meta, &projected_cols, batch_size, limit,
                 &filter, max_concurrency, &tx, Some(candidates),
             ).await?;
 
@@ -940,15 +1081,23 @@ fn open_async(
 
         tokio::time::timeout(std::time::Duration::from_secs(300), inner)
             .await
-            .map_err(|_| err("Parquet async open timed out after 300s"))?
+            .map_err(|_| {
+                log::error!(target: "esql_parquet_rs::reader", "Parquet async open timed out after 300s");
+                err("Parquet async open timed out after 300s")
+            })?
     })?;
 
     Ok(ReaderKind::Async(rx))
 }
 
 /// Open multiple Parquet files with parallel metadata fetching.
-/// All metadata is fetched concurrently, then workers are spawned across all files,
-/// feeding a single mpsc channel.
+///
+/// For each file the metadata is checked against the process-wide LRU cache before
+/// any network call is issued; on a cache hit only column-data range requests are
+/// made. After loading metadata, `prune_by_dictionary` eliminates files whose
+/// equality-predicate column dictionaries cannot match the filter. Both phases run
+/// concurrently across all files in a single `buffer_unordered` pass, feeding a
+/// single mpsc channel.
 fn open_multi(
     file_paths: &[String],
     config: &StorageConfig,
@@ -959,40 +1108,68 @@ fn open_multi(
     max_concurrency: usize,
 ) -> JniResult<ReaderKind> {
     let rx = ASYNC_RUNTIME.block_on(async {
-        let mut file_infos = Vec::with_capacity(file_paths.len());
+        let mut file_infos: Vec<(String, Arc<dyn ObjectStore>, object_store::path::Path)> =
+            Vec::with_capacity(file_paths.len());
         for path in file_paths {
             let (store, object_path) = resolve_store(path, config).map_err(err)?;
-            file_infos.push((store, object_path));
+            file_infos.push((path.clone(), store, object_path));
         }
 
         let needs_head = file_paths.first().map_or(false, |p| needs_file_size_hint(p));
         let meta_options = meta_options_for(filter.is_some());
-        // Bound metadata fetches to avoid opening hundreds of connections simultaneously.
-        let meta_stream = futures::stream::iter(file_infos.iter().map(|(store, path)| {
-            let store = Arc::clone(store);
-            let path = path.clone();
+
+        // Per-file: cache check → metadata fetch on miss → dictionary pruning.
+        // All files processed concurrently within max_concurrency.
+        let file_stream = futures::stream::iter(file_infos.into_iter().map(|(path_str, store, path)| {
+            let filter_clone = filter.clone();
             let opts = meta_options.clone();
             async move {
-                let mut reader = ParquetObjectReader::new(store.clone(), path.clone());
-                if needs_head {
-                    let head = store.head(&path).await.map_err(err)?;
-                    reader = reader.with_file_size(head.size as u64);
-                }
-                let meta = ArrowReaderMetadata::load_async(&mut reader, opts).await.map_err(err)?;
-                Ok::<_, JniError>((reader, meta))
+                let (reader, meta) = if let Some(cached) = super::cache::get(&path_str) {
+                    // Cache hit: skip metadata fetch entirely, no network call needed.
+                    (ParquetObjectReader::new(Arc::clone(&store), path.clone()), cached)
+                } else {
+                    let mut reader = ParquetObjectReader::new(Arc::clone(&store), path.clone());
+                    if needs_head {
+                        let head = store.head(&path).await.map_err(err)?;
+                        reader = reader.with_file_size(head.size as u64);
+                    }
+                    let meta = ArrowReaderMetadata::load_async(&mut reader, opts)
+                        .await
+                        .map_err(err)?;
+                    super::cache::insert(path_str, meta.clone());
+                    (reader, meta)
+                };
+
+                let candidates: Vec<usize> = (0..meta.metadata().num_row_groups()).collect();
+                let candidates = if let Some(ref expr) = filter_clone {
+                    prune_by_dictionary(
+                        &store, &path,
+                        meta.metadata(), meta.parquet_schema(),
+                        candidates, expr,
+                    )
+                    .await
+                } else {
+                    candidates
+                };
+
+                Ok::<_, JniError>((reader, meta, candidates))
             }
         }))
         .buffer_unordered(max_concurrency);
-        let all_meta: Vec<_> = meta_stream.try_collect().await?;
+        let all_files: Vec<_> = file_stream.try_collect().await?;
 
         let n_workers = max_concurrency;
         let (tx, rx) = mpsc::channel::<Result<RecordBatch, ParquetError>>(n_workers * 2);
 
-        for (obj_reader, arrow_meta) in all_meta {
+        for (obj_reader, arrow_meta, candidates) in all_files {
+            if candidates.is_empty() {
+                continue; // fully pruned by dictionary
+            }
             spawn_file_workers(
-                obj_reader, arrow_meta, &projected_cols, batch_size, limit,
-                &filter, max_concurrency, &tx, None,
-            ).await?;
+                CoalescingReader::new(obj_reader), arrow_meta, &projected_cols, batch_size, limit,
+                &filter, max_concurrency, &tx, Some(candidates),
+            )
+            .await?;
         }
         drop(tx);
 

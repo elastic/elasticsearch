@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::sync::{Arc, LazyLock, Mutex};
 
+use lru::LruCache;
 use object_store::ObjectStore;
 use object_store::aws::AmazonS3Builder;
 use object_store::azure::MicrosoftAzureBuilder;
@@ -55,15 +57,33 @@ pub fn needs_file_size_hint(uri: &str) -> bool {
     uri.starts_with("az://") || uri.starts_with("abfss://") || uri.starts_with("wasbs://")
 }
 
-/// Process-wide cache of `ObjectStore` instances keyed by bucket+config identity.
+/// Maximum number of `ObjectStore` instances retained process-wide. Each entry holds
+/// a `reqwest::Client` with its own connection + TLS session pool, so unbounded growth
+/// over a long-running ES (months of distinct buckets / roles / endpoints) leaks
+/// memory and sockets. 256 covers the typical case (one per bucket/config) with
+/// headroom for many partitioned tables; matches the footer-metadata cache.
+const MAX_STORES: usize = 256;
+
+/// Process-wide LRU cache of `ObjectStore` instances keyed by bucket+config identity.
 ///
 /// Building a new `AmazonS3` (or equivalent) creates a fresh `reqwest::Client` with
 /// an empty connection pool. Sharing one store instance across all splits of a query —
 /// and across queries — means the connection pool (including warm TLS sessions) is
 /// reused rather than rebuilt for every split, eliminating repeated TLS handshakes to
 /// the same S3 endpoint.
-static STORE_CACHE: LazyLock<Mutex<HashMap<String, Arc<dyn ObjectStore>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+///
+/// Backed by `lru::LruCache` (intrusive doubly-linked list + hash map): `get` promotes
+/// to MRU in O(1); `push` evicts the LRU entry in O(1) when at capacity. Eviction is
+/// safe: the evicted `Arc<dyn ObjectStore>` is dropped, but any in-flight workers still
+/// holding `Arc::clone`s keep the underlying `reqwest::Client` (and its connection pool)
+/// alive until they finish; only when the last reference drops do idle TCP/TLS sessions
+/// close.
+static STORE_CACHE: LazyLock<Mutex<LruCache<String, Arc<dyn ObjectStore>>>> =
+    LazyLock::new(|| {
+        Mutex::new(LruCache::new(
+            NonZeroUsize::new(MAX_STORES).expect("MAX_STORES > 0"),
+        ))
+    });
 
 /// Returns the cache key for a remote store: `scheme://bucket-or-host[/container]|connection_key`.
 ///
@@ -89,6 +109,13 @@ fn store_cache_key(uri: &str, config: &StorageConfig) -> String {
 }
 
 /// Returns a cached or newly built store for remote URIs; local paths always get a fresh store.
+///
+/// Two-phase lookup-then-insert: the (potentially slow) builder runs OUTSIDE the cache
+/// lock so concurrent store lookups for unrelated buckets aren't serialized behind it.
+/// On the rare race where two threads miss the same key and both build, the recheck-
+/// under-lock path returns the first writer's store and drops the loser's — the cache
+/// always holds at most one entry per key, just like the previous `entry().or_insert(_)`
+/// behavior.
 fn get_or_build_store(
     uri: &str,
     config: &StorageConfig,
@@ -98,7 +125,8 @@ fn get_or_build_store(
     let key = store_cache_key(uri, config);
 
     {
-        let guard = STORE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        // `LruCache::get` promotes to MRU and so requires `&mut self`.
+        let mut guard = STORE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(store) = guard.get(&key) {
             return Ok((Arc::clone(store), path));
         }
@@ -106,8 +134,21 @@ fn get_or_build_store(
 
     let store = build()?;
     let mut guard = STORE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
-    let store = guard.entry(key).or_insert(store);
-    Ok((Arc::clone(store), path))
+    if let Some(existing) = guard.get(&key) {
+        // Race: a peer inserted the same key while we were building. Use theirs;
+        // our freshly built store will be dropped at end of scope.
+        return Ok((Arc::clone(existing), path));
+    }
+    // `push` returns the evicted (key, value) only when we're at capacity AND the
+    // key was new to the cache (always true here, because the recheck above passed).
+    if let Some((evicted_key, _evicted_store)) = guard.push(key, Arc::clone(&store)) {
+        log::debug!(
+            target: "esql_parquet_rs::store_cache",
+            "evicted LRU store entry [{}] (cache_len={}, cap={})",
+            evicted_key, guard.len(), MAX_STORES
+        );
+    }
+    Ok((store, path))
 }
 
 /// Extracts the object path portion from a URI (everything after scheme://host[/container]/).

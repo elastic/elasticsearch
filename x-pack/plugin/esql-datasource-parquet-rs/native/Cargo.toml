@@ -23,6 +23,7 @@ serde_json = "1"
 # per disabled call site, no allocation).
 log = { version = "0.4", features = ["release_max_level_debug"] }
 env_logger = { version = "0.11", default-features = false, features = ["humantime"] }
+lru = "0.18.0"
 
 [profile.release]
 opt-level = 3

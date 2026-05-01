@@ -1,4 +1,5 @@
 mod cache;
+mod coalescing;
 mod filter;
 mod jni_utils;
 mod logging;

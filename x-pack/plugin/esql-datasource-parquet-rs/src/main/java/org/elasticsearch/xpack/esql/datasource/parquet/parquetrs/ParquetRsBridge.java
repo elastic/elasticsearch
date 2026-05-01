@@ -84,6 +84,14 @@ final class ParquetRsBridge {
     /** Frees a metadata handle previously returned by {@link #loadArrowMetadata}. */
     static native void freeArrowMetadata(long handle);
 
+    /**
+     * Prefetches and caches Parquet footer metadata for all given paths concurrently.
+     * Fires all footer fetches in parallel via the Rust Tokio runtime, populating the
+     * process-wide metadata cache. Per-path errors are silently logged and ignored —
+     * the per-file {@link #loadArrowMetadata} will retry on cache miss.
+     */
+    static native void prefetchArrowMetadata(String[] filePaths, String configJson);
+
     // ---- Metadata ----
 
     /**

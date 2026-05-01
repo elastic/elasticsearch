@@ -347,6 +347,19 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         }
     }
 
+    @Override
+    public void prepareBatch(List<StorageObject> objects) {
+        if (objects.size() <= 1) {
+            return;
+        }
+        NativeLibLoader.ensureLoaded();
+        String[] paths = new String[objects.size()];
+        for (int i = 0; i < objects.size(); i++) {
+            paths[i] = resolveReadPath(objects.get(i));
+        }
+        ParquetRsBridge.prefetchArrowMetadata(paths, configJson);
+    }
+
     // --- RangeAwareFormatReader ---
 
     /** Set to false to disable range-aware splitting and use the single-driver path for benchmarking. */

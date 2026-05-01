@@ -74,4 +74,17 @@ public interface RangeAwareFormatReader extends FormatReader {
      * @return an iterator that yields pages from the matching row groups
      */
     CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException;
+
+    /**
+     * Optional hint: prefetch metadata for all objects before the serial
+     * {@link #discoverSplitRanges} loop begins. Implementations that fetch file
+     * metadata over the network (e.g. Parquet footer from S3) can use this to
+     * fire all fetches concurrently rather than one at a time.
+     * <p>
+     * Errors must be silently swallowed — the per-file {@link #discoverSplitRanges}
+     * call will retry on cache miss. The default implementation is a no-op.
+     *
+     * @param objects all storage objects that will be passed to {@link #discoverSplitRanges}
+     */
+    default void prepareBatch(List<StorageObject> objects) throws IOException {}
 }

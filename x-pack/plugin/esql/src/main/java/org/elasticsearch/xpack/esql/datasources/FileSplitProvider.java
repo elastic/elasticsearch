@@ -132,6 +132,8 @@ public class FileSplitProvider implements SplitProvider {
 
         long effectiveSplitSize = resolveTargetSplitSize(config);
 
+        tryPrepareBatch(fileList, config);
+
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
 
@@ -231,6 +233,47 @@ public class FileSplitProvider implements SplitProvider {
      */
     public static StorageObject storageObjectForSplit(StorageProvider storageProvider, FileSplit fileSplit) {
         return new RangeStorageObject(storageProvider.newObject(fileSplit.path()), fileSplit.offset(), fileSplit.length());
+    }
+
+    /**
+     * Calls {@link RangeAwareFormatReader#prepareBatch} with all file objects before the
+     * serial {@link #discoverSplits} loop. This lets implementations (e.g. parquet-rs) fire
+     * all footer fetches concurrently in a single async batch rather than one at a time,
+     * turning O(N * latency) serial footer loads into O(latency) parallel ones.
+     * <p>
+     * Silently skipped on any error — the per-file loop is the authoritative path.
+     */
+    private void tryPrepareBatch(FileList fileList, Map<String, Object> config) {
+        if (formatRegistry == null || storageRegistry == null || fileList.fileCount() <= 1) {
+            return;
+        }
+        StoragePath firstPath = fileList.path(0);
+        String objectName = firstPath.objectName();
+        if (objectName == null) {
+            return;
+        }
+        FormatReader reader;
+        try {
+            reader = FormatNameResolver.resolveReader(config, objectName, formatRegistry).withConfig(config);
+        } catch (Exception e) {
+            return;
+        }
+        if (reader instanceof RangeAwareFormatReader == false) {
+            return;
+        }
+        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
+        try {
+            StorageProvider provider = config != null && config.isEmpty() == false
+                ? storageRegistry.createProvider(firstPath.scheme(), settings, config)
+                : storageRegistry.provider(firstPath);
+            List<StorageObject> objects = new ArrayList<>(fileList.fileCount());
+            for (int i = 0; i < fileList.fileCount(); i++) {
+                objects.add(provider.newObject(fileList.path(i), fileList.size(i)));
+            }
+            rangeReader.prepareBatch(objects);
+        } catch (Exception e) {
+            LOGGER.debug("prepareBatch skipped for [{}]: {}", firstPath, e.getMessage());
+        }
     }
 
     /**

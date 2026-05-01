@@ -260,6 +260,35 @@ fn local_concurrency() -> usize {
 /// entry even if the path is unchanged. For local files the head call is a stat syscall.
 ///
 /// Returns an opaque handle that must be freed via `freeArrowMetadata`.
+/// Fetches `ArrowReaderMetadata` for one file, inserts it into the process-wide cache,
+/// and returns it. On a cache hit no network call is made.
+///
+/// Reused by both `loadArrowMetadata` (single file, blocking JNI) and
+/// `prefetchArrowMetadata` (batch, concurrent async).
+async fn fetch_and_cache_metadata(
+    file_path: &str,
+    config: &StorageConfig,
+) -> Result<ArrowReaderMetadata, Box<dyn std::error::Error + Send + Sync>> {
+    if let Some(cached) = super::cache::get(file_path) {
+        return Ok(cached);
+    }
+    let (store, object_path) = resolve_store(file_path, config)?;
+    let mut obj_reader = ParquetObjectReader::new(store.clone(), object_path.clone());
+    if needs_file_size_hint(file_path) {
+        let file_size = store.head(&object_path).await?.size as u64;
+        obj_reader = obj_reader.with_file_size(file_size);
+    }
+    // Cached metadata is reused across queries with different (or no) filters.
+    // Use `Optional`: parse the page index when present so filter-pushdown can use it,
+    // without erroring on legacy files that lack a page index.
+    let arrow_meta = ArrowReaderMetadata::load_async(
+        &mut obj_reader,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    ).await?;
+    super::cache::insert(file_path.to_string(), arrow_meta.clone());
+    Ok(arrow_meta)
+}
+
 /// Pass it to `openReaderForRange` as `metaHandle` to skip the per-split footer fetch.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_loadArrowMetadata(
@@ -274,29 +303,9 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
 
         let handle = ASYNC_RUNTIME.block_on(async move {
             let inner = async {
-                // Process-wide cache hit requires no network calls at all.
-                if let Some(cached) = super::cache::get(&file_path_str) {
-                    return Ok::<jlong, JniError>(Box::into_raw(Box::new(cached)) as jlong);
-                }
-
-                let (store, object_path) = resolve_store(&file_path_str, &storage_config).map_err(err)?;
-                let mut obj_reader = ParquetObjectReader::new(store.clone(), object_path.clone());
-                if needs_file_size_hint(&file_path_str) {
-                    let file_size = store.head(&object_path).await.map_err(err)?.size as u64;
-                    obj_reader = obj_reader.with_file_size(file_size);
-                }
-                // The cached metadata is reused across many queries with different
-                // filters, so we don't know here whether page-index pruning will be
-                // wanted. Use `Optional`: parse the page index when the file has one
-                // (so filter-pushdown queries benefit) but don't error on legacy files
-                // that lack one. `Skip` would be cheaper for full-scan-only workloads
-                // but would block pruning for filter queries on the same cached file.
-                let arrow_meta = ArrowReaderMetadata::load_async(
-                    &mut obj_reader,
-                    ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
-                ).await.map_err(err)?;
-
-                super::cache::insert(file_path_str, arrow_meta.clone());
+                let arrow_meta = fetch_and_cache_metadata(&file_path_str, &storage_config)
+                    .await
+                    .map_err(err)?;
                 Ok::<jlong, JniError>(Box::into_raw(Box::new(arrow_meta)) as jlong)
             };
             tokio::time::timeout(std::time::Duration::from_secs(300), inner)
@@ -310,6 +319,51 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
         Ok(handle)
     })
     .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Prefetches and caches `ArrowReaderMetadata` for all given paths concurrently.
+/// All footer fetches are fired in parallel via the Tokio runtime; per-path errors are
+/// logged and silently ignored so a single bad file never aborts the whole batch.
+/// The per-file `loadArrowMetadata` will retry any cache miss.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_prefetchArrowMetadata(
+    mut env: EnvUnowned,
+    _class: JClass,
+    file_paths: JObjectArray,
+    config_json: JString,
+) {
+    env.with_env(|env| -> JniResult<()> {
+        let len = file_paths.len(env)?;
+        let mut paths: Vec<String> = Vec::with_capacity(len);
+        for i in 0..len {
+            let obj = file_paths.get_element(env, i)?;
+            let jstr: JString = JString::cast_local(env, obj)?;
+            paths.push(jstr.try_to_string(env)?);
+        }
+        let config = extract_storage_config(env, &config_json)?;
+
+        ASYNC_RUNTIME.block_on(async move {
+            let tasks: Vec<_> = paths
+                .into_iter()
+                .map(|path| {
+                    let cfg = config.clone();
+                    async move {
+                        if let Err(e) = fetch_and_cache_metadata(&path, &cfg).await {
+                            log::warn!(
+                                target: "esql_parquet_rs::reader",
+                                "prefetch failed for [{}]: {}",
+                                path, e
+                            );
+                        }
+                    }
+                })
+                .collect();
+            futures::future::join_all(tasks).await;
+        });
+
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Free a metadata handle previously returned by `loadArrowMetadata`.

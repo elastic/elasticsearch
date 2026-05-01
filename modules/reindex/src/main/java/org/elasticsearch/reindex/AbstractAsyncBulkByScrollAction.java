@@ -149,6 +149,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected final Version remoteVersion;
 
+    protected final SearchContextKeepaliveDeadline searchContextKeepaliveDeadline;
+
+    @Nullable
+    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
+    private final BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind;
+    private final boolean remoteBulkByScrollSearch;
+
     /**
      * {@code _shard_doc} for search_after compatibility and performance (see paginate-search-results docs) was added in 7.12
      */
@@ -166,6 +173,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
+        boolean remoteBulkByScrollSearch,
         TimeValue maxTaskShutdownGracePeriod
     ) {
         this(
@@ -182,6 +192,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
             scriptService,
             sslConfig,
             null,
+            bulkByScrollSearchContextMetrics,
+            bulkByScrollTaskKind,
+            remoteBulkByScrollSearch,
             maxTaskShutdownGracePeriod
         );
     }
@@ -200,6 +213,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
         @Nullable Version remoteVersion,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
+        boolean remoteBulkByScrollSearch,
         TimeValue maxTaskShutdownGracePeriod
     ) {
         this.task = task;
@@ -215,6 +231,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.bulkClient = bulkClient;
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
+        this.searchContextKeepaliveDeadline = new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis);
+        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
+        this.bulkByScrollTaskKind = bulkByScrollTaskKind;
+        this.remoteBulkByScrollSearch = remoteBulkByScrollSearch;
         this.relocationCooldownNanos = computeRelocationCooldownNanos(maxTaskShutdownGracePeriod);
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
@@ -386,7 +406,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 this::onScrollResponse,
                 this::finishHim,
                 searchClient,
-                searchRequest
+                searchRequest,
+                searchContextKeepaliveDeadline
             );
         }
         // Default to scroll
@@ -398,7 +419,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
             this::onScrollResponse,
             this::finishHim,
             searchClient,
-            searchRequest
+            searchRequest,
+            searchContextKeepaliveDeadline
         );
     }
 
@@ -800,6 +822,19 @@ public abstract class AbstractAsyncBulkByScrollAction<
         boolean timedOut
     ) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
+        if (bulkByScrollSearchContextMetrics != null
+            && searchContextKeepaliveDeadline.shouldRecordKeepaliveExpiry(failure, searchFailures)) {
+            bulkByScrollSearchContextMetrics.recordKeepaliveExpiry(bulkByScrollTaskKind, remoteBulkByScrollSearch);
+            logger.warn(
+                "[{}]: bulk-by-scroll [{}] ({}) likely failed because the {} keep-alive expired",
+                task.getId(),
+                bulkByScrollTaskKind.attributeValue(),
+                remoteBulkByScrollSearch
+                    ? BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_REMOTE
+                    : BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL,
+                paginatedHitSource instanceof PitPaginatedHitSource ? "point-in-time" : "scroll"
+            );
+        }
         requestFinishing.set(true);
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).

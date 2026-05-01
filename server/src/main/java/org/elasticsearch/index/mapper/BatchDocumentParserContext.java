@@ -54,6 +54,9 @@ final class BatchDocumentParserContext extends DocumentParserContext {
 
     @Override
     public XContentParser parser() {
+        if (parser == null) {
+            throw new IllegalStateException("XContentParser is not available outside the column-parsing phase of the batch path");
+        }
         return parser;
     }
 

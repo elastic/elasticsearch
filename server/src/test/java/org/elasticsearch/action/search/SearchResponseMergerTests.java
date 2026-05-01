@@ -375,7 +375,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(0, mergedResponse.getFailedShards());
                 assertEquals(0, mergedResponse.getShardFailures().length);
-                assertEquals(expectedProfile, mergedResponse.getProfileResults());
+                assertEquals(expectedProfile, mergedResponse.getSearchProfileShardResults());
             } finally {
                 mergedResponse.decRef();
             }
@@ -420,7 +420,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             awaitResponsesAdded();
             SearchResponse mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
             try {
-                assertFalse("profile shards should be present", mergedResponse.getProfileResults().isEmpty());
+                assertFalse("profile shards should be present", mergedResponse.getSearchProfileShardResults().isEmpty());
                 SearchProfileResults mergedProfile = mergedResponse.getSearchProfileResults();
                 assertNotNull(mergedProfile);
                 assertEquals(coordinatorSource, mergedProfile.getOriginalSource());
@@ -469,7 +469,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             awaitResponsesAdded();
             SearchResponse mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
             try {
-                assertTrue("merged profile shards should be empty", mergedResponse.getProfileResults().isEmpty());
+                assertTrue("merged profile shards should be empty", mergedResponse.getSearchProfileShardResults().isEmpty());
                 assertNull(mergedResponse.getSearchProfileResults());
             } finally {
                 mergedResponse.decRef();
@@ -1069,7 +1069,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertNull(response.getScrollId());
                 assertSame(InternalAggregations.EMPTY, response.getAggregations());
                 assertNull(response.getSuggest());
-                assertEquals(0, response.getProfileResults().size());
+                assertEquals(0, response.getSearchProfileShardResults().size());
                 assertNull(response.isTerminatedEarly());
                 assertEquals(0, response.getShardFailures().length);
             } finally {

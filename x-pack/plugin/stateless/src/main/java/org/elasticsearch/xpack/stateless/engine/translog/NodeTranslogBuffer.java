@@ -68,6 +68,11 @@ public class NodeTranslogBuffer implements Releasable {
         return bufferSize.get() >= flushSizeThreshold && flushTaken.compareAndSet(false, true);
     }
 
+    // visible for testing
+    long getBufferSize() {
+        return bufferSize.get();
+    }
+
     /**
      * Returns true if the write to the buffer succeeded. Otherwise, this buffer has been closed for writing and the user must try again
      * on the next node buffer.
@@ -135,8 +140,8 @@ public class NodeTranslogBuffer implements Releasable {
                 }
             }
 
-            // It is possible that there were operations in the buffer which are no longer associated with active shards. If there is not
-            // data to sync related to active shards, do not produce a translog to sync
+            // It is possible that there were operations in the buffer which are no longer associated with active shards.
+            // If there is no data to sync related to active shards, do not produce a translog to sync
             if (dataToSync == false) {
                 Releasables.close(headerStream, compoundTranslogStream);
                 return null;

@@ -185,7 +185,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             responseListener.onResponse(
                 new BulkByScrollResponse(
                     TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
+                    new BulkByScrollTask.Status(Collections.emptyList(), null, 0f),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     false
@@ -385,7 +385,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             responseListener.onResponse(
                 new BulkByScrollResponse(
                     TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
+                    new BulkByScrollTask.Status(Collections.emptyList(), null, 0f),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     false

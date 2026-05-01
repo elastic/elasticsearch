@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
-import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
@@ -272,7 +271,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private final ThreadPool threadPool;
     private final PrioritizedThrottledTaskRunner<TranslogFileUploadTask> uploadTranslogTaskRunner;
     private final PrioritizedThrottledTaskRunner<ObjectStoreTask> uploadTaskRunner;
-    private final ThrottledTaskRunner copyTaskRunner;
     private final ConcurrentLinkedQueue<String> translogBlobsToDelete = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<StaleCompoundCommit> commitBlobsToDelete = new ConcurrentLinkedQueue<>();
     private final Map<ShardId, Set<StaleCompoundCommit>> commitBlobsDeletionsInProgress = ConcurrentCollections.newConcurrentMap();
@@ -311,11 +309,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             getClass().getSimpleName() + "#upload-task-runner",
             threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax(),
             threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
-        );
-        this.copyTaskRunner = new ThrottledTaskRunner(
-            getClass().getSimpleName() + "#copy-task-runner",
-            threadPool.info(StatelessPlugin.BLOB_COPY_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL)
         );
         this.projectResolver = projectResolver;
         if (projectResolver.supportsMultipleProjects()) {
@@ -1134,13 +1127,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
         var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, primaryTerm);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
+        final Executor executor = threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL);
         try (var listeners = new RefCountingListener(future)) {
             for (var blobContainerWithTerm : blobContainersWithTerms) {
                 var sourceContainerForTerm = blobContainerWithTerm.v2();
                 Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
                 var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
                 for (BlobMetadata blob : blobs.values()) {
-                    copyTaskRunner.asExecutor().execute(ActionRunnable.run(listeners.acquire(), () -> {
+                    executor.execute(ActionRunnable.run(listeners.acquire(), () -> {
                         try {
                             task.ensureNotCancelled();
                             logger.debug(
@@ -1166,7 +1160,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         try {
             future.actionGet();
         } catch (UncategorizedExecutionException uee) {
-            // Only runtime exceptions get properly unwrapped
+            // FutureUtils.rethrowExecutionException only directly rethrows RuntimeException causes
             if (uee.getCause() instanceof ExecutionException ee && ee.getCause() instanceof IOException ioe) {
                 throw ioe;
             }

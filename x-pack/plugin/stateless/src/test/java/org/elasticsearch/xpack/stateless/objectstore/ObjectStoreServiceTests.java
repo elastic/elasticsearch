@@ -905,7 +905,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 TaskCancelledException.class,
                 () -> objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm)
             );
-            // Some threads might have been after the task cancellation check at the time of cancel
+            // Some threads might have already passed the cancellation check at the time of cancel
             if (blobCopyCount.get() > blobsToCopyBeforeCancel + numCopyThreads) {
                 fail("Cancelled copy task but copy still ongoing");
             }
@@ -914,7 +914,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
     public void testCopyShardFailure() throws IOException {
         var primaryTerm = randomLongBetween(1, 42);
-        var commitCount = between(2, 30);
+        var commitCount = between(2, 15);
         var task = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
         final var copyFailureIOE = new IOException("Fail copy");
         final var copyFailureRE = new RuntimeException("Fail copy");

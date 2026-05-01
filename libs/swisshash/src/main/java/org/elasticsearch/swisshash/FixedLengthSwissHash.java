@@ -154,13 +154,13 @@ public class FixedLengthSwissHash extends SwissHash implements BytesRefHashTable
     }
 
     @Override
-    public void bulkAdd(byte[] keysBytes, int startOffset, int[] ids, int numKeys) {
+    public void bulkAdd(byte[] keysBytes, int startOffset, int[] ids, int idsOffset, int numKeys) {
         assert bigCore != null : "must call supportBulkAdd before";
         final long needed = (long) size + numKeys;
         while (nextGrowSize <= needed) {
             bigCore.grow();
         }
-        bigCore.batchAdd(keysBytes, startOffset, ids, numKeys);
+        bigCore.batchAdd(keysBytes, startOffset, ids, idsOffset, numKeys);
     }
 
     @Override
@@ -389,7 +389,7 @@ public class FixedLengthSwissHash extends SwissHash implements BytesRefHashTable
         private final long[] batchHashes = new long[BATCH_SIZE];
         private final byte[][] batchIdPageRefs = new byte[BATCH_SIZE][];
 
-        private void batchAdd(byte[] keyArray, int startOffset, int[] ids, int numKeys) {
+        private void batchAdd(byte[] keyArray, int startOffset, int[] ids, int idsOffset, int numKeys) {
             int offset = 0;
             long dummy = 0;
             while (offset < numKeys) {
@@ -409,7 +409,7 @@ public class FixedLengthSwissHash extends SwissHash implements BytesRefHashTable
                 for (int r = 0; r < chunkSize; r++) {
                     final int keyOffset = startOffset + (offset + r) * keyLength;
                     final int id = addImpl(keyArray, keyOffset, batchHashes[r]);
-                    ids[offset + r] = id >= 0 ? id : -1 - id;
+                    ids[idsOffset + offset + r] = id >= 0 ? id : -1 - id;
                 }
                 offset += chunkSize;
             }
@@ -544,8 +544,9 @@ public class FixedLengthSwissHash extends SwissHash implements BytesRefHashTable
     }
 
     private boolean equalKeys(final int id, final byte[] key, final int keyOffset) {
-        final byte[] page = keyPages[id / keysPerPage];
-        final int pageOffset = (id % keysPerPage) * keyLength;
+        final int pageIndex = Math.toIntExact(id / keysPerPage);
+        final byte[] page = keyPages[pageIndex];
+        final int pageOffset = (id - pageIndex * keysPerPage) * keyLength;
         return Arrays.mismatch(page, pageOffset, pageOffset + keyLength, key, keyOffset, keyOffset + keyLength) == -1;
     }
 
@@ -561,8 +562,9 @@ public class FixedLengthSwissHash extends SwissHash implements BytesRefHashTable
 
     @Override
     public BytesRef get(long id, BytesRef dest) {
-        dest.bytes = keyPages[Math.toIntExact(id / keysPerPage)];
-        dest.offset = Math.toIntExact((id % keysPerPage) * keyLength);
+        final int pageIndex = Math.toIntExact(id / keysPerPage);
+        dest.bytes = keyPages[pageIndex];
+        dest.offset = ((int) (id) - pageIndex * keysPerPage) * keyLength;
         dest.length = keyLength;
         return dest;
     }

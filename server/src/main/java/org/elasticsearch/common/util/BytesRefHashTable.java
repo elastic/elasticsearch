@@ -62,11 +62,11 @@ public interface BytesRefHashTable extends Accountable, Releasable {
     }
 
     /**
-     * Adds {@code length} key pairs in bulk, writing each group id into {@code ids}.
+     * Adds {@code numKeys} keys in bulk, writing each group id into {@code ids[idsOffset..idsOffset+numKeys)}.
      * Ids are always non-negative (unlike {@link #add} which encodes duplicates as {@code -1-id}).
      * Only valid when {@link #supportBulkAdd()} returns {@code true}.
      */
-    default void bulkAdd(byte[] keyArray, int keyStartOff, int[] ids, int numKeys) {
+    default void bulkAdd(byte[] keyArray, int keyStartOff, int[] ids, int idsOffset, int numKeys) {
         throw new UnsupportedOperationException("bulkAdd is not supported");
     }
 }

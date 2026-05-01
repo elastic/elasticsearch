@@ -527,7 +527,7 @@ final class PackedValuesBlockHash extends BlockHash {
         final int[] offsets;
         final int keyLength;
         final byte[] keys;
-        final int[] ids;
+        final int[] groupIds;
         private final int emitBatchSize;
 
         private final BlockFactory blockFactory;
@@ -539,34 +539,29 @@ final class PackedValuesBlockHash extends BlockHash {
             this.keyLength = keyLength;
             this.blockFactory = blockFactory;
             this.specs = specs;
-            this.usedBytes = (long) BATCH_SIZE * keyLength + (long) BATCH_SIZE * Integer.BYTES;
+            this.usedBytes = (long) BATCH_SIZE * keyLength + (long) emitBatchSize * Integer.BYTES;
             blockFactory.adjustBreaker(usedBytes);
             this.keys = new byte[BATCH_SIZE * keyLength];
-            this.ids = new int[BATCH_SIZE];
+            this.groupIds = new int[emitBatchSize];
             this.emitBatchSize = emitBatchSize;
         }
 
         void bulkAdd(Page page, GroupingAggregatorFunction.AddInput addInput, BytesRefHashTable fh) {
             int positionCount = page.getPositionCount();
-            int offset = 0;
-            while (offset < positionCount) {
-                final int emitSize = Math.min(emitBatchSize, positionCount - offset);
-                try (var groupIdsBuilder = blockFactory.newIntVectorFixedBuilder(emitSize)) {
-                    int innerOffset = 0;
-                    while (innerOffset < emitSize) {
-                        final int chunkSize = Math.min(BATCH_SIZE, emitSize - innerOffset);
-                        fillKeys(page, offset + innerOffset, chunkSize);
-                        fh.bulkAdd(keys, 0, ids, chunkSize);
-                        for (int i = 0; i < chunkSize; i++) {
-                            groupIdsBuilder.appendInt(innerOffset + i, ids[i]);
-                        }
-                        innerOffset += chunkSize;
-                    }
-                    try (var groupIds = groupIdsBuilder.build()) {
-                        addInput.add(offset, groupIds);
-                    }
+            int positionOffset = 0;
+            while (positionOffset < positionCount) {
+                final int emitSize = Math.min(emitBatchSize, positionCount - positionOffset);
+                int batchOffset = 0;
+                while (batchOffset < emitSize) {
+                    final int chunkSize = Math.min(BATCH_SIZE, emitSize - batchOffset);
+                    fillKeys(page, positionOffset + batchOffset, chunkSize);
+                    fh.bulkAdd(keys, 0, groupIds, batchOffset, chunkSize);
+                    batchOffset += chunkSize;
                 }
-                offset += emitSize;
+                try (var groupIdsVec = blockFactory.newIntArrayVector(groupIds, emitSize)) {
+                    addInput.add(positionOffset, groupIdsVec);
+                }
+                positionOffset += emitSize;
             }
         }
 

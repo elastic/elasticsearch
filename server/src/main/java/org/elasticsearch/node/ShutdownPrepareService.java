@@ -47,6 +47,10 @@ import java.util.stream.Collectors;
  */
 public class ShutdownPrepareService {
 
+    /// Allows setting the system property `es.reindex.disable_relocation` as an escape hatch to disable triggering reindex relocation.
+    // TODO: Remove this when we're confident relocation works
+    private static final boolean DISABLE_REINDEX_RELOCATION = Boolean.getBoolean("es.reindex.disable_relocation");
+
     private record ShutdownHook(String name, Runnable action) {}
 
     public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
@@ -211,6 +215,13 @@ public class ShutdownPrepareService {
 
     // package-private for tests
     static void maybeRequestRelocationForBulkByScroll(Task task) {
+        if (DISABLE_REINDEX_RELOCATION) {
+            logger.info(
+                "Not requesting relocation task for task {} because the system property es.reindex.disable_relocation is set",
+                task.getId()
+            );
+            return;
+        }
         if (task instanceof BulkByScrollTask bulkByScrollTask) {
             if (bulkByScrollTask.isEligibleForRelocationOnShutdown() && bulkByScrollTask.isRelocationRequested() == false) {
                 if (bulkByScrollTask.isLeader()) {

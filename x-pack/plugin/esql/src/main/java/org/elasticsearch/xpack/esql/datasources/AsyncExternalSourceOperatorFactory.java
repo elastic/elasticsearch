@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -487,6 +488,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages;
         @Nullable
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo;
+        @Nullable
+        StoragePath lastRangeFilePath;
+        @Nullable
+        Object lastFileContext;
 
         ProducerState(
             @Nullable ExternalSliceQueue queue,
@@ -679,7 +684,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     ? storageProvider.newObject(fileSplit.path(), Long.parseLong(fileLengthStr))
                     : storageProvider.newObject(fileSplit.path());
                 long rangeEnd = fileSplit.offset() + fileSplit.length();
-                pages = rangeReader.readRange(fullObj, cols, batchSize, fileSplit.offset(), rangeEnd, attributes, errorPolicy);
+                Object fileContext = fileSplit.path().equals(state.lastRangeFilePath) ? state.lastFileContext : null;
+                RangeReadContext rangeCtx = new RangeReadContext(cols, batchSize, fileSplit.offset(), rangeEnd, attributes, errorPolicy);
+                if (fileContext != null) {
+                    rangeCtx.setFileContext(fileContext);
+                }
+                pages = rangeReader.readRange(fullObj, rangeCtx);
+                state.lastRangeFilePath = fileSplit.path();
+                state.lastFileContext = rangeCtx.fileContext();
             } else {
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
                 boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));

@@ -1,6 +1,9 @@
-# **Elasticsearch Requirements for Object Store**
+# **Elasticsearch Requirements for an S3-Compatible Object Store**
 
-🟢 = tested in `/_snapshot/{repository}/_analyze` 🟠 = partially tested in `/_snapshot/{repository}/_analyze` 🔴 = not tested in `/_snapshot/{repository}/_analyze` 🔵 = not testable in `/_snapshot/{repository}/_analyze`
+🟢 = tested in `/_snapshot/{repository}/_analyze`
+🟠 = partially tested in `/_snapshot/{repository}/_analyze`
+🔴 = not tested in `/_snapshot/{repository}/_analyze`
+🔵 = not testable in `/_snapshot/{repository}/_analyze`
 
 This document describes the requirements for an S3-compatible object store, both for use as a snapshot repository and for use as a stateless backend. These requirements are subject to change from one Elasticsearch release to the next. The `/_snapshot/{repository}/_analyze` API can be used to test whether these requirements are met.
 

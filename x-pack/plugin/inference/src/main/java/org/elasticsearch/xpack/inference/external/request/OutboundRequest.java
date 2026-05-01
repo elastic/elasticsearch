@@ -12,16 +12,16 @@ import org.elasticsearch.inference.TaskType;
 
 import java.net.URI;
 
-public interface Request {
+public interface OutboundRequest {
     void createHttpRequest(ActionListener<HttpRequest> listener);
 
     URI getURI();
 
     /**
      * Create a new request with less input text.
-     * @return a new {@link Request} with the truncated input text
+     * @return a new {@link OutboundRequest} with the truncated input text
      */
-    Request truncate();
+    OutboundRequest truncate();
 
     /**
      * Returns an array of booleans indicating if the text input at that same array index was truncated in the request

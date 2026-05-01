@@ -10,6 +10,8 @@
 package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -45,10 +47,12 @@ import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -799,6 +803,60 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     /**
+     * When pagination used PIT and the inferred keep-alive window has passed, {@link SearchContextMissingException} failures are mapped to
+     * HTTP 500; otherwise their default ({@link RestStatus#NOT_FOUND}) is preserved for BWC.
+     */
+    static List<PaginatedSearchFailure> remapSearchFailures(
+        boolean pitPagination,
+        boolean pastKeepaliveDeadline,
+        List<PaginatedSearchFailure> searchFailures
+    ) {
+        if (pitPagination == false || pastKeepaliveDeadline == false || searchFailures.isEmpty()) {
+            return searchFailures;
+        }
+        boolean anyScm = false;
+        for (PaginatedSearchFailure f : searchFailures) {
+            if (ExceptionsHelper.unwrap(f.getReason(), SearchContextMissingException.class) != null) {
+                anyScm = true;
+                break;
+            }
+        }
+        if (anyScm == false) {
+            return searchFailures;
+        }
+        List<PaginatedSearchFailure> remapped = new ArrayList<>(searchFailures.size());
+        for (PaginatedSearchFailure f : searchFailures) {
+            if (ExceptionsHelper.unwrap(f.getReason(), SearchContextMissingException.class) != null) {
+                remapped.add(
+                    new PaginatedSearchFailure(f.getReason(), f.getIndex(), f.getShardId(), f.getNodeId(), RestStatus.INTERNAL_SERVER_ERROR)
+                );
+            } else {
+                remapped.add(f);
+            }
+        }
+        return remapped;
+    }
+
+    /**
+     * Same policy as {@link #remapSearchFailures} for catastrophic failure on {@link ActionListener#onFailure}.
+     */
+    static Exception maybeWrapCatastrophicFailure(boolean pitPagination, boolean pastKeepaliveDeadline, Exception failure) {
+        if (failure == null || pitPagination == false || pastKeepaliveDeadline == false) {
+            return failure;
+        }
+        if (ExceptionsHelper.unwrap(failure, SearchContextMissingException.class) == null) {
+            return failure;
+        }
+        Throwable root = ExceptionsHelper.unwrapCause(failure);
+        String message = root.getMessage();
+        return new ElasticsearchStatusException(
+            message != null ? message : "search context missing",
+            RestStatus.INTERNAL_SERVER_ERROR,
+            failure
+        );
+    }
+
+    /**
      * Finish the request.
      *
      * @param failure if non null then the request failed catastrophically with this exception
@@ -835,6 +893,14 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 paginatedHitSource instanceof PitPaginatedHitSource ? "point-in-time" : "scroll"
             );
         }
+        final boolean pitPagination = paginatedHitSource instanceof PitPaginatedHitSource;
+        final boolean pastKeepaliveDeadline = searchContextKeepaliveDeadline.isPastKeepaliveDeadline();
+        final List<PaginatedSearchFailure> resolvedSearchFailures = remapSearchFailures(
+            pitPagination,
+            pastKeepaliveDeadline,
+            searchFailures
+        );
+        final Exception resolvedFailure = maybeWrapCatastrophicFailure(pitPagination, pastKeepaliveDeadline, failure);
         requestFinishing.set(true);
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
@@ -844,16 +910,16 @@ public abstract class AbstractAsyncBulkByScrollAction<
             toRelease.releaseRemainingHits();
         }
         paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
-            if (failure == null) {
+            if (resolvedFailure == null) {
                 BulkByScrollResponse response = buildResponse(
                     timeValueMillis(System.currentTimeMillis() - startTimeEpochMillis.get()),
                     indexingFailures,
-                    searchFailures,
+                    resolvedSearchFailures,
                     timedOut
                 );
                 listener.onResponse(response);
             } else {
-                listener.onFailure(failure);
+                listener.onFailure(resolvedFailure);
             }
         }));
     }

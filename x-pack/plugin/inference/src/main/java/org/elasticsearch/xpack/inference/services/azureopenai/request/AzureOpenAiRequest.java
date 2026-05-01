@@ -14,7 +14,7 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettings;
 
@@ -22,7 +22,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements Request {
+public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements OutboundRequest {
 
     protected final M model;
     private final AzureOpenAiTaskSettings<?> taskSettings;
@@ -66,7 +66,7 @@ public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements 
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // Default implementation: no truncation. Subclasses may override to apply truncation if needed.
         return this;
     }

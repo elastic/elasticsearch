@@ -176,8 +176,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         return replicas.get(1);
     }
 
-    /** Returns {@code clusterState} with non-empty {@link Metadata#nodeShutdowns()} (arbitrary node id). */
-    private static ClusterState withNonEmptyNodeShutdownMetadata(ClusterState clusterState) {
+    /** Returns {@code clusterState} with non-empty {@link Metadata#nodeShutdowns()} for a node that is NOT in the cluster (stale). */
+    private static ClusterState withStaleNodeShutdownMetadata(ClusterState clusterState) {
         SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM);
         SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
             .setNodeId("shutdown-test-node")
@@ -185,6 +185,33 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             .setReason("SearchShardRecoveryWarmingTests")
             .setStartedAtMillis(1L)
             .setNodeSeen(false)
+            .setGracePeriod(type == SingleNodeShutdownMetadata.Type.SIGTERM ? TimeValue.timeValueSeconds(30) : null)
+            .build();
+        NodesShutdownMetadata shutdowns = new NodesShutdownMetadata(Map.of(shutdown.getNodeId(), shutdown));
+        return ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, shutdowns).build())
+            .build();
+    }
+
+    /**
+     * Returns {@code clusterState} with non-empty {@link Metadata#nodeShutdowns()} for a node that IS currently in the cluster,
+     * optionally excluding {@code excludeNodeId} from consideration (e.g. to avoid the relocation-source branch).
+     */
+    private static ClusterState withActiveShutdownNodeMetadata(ClusterState clusterState, @Nullable String excludeNodeId) {
+        String targetNodeId = clusterState.nodes()
+            .getNodes()
+            .keySet()
+            .stream()
+            .filter(id -> excludeNodeId == null || id.equals(excludeNodeId) == false)
+            .findFirst()
+            .orElseThrow();
+        SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM);
+        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId(targetNodeId)
+            .setType(type)
+            .setReason("SearchShardRecoveryWarmingTests")
+            .setStartedAtMillis(1L)
+            .setNodeSeen(true)
             .setGracePeriod(type == SingleNodeShutdownMetadata.Type.SIGTERM ? TimeValue.timeValueSeconds(30) : null)
             .build();
         NodesShutdownMetadata shutdowns = new NodesShutdownMetadata(Map.of(shutdown.getNodeId(), shutdown));
@@ -218,6 +245,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
             var service = newWarmingService(threadPool);
             ClusterState state = clusterStateInitializingSearchReplicaWithActivePeer("idx");
+            if (randomBoolean()) {
+                state = withStaleNodeShutdownMetadata(state);
+                assertThat(state.metadata().nodeShutdowns().getAll().isEmpty(), is(false));
+            }
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = initializingSearchReplica(state, shardId);
             var plan = service.searchRecoveryTimeout(state, mockIndexShard(self));
@@ -230,14 +261,14 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     }
 
     /**
-     * Same routing as {@link #testSearchRecoveryNonRelocationWaitsWhenAnotherActiveCopy} (another active search copy), but with
-     * cluster shutdown metadata present: non-relocation path should not await warming.
+     * Same routing as {@link #testSearchRecoveryNonRelocationWaitsWhenAnotherActiveCopy}, but a node that is still in the cluster is
+     * shutting down: non-relocation path must not await warming to avoid potentially delaying the shutdown.
      */
-    public void testSearchRecoveryNonRelocationSkipsWhenShutdownMetadataPresent() {
+    public void testSearchRecoveryNonRelocationSkipsWhenActiveShutdownNodePresent() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
             var service = newWarmingService(threadPool);
             ClusterState base = clusterStateInitializingSearchReplicaWithActivePeer("idx");
-            ClusterState state = withNonEmptyNodeShutdownMetadata(base);
+            ClusterState state = withActiveShutdownNodeMetadata(base, null);
             assertThat(state.metadata().nodeShutdowns().getAll().isEmpty(), is(false));
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = initializingSearchReplica(state, shardId);
@@ -261,6 +292,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 ShardRouting.Role.INDEX_ONLY,
                 List.of(new Tuple<>(STARTED, ShardRouting.Role.SEARCH_ONLY), new Tuple<>(RELOCATING, ShardRouting.Role.SEARCH_ONLY))
             );
+            if (randomBoolean()) {
+                state = withStaleNodeShutdownMetadata(state);
+                assertThat(state.metadata().nodeShutdowns().getAll().isEmpty(), is(false));
+            }
             ShardId shardId = new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             var shardTable = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId);
             ShardRouting relocatingSearchReplica = shardTable.shardsWithState(RELOCATING)
@@ -278,6 +313,46 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             assertThat(
                 plan.timeout(),
                 equalTo(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING.getDefault(Settings.EMPTY))
+            );
+        }
+    }
+
+    /**
+     * Same relocation routing as {@link #testSearchRecoveryRelocationUsesRelocationTimeout}, but a node other than the relocation source
+     * is actively shutting down: must use the shorter with-shutdown relocation timeout.
+     */
+    public void testSearchRecoveryRelocationUsesShutdownTimeoutWhenAnotherClusterNodeShuttingDown() {
+        try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+            var service = newWarmingService(threadPool);
+            ClusterState base = ClusterStateCreationUtils.state(
+                DEFAULT_PROJECT_ID,
+                "test",
+                true,
+                STARTED,
+                ShardRouting.Role.INDEX_ONLY,
+                List.of(new Tuple<>(STARTED, ShardRouting.Role.SEARCH_ONLY), new Tuple<>(RELOCATING, ShardRouting.Role.SEARCH_ONLY))
+            );
+            ShardId shardId = new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
+            ShardRouting self = base.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(shardId)
+                .shardsWithState(RELOCATING)
+                .stream()
+                .filter(s -> s.primary() == false)
+                .findFirst()
+                .orElseThrow()
+                .getTargetRelocatingShard();
+            // exclude the relocation source so we test the "another node shutting down" branch, not the source-removal branch
+            ClusterState state = withActiveShutdownNodeMetadata(base, self.relocatingNodeId());
+            assertThat(state.metadata().nodeShutdowns().getAll().isEmpty(), is(false));
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self));
+            assertThat(plan.awaitWarming(), is(true));
+            assertThat(
+                plan.timeout(),
+                equalTo(
+                    SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING.getDefault(
+                        Settings.EMPTY
+                    )
+                )
             );
         }
     }

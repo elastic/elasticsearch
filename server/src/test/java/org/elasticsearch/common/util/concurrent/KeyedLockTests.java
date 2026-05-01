@@ -90,7 +90,7 @@ public class KeyedLockTests extends ESTestCase {
             }
         });
         thread.start();
-        latch.await();
+        safeAwait(latch);
         check.set(true);
         acquire.close();
         foo.close();
@@ -113,7 +113,7 @@ public class KeyedLockTests extends ESTestCase {
 
         });
         t.start();
-        latch.await();
+        safeAwait(latch);
         Thread.yield();
         assertEquals(0, test.get());
         List<Releasable> list = Arrays.asList(foo, foo2);
@@ -181,7 +181,7 @@ public class KeyedLockTests extends ESTestCase {
             }
         });
         thread.start();
-        latch.await();
+        safeAwait(latch);
         check.set(true);
         acquire.close();
         thread.join();
@@ -204,7 +204,7 @@ public class KeyedLockTests extends ESTestCase {
             }
         });
         t.start();
-        latch.await();
+        safeAwait(latch);
         Thread.yield();
         assertEquals(0, test.get());
         foo.close();
@@ -238,11 +238,7 @@ public class KeyedLockTests extends ESTestCase {
         @Override
         public void run() {
             startLatch.countDown();
-            try {
-                startLatch.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            safeAwait(startLatch);
             for (int i = 0; i < numRuns; i++) {
                 String curName = names[randomInt(names.length - 1)];
                 assert connectionLock.isHeldByCurrentThread(curName) == false;
@@ -315,11 +311,7 @@ public class KeyedLockTests extends ESTestCase {
         @Override
         public void run() {
             startLatch.countDown();
-            try {
-                startLatch.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            safeAwait(startLatch);
             for (int i = 0; i < numRuns; i++) {
                 String curName = names[randomInt(names.length - 1)];
                 assert connectionLock.isHeldByCurrentThread(curName) == false;

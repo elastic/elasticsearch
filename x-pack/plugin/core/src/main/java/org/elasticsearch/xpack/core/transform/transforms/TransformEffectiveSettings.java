@@ -83,5 +83,4 @@ public final class TransformEffectiveSettings {
     public static boolean isUnattended(SettingsConfig settings) {
         return Boolean.TRUE.equals(settings.getUnattended());
     }
-
 }

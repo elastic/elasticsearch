@@ -115,7 +115,8 @@ public class TermsGroupSource extends SingleGroupSource {
             validationException = addValidationError(
                 "max_terms_for_change_detection ["
                     + maxTermsForChangeDetection
-                    + "] is out of range. Use -1 to disable the limit, 0 to disable change filtering, or a positive integer to set the limit",
+                    + "] is out of range. Use -1 to disable the limit, 0 to disable change filtering,"
+                    + " or a positive integer to set the limit",
                 validationException
             );
         }
@@ -128,15 +129,14 @@ public class TermsGroupSource extends SingleGroupSource {
     }
 
     @Override
-    protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
-        super.innerXContent(builder, params);
-        if (maxTermsForChangeDetection != null && excludeTransformMetadata(params) == false) {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerXContent(builder, params);
+        if (maxTermsForChangeDetection != null) {
             builder.field(TransformField.MAX_TERMS_FOR_CHANGE_DETECTION.getPreferredName(), maxTermsForChangeDetection);
         }
-    }
-
-    private static boolean excludeTransformMetadata(Params params) {
-        return Boolean.parseBoolean(params.param(TransformField.EXCLUDE_TRANSFORM_METADATA, "false"));
+        builder.endObject();
+        return builder;
     }
 
     @Override

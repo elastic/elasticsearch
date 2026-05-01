@@ -102,7 +102,6 @@ public final class TransformField {
      */
     public static final String FOR_INTERNAL_STORAGE = "for_internal_storage";
     public static final String EXCLUDE_GENERATED = "exclude_generated";
-    public static final String EXCLUDE_TRANSFORM_METADATA = "exclude_transform_metadata";
 
     // internal document id
     public static final String DOCUMENT_ID_FIELD = "_id";

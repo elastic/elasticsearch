@@ -35,6 +35,7 @@ public class OTLPActionRequest extends ActionRequest implements CompositeIndices
 
     @Override
     public void writeTo(StreamOutput out) {
+        // OTLP REST actions execute locally; the request body is not serialized over transport.
         TransportAction.localOnly();
     }
 

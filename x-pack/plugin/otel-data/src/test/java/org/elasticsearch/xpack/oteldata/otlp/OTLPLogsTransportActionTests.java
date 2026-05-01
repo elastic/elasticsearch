@@ -103,7 +103,7 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
             .build();
         BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
 
-        ProcessingContext context = logsAction.prepareBulkRequest(createBodyMapRequest(List.of(logRecord)), bulkRequestBuilder);
+        ProcessingContext context = logsAction.prepareBulkRequest(createRequestWithBodyMapScope(List.of(logRecord)), bulkRequestBuilder);
 
         assertThat(context.totalItems(), equalTo(1));
         assertThat(context.getIgnoredItems(), equalTo(0));
@@ -247,7 +247,7 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
             IllegalArgumentException.class,
             () -> logsAction.prepareBulkRequest(createBodyMapRequest(List.of(logRecord), null, MappingMode.BODYMAP), bulkRequestBuilder)
         );
-        assertThat(e.getMessage(), containsString("data_stream.type cannot be other than logs or metrics"));
+        assertThat(e.getMessage(), equalTo("data_stream.type can only be set to \"logs\" or \"metrics\", got [traces]"));
     }
 
     public void testBodyMapModeRoutesWithoutOtelSuffix() throws Exception {
@@ -279,7 +279,7 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
         BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
 
         ProcessingContext context = logsAction.prepareBulkRequest(
-            createBodyMapRequest(List.of(invalidLogRecord1, invalidLogRecord2, validLogRecord)),
+            createRequestWithBodyMapScope(List.of(invalidLogRecord1, invalidLogRecord2, validLogRecord)),
             bulkRequestBuilder
         );
 
@@ -297,7 +297,7 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
         assertThat(((Number) indexRequest.sourceAsMap().get("a")).longValue(), equalTo(42L));
     }
 
-    private static OTLPActionRequest createBodyMapRequest(List<LogRecord> logRecords) {
+    private static OTLPActionRequest createRequestWithBodyMapScope(List<LogRecord> logRecords) {
         return createBodyMapRequest(logRecords, "bodymap", MappingMode.OTEL);
     }
 

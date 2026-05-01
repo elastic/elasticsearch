@@ -10,14 +10,7 @@ package org.elasticsearch.xpack.inference.external.request;
 import org.elasticsearch.inference.TaskType;
 
 /**
- * Implementation of {@link Request} for {@link TaskType#SPARSE_EMBEDDING} requests
+ * Marker interface for requests that may be {@link TaskType#TEXT_EMBEDDING} or {@link TaskType#EMBEDDING}. Implementing classes should
+ * implement the {@link OutboundRequest#getTaskType()} method to return the appropriate task type.
  */
-public interface SparseEmbeddingRequest extends Request {
-    /**
-     * Should not be overridden
-     */
-    @Override
-    default TaskType getTaskType() {
-        return TaskType.SPARSE_EMBEDDING;
-    }
-}
+public interface OutboundDenseEmbeddingRequest extends OutboundRequest {}

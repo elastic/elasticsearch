@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.inference.external.request;
 import org.elasticsearch.inference.TaskType;
 
 /**
- * Implementation of {@link Request} for {@link TaskType#RERANK} requests
+ * Implementation of {@link OutboundRequest} for {@link TaskType#SPARSE_EMBEDDING} requests
  */
-public interface RerankRequest extends Request {
+public interface OutboundSparseEmbeddingRequest extends OutboundRequest {
     /**
      * Should not be overridden
      */
     @Override
     default TaskType getTaskType() {
-        return TaskType.RERANK;
+        return TaskType.SPARSE_EMBEDDING;
     }
 }

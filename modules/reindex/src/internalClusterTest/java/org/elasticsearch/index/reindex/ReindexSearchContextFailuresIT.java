@@ -31,9 +31,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
 import java.util.Collection;

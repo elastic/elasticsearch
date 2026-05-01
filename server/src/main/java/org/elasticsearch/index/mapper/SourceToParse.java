@@ -162,7 +162,7 @@ public class SourceToParse {
     // TODO: Eventually will want to combine this with our other source abstractions IndexSource, etc.
     public static class Source {
 
-        private final boolean includeSourceOnError1;
+        private final boolean includeSourceOnError;
         private final EirfRowXContentParser.SchemaNode schemaTree;
         private final EirfRowReader row;
         private final XContentType xContentType;
@@ -183,7 +183,7 @@ public class SourceToParse {
                 : originalSourceBytes.hasArray() ? originalSourceBytes
                 : new BytesArray(originalSourceBytes.toBytesRef());
             this.xContentType = Objects.requireNonNull(xContentType);
-            includeSourceOnError1 = includeSourceOnError;
+            this.includeSourceOnError = includeSourceOnError;
         }
 
         public boolean isEmpty() {
@@ -201,7 +201,7 @@ public class SourceToParse {
                 return new EirfRowXContentParser(schemaTree, row);
             } else {
                 return XContentHelper.createParser(
-                    configuration.withIncludeSourceOnError(includeSourceOnError1),
+                    configuration.withIncludeSourceOnError(includeSourceOnError),
                     originalSourceBytes,
                     xContentType
                 );

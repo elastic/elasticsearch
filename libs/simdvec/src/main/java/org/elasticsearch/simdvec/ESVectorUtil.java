@@ -700,8 +700,8 @@ public class ESVectorUtil {
      * {@code matches} ({@code matches[i>>>6]}, bit position {@code i & 0x3f}) when
      * {@code values[i]} lies in {@code [lowerValue, upperValue]}.
      *
-     * <p>Requires {@code values.length} to be a multiple of the SIMD lane count (i.e. a multiple
-     * of 8 – # of longs in an avx512 register) and {@code matches.length == values.length >>> 6}.
+     * <p>Requires {@code values.length} to be a multiple of 8 (the maximum supported SIMD lane
+     * count, for AVX-512) and {@code matches.length == values.length / 64}.
      */
     public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
         IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);

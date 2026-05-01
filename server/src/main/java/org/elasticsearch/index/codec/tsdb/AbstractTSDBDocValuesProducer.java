@@ -2501,7 +2501,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 int blockId = iterDoc >>> numericBlockShift;
                                 if (currentBlockIndex == blockId) {
                                     // We already have a decoded bitmask, find the first non-matching position after iterDoc
-                                    int firstClearBit = nextClearBit(iterDoc & numericBlockMask, matches);
+                                    int firstClearBit = nextClearBit((iterDoc & numericBlockMask) + 1, matches);
                                     return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
                                 }
                                 // No decoded block: if the whole skipper block is in range, claim the run extends to its end.
@@ -2570,7 +2570,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 int blockId = iterDoc >>> numericBlockShift;
                                 if (currentBlockIndex == blockId) {
                                     // We already have a decoded bitmask, find the first non-matching position after iterDoc
-                                    int firstClearBit = nextClearBit(iterDoc & numericBlockMask, matches);
+                                    int firstClearBit = nextClearBit((iterDoc & numericBlockMask) + 1, matches);
                                     return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
                                 }
                                 return iterDoc + 1;

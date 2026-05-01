@@ -567,6 +567,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        assert values.length % 8 == 0 && matches.length == values.length / 64;
         for (int i = 0; i < values.length; i++) {
             long v = values[i];
             if (lowerValue <= v && v <= upperValue) {

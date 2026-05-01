@@ -418,9 +418,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.objectstore.AzureMultiProjectObjectStoreIT
   method: testObjectStoreSeparation
   issue: https://github.com/elastic/elasticsearch-serverless/issues/6311
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
-  method: testRandomActivitiesStatelessSnapshotDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/147845
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/147846
@@ -562,9 +559,6 @@ tests:
 - class: org.elasticsearch.search.CCSDuelIT
   method: testCardinalityAgg
   issue: https://github.com/elastic/elasticsearch/issues/148091
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
-  method: testRandomActivitiesStatelessSnapshotReadFromObjectStore
-  issue: https://github.com/elastic/elasticsearch/issues/148092
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/148096

@@ -193,8 +193,10 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             }
         }
 
-        private class TimeOutCheckingBulkKnnCollector extends TimeOutCheckingKnnCollector implements BulkKnnCollector {
+        private class TimeOutCheckingBulkKnnCollector extends KnnCollector.Decorator implements BulkKnnCollector {
             private final BulkKnnCollector in;
+            private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
+            private int calls;
 
             private TimeOutCheckingBulkKnnCollector(BulkKnnCollector in) {
                 super(in);
@@ -202,14 +204,26 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             }
 
             @Override
+            public boolean collect(int docId, float similarity) {
+                maybeCheckCancelled();
+                return in.collect(docId, similarity);
+            }
+
+            @Override
             public int bulkCollect(int[] docs, float[] scores, int count, float bestScore) {
-                queryCancellation.checkCancelled();
+                maybeCheckCancelled();
                 return in.bulkCollect(docs, scores, count, bestScore);
             }
 
             @Override
             public TopDocs unsortedTopK() {
                 return in.unsortedTopK();
+            }
+
+            private void maybeCheckCancelled() {
+                if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                    queryCancellation.checkCancelled();
+                }
             }
         }
     }

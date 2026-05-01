@@ -66,7 +66,7 @@ public class TieredMergeStrategy {
      * Call {@link #execute} with a pre-configured {@link HierarchicalKMeans} instance.
      */
     public sealed interface MergeAction {
-        // Selected strategy 
+        // Selected strategy
         Strategy strategy();
 
         // Execute the merge action, returning the clustering result

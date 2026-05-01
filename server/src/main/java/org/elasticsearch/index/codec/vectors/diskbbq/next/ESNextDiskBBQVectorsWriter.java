@@ -916,7 +916,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             );
         }
 
-        // Slice metadata is on disk and readers return flat segments -> FullRebuild 
+        // Slice metadata is on disk and readers return flat segments -> FullRebuild
         if (action instanceof TieredMergeStrategy.FullRebuild && sliceField != null) {
             return calculateCentroidsFullRebuildSliced(floatVectorValues, fieldInfo, mergeState);
         }

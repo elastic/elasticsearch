@@ -12,7 +12,12 @@ import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.ElasticsearchDistribution
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.test.AntFixture
+import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.elasticsearch.gradle.transform.UnzipTransform
+import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.TaskProvider
 
 apply plugin: 'elasticsearch.test-with-dependencies'
@@ -292,6 +297,48 @@ if (OS.current() == OS.WINDOWS) {
   registerDownloadedRemote('8.12.2', 'remote_reindex_es812', 'remoteEs812Fixture', 'es812', 'tests.fromRemoteEs812')
   registerDownloadedRemote('8.16.4', 'remote_reindex_es816', 'remoteEs816Fixture', 'es816', 'tests.fromRemoteEs816')
   registerDownloadedRemote('9.3.0', 'remote_reindex_es93', 'remoteEs93Fixture', 'es93', 'tests.fromRemoteEs93')
+
+  /* Runs javaRestTest against only remoteEs816Fixture (StandaloneRestIntegTestTask so `check` does not pick it up).
+   * Run: ./gradlew :modules:reindex:javaRestTestRemote816Only */
+  def remote816Fixture = tasks.named("remoteEs816Fixture", AntFixture)
+  tasks.register("javaRestTestRemote816Only", StandaloneRestIntegTestTask) { t ->
+    t.description = "javaRestTest with only remoteEs816Fixture (for CI isolation experiments); not run as part of check"
+    t.group = JavaBasePlugin.VERIFICATION_GROUP
+    t.mustRunAfter tasks.named("test")
+    t.testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+    t.classpath = sourceSets.javaRestTest.runtimeClasspath
+    t.dependsOn tasks.named(sourceSets.javaRestTest.classesTaskName)
+    t.dependsOn remote816Fixture
+    def testClusters = project.extensions.getByName(TestClustersPlugin.EXTENSION_NAME)
+    def cluster = testClusters.maybeCreate(t.name)
+    t.useCluster(cluster)
+    cluster.module(tasks.named(BasePluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME))
+    t.include("**/*IT.class")
+    t.systemProperty("tests.rest.load_packaged", "false")
+    def runnerNonInputProperties = t.extensions.getByName("nonInputProperties") as SystemPropertyCommandLineArgumentProvider
+    runnerNonInputProperties.systemProperty("tests.rest.cluster", { cluster.getAllHttpSocketURI().join(",") })
+    runnerNonInputProperties.systemProperty("tests.cluster", { cluster.getAllTransportPortURI().join(",") })
+    runnerNonInputProperties.systemProperty("tests.clustername", { cluster.getName() })
+    runnerNonInputProperties.systemProperty("tests.cluster.readiness", { cluster.getAllReadinessPortURI().join(",") })
+    runnerNonInputProperties.systemProperty("tests.cluster.remote_access", { cluster.getAllRemoteAccessPortURI().join(",") })
+    t.filter {
+      includeTestsMatching "org.elasticsearch.index.reindex.remote.ReindexFromRemoteIT.testReindexFromRemote816"
+    }
+    t.nonInputProperties.systemProperty "es816.port", remote816Fixture.map { it.addressAndPort }
+    t.systemProperty "tests.fromRemote7x", "true"
+    t.systemProperty "tests.fromRemoteEs816", "true"
+    t.systemProperty "tests.fromOld", "false"
+    t.systemProperty "tests.fromRemoteEs500", "false"
+    t.systemProperty "tests.fromRemoteEs62", "false"
+    t.systemProperty "tests.fromRemoteEs63", "false"
+    t.systemProperty "tests.fromRemote7xEs79", "false"
+    t.systemProperty "tests.fromRemote7xEs710", "false"
+    t.systemProperty "tests.fromRemoteEs812", "false"
+    t.systemProperty "tests.fromRemoteEs93", "false"
+    t.finalizedBy(
+      remote816Fixture.flatMap { fixtureTask -> tasks.named("${fixtureTask.name}#stop") }
+    )
+  }
 
   /* AntFixture registers a matching *#stop finalizer task in its constructor. Do not pass raw strings to finalizedBy:
    * Gradle 9 parses # in task paths incorrectly, and the stop task does not exist until the fixture task is realized.

@@ -222,7 +222,7 @@ public class KeyedLockTests extends ESTestCase {
         private final ConcurrentHashMap<String, AtomicInteger> safeCounter;
         private final int numRuns = scaledRandomIntBetween(5000, 50000);
 
-        public AcquireAndReleaseThread(
+        AcquireAndReleaseThread(
             CountDownLatch startLatch,
             KeyedLock<String> connectionLock,
             String[] names,
@@ -286,7 +286,7 @@ public class KeyedLockTests extends ESTestCase {
         private final ConcurrentHashMap<String, AtomicInteger> safeCounter;
         private final int numRuns = scaledRandomIntBetween(5000, 50000);
 
-        public NonReentrantAcquireAndReleaseThread(
+        NonReentrantAcquireAndReleaseThread(
             CountDownLatch startLatch,
             KeyedLock<String> connectionLock,
             String[] names,

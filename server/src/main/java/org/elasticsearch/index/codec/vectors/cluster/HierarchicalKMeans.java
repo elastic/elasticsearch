@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -515,14 +516,14 @@ public class HierarchicalKMeans {
         int[] assignments = kMeansIntermediate.assignments();
         float[][] centroids = kMeansIntermediate.centroids();
 
-        boolean[] isSplit = new boolean[centroids.length];
+        FixedBitSet isSplit = new FixedBitSet(centroids.length);
         boolean hasSplitOrEmpty = false;
         for (int c = 0; c < centroids.length; c++) {
             int count = centroidVectorCount[c];
             if (count == 0) {
                 hasSplitOrEmpty = true;
             } else if (100 * count > 134 * targetSize) {
-                isSplit[c] = true;
+                isSplit.set(c);
                 hasSplitOrEmpty = true;
             }
         }
@@ -534,13 +535,13 @@ public class HierarchicalKMeans {
         int[][] clusterSlices = new int[centroids.length][];
         int[] sliceIndex = new int[centroids.length];
         for (int c = 0; c < centroids.length; c++) {
-            if (isSplit[c]) {
+            if (isSplit.get(c)) {
                 clusterSlices[c] = new int[centroidVectorCount[c]];
             }
         }
         for (int i = 0; i < assignments.length; i++) {
             int c = assignments[i];
-            if (c >= 0 && isSplit[c]) {
+            if (c >= 0 && isSplit.get(c)) {
                 clusterSlices[c][sliceIndex[c]++] = i;
             }
         }
@@ -548,7 +549,7 @@ public class HierarchicalKMeans {
         KMeansIntermediate[] subPartitionsList = new KMeansIntermediate[centroids.length];
         int newCentroidsCount = 0;
         for (int c = 0; c < centroids.length; c++) {
-            if (isSplit[c]) {
+            if (isSplit.get(c)) {
                 int finalC = c;
                 int[] slice = clusterSlices[c];
                 ClusteringFloatVectorValues sample = new ClusteringFloatVectorValuesSlice(vectors, i -> slice[i], centroidVectorCount[c]);
@@ -566,7 +567,7 @@ public class HierarchicalKMeans {
 
         for (int c = 0; c < centroids.length; c++) {
             centroidOffsetMap[c] = currentDest;
-            if (isSplit[c]) {
+            if (isSplit.get(c)) {
                 KMeansIntermediate sub = subPartitionsList[c];
                 System.arraycopy(sub.centroids(), 0, newCentroids, currentDest, sub.centroids().length);
                 currentDest += sub.centroids().length;
@@ -578,13 +579,13 @@ public class HierarchicalKMeans {
 
         for (int i = 0; i < assignments.length; i++) {
             int c = assignments[i];
-            if (c >= 0 && !isSplit[c]) {
+            if (c >= 0 && isSplit.get(c) == false) {
                 assignments[i] = centroidOffsetMap[c];
             }
         }
 
         for (int c = 0; c < centroids.length; c++) {
-            if (isSplit[c]) {
+            if (isSplit.get(c)) {
                 KMeansIntermediate sub = subPartitionsList[c];
                 int baseOffset = centroidOffsetMap[c];
                 int[] slice = clusterSlices[c];

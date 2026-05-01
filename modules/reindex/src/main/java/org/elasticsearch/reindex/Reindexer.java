@@ -120,7 +120,7 @@ public class Reindexer {
 
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
-    /// Allows setting the system property `es.reindex.disable_pit_scroll` as an escape hatch to disable the use of PIT-based search, and
+    /// Allows setting the system property `es.reindex.disable_pit_search` as an escape hatch to disable the use of PIT-based search, and
     /// force the use of the legacy scroll-based search.
     // TODO(#2715): Remove this when we're confident the PIT version works
     private static final boolean DISABLE_PIT_SEARCH = Booleans.parseBooleanLenient(

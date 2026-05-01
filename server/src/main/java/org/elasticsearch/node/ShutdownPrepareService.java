@@ -221,7 +221,7 @@ public class ShutdownPrepareService {
     static void maybeRequestRelocationForBulkByScroll(Task task) {
         if (DISABLE_REINDEX_RELOCATION) {
             logger.info(
-                "Not requesting relocation task for task {} because the system property es.reindex.disable_relocation is set",
+                "Not requesting relocation for task {} because the system property es.reindex.disable_relocation is set",
                 task.getId()
             );
             return;

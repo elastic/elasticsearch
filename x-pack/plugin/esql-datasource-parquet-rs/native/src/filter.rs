@@ -12,9 +12,10 @@ use jni::EnvUnowned;
 use jni::errors::{Result as JniResult, ThrowRuntimeExAndDefault};
 use jni::objects::{JClass, JLongArray, JString};
 use jni::sys::jlong;
-use parquet::arrow::arrow_reader::{ArrowPredicateFn, RowFilter};
+use parquet::arrow::arrow_reader::{ArrowPredicateFn, RowFilter, RowSelector};
 use parquet::arrow::ProjectionMask;
-use parquet::file::metadata::RowGroupMetaData;
+use parquet::file::metadata::{ParquetMetaData, RowGroupMetaData};
+use parquet::file::page_index::column_index::ColumnIndexMetaData;
 use parquet::schema::types::SchemaDescriptor;
 use std::sync::Arc;
 
@@ -220,6 +221,284 @@ fn collect_eq_inner(expr: &FilterExpr, out: &mut Vec<(String, Vec<StatValue>)>) 
     }
 }
 
+// ---------------------------------------------------------------------------
+// Page-range-aware I/O: column index → RowSelector list
+// ---------------------------------------------------------------------------
+
+/// A single-column comparison predicate extracted for column-index page pruning.
+#[derive(Clone, Debug)]
+pub enum ColPred {
+    Eq(StatValue),
+    GtEq(StatValue),
+    Gt(StatValue),
+    LtEq(StatValue),
+    Lt(StatValue),
+}
+
+pub struct IndexPred {
+    pub col_name: String,
+    pub pred: ColPred,
+}
+
+/// Collects AND-connected simple comparison predicates (col OP literal).
+/// Or/Not branches are skipped conservatively.
+pub fn collect_index_predicates(expr: &FilterExpr) -> Vec<IndexPred> {
+    let mut out = Vec::new();
+    collect_index_preds_inner(expr, &mut out);
+    out
+}
+
+fn collect_index_preds_inner(expr: &FilterExpr, out: &mut Vec<IndexPred>) {
+    match expr {
+        FilterExpr::Eq(left, right) => {
+            if let (FilterExpr::Column(col), Some(val)) = (left.as_ref(), literal_to_stat(right)) {
+                out.push(IndexPred { col_name: col.clone(), pred: ColPred::Eq(val) });
+            }
+        }
+        FilterExpr::GtEq(left, right) => {
+            if let (FilterExpr::Column(col), Some(val)) = (left.as_ref(), literal_to_stat(right)) {
+                out.push(IndexPred { col_name: col.clone(), pred: ColPred::GtEq(val) });
+            }
+        }
+        FilterExpr::Gt(left, right) => {
+            if let (FilterExpr::Column(col), Some(val)) = (left.as_ref(), literal_to_stat(right)) {
+                out.push(IndexPred { col_name: col.clone(), pred: ColPred::Gt(val) });
+            }
+        }
+        FilterExpr::LtEq(left, right) => {
+            if let (FilterExpr::Column(col), Some(val)) = (left.as_ref(), literal_to_stat(right)) {
+                out.push(IndexPred { col_name: col.clone(), pred: ColPred::LtEq(val) });
+            }
+        }
+        FilterExpr::Lt(left, right) => {
+            if let (FilterExpr::Column(col), Some(val)) = (left.as_ref(), literal_to_stat(right)) {
+                out.push(IndexPred { col_name: col.clone(), pred: ColPred::Lt(val) });
+            }
+        }
+        FilterExpr::And(a, b) => {
+            collect_index_preds_inner(a, out);
+            collect_index_preds_inner(b, out);
+        }
+        _ => {}
+    }
+}
+
+/// Cross-type numeric comparison for page statistics.
+///
+/// `StatValue` derives `PartialOrd`, which compares discriminants first. That means
+/// `Int(x) >= Long(y)` is always false regardless of the actual values, because
+/// `Int` has a lower discriminant than `Long`. This arises whenever a predicate
+/// literal (e.g. `LiteralLong` for a date) has a different numeric type than the
+/// column's physical storage (e.g. INT32 EventDate → `StatValue::Int`). We promote
+/// mixed integer/float pairs to f64 to get a meaningful comparison.
+fn stat_cmp(a: &StatValue, b: &StatValue) -> Option<std::cmp::Ordering> {
+    match (a, b) {
+        (StatValue::Int(x), StatValue::Int(y)) => x.partial_cmp(y),
+        (StatValue::Long(x), StatValue::Long(y)) => x.partial_cmp(y),
+        (StatValue::Double(x), StatValue::Double(y)) => x.partial_cmp(y),
+        (StatValue::Bool(x), StatValue::Bool(y)) => x.partial_cmp(y),
+        (StatValue::Str(x), StatValue::Str(y)) => x.partial_cmp(y),
+        // Cross numeric types: promote to f64.
+        (StatValue::Int(x), StatValue::Long(y)) => (*x as f64).partial_cmp(&(*y as f64)),
+        (StatValue::Long(x), StatValue::Int(y)) => (*x as f64).partial_cmp(&(*y as f64)),
+        (StatValue::Int(x), StatValue::Double(y)) => (*x as f64).partial_cmp(y),
+        (StatValue::Double(x), StatValue::Int(y)) => x.partial_cmp(&(*y as f64)),
+        (StatValue::Long(x), StatValue::Double(y)) => (*x as f64).partial_cmp(y),
+        (StatValue::Double(x), StatValue::Long(y)) => x.partial_cmp(&(*y as f64)),
+        _ => None,
+    }
+}
+
+fn page_survives_col_pred(pmin: &Option<StatValue>, pmax: &Option<StatValue>, pred: &ColPred) -> bool {
+    match pred {
+        ColPred::GtEq(val) => pmax.as_ref().map_or(true, |max| stat_cmp(max, val).map_or(true, |o| o != std::cmp::Ordering::Less)),
+        ColPred::Gt(val)   => pmax.as_ref().map_or(true, |max| stat_cmp(max, val).map_or(true, |o| o == std::cmp::Ordering::Greater)),
+        ColPred::LtEq(val) => pmin.as_ref().map_or(true, |min| stat_cmp(min, val).map_or(true, |o| o != std::cmp::Ordering::Greater)),
+        ColPred::Lt(val)   => pmin.as_ref().map_or(true, |min| stat_cmp(min, val).map_or(true, |o| o == std::cmp::Ordering::Less)),
+        ColPred::Eq(val) => {
+            let lo_ok = pmin.as_ref().map_or(true, |min| stat_cmp(val, min).map_or(true, |o| o != std::cmp::Ordering::Less));
+            let hi_ok = pmax.as_ref().map_or(true, |max| stat_cmp(val, max).map_or(true, |o| o != std::cmp::Ordering::Greater));
+            lo_ok && hi_ok
+        }
+    }
+}
+
+fn col_index_page_stats(col_idx: &ColumnIndexMetaData, page_i: usize) -> (Option<StatValue>, Option<StatValue>) {
+    match col_idx {
+        ColumnIndexMetaData::INT32(prim) => (
+            prim.min_value(page_i).map(|v| StatValue::Int(*v)),
+            prim.max_value(page_i).map(|v| StatValue::Int(*v)),
+        ),
+        ColumnIndexMetaData::INT64(prim) => (
+            prim.min_value(page_i).map(|v| StatValue::Long(*v)),
+            prim.max_value(page_i).map(|v| StatValue::Long(*v)),
+        ),
+        ColumnIndexMetaData::FLOAT(prim) => (
+            prim.min_value(page_i).map(|v| StatValue::Double(*v as f64)),
+            prim.max_value(page_i).map(|v| StatValue::Double(*v as f64)),
+        ),
+        ColumnIndexMetaData::DOUBLE(prim) => (
+            prim.min_value(page_i).map(|v| StatValue::Double(*v)),
+            prim.max_value(page_i).map(|v| StatValue::Double(*v)),
+        ),
+        ColumnIndexMetaData::BYTE_ARRAY(ba) => (
+            ba.min_value(page_i).map(|v| StatValue::Str(String::from_utf8_lossy(v).into_owned())),
+            ba.max_value(page_i).map(|v| StatValue::Str(String::from_utf8_lossy(v).into_owned())),
+        ),
+        ColumnIndexMetaData::FIXED_LEN_BYTE_ARRAY(ba) => (
+            ba.min_value(page_i).map(|v| StatValue::Str(String::from_utf8_lossy(v).into_owned())),
+            ba.max_value(page_i).map(|v| StatValue::Str(String::from_utf8_lossy(v).into_owned())),
+        ),
+        _ => (None, None),
+    }
+}
+
+/// Computes page-level `RowSelector`s for one row group using column index statistics.
+///
+/// Picks the single predicate column that skips the most rows, and emits a selector list
+/// aligned to that column's page boundaries. Returns `None` when no pages can be skipped.
+/// Callers concatenate selectors across row groups to build a `RowSelection` for the whole
+/// chunk, then pass it via `with_row_selection` so parquet-rs skips page I/O accordingly.
+/// A `RowFilter` must still be applied for exact row-level correctness.
+pub fn row_group_page_selection(
+    expr: &FilterExpr,
+    metadata: &ParquetMetaData,
+    parquet_schema: &SchemaDescriptor,
+    rg_idx: usize,
+) -> Option<Vec<RowSelector>> {
+    const TGT: &str = "esql_parquet_rs::pruning";
+
+    let column_index = match metadata.column_index() {
+        Some(ci) => ci,
+        None => {
+            log::trace!(target: TGT, "rg={} no column_index in metadata, skipping page pruning", rg_idx);
+            return None;
+        }
+    };
+    let offset_index = match metadata.offset_index() {
+        Some(oi) => oi,
+        None => {
+            log::trace!(target: TGT, "rg={} no offset_index in metadata, skipping page pruning", rg_idx);
+            return None;
+        }
+    };
+
+    let rg_col_idx = column_index.get(rg_idx)?;
+    let rg_off_idx = offset_index.get(rg_idx)?;
+
+    let total_rows = metadata.row_group(rg_idx).num_rows() as usize;
+
+    let preds = collect_index_predicates(expr);
+    if preds.is_empty() {
+        log::trace!(target: TGT, "rg={} no extractable index predicates from expr={}", rg_idx, expr);
+        return None;
+    }
+
+    // Group predicate indices by lowercase column name.
+    let mut col_groups: Vec<(String, Vec<usize>)> = Vec::new();
+    for (pi, ip) in preds.iter().enumerate() {
+        let key = ip.col_name.to_ascii_lowercase();
+        if let Some(entry) = col_groups.iter_mut().find(|(k, _)| *k == key) {
+            entry.1.push(pi);
+        } else {
+            col_groups.push((key, vec![pi]));
+        }
+    }
+
+    // For each predicate column try to build a page-survival selector list.
+    // Keep the one that skips the most rows.
+    let mut best: Option<Vec<RowSelector>> = None;
+    let mut best_skipped = 0usize;
+    let mut best_col: Option<String> = None;
+    let mut best_pages_skipped = 0usize;
+    let mut best_pages_total = 0usize;
+
+    for (col_lower, pred_indices) in &col_groups {
+        let col_idx = match (0..parquet_schema.num_columns())
+            .find(|&i| parquet_schema.column(i).name().to_ascii_lowercase() == *col_lower)
+        {
+            Some(i) => i,
+            None => {
+                log::debug!(target: TGT, "rg={} predicate column [{}] not found in parquet schema", rg_idx, col_lower);
+                continue;
+            }
+        };
+
+        let col_index = match rg_col_idx.get(col_idx) { Some(c) => c, None => continue };
+        let col_off   = match rg_off_idx.get(col_idx)  { Some(o) => o, None => continue };
+
+        let locs = col_off.page_locations();
+        if locs.is_empty() {
+            log::trace!(target: TGT, "rg={} col={} empty page_locations", rg_idx, col_lower);
+            continue;
+        }
+        let num_pages = locs.len();
+
+        let mut selectors: Vec<RowSelector> = Vec::with_capacity(num_pages);
+        let mut skipped = 0usize;
+        let mut skipped_pages = 0usize;
+
+        for page_i in 0..num_pages {
+            let row_start = locs[page_i].first_row_index as usize;
+            let row_end = if page_i + 1 < num_pages {
+                locs[page_i + 1].first_row_index as usize
+            } else {
+                total_rows
+            };
+            let page_rows = row_end.saturating_sub(row_start);
+
+            let (pmin, pmax) = col_index_page_stats(col_index, page_i);
+            let survives = pred_indices.iter().all(|&pi| {
+                page_survives_col_pred(&pmin, &pmax, &preds[pi].pred)
+            });
+
+            if survives {
+                selectors.push(RowSelector::select(page_rows));
+            } else {
+                selectors.push(RowSelector::skip(page_rows));
+                skipped += page_rows;
+                skipped_pages += 1;
+                log::trace!(
+                    target: TGT,
+                    "rg={} col={} page={} rows={} SKIP (min={:?} max={:?} preds=[{}])",
+                    rg_idx, col_lower, page_i, page_rows, pmin, pmax,
+                    pred_indices.iter().map(|&pi| format!("{:?}", preds[pi].pred)).collect::<Vec<_>>().join(",")
+                );
+            }
+        }
+
+        log::debug!(
+            target: TGT,
+            "rg={} col={} pages={} pages_skipped={} rows={} rows_skipped={}",
+            rg_idx, col_lower, num_pages, skipped_pages, total_rows, skipped
+        );
+
+        if skipped > best_skipped {
+            best_skipped = skipped;
+            best = Some(selectors);
+            best_col = Some(col_lower.clone());
+            best_pages_skipped = skipped_pages;
+            best_pages_total = num_pages;
+        }
+    }
+
+    if let Some(col) = &best_col {
+        log::debug!(
+            target: TGT,
+            "rg={} CHOSE col={} pages={}/{} skipped, rows={}/{} skipped",
+            rg_idx, col, best_pages_skipped, best_pages_total, best_skipped, total_rows
+        );
+    } else {
+        log::debug!(
+            target: TGT,
+            "rg={} no column-index pruning possible (rows={}, {} candidate cols)",
+            rg_idx, total_rows, col_groups.len()
+        );
+    }
+
+    best
+}
+
 /// Returns false if the row group can definitely be skipped (no matching rows).
 pub fn row_group_matches(
     expr: &FilterExpr,
@@ -232,7 +511,9 @@ pub fn row_group_matches(
                 if let Some(lit) = literal_to_stat(right) {
                     if let Some(cs) = get_col_stats(rg, col, schema) {
                         if let (Some(min), Some(max)) = (&cs.min, &cs.max) {
-                            return lit >= *min && lit <= *max;
+                            let lo = stat_cmp(&lit, min).map_or(true, |o| o != std::cmp::Ordering::Less);
+                            let hi = stat_cmp(&lit, max).map_or(true, |o| o != std::cmp::Ordering::Greater);
+                            return lo && hi;
                         }
                     }
                 }
@@ -244,7 +525,7 @@ pub fn row_group_matches(
                 if let Some(lit) = literal_to_stat(right) {
                     if let Some(cs) = get_col_stats(rg, col, schema) {
                         if let Some(min) = &cs.min {
-                            return *min < lit;
+                            return stat_cmp(min, &lit).map_or(true, |o| o == std::cmp::Ordering::Less);
                         }
                     }
                 }
@@ -256,7 +537,7 @@ pub fn row_group_matches(
                 if let Some(lit) = literal_to_stat(right) {
                     if let Some(cs) = get_col_stats(rg, col, schema) {
                         if let Some(min) = &cs.min {
-                            return *min <= lit;
+                            return stat_cmp(min, &lit).map_or(true, |o| o != std::cmp::Ordering::Greater);
                         }
                     }
                 }
@@ -268,7 +549,7 @@ pub fn row_group_matches(
                 if let Some(lit) = literal_to_stat(right) {
                     if let Some(cs) = get_col_stats(rg, col, schema) {
                         if let Some(max) = &cs.max {
-                            return *max > lit;
+                            return stat_cmp(max, &lit).map_or(true, |o| o == std::cmp::Ordering::Greater);
                         }
                     }
                 }
@@ -280,7 +561,7 @@ pub fn row_group_matches(
                 if let Some(lit) = literal_to_stat(right) {
                     if let Some(cs) = get_col_stats(rg, col, schema) {
                         if let Some(max) = &cs.max {
-                            return *max >= lit;
+                            return stat_cmp(max, &lit).map_or(true, |o| o != std::cmp::Ordering::Less);
                         }
                     }
                 }
@@ -308,7 +589,9 @@ pub fn row_group_matches(
                 if let Some(lit) = literal_to_stat(right) {
                     if let Some(cs) = get_col_stats(rg, col, schema) {
                         if let (Some(min), Some(max)) = (&cs.min, &cs.max) {
-                            if *min == *max && *min == lit {
+                            if stat_cmp(min, max) == Some(std::cmp::Ordering::Equal)
+                                && stat_cmp(min, &lit) == Some(std::cmp::Ordering::Equal)
+                            {
                                 return false;
                             }
                         }
@@ -323,7 +606,9 @@ pub fn row_group_matches(
                     if let (Some(min), Some(max)) = (&cs.min, &cs.max) {
                         let any_in_range = items.iter().any(|item| {
                             if let Some(lit) = literal_to_stat(item) {
-                                lit >= *min && lit <= *max
+                                let lo = stat_cmp(&lit, min).map_or(true, |o| o != std::cmp::Ordering::Less);
+                                let hi = stat_cmp(&lit, max).map_or(true, |o| o != std::cmp::Ordering::Greater);
+                                lo && hi
                             } else {
                                 true
                             }

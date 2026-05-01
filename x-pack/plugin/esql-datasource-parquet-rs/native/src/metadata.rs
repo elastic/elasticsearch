@@ -32,9 +32,12 @@ fn load_metadata(
             let meta = store.head(&object_path).await?;
             reader = reader.with_file_size(meta.size as u64);
         }
+        // Cached metadata is reused across queries with different (or no) filters.
+        // Use `Optional`: parse the page index when present (so filter-pushdown
+        // pruning can use it later) without erroring on legacy files that lack one.
         let arrow_meta = ArrowReaderMetadata::load_async(
             &mut reader,
-            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
         )
         .await?;
         super::cache::insert(file_path.to_string(), arrow_meta.clone());
@@ -315,15 +318,15 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
             let inner = env.new_object_array(row.len() as i32, &string_class, JObject::null())?;
             for (j, s) in row.into_iter().enumerate() {
                 let js = env.new_string(s)?;
-                env.set_object_array_element(&inner, j, js)?;
+                inner.set_element(env, j, js)?;
             }
-            env.set_object_array_element(&row_arr, i, inner)?;
+            row_arr.set_element(env, i, inner)?;
         }
 
         let object_class = env.find_class(jni_str!("java/lang/Object"))?;
         let out = env.new_object_array(2, object_class, JObject::null())?;
-        env.set_object_array_element(&out, 0, quad_arr)?;
-        env.set_object_array_element(&out, 1, row_arr)?;
+        out.set_element(env, 0, quad_arr)?;
+        out.set_element(env, 1, row_arr)?;
         Ok(out)
     })
     .resolve::<ThrowRuntimeExAndDefault>()

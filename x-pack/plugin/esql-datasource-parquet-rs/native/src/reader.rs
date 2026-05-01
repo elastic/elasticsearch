@@ -15,12 +15,30 @@ use jni::errors::{Error as JniError, Result as JniResult, ThrowRuntimeExAndDefau
 use jni::objects::{JClass, JObjectArray, JString};
 use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jint, jlong};
 use super::store::{StorageConfig, resolve_store, needs_file_size_hint};
+use futures::{StreamExt, TryStreamExt};
 use object_store::{ObjectStore, ObjectStoreExt};
 use parquet::arrow::ProjectionMask;
-use parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
+use parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions, RowSelection, RowSelector};
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::{Page, PageReader};
 use parquet::file::metadata::PageIndexPolicy;
+
+/// Build `ArrowReaderOptions` with page-index policy chosen based on whether a
+/// filter will be pushed down. The page index parse adds a few hundred microseconds
+/// to a few milliseconds per file (proportional to total page count); it's only
+/// worth paying when we'll use it for column-index page pruning. With no filter
+/// we'd parse it and never read it, which is pure overhead on full-scan queries.
+fn meta_options_for(filter_present: bool) -> ArrowReaderOptions {
+    let policy = if filter_present {
+        // `Optional` rather than `Required`: pruning code already handles
+        // `column_index() == None` gracefully, so we shouldn't error on legacy
+        // files that lack a page index.
+        PageIndexPolicy::Optional
+    } else {
+        PageIndexPolicy::Skip
+    };
+    ArrowReaderOptions::new().with_page_index_policy(policy)
+}
 use parquet::file::reader::{ChunkReader, Length};
 use parquet::file::serialized_reader::SerializedPageReader;
 use parquet::arrow::async_reader::ParquetObjectReader;
@@ -258,9 +276,15 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
                 let file_size = store.head(&object_path).await.map_err(err)?.size as u64;
                 let mut obj_reader = ParquetObjectReader::new(store, object_path)
                     .with_file_size(file_size);
+                // The cached metadata is reused across many queries with different
+                // filters, so we don't know here whether page-index pruning will be
+                // wanted. Use `Optional`: parse the page index when the file has one
+                // (so filter-pushdown queries benefit) but don't error on legacy files
+                // that lack one. `Skip` would be cheaper for full-scan-only workloads
+                // but would block pruning for filter queries on the same cached file.
                 let arrow_meta = ArrowReaderMetadata::load_async(
                     &mut obj_reader,
-                    ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required),
+                    ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
                 ).await.map_err(err)?;
 
                 super::cache::insert(file_path_str, arrow_meta.clone());
@@ -390,7 +414,7 @@ fn open_async_for_range(
                 Some(meta) => meta,
                 None => ArrowReaderMetadata::load_async(
                     &mut obj_reader,
-                    ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required),
+                    meta_options_for(filter.is_some()),
                 ).await.map_err(err)?,
             };
 
@@ -454,12 +478,18 @@ impl ChunkReader for SlicedFile {
     type T = bytes::buf::Reader<Bytes>;
 
     fn get_read(&self, start: u64) -> parquet::errors::Result<Self::T> {
-        let local = start.saturating_sub(self.base) as usize;
+        let local = start.checked_sub(self.base)
+            .ok_or_else(|| ParquetError::General(format!(
+                "SlicedFile: read at {start} is before base {}", self.base
+            )))? as usize;
         Ok(self.data.slice(local..).reader())
     }
 
     fn get_bytes(&self, start: u64, length: usize) -> parquet::errors::Result<Bytes> {
-        let local = start.saturating_sub(self.base) as usize;
+        let local = start.checked_sub(self.base)
+            .ok_or_else(|| ParquetError::General(format!(
+                "SlicedFile: read at {start} is before base {}", self.base
+            )))? as usize;
         Ok(self.data.slice(local..local + length))
     }
 }
@@ -532,29 +562,85 @@ async fn prune_by_dictionary(
         return candidates;
     }
 
+    let candidates_in = candidates.len();
     let mut surviving = Vec::with_capacity(candidates.len());
 
     for rg_idx in candidates {
         let rg = metadata.row_group(rg_idx);
         let mut prune = false;
+        let mut prune_reason: Option<String> = None;
 
         'predicates: for (col_idx, values) in &col_preds {
             let col_meta = rg.column(*col_idx);
+            let col_name = col_meta.column_descr().name().to_string();
+            let phys_type = col_meta.column_descr().physical_type();
+            let encodings_vec: Vec<parquet::basic::Encoding> = col_meta.encodings().collect();
+            let encodings: Vec<String> = encodings_vec.iter().map(|e| format!("{:?}", e)).collect();
 
-            let dict_start = match col_meta.dictionary_page_offset() {
-                Some(o) if o > 0 => o as u64,
-                _ => continue, // no dictionary page — can't prune via this predicate
-            };
-            let data_start = col_meta.data_page_offset() as u64;
-            if data_start <= dict_start {
+            // Dictionary-only pruning is only sound when EVERY data page in the
+            // column chunk is dictionary-encoded. parquet writers (parquet-mr,
+            // parquet-rs) fall back to a raw-value encoding (DELTA_BINARY_PACKED,
+            // DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY, BYTE_STREAM_SPLIT, or
+            // PLAIN for v1) once the dictionary grows past a size threshold; the
+            // fallback values are NOT inserted into the dictionary, so a "dict
+            // miss" would silently drop matching rows. Detect fallback by the
+            // presence of any non-dictionary value encoding in the column chunk.
+            //
+            // Allowed encodings when dict-pruning is sound:
+            //   - PLAIN, PLAIN_DICTIONARY: dictionary page format (legacy + v2 spelling differ)
+            //   - RLE_DICTIONARY:           data pages encode dictionary indices
+            //   - RLE, BIT_PACKED:          definition / repetition level encodings
+            // Any other encoding implies dict fallback occurred.
+            use parquet::basic::Encoding::*;
+            // BIT_PACKED is deprecated in parquet-rs but legitimately appears as a
+            // definition/repetition level encoding in legacy parquet v1 files; treat
+            // it as safe (it never carries values).
+            #[allow(deprecated)]
+            let has_fallback = encodings_vec.iter().any(|e| !matches!(
+                e,
+                PLAIN | PLAIN_DICTIONARY | RLE_DICTIONARY | RLE | BIT_PACKED
+            ));
+            if has_fallback {
+                log::trace!(
+                    target: "esql_parquet_rs::pruning",
+                    "rg={} col={} dict-prune SKIPPED: dict fallback detected (encodings={:?})",
+                    rg_idx, col_name, encodings
+                );
                 continue;
             }
 
-            // Fetch only the dictionary page bytes (a ranged GET, not the full column chunk).
+            let dict_start = match col_meta.dictionary_page_offset() {
+                Some(o) if o > 0 => o as u64,
+                other => {
+                    log::trace!(
+                        target: "esql_parquet_rs::pruning",
+                        "rg={} col={} no dict_page_offset ({:?}), skipping dict prune for this pred (encodings={:?})",
+                        rg_idx, col_name, other, encodings
+                    );
+                    continue;
+                }
+            };
+            let data_start = col_meta.data_page_offset() as u64;
+            if data_start <= dict_start {
+                log::trace!(
+                    target: "esql_parquet_rs::pruning",
+                    "rg={} col={} data_start({}) <= dict_start({}), skipping",
+                    rg_idx, col_name, data_start, dict_start
+                );
+                continue;
+            }
+
             let bytes = match store.get_range(path, dict_start..data_start).await {
                 Ok(b) => b,
-                Err(_) => continue,
+                Err(e) => {
+                    log::debug!(
+                        target: "esql_parquet_rs::pruning",
+                        "rg={} col={} dict get_range failed: {}", rg_idx, col_name, e
+                    );
+                    continue;
+                }
             };
+            let dict_bytes_len = bytes.len();
 
             let sliced = Arc::new(SlicedFile { data: bytes, base: dict_start });
             let mut page_reader = match SerializedPageReader::new(
@@ -564,25 +650,80 @@ async fn prune_by_dictionary(
                 None,
             ) {
                 Ok(r) => r,
-                Err(_) => continue,
+                Err(e) => {
+                    log::debug!(
+                        target: "esql_parquet_rs::pruning",
+                        "rg={} col={} SerializedPageReader::new failed: {}", rg_idx, col_name, e
+                    );
+                    continue;
+                }
             };
 
-            if let Ok(Some(Page::DictionaryPage { buf, num_values, .. })) = page_reader.get_next_page() {
-                let phys_type = col_meta.column_descr().physical_type();
-                let found = values.iter().any(|v| dict_contains_value(&buf, num_values as usize, phys_type, v));
-                if !found {
-                    prune = true;
-                    break 'predicates;
+            match page_reader.get_next_page() {
+                Ok(Some(Page::DictionaryPage { buf, num_values, .. })) => {
+                    let found = values.iter().any(|v| dict_contains_value(&buf, num_values as usize, phys_type, v));
+                    log::debug!(
+                        target: "esql_parquet_rs::pruning",
+                        "rg={} col={} dict page: phys={:?} num_values={} buf_len={} fetched_bytes={} encodings={:?} target_count={} found={}",
+                        rg_idx, col_name, phys_type, num_values, buf.len(), dict_bytes_len, encodings, values.len(), found
+                    );
+                    if !found {
+                        prune = true;
+                        prune_reason = Some(format!(
+                            "dict miss col={} phys={:?} num_values={} buf_len={} encodings={:?}",
+                            col_name, phys_type, num_values, buf.len(), encodings
+                        ));
+                        break 'predicates;
+                    }
+                }
+                Ok(Some(other)) => {
+                    log::debug!(
+                        target: "esql_parquet_rs::pruning",
+                        "rg={} col={} first page is not a DictionaryPage: {:?} (encodings={:?}) — skipping prune",
+                        rg_idx, col_name, page_kind(&other), encodings
+                    );
+                }
+                Ok(None) => {
+                    log::debug!(
+                        target: "esql_parquet_rs::pruning",
+                        "rg={} col={} no page returned by reader (encodings={:?})", rg_idx, col_name, encodings
+                    );
+                }
+                Err(e) => {
+                    log::debug!(
+                        target: "esql_parquet_rs::pruning",
+                        "rg={} col={} get_next_page error: {} (encodings={:?})", rg_idx, col_name, e, encodings
+                    );
                 }
             }
         }
 
         if !prune {
             surviving.push(rg_idx);
+        } else if let Some(reason) = prune_reason {
+            log::debug!(
+                target: "esql_parquet_rs::pruning",
+                "rg={} PRUNED by dictionary: {}", rg_idx, reason
+            );
         }
     }
 
+    log::debug!(
+        target: "esql_parquet_rs::pruning",
+        "prune_by_dictionary: candidates_in={} surviving={} preds={:?}",
+        candidates_in, surviving.len(),
+        col_preds.iter().map(|(i, vs)| format!("col_idx={} n_vals={}", i, vs.len())).collect::<Vec<_>>()
+    );
+
     surviving
+}
+
+fn page_kind(p: &Page) -> &'static str {
+    match p {
+        Page::DataPage { .. } => "DataPage",
+        Page::DataPageV2 { .. } => "DataPageV2",
+        Page::DictionaryPage { .. } => "DictionaryPage",
+    }
 }
 
 /// Spawn worker tasks for a single file, sending decoded batches into `tx`.
@@ -608,25 +749,47 @@ async fn spawn_file_workers(
     let candidates: Vec<usize> = pre_selected
         .unwrap_or_else(|| (0..metadata.num_row_groups()).collect());
 
+    let candidates_in = candidates.len();
     let surviving: Vec<usize> = candidates
         .into_iter()
         .filter(|&rg_idx| {
             if let Some(expr) = filter {
-                filter::row_group_matches(expr, metadata.row_group(rg_idx), &parquet_schema)
+                let keep = filter::row_group_matches(expr, metadata.row_group(rg_idx), &parquet_schema);
+                if !keep {
+                    log::trace!(
+                        target: "esql_parquet_rs::pruning",
+                        "rg={} pruned by row-group stats (filter={})",
+                        rg_idx, expr
+                    );
+                }
+                keep
             } else {
                 true
             }
         })
         .collect();
 
+    log::debug!(
+        target: "esql_parquet_rs::reader",
+        "spawn_file_workers: total_rgs={} candidates={} surviving={} batch_size={} limit={} max_concurrency={} filter={} projected={:?}",
+        metadata.num_row_groups(), candidates_in, surviving.len(),
+        batch_size, limit, max_concurrency,
+        filter.as_ref().map(|f| f.to_string()).unwrap_or_else(|| "<none>".to_string()),
+        projected_cols
+    );
+
     if surviving.is_empty() {
         return Ok(0);
     }
 
+    // Compute projection mask once — it's the same for every chunk.
+    let projection_mask = projection_root_indices(&parquet_schema, projected_cols, filter)?
+        .map(|roots| ProjectionMask::roots(&parquet_schema, roots));
+
     let n_workers = max_concurrency.min(surviving.len()).max(1);
     let chunks: Vec<Vec<usize>> = (0..n_workers)
         .map(|w| surviving.iter().skip(w).step_by(n_workers).copied().collect())
-        .filter(|c: &Vec<usize>| c.is_empty() == false)
+        .filter(|c: &Vec<usize>| !c.is_empty())
         .collect();
 
     for chunk in chunks {
@@ -644,13 +807,55 @@ async fn spawn_file_workers(
         builder = builder.with_row_groups(chunk.clone());
 
         if let Some(expr) = filter {
+            // Build a page-level RowSelection from column index statistics so parquet-rs
+            // skips page I/O for pages that cannot contain matching rows (offset index
+            // must be loaded, which it is via PageIndexPolicy::Required).
+            let mut selectors: Vec<RowSelector> = Vec::new();
+            let mut any_skip = false;
+            let mut total_rows_in_chunk = 0usize;
+            let mut total_rows_skipped = 0usize;
+            for &rg_idx in &chunk {
+                let rg_rows = metadata.row_group(rg_idx).num_rows() as usize;
+                total_rows_in_chunk += rg_rows;
+                if let Some(rg_sel) = filter::row_group_page_selection(
+                    expr, &metadata, &parquet_schema, rg_idx,
+                ) {
+                    any_skip = true;
+                    let rg_skipped: usize = rg_sel.iter()
+                        .filter(|s| s.skip)
+                        .map(|s| s.row_count)
+                        .sum();
+                    total_rows_skipped += rg_skipped;
+                    selectors.extend(rg_sel);
+                } else {
+                    selectors.push(RowSelector::select(rg_rows));
+                }
+            }
+            if any_skip {
+                log::debug!(
+                    target: "esql_parquet_rs::reader",
+                    "chunk_rgs={:?} batch_size={} limit={} filter={} page_pruning: rows_skipped={}/{} ({:.1}%)",
+                    chunk, batch_size, limit, expr,
+                    total_rows_skipped, total_rows_in_chunk,
+                    if total_rows_in_chunk > 0 {
+                        100.0 * total_rows_skipped as f64 / total_rows_in_chunk as f64
+                    } else { 0.0 }
+                );
+                builder = builder.with_row_selection(RowSelection::from(selectors));
+            } else {
+                log::debug!(
+                    target: "esql_parquet_rs::reader",
+                    "chunk_rgs={:?} batch_size={} limit={} filter={} page_pruning: no skips (rows={})",
+                    chunk, batch_size, limit, expr, total_rows_in_chunk
+                );
+            }
+
             let row_filter = filter::build_row_filter(expr, arrow_schema.clone(), &parquet_schema);
             builder = builder.with_row_filter(row_filter);
         }
 
-        if let Some(roots) = projection_root_indices(&parquet_schema, projected_cols, filter)? {
-            let mask = ProjectionMask::roots(&parquet_schema, roots);
-            builder = builder.with_projection(mask);
+        if let Some(ref mask) = projection_mask {
+            builder = builder.with_projection(mask.clone());
         }
 
         let mut stream = builder.build().map_err(err)?;
@@ -711,7 +916,7 @@ fn open_async(
             }
 
             let arrow_meta = ArrowReaderMetadata::load_async(
-                &mut obj_reader, ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required),
+                &mut obj_reader, meta_options_for(filter.is_some()),
             ).await.map_err(err)?;
 
             let candidates: Vec<usize> = (0..arrow_meta.metadata().num_row_groups()).collect();
@@ -761,8 +966,9 @@ fn open_multi(
         }
 
         let needs_head = file_paths.first().map_or(false, |p| needs_file_size_hint(p));
-        let meta_options = ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required);
-        let meta_futs: Vec<_> = file_infos.iter().map(|(store, path)| {
+        let meta_options = meta_options_for(filter.is_some());
+        // Bound metadata fetches to avoid opening hundreds of connections simultaneously.
+        let meta_stream = futures::stream::iter(file_infos.iter().map(|(store, path)| {
             let store = Arc::clone(store);
             let path = path.clone();
             let opts = meta_options.clone();
@@ -775,8 +981,9 @@ fn open_multi(
                 let meta = ArrowReaderMetadata::load_async(&mut reader, opts).await.map_err(err)?;
                 Ok::<_, JniError>((reader, meta))
             }
-        }).collect();
-        let all_meta = futures::future::try_join_all(meta_futs).await?;
+        }))
+        .buffer_unordered(max_concurrency);
+        let all_meta: Vec<_> = meta_stream.try_collect().await?;
 
         let n_workers = max_concurrency;
         let (tx, rx) = mpsc::channel::<Result<RecordBatch, ParquetError>>(n_workers * 2);

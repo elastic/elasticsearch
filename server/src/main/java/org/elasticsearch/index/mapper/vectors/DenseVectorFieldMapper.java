@@ -3223,14 +3223,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy, hnswEarlyTermination);
             }
             if (rescore) {
-                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(
-                    name(),
-                    queryVector,
-                    similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT),
-                    k,
-                    adjustedK,
-                    knnQuery
-                );
+                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedK, knnQuery);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(

@@ -30,6 +30,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -126,6 +127,15 @@ public final class StreamingParallelParsingCoordinator {
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
         private final CountDownLatch allDone;
         private final AtomicInteger chunksDispatched = new AtomicInteger();
+        /**
+         * Bounds the gap between dispatched and consumed chunks. {@link #pageQueues} is indexed by
+         * {@code chunk.index % windowSize}; without this semaphore a fast parser could recycle a
+         * buffer (and a slow segmentator could dispatch a new chunk) before the consumer drained
+         * the previous chunk's slot, interleaving pages from two generations into the same queue.
+         * Acquired by the segmentator before {@link #dispatchChunk}, released by the consumer when
+         * a chunk's POISON has been observed.
+         */
+        private final Semaphore consumerSlots;
 
         private int currentChunk = 0;
         private Page buffered = null;
@@ -154,6 +164,7 @@ public final class StreamingParallelParsingCoordinator {
             }
 
             this.chunkQueue = new ArrayBlockingQueue<>(parallelism);
+            this.consumerSlots = new Semaphore(windowSize);
 
             @SuppressWarnings("unchecked")
             ArrayBlockingQueue<Page>[] queues = new ArrayBlockingQueue[windowSize];
@@ -311,6 +322,17 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         private void dispatchChunk(int index, byte[] buffer, int length, boolean last) {
+            // Wait until the consumer has released a slot — pageQueues are indexed by
+            // chunk.index % windowSize, so dispatching chunk N+windowSize before chunk N's
+            // POISON has been observed would push pages from two generations into the same
+            // queue and break ordering.
+            try {
+                consumerSlots.acquire();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                firstError.compareAndSet(null, e);
+                return;
+            }
             chunksDispatched.incrementAndGet();
             try {
                 chunkQueue.put(new Chunk(index, buffer, length, last));
@@ -500,6 +522,7 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 if (page == POISON) {
                     currentChunk++;
+                    consumerSlots.release();
                     continue;
                 }
                 return page;
@@ -522,6 +545,9 @@ public final class StreamingParallelParsingCoordinator {
                 return;
             }
             closed = true;
+            // Wake the segmentator if it is parked on consumerSlots.acquire(); a stale permit count
+            // is harmless because the segmentator also checks `closed` after acquiring.
+            consumerSlots.release(Integer.MAX_VALUE / 2);
             drainAllQueues();
             try {
                 if (allDone.await(CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS) == false) {

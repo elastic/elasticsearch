@@ -999,6 +999,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     throw e;
                 }
             }
+            // Splittable / indexed codecs (e.g. bzip2) need codec-aware segmenting because
+            // ParallelParsingCoordinator works in raw-file byte space and would feed the inner
+            // line-oriented reader compressed bytes (yielding "Unrecognized token 'BZh91A...'"
+            // for bzip2). Until we wire splittable parallel decompression here, fall back to
+            // the single-threaded path through the CompressionDelegatingFormatReader, which
+            // wraps the StorageObject in a DecompressingStorageObject before reading.
+            return null;
         }
         return ParallelParsingCoordinator.parallelRead(seg, obj, cols, batchSize, parsingParallelism, executor, policy);
     }
@@ -1011,6 +1018,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         } else if (resolveSegmentableReader(formatReader) != null && parsingParallelism > 1) {
             if (isStreamOnlyCompressed(formatReader)) {
                 asyncMode = "streaming-parallel-parse(" + parsingParallelism + ")";
+            } else if (formatReader instanceof CompressionDelegatingFormatReader) {
+                // Splittable / indexed compressed paths fall back to single-threaded reads
+                // until codec-aware parallel decompression is wired in openWithParallelism.
+                asyncMode = "sync-wrapper";
             } else {
                 asyncMode = "parallel-parse(" + parsingParallelism + ")";
             }

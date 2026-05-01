@@ -117,7 +117,6 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
         SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
         SearchContextFailureInjectionPlugin.CONFIG.set(
             new SearchContextFailureInjectionPlugin.InjectionConfig(
-                2,
                 TimeValue.timeValueMillis(pitKeepAlive.millis() + 100),
                 testMissingContext()
             )
@@ -163,7 +162,7 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
 
         SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
         SearchContextFailureInjectionPlugin.CONFIG.set(
-            new SearchContextFailureInjectionPlugin.InjectionConfig(2, TimeValue.ZERO, testMissingContext())
+            new SearchContextFailureInjectionPlugin.InjectionConfig(TimeValue.ZERO, testMissingContext())
         );
 
         // Use a HTTP request to hit the REST layer and assert the exception returned
@@ -178,18 +177,21 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.NOT_FOUND.getStatus()));
     }
 
-    // TODO - Why make this N?
     /**
-     * {@link MappedActionFilter} that fails the Nth local PIT continuation search used by reindex
-     * ({@link SearchRequest} with point-in-time and no explicit indices after {@link ReindexRequest#convertSearchRequestToUsePit}).
+     * {@link MappedActionFilter} that fails the second local PIT continuation search used by reindex
+     * (the first {@link SearchRequest} after opening the point-in-time, when {@code source.size} splits work
+     * across pages). Matching requests carry point-in-time and no explicit indices after
+     * {@link ReindexRequest#convertSearchRequestToUsePit}.
      */
     public static final class SearchContextFailureInjectionPlugin extends Plugin implements ActionPlugin {
+
+        /** Fixed at 2 so the injected failure is always the continuation page. */
+        private static final int PIT_SEARCH_TO_FAIL = 2;
 
         static final AtomicReference<InjectionConfig> CONFIG = new AtomicReference<>();
         static final AtomicInteger PIT_SEARCH_COUNTER = new AtomicInteger(0);
 
-        public record InjectionConfig(/** 1-based ordinal among matching PIT searches; 2 = second page. */
-        int failOnPitSearchOrdinal, TimeValue sleepBeforeFail, SearchContextMissingException exception) {}
+        public record InjectionConfig(TimeValue sleepBeforeFail, SearchContextMissingException exception) {}
 
         @Override
         public Collection<MappedActionFilter> getMappedActionFilters() {
@@ -200,7 +202,6 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
                 }
 
                 @Override
-                @SuppressWarnings("unchecked")
                 public <Request extends ActionRequest, Response extends ActionResponse> void apply(
                     Task task,
                     String action,
@@ -219,7 +220,7 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
                         return;
                     }
                     int n = PIT_SEARCH_COUNTER.incrementAndGet();
-                    if (n != cfg.failOnPitSearchOrdinal) {
+                    if (n != PIT_SEARCH_TO_FAIL) {
                         chain.proceed(task, action, request, listener);
                         return;
                     }

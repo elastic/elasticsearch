@@ -16,8 +16,12 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -42,6 +46,8 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 abstract class AbstractDenseVectorQueryTestCase extends ESTestCase {
 
     abstract DenseVectorQuery getDenseVectorQuery(String field, float[] query);
+
+    abstract DenseVectorQuery getDenseVectorQuery(String field, float[] query, Query filter);
 
     abstract float[] randomVector(int dim);
 
@@ -299,6 +305,158 @@ abstract class AbstractDenseVectorQueryTestCase extends ESTestCase {
         }
         writer.close();
         return indexStore;
+    }
+
+    /**
+     * Verifies that a {@link DenseVectorQuery} combined with another scoring query in a {@link BooleanQuery}
+     * using two {@link BooleanClause.Occur#MUST} clauses returns the correct documents with positive scores.
+     * Uses a large document set (100+) to exercise Lucene's block-max conjunction scoring paths.
+     */
+    public void testBooleanMustCombination() throws IOException {
+        int numDocs = atLeast(200);
+        int numGoodDocs = 0;
+        try (Directory d = newDirectoryForTest()) {
+            try (IndexWriter writer = new IndexWriter(d, new IndexWriterConfig())) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    doc.add(getKnnVectorField("field", new float[] { i % 10, (i + 1) % 10 }, VectorSimilarityFunction.EUCLIDEAN));
+                    doc.add(new StringField("id", "id" + i, Field.Store.YES));
+                    boolean good = i % 2 == 0;
+                    doc.add(new StringField("tag", good ? "good" : "other", Field.Store.NO));
+                    if (good) numGoodDocs++;
+                    writer.addDocument(doc);
+                }
+                // Add docs without vectors to verify the vector iterator correctly skips them
+                for (String tag : new String[] { "good", "other" }) {
+                    Document doc = new Document();
+                    doc.add(new StringField("tag", tag, Field.Store.NO));
+                    writer.addDocument(doc);
+                }
+            }
+            try (IndexReader reader = DirectoryReader.open(d)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                float[] queryVector = new float[] { 1, 0 };
+                Query termQuery = new TermQuery(new Term("tag", "good"));
+
+                // without prefilter on the DenseVectorQuery
+                BooleanQuery boolQuery = new BooleanQuery.Builder()
+                    .add(getDenseVectorQuery("field", queryVector), BooleanClause.Occur.MUST)
+                    .add(termQuery, BooleanClause.Occur.MUST)
+                    .build();
+                assertBooleanMustResults(searcher, boolQuery, numGoodDocs);
+
+                // with prefilter matching the same documents
+                BooleanQuery boolQueryWithFilter = new BooleanQuery.Builder()
+                    .add(getDenseVectorQuery("field", queryVector, termQuery), BooleanClause.Occur.MUST)
+                    .add(termQuery, BooleanClause.Occur.MUST)
+                    .build();
+                assertBooleanMustResults(searcher, boolQueryWithFilter, numGoodDocs);
+            }
+        }
+    }
+
+    /**
+     * Directly exercises {@link DenseVectorQuery.DenseVectorScorer#nextDocsAndScores},
+     * the batch path underlying {@link DenseVectorQuery.DenseVectorBulkScorer}.
+     * Uses a large document set (100+) with interspersed non-vector docs across multiple
+     * segments. Verifies that every (doc, score) pair returned by the batch path matches
+     * the per-document {@link Scorer#score()} result for both the unfiltered and filtered
+     * query variants, confirming that boost is applied correctly throughout.
+     */
+    public void testNextDocsAndScores() throws IOException {
+        int numDocs = atLeast(200);
+        int dimension = 4;
+        float boost = 1.5f;
+
+        try (Directory d = newDirectoryForTest()) {
+            RandomIndexWriter writer = new RandomIndexWriter(random(), d);
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(getKnnVectorField("field", randomVector(dimension), VectorSimilarityFunction.EUCLIDEAN));
+                if (i % 3 == 0) {
+                    doc.add(new StringField("tag", "filtered", Field.Store.NO));
+                }
+                writer.addDocument(doc);
+                if (randomBoolean()) {
+                    // Intersperse docs without vectors to exercise iterator skipping
+                    Document noVec = new Document();
+                    noVec.add(new StringField("tag", "filtered", Field.Store.NO));
+                    writer.addDocument(noVec);
+                }
+            }
+            writer.close();
+
+            try (IndexReader reader = DirectoryReader.open(d)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                float[] queryVector = randomVector(dimension);
+
+                // Without filter
+                assertNextDocsAndScoresMatchPerDocScores(searcher, reader, getDenseVectorQuery("field", queryVector), boost);
+
+                // With filter — only docs that also have tag="filtered" should be scored
+                Query filter = new TermQuery(new Term("tag", "filtered"));
+                assertNextDocsAndScoresMatchPerDocScores(
+                    searcher,
+                    reader,
+                    getDenseVectorQuery("field", queryVector, filter),
+                    boost
+                );
+            }
+        }
+    }
+
+    private void assertNextDocsAndScoresMatchPerDocScores(
+        IndexSearcher searcher,
+        IndexReader reader,
+        DenseVectorQuery query,
+        float boost
+    ) throws IOException {
+        Query rewritten = searcher.rewrite(query);
+        Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, boost);
+
+        for (LeafReaderContext ctx : reader.leaves()) {
+            Scorer batchScorer = weight.scorer(ctx);
+            if (batchScorer == null) continue;
+
+            // Collect all (doc, score) pairs via nextDocsAndScores
+            DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
+            float[] scoreByDocId = new float[ctx.reader().maxDoc()];
+            int batchCount = 0;
+            for (batchScorer.nextDocsAndScores(ctx.reader().maxDoc(), null, buffer);
+                 buffer.size > 0;
+                 batchScorer.nextDocsAndScores(ctx.reader().maxDoc(), null, buffer)) {
+                for (int i = 0; i < buffer.size; i++) {
+                    scoreByDocId[buffer.docs[i]] = buffer.features[i];
+                    batchCount++;
+                }
+            }
+
+            // Verify each score against per-doc score(), confirming boost is applied
+            Scorer perDocScorer = weight.scorer(ctx);
+            DocIdSetIterator it = perDocScorer.iterator();
+            int perDocCount = 0;
+            while (it.nextDoc() != NO_MORE_DOCS) {
+                assertEquals(
+                    "nextDocsAndScores score must match score() for doc " + it.docID(),
+                    perDocScorer.score(),
+                    scoreByDocId[it.docID()],
+                    1e-5f
+                );
+                perDocCount++;
+            }
+            assertEquals("nextDocsAndScores must visit the same number of docs as iterator", perDocCount, batchCount);
+        }
+    }
+
+    private void assertBooleanMustResults(IndexSearcher searcher, BooleanQuery query, int expectedCount) throws IOException {
+        ScoreDoc[] results = searcher.search(query, expectedCount + 1).scoreDocs;
+        assertEquals("expected docs with vector and 'good' tag", expectedCount, results.length);
+        float lastScore = Float.MAX_VALUE;
+        for (ScoreDoc sd : results) {
+            assertTrue("score must be positive", sd.score > 0f);
+            assertTrue("results must be in descending score order", sd.score <= lastScore);
+            lastScore = sd.score;
+        }
     }
 
     protected BaseDirectoryWrapper newDirectoryForTest() {

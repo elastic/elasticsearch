@@ -462,7 +462,8 @@ abstract class AbstractDenseVectorQueryTestCase extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link DenseVectorQuery.DenseVectorScorer#nextDocsAndScores} honors    * {@code liveDocs} {@link Bits} mask, skipping any document for which
+     * Verifies that {@link DenseVectorQuery.DenseVectorScorer#nextDocsAndScores} honors
+     * {@code liveDocs} {@link Bits} mask, skipping any document for which
      * {@code liveDocs.get(docID)} returns {@code false}.
      */
     public void testNextDocsAndScoresLiveDocs() throws IOException {

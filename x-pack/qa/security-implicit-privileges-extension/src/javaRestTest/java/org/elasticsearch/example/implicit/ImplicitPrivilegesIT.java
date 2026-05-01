@@ -184,16 +184,16 @@ public class ImplicitPrivilegesIT extends ESRestTestCase {
         final String roleName = "wildcard-app-role";
         final Request put = new Request("PUT", "/_security/role/" + roleName);
         put.setJsonEntity("""
-        {
-          "cluster": ["monitor"],
-          "indices": [
-            { "names": ["logs-*"], "privileges": ["read"] }
-          ],
-          "applications": [
-            { "application": "*", "privileges": ["*"], "resources": ["*"] }
-          ]
-        }
-        """);
+            {
+              "cluster": ["monitor"],
+              "indices": [
+                { "names": ["logs-*"], "privileges": ["read"] }
+              ],
+              "applications": [
+                { "application": "*", "privileges": ["*"], "resources": ["*"] }
+              ]
+            }
+            """);
         assertOK(client().performRequest(put));
         final RoleResponse response = getRole(roleName, true);
         assertThat(response.indices(), hasSize(2));

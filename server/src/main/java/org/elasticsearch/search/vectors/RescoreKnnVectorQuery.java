@@ -314,8 +314,8 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                     input.prefetch((long) ord * vectorByteSize, vectorByteSize);
                 }
                 buffer.add(() -> {
-                    int target = scorer.iterator().advance(ord);
-                    assert target == ord;
+                    int target = scorer.iterator().advance(docID);
+                    assert target == docID;
                     float score = scorer.score();
                     if (Float.isNaN(score) == false) {
                         queue.add(new ScoreDoc(docID + docBase, score));

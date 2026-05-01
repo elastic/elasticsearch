@@ -85,7 +85,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             filterForClassification = filterCondition.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
         }
 
-        SplitStats stats;
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats;
         if (filterForClassification != null) {
             stats = ExternalSourceAggregatePushdown.resolveFilteredStats(externalExec, filterForClassification);
         } else {
@@ -132,7 +132,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
     }
 
-    private static Object resolveFromStats(Expression aggFunction, SplitStats stats) {
+    private static Object resolveFromStats(Expression aggFunction, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (aggFunction instanceof Count count) {
             return resolveCount(count, stats);
         } else if (aggFunction instanceof Min min) {
@@ -143,7 +143,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         return null;
     }
 
-    private static Object resolveCount(Count count, SplitStats stats) {
+    private static Object resolveCount(Count count, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (count.hasFilter()) {
             return null;
         }
@@ -160,7 +160,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         return null;
     }
 
-    private static Object resolveMin(Min min, SplitStats stats) {
+    private static Object resolveMin(Min min, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (min.hasFilter()) {
             return null;
         }
@@ -171,7 +171,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         return null;
     }
 
-    private static Object resolveMax(Max max, SplitStats stats) {
+    private static Object resolveMax(Max max, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (max.hasFilter()) {
             return null;
         }

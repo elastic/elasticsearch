@@ -452,7 +452,7 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             }
             return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
         }).collect(toList());
-        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null);
+        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
     }
 
     private static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {

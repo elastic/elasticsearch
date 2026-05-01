@@ -37,6 +37,22 @@ dependencies {
   implementation 'com.azure:azure-core:1.51.0'
   implementation 'com.azure:azure-identity:1.13.2'
   implementation 'com.azure:azure-core-http-netty:1.15.3'
+  // msal4j is required at runtime by azure-identity's DefaultAzureCredentialBuilder; it is
+  // marked optional in azure-identity's POM, so we declare it (and the nimbus/oauth2-oidc-sdk
+  // chain it pulls in) explicitly. Versions aligned with modules/repository-azure.
+  implementation 'com.microsoft.azure:msal4j:1.16.2'
+  implementation 'com.microsoft.azure:msal4j-persistence-extension:1.3.0'
+  implementation 'com.nimbusds:content-type:2.3'
+  implementation 'com.nimbusds:lang-tag:1.7'
+  implementation('com.nimbusds:nimbus-jose-jwt:10.0.2') {
+    exclude group: 'com.google.crypto.tink', module: 'tink' // optional dep we don't rely on
+  }
+  implementation('com.nimbusds:oauth2-oidc-sdk:11.22.2') {
+    exclude group: 'com.google.crypto.tink', module: 'tink' // optional dep we don't rely on
+  }
+  implementation 'com.github.stephenc.jcip:jcip-annotations:1.0-1'
+  implementation 'net.minidev:accessors-smart:2.5.2'
+  implementation 'net.minidev:json-smart:2.5.2'
   implementation "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   implementation "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
   implementation "io.projectreactor:reactor-core:3.4.38"
@@ -123,57 +139,76 @@ tasks.named("thirdPartyAudit").configure {
     'org.codehaus.stax2.typed.Base64Variant',
     'org.codehaus.stax2.typed.Base64Variants',
 
-    // from azure-identity (msal4j optional)
-    'com.microsoft.aad.msal4j.AbstractClientApplicationBase',
-    'com.microsoft.aad.msal4j.AppTokenProviderParameters',
-    'com.microsoft.aad.msal4j.AuthenticationResultMetadata',
-    'com.microsoft.aad.msal4j.AuthorizationCodeParameters',
-    'com.microsoft.aad.msal4j.AuthorizationCodeParameters$AuthorizationCodeParametersBuilder',
-    'com.microsoft.aad.msal4j.ClaimsRequest',
-    'com.microsoft.aad.msal4j.ClientCredentialFactory',
-    'com.microsoft.aad.msal4j.ClientCredentialParameters',
-    'com.microsoft.aad.msal4j.ClientCredentialParameters$ClientCredentialParametersBuilder',
-    'com.microsoft.aad.msal4j.ConfidentialClientApplication',
-    'com.microsoft.aad.msal4j.ConfidentialClientApplication$Builder',
-    'com.microsoft.aad.msal4j.DeviceCode',
-    'com.microsoft.aad.msal4j.DeviceCodeFlowParameters',
-    'com.microsoft.aad.msal4j.DeviceCodeFlowParameters$DeviceCodeFlowParametersBuilder',
-    'com.microsoft.aad.msal4j.HttpMethod',
-    'com.microsoft.aad.msal4j.HttpRequest',
-    'com.microsoft.aad.msal4j.HttpResponse',
-    'com.microsoft.aad.msal4j.IAccount',
-    'com.microsoft.aad.msal4j.IAuthenticationResult',
-    'com.microsoft.aad.msal4j.IHttpClient',
-    'com.microsoft.aad.msal4j.IHttpResponse',
-    'com.microsoft.aad.msal4j.ITokenCacheAccessAspect',
-    'com.microsoft.aad.msal4j.ITokenCacheAccessContext',
-    'com.microsoft.aad.msal4j.InteractiveRequestParameters',
-    'com.microsoft.aad.msal4j.InteractiveRequestParameters$InteractiveRequestParametersBuilder',
-    'com.microsoft.aad.msal4j.OnBehalfOfParameters',
-    'com.microsoft.aad.msal4j.OnBehalfOfParameters$OnBehalfOfParametersBuilder',
-    'com.microsoft.aad.msal4j.Prompt',
-    'com.microsoft.aad.msal4j.PublicClientApplication',
-    'com.microsoft.aad.msal4j.PublicClientApplication$Builder',
-    'com.microsoft.aad.msal4j.RefreshTokenParameters',
-    'com.microsoft.aad.msal4j.RefreshTokenParameters$RefreshTokenParametersBuilder',
-    'com.microsoft.aad.msal4j.RequestedClaimAdditionalInfo',
-    'com.microsoft.aad.msal4j.SilentParameters',
-    'com.microsoft.aad.msal4j.SilentParameters$SilentParametersBuilder',
-    'com.microsoft.aad.msal4j.SystemBrowserOptions',
-    'com.microsoft.aad.msal4j.SystemBrowserOptions$SystemBrowserOptionsBuilder',
-    'com.microsoft.aad.msal4j.TokenProviderResult',
-    'com.microsoft.aad.msal4j.UserAssertion',
-    'com.microsoft.aad.msal4j.UserNamePasswordParameters',
-    'com.microsoft.aad.msal4j.UserNamePasswordParameters$UserNamePasswordParametersBuilder',
-    'com.microsoft.aad.msal4jextensions.PersistenceSettings',
-    'com.microsoft.aad.msal4jextensions.PersistenceSettings$Builder',
-    'com.microsoft.aad.msal4jextensions.PersistenceTokenCacheAccessAspect',
-    'com.microsoft.aad.msal4jextensions.persistence.CacheFileAccessor',
-    'com.microsoft.aad.msal4jextensions.persistence.linux.ISecurityLibrary',
-    'com.microsoft.aad.msal4jextensions.persistence.mac.KeyChainAccessor',
+    // Optional dependency of nimbus-jose-jwt
+    'com.google.crypto.tink.subtle.Ed25519Sign',
+    'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+    'com.google.crypto.tink.subtle.Ed25519Verify',
+    'com.google.crypto.tink.subtle.X25519',
+    'com.google.crypto.tink.subtle.XChaCha20Poly1305',
 
-    // from azure-storage (JNA - optional)
+    // Optional dependency of nimbus-jose-jwt and oauth2-oidc-sdk
+    'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
+    'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
+    'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
+    'org.bouncycastle.cert.X509CertificateHolder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
+    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
+    'org.bouncycastle.openssl.PEMKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+
+    // OAuth servlet support is optional and not required
+    'jakarta.servlet.ServletRequest',
+    'jakarta.servlet.http.HttpServletRequest',
+    'jakarta.servlet.http.HttpServletResponse',
+    'javax.servlet.ServletRequest',
+    'javax.servlet.http.HttpServletRequest',
+    'javax.servlet.http.HttpServletResponse',
+
+    // OpenSAML support in oauth2-oidc-sdk is optional
+    'org.joda.time.DateTime',
+    'net.shibboleth.utilities.java.support.xml.SerializeSupport',
+    'org.opensaml.core.config.InitializationException',
+    'org.opensaml.core.config.InitializationService',
+    'org.opensaml.core.xml.XMLObject',
+    'org.opensaml.core.xml.XMLObjectBuilder',
+    'org.opensaml.core.xml.XMLObjectBuilderFactory',
+    'org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport',
+    'org.opensaml.core.xml.io.Marshaller',
+    'org.opensaml.core.xml.io.MarshallerFactory',
+    'org.opensaml.core.xml.io.MarshallingException',
+    'org.opensaml.core.xml.io.Unmarshaller',
+    'org.opensaml.core.xml.io.UnmarshallerFactory',
+    'org.opensaml.core.xml.schema.XSString',
+    'org.opensaml.core.xml.schema.impl.XSStringBuilder',
+    'org.opensaml.saml.saml2.core.Assertion',
+    'org.opensaml.saml.saml2.core.Attribute',
+    'org.opensaml.saml.saml2.core.AttributeStatement',
+    'org.opensaml.saml.saml2.core.AttributeValue',
+    'org.opensaml.saml.saml2.core.Audience',
+    'org.opensaml.saml.saml2.core.AudienceRestriction',
+    'org.opensaml.saml.saml2.core.AuthnContext',
+    'org.opensaml.saml.saml2.core.AuthnContextClassRef',
+    'org.opensaml.saml.saml2.core.AuthnStatement',
+    'org.opensaml.saml.saml2.core.Conditions',
+    'org.opensaml.saml.saml2.core.Issuer',
+    'org.opensaml.saml.saml2.core.NameID',
+    'org.opensaml.saml.saml2.core.Subject',
+    'org.opensaml.saml.saml2.core.SubjectConfirmation',
+    'org.opensaml.saml.saml2.core.SubjectConfirmationData',
+    'org.opensaml.saml.security.impl.SAMLSignatureProfileValidator',
+    'org.opensaml.security.credential.BasicCredential',
+    'org.opensaml.security.credential.Credential',
+    'org.opensaml.security.credential.UsageType',
+    'org.opensaml.xmlsec.signature.Signature',
+    'org.opensaml.xmlsec.signature.support.SignatureException',
+    'org.opensaml.xmlsec.signature.support.SignatureValidator',
+    'org.opensaml.xmlsec.signature.support.Signer',
+
+    // from azure-storage and msal4j-persistence-extension (JNA - optional)
     'com.sun.jna.LastErrorException',
+    'com.sun.jna.Library',
     'com.sun.jna.Native',
     'com.sun.jna.Platform',
     'com.sun.jna.Pointer',
@@ -185,6 +220,15 @@ tasks.named("thirdPartyAudit").configure {
     'com.sun.jna.platform.win32.WinBase$FILETIME',
     'com.sun.jna.win32.StdCallLibrary',
     'com.sun.jna.win32.W32APIOptions',
+
+    // from nimbus-jose-jwt (siv-mode is an optional AES-SIV provider)
+    'org.cryptomator.siv.SivMode',
+
+    // from net.minidev:accessors-smart (ASM is used for optional bytecode-gen accessor optimization)
+    'org.objectweb.asm.ClassWriter',
+    'org.objectweb.asm.Label',
+    'org.objectweb.asm.MethodVisitor',
+    'org.objectweb.asm.Type',
   )
 
   ignoreViolations(

@@ -121,7 +121,7 @@ public class Reindexer {
 
     /// Allows setting the system property `es.reindex.disable_pit_scroll` as an escape hatch to disable the use of PIT-based search, and
     /// force the use of the legacy scroll-based search.
-    // TODO: Remove this when we're confident the PIT version works
+    // TODO(#2715): Remove this when we're confident the PIT version works
     private static final boolean DISABLE_PIT_SEARCH = Boolean.getBoolean("es.reindex.disable_pit_search");
 
     private final ClusterService clusterService;

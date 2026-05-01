@@ -48,7 +48,7 @@ import java.util.stream.Collectors;
 public class ShutdownPrepareService {
 
     /// Allows setting the system property `es.reindex.disable_relocation` as an escape hatch to disable triggering reindex relocation.
-    // TODO: Remove this when we're confident relocation works
+    // TODO(#2715): Remove this when we're confident relocation works
     private static final boolean DISABLE_REINDEX_RELOCATION = Boolean.getBoolean("es.reindex.disable_relocation");
 
     private record ShutdownHook(String name, Runnable action) {}

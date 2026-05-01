@@ -19,18 +19,13 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.NumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.SkipBlockRangeIterator;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -42,8 +37,10 @@ import java.util.function.LongPredicate;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
- * Copied from Lucene's package-private {@code SortedNumericDocValuesRangeQuery} to allow
- * modification and instrumentation within Elasticsearch.
+ * Extends Lucene's package-private {@code SortedNumericDocValuesRangeQuery} to add
+ * SIMD-based collect pushdown into TSDB codec blocks. Methods that are identical to Lucene's
+ * implementation delegate to a stored instance of the Lucene query; only {@link
+ * #createWeight(IndexSearcher, ScoreMode, float)} is overridden with ES-specific logic.
  */
 public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRangeQuery {
 
@@ -68,6 +65,8 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
         super(field, lowerValue, upperValue);
     }
 
+    private final Query delegate = SortedNumericDocValuesField.newSlowRangeQuery(field, lowerValue, upperValue);
+
     @Override
     public boolean equals(Object obj) {
         if (sameClassAs(obj) == false) {
@@ -91,36 +90,22 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
 
     @Override
     public String toString(String field) {
-        StringBuilder b = new StringBuilder();
-        if (this.field.equals(field) == false) {
-            b.append(this.field).append(":");
-        }
-        return b.append("[").append(lowerValue).append(" TO ").append(upperValue).append("]").toString();
+        return delegate.toString(field);
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        if (lowerValue == Long.MIN_VALUE && upperValue == Long.MAX_VALUE) {
-            return new FieldExistsQuery(field);
-        }
-        if (lowerValue > upperValue) {
-            return MatchNoDocsQuery.INSTANCE;
-        }
-        long globalMin = DocValuesSkipper.globalMinValue(indexSearcher.getIndexReader(), field);
-        long globalMax = DocValuesSkipper.globalMaxValue(indexSearcher.getIndexReader(), field);
-        if (lowerValue > globalMax || upperValue < globalMin) {
-            return MatchNoDocsQuery.INSTANCE;
-        }
-        if (lowerValue <= globalMin
-            && upperValue >= globalMax
-            && DocValuesSkipper.globalDocCount(indexSearcher.getIndexReader(), field) == indexSearcher.getIndexReader().maxDoc()) {
-            return MatchAllDocsQuery.INSTANCE;
+        Query rewritten = delegate.rewrite(indexSearcher);
+        if (rewritten != delegate) {
+            // Lucene simplified to MatchNoDocsQuery, MatchAllDocsQuery, or FieldExistsQuery.
+            return rewritten;
         }
         return super.rewrite(indexSearcher);
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        Weight delegateWeight = delegate.createWeight(searcher, scoreMode, boost);
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -145,7 +130,6 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                 SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), field);
                 final NumericDocValues singleton = DocValues.unwrapSingleton(values);
                 final DocValuesSkipper skipper = context.reader().getDocValuesSkipper(field);
-                TwoPhaseIterator iterator;
                 if (singleton != null && skipper != null) {
                     final DocIdSetIterator psIterator = getDocIdSetIteratorOrNullForPrimarySort(context.reader(), singleton, skipper);
                     if (psIterator != null) {
@@ -160,132 +144,8 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                     }
                 }
 
-                if (skipper != null) {
-                    // Use SkipBlockRangeIterator as the approximation: block-level skip
-                    // filtering with no DV decoding. This exposes block skips to
-                    // ConjunctionDISI so that when one field's block is NO, other fields
-                    // never decode DV data for that block.
-                    final SkipBlockRangeIterator skipApprox = new SkipBlockRangeIterator(skipper, lowerValue, upperValue);
-
-                    iterator = new TwoPhaseIterator(skipApprox) {
-                        private int cachedBlockEnd = -1;
-                        private int cachedClassification = BLOCK_MAYBE;
-
-                        @Override
-                        public boolean matches() throws IOException {
-                            int blockMatch = classifyBlockCached();
-                            if (blockMatch == BLOCK_YES) {
-                                return true;
-                            }
-                            if (blockMatch == BLOCK_IF_DOC_HAS_VALUE) {
-                                if (singleton != null) {
-                                    return singleton.advanceExact(skipApprox.docID());
-                                } else {
-                                    return values.advanceExact(skipApprox.docID());
-                                }
-                            }
-                            // MAYBE — need to decode DV and check the actual value.
-                            if (singleton != null) {
-                                if (singleton.advanceExact(skipApprox.docID())) {
-                                    final long value = singleton.longValue();
-                                    return value >= lowerValue && value <= upperValue;
-                                }
-                            } else {
-                                if (values.advanceExact(skipApprox.docID())) {
-                                    for (int i = 0, cnt = values.docValueCount(); i < cnt; ++i) {
-                                        final long value = values.nextValue();
-                                        if (value < lowerValue) {
-                                            continue;
-                                        }
-                                        return value <= upperValue;
-                                    }
-                                }
-                            }
-                            return false;
-                        }
-
-                        @Override
-                        public int docIDRunEnd() throws IOException {
-                            if (classifyBlockCached() == BLOCK_YES) {
-                                // Only report the current level-0 block as a run. The
-                                // approximation's docIDRunEnd() may expand to higher levels
-                                // that could be MAYBE, not YES.
-                                return cachedBlockEnd + 1;
-                            }
-                            return super.docIDRunEnd();
-                        }
-
-                        @Override
-                        public float matchCost() {
-                            return 3; // advanceExact + 2 comparisons
-                        }
-
-                        private static final int BLOCK_MAYBE = 0;
-                        private static final int BLOCK_YES = 1;
-                        private static final int BLOCK_IF_DOC_HAS_VALUE = 2;
-
-                        private int classifyBlockCached() {
-                            int blockEnd = skipper.maxDocID(0);
-                            if (blockEnd != cachedBlockEnd) {
-                                cachedBlockEnd = blockEnd;
-                                cachedClassification = classifyBlock();
-                            }
-                            return cachedClassification;
-                        }
-
-                        private int classifyBlock() {
-                            long blockMin = skipper.minValue(0);
-                            long blockMax = skipper.maxValue(0);
-                            if (blockMin >= lowerValue && blockMax <= upperValue) {
-                                if (skipper.docCount(0) == skipper.maxDocID(0) - skipper.minDocID(0) + 1) {
-                                    return BLOCK_YES;
-                                }
-                                return BLOCK_IF_DOC_HAS_VALUE;
-                            }
-                            return BLOCK_MAYBE;
-                        }
-                    };
-                } else if (singleton != null) {
-                    iterator = new TwoPhaseIterator(singleton) {
-                        @Override
-                        public boolean matches() throws IOException {
-                            final long value = singleton.longValue();
-                            return value >= lowerValue && value <= upperValue;
-                        }
-
-                        @Override
-                        public float matchCost() {
-                            return 2;
-                        }
-                    };
-                } else {
-                    iterator = new TwoPhaseIterator(values) {
-                        @Override
-                        public boolean matches() throws IOException {
-                            for (int i = 0, count = values.docValueCount(); i < count; ++i) {
-                                final long value = values.nextValue();
-                                if (value < lowerValue) {
-                                    continue;
-                                }
-                                return value <= upperValue;
-                            }
-                            return false;
-                        }
-
-                        @Override
-                        public float matchCost() {
-                            return 2;
-                        }
-                    };
-                }
-                final ScorerSupplier supplier = ConstantScoreScorerSupplier.fromIterator(
-                    TwoPhaseIterator.asDocIdSetIterator(iterator),
-                    score(),
-                    scoreMode,
-                    maxDoc
-                );
-
-                return supplier;
+                // No TSDB SIMD path available; fall back to Lucene's standard implementation.
+                return delegateWeight.scorerSupplier(context);
             }
 
             @Override

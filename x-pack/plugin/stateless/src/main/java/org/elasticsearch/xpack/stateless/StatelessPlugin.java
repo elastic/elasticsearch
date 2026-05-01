@@ -667,8 +667,7 @@ public class StatelessPlugin extends Plugin
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(), "3s")
-            .put(WriteLoadConstraintSettings.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.getKey(), true)
-            .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false);
+            .put(WriteLoadConstraintSettings.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.getKey(), true);
         if (sharedCachedSettingExplicitlySet == false) {
             if (hasSearchRole) {
                 settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "90%")

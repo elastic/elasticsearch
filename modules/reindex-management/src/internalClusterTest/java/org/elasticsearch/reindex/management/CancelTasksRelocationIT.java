@@ -221,15 +221,13 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
         internalCluster().stopNode(shutdownNode);
     }
 
-    /**
-     * Forces the relocation handoff to sit mid-flight so a cancel issued during that window reliably hits the CAS gate and is rejected
-     * with {@code 409 CONFLICT}.
-     * <p>
-     * The destination node's transport is configured to hold any {@code ResumeReindexAction} message until we release
-     * it. After {@code prepareForShutdown} triggers the handoff and the source has CAS'd its {@code RelocationProgress}
-     * into {@code HANDOFF_INITIATED}, we observe the held message, fire the cancel, and only then release the hold so
-     * relocation completes and the cluster can be torn down cleanly.
-     */
+    /// Forces the relocation handoff to sit mid-flight so a cancel issued during that window reliably hits the CAS gate and is rejected
+    /// with `503 SERVICE_UNAVAILABLE`, signalling to the caller that the cancel can be retried against the relocated successor.
+    ///
+    /// The destination node's transport is configured to hold any `ResumeReindexAction` message until we release
+    /// it. After `prepareForShutdown` triggers the handoff and the source has CAS'd its `RelocationProgress`
+    /// into `HANDOFF_INITIATED`, we observe the held message, fire the cancel, and only then release the hold so
+    /// relocation completes and the cluster can be torn down cleanly.
     public void testCancelBailsWhenHandoffInitiated() throws Exception {
         final String indexHostNode = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
@@ -280,7 +278,7 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
             // Wait for the handoff to reach the destination, i.e. the source has CAS'd into HANDOFF_INITIATED.
             assertTrue("relocation handoff must reach the destination within 60s", resumeReceivedOnDestination.await(60, TimeUnit.SECONDS));
 
-            // Fire the cancel: must bail with 409 because the source's RelocationProgress is HANDOFF_INITIATED.
+            // Fire the cancel: must bail with 503 because the source's RelocationProgress is HANDOFF_INITIATED.
             final CancelTasksRequest cancel = new CancelTasksRequest();
             cancel.setTargetTaskId(originalTaskId);
             final ListTasksResponse response = clusterAdmin().cancelTasks(cancel).actionGet(TimeValue.timeValueSeconds(30));
@@ -288,7 +286,7 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
             assertThat(response.getTaskFailures(), hasSize(1));
             final Throwable cause = response.getTaskFailures().get(0).getCause();
             assertThat(cause, instanceOf(ElasticsearchStatusException.class));
-            assertThat(((ElasticsearchStatusException) cause).status(), is(RestStatus.CONFLICT));
+            assertThat(((ElasticsearchStatusException) cause).status(), is(RestStatus.SERVICE_UNAVAILABLE));
             assertThat(cause.getMessage(), equalTo("cannot cancel task [" + originalTaskId.getId() + "] because it is being relocated"));
         } finally {
             // Release so the rest of the flow can unwind regardless of assertion outcome.
@@ -297,7 +295,7 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
             relocationThread.join(TimeValue.timeValueMinutes(1).millis());
             // Best-effort teardown: cancel any lingering reindex tasks (resumed + rethrottle) so the heavy throttle
             // doesn't push the test past the suite timeout. Failures here are swallowed - the point of this test
-            // is the 409 assertion above, not the cleanup.
+            // is the 503 assertion above, not the cleanup.
             try {
                 final CancelTasksRequest sweep = new CancelTasksRequest();
                 sweep.setActions(ReindexAction.NAME);

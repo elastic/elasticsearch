@@ -256,7 +256,10 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
             originalHit.decRef();
         }
 
-        assertThat("breaker bytes should be released when stream is closed", breaker.getUsed(), equalTo(0L));
+        // processChunk.finally (responseStream.decRef) may still be pending on a transport thread
+        // when the test's own stream.decRef runs. assertBusy waits until closeInternal fires
+        // (observable via breaker bytes = 0) before returning, preventing tearDown from racing it.
+        assertBusy(() -> assertThat("breaker bytes should be released when stream is closed", breaker.getUsed(), equalTo(0L)));
     }
 
     private SearchHit createHit(int id) {

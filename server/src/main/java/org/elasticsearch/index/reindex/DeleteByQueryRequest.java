@@ -144,8 +144,8 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     }
 
     @Override
-    public DeleteByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
-        return doForSlice(new DeleteByQueryRequest(slice, false), slicingTask, totalSlices);
+    public DeleteByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        return doForSlice(new DeleteByQueryRequest(slice, false), slicingTask, totalSlices, activeSlices);
     }
 
     @Override

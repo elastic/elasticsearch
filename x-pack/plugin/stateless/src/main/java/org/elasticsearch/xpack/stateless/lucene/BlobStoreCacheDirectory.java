@@ -20,7 +20,6 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
-import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -300,14 +299,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         BlobCacheMetrics blobCacheMetrics,
         @Nullable Releasable releasable
     ) {
-        int advice = context.hints().contains(DataAccessHint.RANDOM) ? SharedBytes.MADV_RANDOM : SharedBytes.MADV_NORMAL;
         var reader = new CacheFileReader(
             getCacheFile(blobFileRanges),
             getCacheBlobReader(name, blobFileRanges.blobLocation().blobFile()),
             blobFileRanges,
             blobCacheMetrics,
             cacheService.getThreadPool().relativeTimeInMillisSupplier(),
-            advice
+            context
         );
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
     }

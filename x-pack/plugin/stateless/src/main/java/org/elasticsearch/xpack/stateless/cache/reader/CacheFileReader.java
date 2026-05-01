@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.DataAccessHint;
+import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -81,6 +83,17 @@ public class CacheFileReader {
         BlobFileRanges blobFileRanges,
         BlobCacheMetrics blobCacheMetrics,
         LongSupplier relativeTimeInMillisSupplier,
+        IOContext context
+    ) {
+        this(cacheFile, cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier, contextToAdvice(context));
+    }
+
+    private CacheFileReader(
+        StatelessSharedBlobCacheService.CacheFile cacheFile,
+        CacheBlobReader cacheBlobReader,
+        BlobFileRanges blobFileRanges,
+        BlobCacheMetrics blobCacheMetrics,
+        LongSupplier relativeTimeInMillisSupplier,
         int regionAdvice
     ) {
         this.cacheFile = Objects.requireNonNull(cacheFile);
@@ -103,6 +116,31 @@ public class CacheFileReader {
             relativeTimeInMillisSupplier,
             regionAdvice
         );
+    }
+
+    /**
+     * @return a new instance that is a copy of the current instance but with region advice
+     *         derived from the given {@link IOContext} hints
+     */
+    public CacheFileReader copyWithContext(IOContext context) {
+        return new CacheFileReader(
+            cacheFile.copy(),
+            cacheBlobReader,
+            blobFileRanges,
+            blobCacheMetrics,
+            relativeTimeInMillisSupplier,
+            contextToAdvice(context)
+        );
+    }
+
+    // Maps Lucene's DataAccessHint to the corresponding madvise advice for cache region population.
+    static int contextToAdvice(IOContext context) {
+        return context.hints().contains(DataAccessHint.RANDOM) ? SharedBytes.MADV_RANDOM : SharedBytes.MADV_NORMAL;
+    }
+
+    // visible for testing
+    int getRegionAdvice() {
+        return regionAdvice;
     }
 
     /**

@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReaderTestUtils;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 
@@ -74,7 +75,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         assertTrue(capturedContext.get().hints().contains(DataAccessHint.RANDOM));
     }
 
-    // Verify that CacheFileReader constructed with MADV_RANDOM preserves advice through copy().
+    // Verify that CacheFileReader constructed with RANDOM hint preserves advice through copy().
     @SuppressWarnings("unchecked")
     public void testCacheFileReaderCopyPreservesAdvice() {
         var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
@@ -88,11 +89,91 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             blobFileRanges,
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
-            SharedBytes.MADV_RANDOM
+            IOContext.DEFAULT.withHints(DataAccessHint.RANDOM)
         );
         var copy = original.copy();
 
         assertNotSame(original, copy);
+        assertEquals(SharedBytes.MADV_RANDOM, CacheFileReaderTestUtils.getRegionAdvice(copy));
+    }
+
+    // Verify that copyWithContext derives MADV_RANDOM or MADV_NORMAL from IOContext hints.
+    @SuppressWarnings("unchecked")
+    public void testCacheFileReaderCopyWithContext() {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        var cacheBlobReader = mock(CacheBlobReader.class);
+        var blobFileRanges = createBlobFileRanges(1L, 0L, 0, 1024);
+
+        var original = new CacheFileReader(cacheFile, cacheBlobReader, blobFileRanges, BlobCacheMetrics.NOOP, System::currentTimeMillis);
+
+        var withRandom = original.copyWithContext(IOContext.DEFAULT.withHints(DataAccessHint.RANDOM));
+        assertNotSame(original, withRandom);
+        assertEquals(SharedBytes.MADV_RANDOM, CacheFileReaderTestUtils.getRegionAdvice(withRandom));
+
+        var withNormal = withRandom.copyWithContext(IOContext.DEFAULT);
+        assertNotSame(withRandom, withNormal);
+        assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.getRegionAdvice(withNormal));
+    }
+
+    // Verify that slice(String, long, long, IOContext) with DataAccessHint.RANDOM sets MADV_RANDOM
+    // on the resulting BlobCacheIndexInput's CacheFileReader.
+    @SuppressWarnings("unchecked")
+    public void testSliceWithRandomHintSetsMadvRandom() {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        var cacheBlobReader = mock(CacheBlobReader.class);
+        var blobFileRanges = createBlobFileRanges(1L, 0L, 0, 1024);
+
+        var reader = new CacheFileReader(cacheFile, cacheBlobReader, blobFileRanges, BlobCacheMetrics.NOOP, System::currentTimeMillis);
+        var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 1024, 0);
+
+        IOContext randomCtx = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM);
+        var slice = (BlobCacheIndexInput) indexInput.slice("_0.vec", 0, 512, randomCtx);
+
+        assertEquals(SharedBytes.MADV_RANDOM, BlobStoreCacheDirectoryTestUtils.getRegionAdvice(slice));
+    }
+
+    // Verify that slice(String, long, long, IOContext) without DataAccessHint.RANDOM sets MADV_NORMAL.
+    @SuppressWarnings("unchecked")
+    public void testSliceWithoutRandomHintSetsMadvNormal() {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        var cacheBlobReader = mock(CacheBlobReader.class);
+        var blobFileRanges = createBlobFileRanges(1L, 0L, 0, 1024);
+
+        var reader = new CacheFileReader(
+            cacheFile,
+            cacheBlobReader,
+            blobFileRanges,
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis,
+            IOContext.DEFAULT.withHints(DataAccessHint.RANDOM)
+        );
+        var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 1024, 0);
+
+        var slice = (BlobCacheIndexInput) indexInput.slice("_0.doc", 0, 512, IOContext.DEFAULT);
+
+        assertEquals(SharedBytes.MADV_NORMAL, BlobStoreCacheDirectoryTestUtils.getRegionAdvice(slice));
+    }
+
+    // Verify that a .vec file opened directly (not through compound) gets MADV_RANDOM from openInput,
+    // and then a 4-arg slice from a compound file also correctly propagates MADV_RANDOM.
+    @SuppressWarnings("unchecked")
+    public void testSliceWithRandomHintPreservesOffset() {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        var cacheBlobReader = mock(CacheBlobReader.class);
+        var blobFileRanges = createBlobFileRanges(1L, 0L, 0, 2048);
+
+        var reader = new CacheFileReader(cacheFile, cacheBlobReader, blobFileRanges, BlobCacheMetrics.NOOP, System::currentTimeMillis);
+        var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 2048, 100);
+
+        IOContext randomCtx = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM);
+        var slice = (BlobCacheIndexInput) indexInput.slice("_0.vec", 200, 512, randomCtx);
+
+        assertEquals(SharedBytes.MADV_RANDOM, BlobStoreCacheDirectoryTestUtils.getRegionAdvice(slice));
+        assertEquals(512, slice.length());
     }
 
     private static BlobStoreCacheDirectory createCapturingDirectory(AtomicReference<IOContext> capturedContext) {

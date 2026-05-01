@@ -110,6 +110,28 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     }
 
     @Override
+    public IndexInput slice(String sliceDescription, long offset, long length, IOContext sliceContext) {
+        BlobCacheUtils.ensureSlice(sliceDescription, offset, length, this);
+        var arraySlice = trySliceBuffer(sliceDescription, offset, length);
+        if (arraySlice != null) {
+            return arraySlice;
+        }
+        return doSlice(sliceDescription, offset, length, sliceContext);
+    }
+
+    IndexInput doSlice(String sliceDescription, long offset, long length, IOContext sliceContext) {
+        return new BlobCacheIndexInput(
+            "(" + sliceDescription + ") " + super.toString(),
+            sliceContext,
+            cacheFileReader.copyWithContext(sliceContext),
+            null,
+            length,
+            this.offset + offset,
+            sliceDescription
+        );
+    }
+
+    @Override
     public IndexInput clone() {
         var bufferClone = tryCloneBuffer();
         if (bufferClone != null) {

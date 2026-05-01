@@ -24,6 +24,10 @@ public class BlobStoreCacheDirectoryTestUtils {
         return CacheFileReaderTestUtils.getCacheFile(target.getCacheFileReader());
     }
 
+    public static int getRegionAdvice(BlobCacheIndexInput target) {
+        return CacheFileReaderTestUtils.getRegionAdvice(target.getCacheFileReader());
+    }
+
     public static StatelessSharedBlobCacheService getCacheService(BlobStoreCacheDirectory target) {
         return target.getCacheService();
     }

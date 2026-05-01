@@ -17,4 +17,8 @@ public final class CacheFileReaderTestUtils {
     public static SharedBlobCacheService<FileCacheKey>.CacheFile getCacheFile(CacheFileReader reader) {
         return reader.getCacheFile();
     }
+
+    public static int getRegionAdvice(CacheFileReader reader) {
+        return reader.getRegionAdvice();
+    }
 }

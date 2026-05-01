@@ -33,7 +33,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
-import org.elasticsearch.simdvec.DefaultNativeFlatVectorScorer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -43,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
+import static org.elasticsearch.index.codec.vectors.VectorScoringUtils.scoreAndCollectAll;
 
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
@@ -450,19 +450,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     @Override
     public final void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-        final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
-        final ByteVectorValues values = getReaderForField(field).getByteVectorValues(field);
-        for (int i = 0; i < values.size(); i++) {
-            final float score = DefaultNativeFlatVectorScorer.compare(
-                fieldInfo.getVectorSimilarityFunction(),
-                target,
-                values.vectorValue(i)
-            );
-            knnCollector.collect(values.ordToDoc(i), score);
-            if (knnCollector.earlyTerminated()) {
-                return;
-            }
-        }
+        scoreAndCollectAll(knnCollector, acceptDocs, getReaderForField(field).getByteVectorValues(field).scorer(target));
     }
 
     @Override

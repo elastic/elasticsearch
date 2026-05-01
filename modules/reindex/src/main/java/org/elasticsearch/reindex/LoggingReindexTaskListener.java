@@ -36,7 +36,8 @@ public record LoggingReindexTaskListener(Task task) implements ActionListener<Bu
     @Override
     public void onFailure(Exception e) {
         if (e instanceof TaskRelocatedException relocatedException) {
-            logger.info("{} was relocated to {}", task.getId(), relocatedException.getRelocatedTaskId().orElseThrow());
+            assert relocatedException.getRelocatedTaskId().isPresent();
+            logger.info("{} was relocated to {}", task.getId(), relocatedException.getRelocatedTaskId().orElse("unknown"));
         } else {
             logger.warn(() -> format("%s failed with exception", task.getId()), e);
         }

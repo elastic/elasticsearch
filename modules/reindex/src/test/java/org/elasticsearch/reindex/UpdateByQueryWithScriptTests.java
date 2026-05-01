@@ -65,6 +65,7 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             transportService,
             scriptService,
             clusterService,
+            null,
             null
         );
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(
@@ -75,7 +76,8 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             scriptService,
             request,
             listener(),
-            randomPositiveTimeValue()
+            randomPositiveTimeValue(),
+            null
         );
     }
 }

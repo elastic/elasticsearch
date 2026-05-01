@@ -28,22 +28,27 @@ import java.util.TreeSet;
 public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment {
     private long planningPhaseTookTime;
     private long mergingPhaseTookTime;
-    private final Map<String, Long> projectsTookTime;
+    /*
+     * Tracks the time taken from dispatching a request to a linked project to receiving a response (meaning, also includes the
+     * network time).
+     */
+    private final Map<String, Long> perProjectRoundtripTime;
 
+    public static final String CPS_PROFILE_FIELD = "cps_profile";
     public static final ParseField PLANNING_PHASE_TOOK_TIME_FIELD = new ParseField("planning_phase_took_time");
     public static final ParseField MERGING_PHASE_TOOK_TIME_FIELD = new ParseField("merging_phase_took_time");
-    public static final String PROJECTS_TOOK_TIME_NAME = "projects_took_time";
+    public static final String PROJECTS_ROUND_TRIP_TIME = "projects_round_trip_time";
     public static final String PROJECTS_NAME = "projects";
 
     public CrossProjectSearchMetrics() {
         this.planningPhaseTookTime = 0L;
         this.mergingPhaseTookTime = 0L;
-        this.projectsTookTime = new HashMap<>();
+        this.perProjectRoundtripTime = new HashMap<>();
     }
 
     public CrossProjectSearchMetrics(StreamInput in) throws IOException {
         this.planningPhaseTookTime = in.readLong();
-        this.projectsTookTime = in.readMap(StreamInput::readLong);
+        this.perProjectRoundtripTime = in.readMap(StreamInput::readLong);
         this.mergingPhaseTookTime = in.readLong();
     }
 
@@ -51,12 +56,12 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
         this.planningPhaseTookTime = planningPhaseTookTime;
     }
 
-    public void trackProjectTookTime(String projectName, long projectTookTime) {
+    public void trackProjectRoundtripTime(String projectName, long projectTookTime) {
         if (projectName.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
             projectName = "_origin";
         }
 
-        this.projectsTookTime.put(projectName, projectTookTime);
+        this.perProjectRoundtripTime.put(projectName, projectTookTime);
     }
 
     public void trackMergingPhaseTookTime(long mergingPhaseTookTime) {
@@ -67,8 +72,8 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
         return planningPhaseTookTime;
     }
 
-    public Map<String, Long> getProjectsTookTime() {
-        return projectsTookTime;
+    public Map<String, Long> getProjectsRoundtripTime() {
+        return perProjectRoundtripTime;
     }
 
     public long getMergingPhaseTookTime() {
@@ -77,14 +82,16 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject(CPS_PROFILE_FIELD);
+
         builder.field(PLANNING_PHASE_TOOK_TIME_FIELD.getPreferredName(), planningPhaseTookTime);
         builder.field(MERGING_PHASE_TOOK_TIME_FIELD.getPreferredName(), mergingPhaseTookTime);
 
-        builder.startObject(PROJECTS_TOOK_TIME_NAME).startArray(PROJECTS_NAME);
+        builder.startObject(PROJECTS_ROUND_TRIP_TIME).startArray(PROJECTS_NAME);
 
-        TreeSet<String> sorted = new TreeSet<>(projectsTookTime.keySet());
+        TreeSet<String> sorted = new TreeSet<>(perProjectRoundtripTime.keySet());
         for (String projectName : sorted) {
-            long projectTookTime = projectsTookTime.get(projectName);
+            long projectTookTime = perProjectRoundtripTime.get(projectName);
 
             builder.startObject();
             builder.field(projectName, projectTookTime);
@@ -92,6 +99,8 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
         }
 
         builder.endArray().endObject();
+
+        builder.endObject();
         return builder;
     }
 
@@ -100,12 +109,12 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
         return obj instanceof CrossProjectSearchMetrics other
             && other.planningPhaseTookTime == this.planningPhaseTookTime
             && other.mergingPhaseTookTime == this.mergingPhaseTookTime
-            && other.projectsTookTime.equals(this.projectsTookTime);
+            && other.perProjectRoundtripTime.equals(this.perProjectRoundtripTime);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(planningPhaseTookTime, mergingPhaseTookTime, projectsTookTime);
+        return Objects.hash(planningPhaseTookTime, mergingPhaseTookTime, perProjectRoundtripTime);
     }
 
     @Override
@@ -116,7 +125,7 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(planningPhaseTookTime);
-        out.writeMap(projectsTookTime, StreamOutput::writeLong);
+        out.writeMap(perProjectRoundtripTime, StreamOutput::writeLong);
         out.writeLong(mergingPhaseTookTime);
     }
 }

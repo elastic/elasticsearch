@@ -922,7 +922,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 public void onResponse(SearchResponse searchResponse) {
                     // overwrite the existing cluster entry with the updated one
                     ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, shouldSkipOnFailure);
-                    cpsMetrics.ifPresent(c -> c.trackProjectTookTime(clusterAlias, searchPhaseTimeProvider.buildTookInMillis()));
+                    cpsMetrics.ifPresent(c -> c.trackProjectRoundtripTime(clusterAlias, searchPhaseTimeProvider.buildTookInMillis()));
                     SearchProfileResults profile = getSearchProfileResults(searchResponse, searchCoordinatorContext);
 
                     ActionListener.respondAndRelease(
@@ -1575,7 +1575,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
                 ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, shouldSkipOnFailure);
-                cpsMetrics.ifPresent(c -> c.trackProjectTookTime(clusterAlias, overallTookTime()));
+                cpsMetrics.ifPresent(c -> c.trackProjectRoundtripTime(clusterAlias, overallTookTime()));
                 searchResponseMerger.add(searchResponse);
                 progressListener.notifyClusterResponseMinimizeRoundtrips(clusterAlias, searchResponse);
             }

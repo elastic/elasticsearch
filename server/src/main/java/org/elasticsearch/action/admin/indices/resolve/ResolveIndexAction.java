@@ -25,6 +25,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -615,6 +617,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 checkCCSVersionCompatibility(request);
             }
             final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
+            final ClusterBlockException blockException = projectState.blocks()
+                .globalBlockedException(projectState.projectId(), ClusterBlockLevel.METADATA_READ);
+            if (blockException != null) {
+                listener.onFailure(blockException);
+                return;
+            }
             final IndicesOptions originalIndicesOptions = request.indicesOptions();
             final boolean resolveCrossProject = crossProjectModeDecider.resolvesCrossProject(request);
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(

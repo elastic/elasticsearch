@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -32,6 +33,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Objects;
+
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 
 /** Transport action that cancels an in-flight reindex task and its descendants. */
 public class TransportCancelReindexAction extends HandledTransportAction<CancelReindexRequest, CancelReindexResponse> {
@@ -51,7 +54,7 @@ public class TransportCancelReindexAction extends HandledTransportAction<CancelR
             CancelReindexRequest::new,
             transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
         );
-        this.client = Objects.requireNonNull(client);
+        this.client = new OriginSettingClient(Objects.requireNonNull(client), TASKS_ORIGIN);
     }
 
     @Override

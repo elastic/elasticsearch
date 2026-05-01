@@ -565,9 +565,3 @@ tests:
 - class: org.elasticsearch.search.CCSDuelIT
   method: testShardFailures
   issue: https://github.com/elastic/elasticsearch/issues/148099
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testUnsupportedGroupKeyTypesNotAllowedInStatsBy
-  issue: https://github.com/elastic/elasticsearch/issues/148112
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testUnsupportedGroupKeyTypesNotAllowedInLimitBy
-  issue: https://github.com/elastic/elasticsearch/issues/148113

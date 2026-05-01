@@ -345,12 +345,22 @@ public final class StreamingParallelParsingCoordinator {
                             chunk.length
                         );
 
+                        // Both record-boundary flags are true for every chunk:
+                        // - firstSplit: the segmentator slices on \n carry-over, so each chunk
+                        // starts on a complete record; no leading partial line to skip.
+                        // - lastSplit: the segmentator only dispatches a chunk after locating its
+                        // trailing \n via findLastNewline (or grows the buffer until one is found),
+                        // so the chunk's final byte is always a record terminator. The original
+                        // chunk.last flag was set only on the EOF chunk, leaving every interior
+                        // chunk wrapped in TrimLastPartialLineInputStream's per-byte tail scan —
+                        // pure overhead on already-aligned data. Setting lastSplit=true everywhere
+                        // lets line-oriented readers (NDJSON) skip that scan.
                         FormatReadContext ctx = FormatReadContext.builder()
                             .projectedColumns(projectedColumns)
                             .batchSize(batchSize)
                             .errorPolicy(errorPolicy)
                             .firstSplit(true)
-                            .lastSplit(chunk.last)
+                            .lastSplit(true)
                             .build();
 
                         try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {

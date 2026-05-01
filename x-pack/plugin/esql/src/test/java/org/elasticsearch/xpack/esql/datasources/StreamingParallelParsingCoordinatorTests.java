@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -173,6 +174,43 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * The segmentator only dispatches a chunk after locating its trailing {@code \n} (carry-over
+     * is shifted into the next chunk), so every chunk handed to a parser ends on a record
+     * terminator. The coordinator therefore must mark every chunk {@code lastSplit=true} so the
+     * NDJSON reader can skip its byte-by-byte {@code TrimLastPartialLineInputStream} scan; an
+     * earlier version only set this on the EOF chunk, leaving every interior chunk paying the
+     * tail-scan cost (visible as ~5% CPU in async-profiler runs over gzip-compressed COUNT(*)).
+     */
+    public void testParseChunkMarksAllChunksAsLastSplit() throws Exception {
+        int lineCount = 1000;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            // Small chunkSize forces several parser-thread invocations so the assertion exercises
+            // both interior chunks and the final EOF chunk.
+            LineFormatReader reader = new LineFormatReader(1024);
+            collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 100, 4, executor, ErrorPolicy.STRICT)
+            );
+
+            List<FormatReadContext> seen;
+            synchronized (reader.seenContexts) {
+                seen = new ArrayList<>(reader.seenContexts);
+            }
+            assertTrue("Expected at least 2 chunks, recorded " + seen.size(), seen.size() >= 2);
+            for (int i = 0; i < seen.size(); i++) {
+                FormatReadContext ctx = seen.get(i);
+                assertTrue("chunk[" + i + "] must have firstSplit=true", ctx.firstSplit());
+                assertTrue("chunk[" + i + "] must have lastSplit=true (record-boundary aligned)", ctx.lastSplit());
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {
@@ -211,9 +249,17 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         final AtomicInteger metadataCalls;
         final AtomicInteger boundReadCalls;
         final AtomicInteger unboundReadCalls;
+        final List<FormatReadContext> seenContexts;
 
         LineFormatReader(long minSegment) {
-            this(minSegment, null, new AtomicInteger(), new AtomicInteger(), new AtomicInteger());
+            this(
+                minSegment,
+                null,
+                new AtomicInteger(),
+                new AtomicInteger(),
+                new AtomicInteger(),
+                Collections.synchronizedList(new ArrayList<>())
+            );
         }
 
         private LineFormatReader(
@@ -221,13 +267,15 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             List<Attribute> resolvedSchema,
             AtomicInteger metadataCalls,
             AtomicInteger boundReadCalls,
-            AtomicInteger unboundReadCalls
+            AtomicInteger unboundReadCalls,
+            List<FormatReadContext> seenContexts
         ) {
             this.minSegment = minSegment;
             this.resolvedSchema = resolvedSchema;
             this.metadataCalls = metadataCalls;
             this.boundReadCalls = boundReadCalls;
             this.unboundReadCalls = unboundReadCalls;
+            this.seenContexts = seenContexts;
         }
 
         @Override
@@ -259,12 +307,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public FormatReader withSchema(List<Attribute> schema) {
-            return new LineFormatReader(minSegment, schema, metadataCalls, boundReadCalls, unboundReadCalls);
+            return new LineFormatReader(minSegment, schema, metadataCalls, boundReadCalls, unboundReadCalls, seenContexts);
         }
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
             (resolvedSchema != null ? boundReadCalls : unboundReadCalls).incrementAndGet();
+            seenContexts.add(context);
             InputStream stream = object.newStream();
             List<String> lines = new ArrayList<>();
             StringBuilder current = new StringBuilder();

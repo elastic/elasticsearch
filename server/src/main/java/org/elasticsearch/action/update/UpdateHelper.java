@@ -167,9 +167,8 @@ public class UpdateHelper {
     }
 
     /**
-     * Calculate a routing value to be used: the inner index request's routing takes priority, then the routing stored in the retrieved
-     * document's fields (present when {@code _routing} is stored as a stored field), then the outer update request's routing (needed when
-     * {@code _routing} is stored only as doc values and therefore absent from the GET response's stored fields).
+     * Calculate a routing value to be used, either the included index request's routing, retrieved document's routing when defined, or
+     * in case the routing is stored as doc values, then the provided request routing is used as the routing.
      */
     @Nullable
     static String calculateRouting(GetResult getResult, @Nullable IndexRequest updateIndexRequest, @Nullable String requestRouting) {

@@ -591,6 +591,8 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(UpdateHelper.calculateRouting(getResult, indexRequest, null), equalTo("routing1"));
         assertThat(UpdateHelper.calculateRouting(getResult, indexRequest, "other"), equalTo("routing1"));
 
+        // Use the get result parent and routing
+        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest, null), equalTo("routing1"));
         // Inner doc request routing takes highest priority
         IndexRequest routedIndexRequest = new IndexRequest("test").id("1").routing("doc-routing");
         assertThat(UpdateHelper.calculateRouting(getResult, routedIndexRequest, "request-routing"), equalTo("doc-routing"));

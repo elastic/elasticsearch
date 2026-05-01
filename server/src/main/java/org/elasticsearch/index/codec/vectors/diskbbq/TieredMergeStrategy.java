@@ -9,8 +9,18 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /**
- * Selects the optimal merge strategy based on input segment characteristics.
+ * Selects the optimal merge strategy based on input segment characteristics and returns
+ * a {@link MergeAction} that encapsulates both the decision and the data needed to execute it.
  *
  * <table>
  * <caption>Strategy selection matrix</caption>
@@ -52,13 +62,94 @@ public class TieredMergeStrategy {
     }
 
     /**
+     * A merge action that encapsulates the selected strategy and the data needed to execute it.
+     * Call {@link #execute} with a pre-configured {@link HierarchicalKMeans} instance.
+     */
+    public sealed interface MergeAction {
+        // Selected strategy 
+        Strategy strategy();
+
+        // Execute the merge action, returning the clustering result
+        KMeansResult execute(HierarchicalKMeans kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster) throws IOException;
+    }
+
+    public record FullRebuild() implements MergeAction {
+        @Override
+        public Strategy strategy() {
+            return Strategy.FULL_REBUILD;
+        }
+
+        @Override
+        public KMeansResult execute(HierarchicalKMeans kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
+            throws IOException {
+            return kmeans.cluster(vectors, vectorsPerCluster);
+        }
+    }
+
+    public record Insertion(float[][] seedCentroids) implements MergeAction {
+        @Override
+        public Strategy strategy() {
+            return Strategy.INSERTION;
+        }
+
+        @Override
+        public KMeansResult execute(HierarchicalKMeans kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
+            throws IOException {
+            return kmeans.clusterByInsertion(vectors, seedCentroids, vectorsPerCluster);
+        }
+    }
+
+    public record Concatenation(float[][] seedCentroids) implements MergeAction {
+        @Override
+        public Strategy strategy() {
+            return Strategy.CONCATENATION;
+        }
+
+        @Override
+        public KMeansResult execute(HierarchicalKMeans kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
+            throws IOException {
+            return kmeans.clusterByConcatenation(vectors, seedCentroids, vectorsPerCluster);
+        }
+    }
+
+    /**
+     * Select the merge action for the given segment characteristics.
+     * The returned action encapsulates both the strategy decision and the centroid data
+     * needed to execute it.
+     *
+     * @param segmentSizes     number of vectors per input segment
+     * @param segmentCentroids number of centroids per input segment (0 if unavailable)
+     * @param centroidData     per-segment centroid data (may contain nulls for segments without centroids)
+     * @return a merge action ready to execute
+     */
+    public MergeAction selectAction(int[] segmentSizes, int[] segmentCentroids, IVFVectorsReader.CentroidData[] centroidData) {
+        Strategy strategy = selectStrategy(segmentSizes, segmentCentroids);
+        return switch (strategy) {
+            case INSERTION -> {
+                int dominantIdx = findDominantSegment(segmentSizes);
+                yield new Insertion(centroidData[dominantIdx].centroids());
+            }
+            case CONCATENATION -> {
+                List<float[]> allPriorCentroids = new ArrayList<>();
+                for (IVFVectorsReader.CentroidData data : centroidData) {
+                    if (data != null) {
+                        Collections.addAll(allPriorCentroids, data.centroids());
+                    }
+                }
+                yield new Concatenation(allPriorCentroids.toArray(new float[0][]));
+            }
+            case FULL_REBUILD -> new FullRebuild();
+        };
+    }
+
+    /**
      * Determine the best merge strategy for the given segment characteristics.
      *
      * @param segmentSizes     number of vectors per input segment
      * @param segmentCentroids number of centroids per input segment (0 if unavailable)
      * @return the selected strategy
      */
-    public Strategy selectStrategy(int[] segmentSizes, int[] segmentCentroids) {
+    Strategy selectStrategy(int[] segmentSizes, int[] segmentCentroids) {
         int totalVectors = 0;
         int maxSegmentSize = 0;
         int totalCentroids = 0;
@@ -105,7 +196,7 @@ public class TieredMergeStrategy {
      * @param segmentSizes number of vectors per input segment
      * @return index of the segment with the most vectors
      */
-    public static int findDominantSegment(int[] segmentSizes) {
+    static int findDominantSegment(int[] segmentSizes) {
         int maxIdx = 0;
         int maxSize = segmentSizes[0];
         for (int i = 1; i < segmentSizes.length; i++) {

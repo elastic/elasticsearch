@@ -27,6 +27,7 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
@@ -743,7 +744,7 @@ public class SharedBlobCacheWarmingService {
                     "relocation source shutting down (equal share of remaining time to capped grace deadline)"
                 );
             }
-            if (state.metadata().nodeShutdowns().getAll().isEmpty() == false) {
+            if (hasActiveShutdownForRemovalNodes(state)) {
                 return new SearchRecoveryTimeout(
                     searchRecoveryWarmingRelocationWithShutdownTimeout,
                     "relocation source not shutting down, cluster shutdown metadata present"
@@ -754,7 +755,7 @@ public class SharedBlobCacheWarmingService {
                 "relocation source not shutting down, no cluster shutdown"
             );
         }
-        if (hasAnotherActiveSearchShardCopy(state, indexShard) && state.metadata().nodeShutdowns().getAll().isEmpty()) {
+        if (hasAnotherActiveSearchShardCopy(state, indexShard) && hasActiveShutdownForRemovalNodes(state) == false) {
             return new SearchRecoveryTimeout(searchRecoveryWarmingNonRelocationTimeout, "not a relocation, another active shard copy");
         }
         return SearchRecoveryTimeout.skip();
@@ -802,6 +803,15 @@ public class SharedBlobCacheWarmingService {
     private static int countShardsOnNode(ClusterState clusterState, String nodeId) {
         var node = clusterState.getRoutingNodes().node(nodeId);
         return node == null ? 0 : node.size();
+    }
+
+    private static boolean hasActiveShutdownForRemovalNodes(ClusterState state) {
+        for (Map.Entry<String, SingleNodeShutdownMetadata> entry : state.metadata().nodeShutdowns().getAll().entrySet()) {
+            if (entry.getValue().getType().isRemovalType() && state.nodes().nodeExists(entry.getKey())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

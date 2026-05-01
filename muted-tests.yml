@@ -406,9 +406,6 @@ tests:
 - class: "org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT"
   issue: "https://github.com/elastic/elasticsearch/issues/147842"
   method: "testMixedOperationsDuringSplitWithDisruption"
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testCacheIsWarmedBeforeSearchShardRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/147843
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/147844

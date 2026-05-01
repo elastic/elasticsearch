@@ -895,7 +895,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
         // Select merge strategy
         TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster);
-        TieredMergeStrategy.Strategy strategy = tieredStrategy.selectStrategy(segmentSizes, segmentCentroidCounts);
+        TieredMergeStrategy.MergeAction action = tieredStrategy.selectAction(segmentSizes, segmentCentroidCounts, segmentCentroidData);
 
         if (logger.isInfoEnabled()) {
             int totalVectors = 0;
@@ -909,64 +909,34 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             logger.info(
                 "DiskBBQ merge for field [{}]: selected strategy [{}], segments={}, totalVectors={}, totalCentroids={}",
                 fieldInfo.name,
-                strategy,
+                action.strategy(),
                 numSegments,
                 totalVectors,
                 totalCentroids
             );
         }
 
-        switch (strategy) {
-            case INSERTION -> {
-                int dominantIdx = TieredMergeStrategy.findDominantSegment(segmentSizes);
-                float[][] dominantCentroids = segmentCentroidData[dominantIdx].centroids();
-                HierarchicalKMeans hierarchicalKMeans;
-                if (mergeExec != null) {
-                    hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
-                } else {
-                    hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
-                }
-                KMeansResult kMeansResult = hierarchicalKMeans.clusterByInsertion(floatVectorValues, dominantCentroids, vectorPerCluster);
-                return new CentroidAssignments(
-                    fieldInfo.getVectorDimension(),
-                    kMeansResult.centroids(),
-                    kMeansResult.assignments(),
-                    kMeansResult.soarAssignments()
-                );
-            }
-            case CONCATENATION -> {
-                java.util.List<float[]> allPriorCentroids = new java.util.ArrayList<>();
-                for (IVFVectorsReader.CentroidData data : segmentCentroidData) {
-                    if (data != null) {
-                        java.util.Collections.addAll(allPriorCentroids, data.centroids());
-                    }
-                }
-                float[][] initialCentroids = allPriorCentroids.toArray(new float[0][]);
-                HierarchicalKMeans hierarchicalKMeans;
-                if (mergeExec != null) {
-                    hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
-                } else {
-                    hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
-                }
-                KMeansResult kMeansResult = hierarchicalKMeans.clusterByConcatenation(
-                    floatVectorValues,
-                    initialCentroids,
-                    vectorPerCluster
-                );
-                return new CentroidAssignments(
-                    fieldInfo.getVectorDimension(),
-                    kMeansResult.centroids(),
-                    kMeansResult.assignments(),
-                    kMeansResult.soarAssignments()
-                );
-            }
-            default -> {
-                return calculateCentroidsFullRebuild(floatVectorValues, fieldInfo, mergeState);
-            }
+        // Slice metadata is on disk and readers return flat segments -> FullRebuild 
+        if (action instanceof TieredMergeStrategy.FullRebuild && sliceField != null) {
+            return calculateCentroidsFullRebuildSliced(floatVectorValues, fieldInfo, mergeState);
         }
+
+        HierarchicalKMeans hierarchicalKMeans;
+        if (mergeExec != null) {
+            hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
+        } else {
+            hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
+        }
+        KMeansResult kMeansResult = action.execute(hierarchicalKMeans, floatVectorValues, vectorPerCluster);
+        return new CentroidAssignments(
+            fieldInfo.getVectorDimension(),
+            kMeansResult.centroids(),
+            kMeansResult.assignments(),
+            kMeansResult.soarAssignments()
+        );
     }
 
-    private CentroidAssignments calculateCentroidsFullRebuild(
+    private CentroidAssignments calculateCentroidsFullRebuildSliced(
         KMeansFloatVectorValues floatVectorValues,
         FieldInfo fieldInfo,
         MergeState mergeState
@@ -977,84 +947,69 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         } else {
             hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
         }
-        if (sliceField == null) { // no slice
-            KMeansResult kMeansResult = calculateCentroids(hierarchicalKMeans, floatVectorValues);
-            if (logger.isDebugEnabled()) {
-                logger.debug("final centroid count: {}", kMeansResult.centroids().length);
+        final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
+        assert slicedFieldInfo != null;
+        assert slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED : "sliceField must be SortedDocValues";
+        final SortedDocValues values = DocValueConsumerHelper.INSTANCE.getMergeSortedField(slicedFieldInfo, mergeState);
+        final int numSlices = values.getValueCount();
+        final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
+        iterator.advance(0);
+        values.nextDoc();
+        // slice field must be dense populated, but we might have documents without a vector.
+        final int[] sliceOffsets = new int[numSlices];
+        final int[] sliceLengths = new int[numSlices];
+        List<KMeansResult> kmeansResults = new ArrayList<>();
+        for (int i = 0; i < numSlices; i++) {
+            if (iterator.docID() == DocIdSetIterator.NO_MORE_DOCS) {
+                // no more vectors, we are done
+                sliceLengths[i] = 0;
+                sliceOffsets[i] = i == 0 ? 0 : sliceOffsets[i - 1];
+                continue;
             }
-            return new CentroidAssignments(
-                fieldInfo.getVectorDimension(),
-                kMeansResult.centroids(),
-                kMeansResult.assignments(),
-                kMeansResult.soarAssignments()
+            // get start and end of an slice
+            int sliceDocStart = values.docID();
+            while (values.docID() != DocIdSetIterator.NO_MORE_DOCS && values.ordValue() == i) {
+                values.nextDoc();
+            }
+            final int sliceDocEnd = values.docID();
+            // get the vector ordinals for the slice
+            int vectorDocStart = iterator.docID();
+            if (vectorDocStart < sliceDocStart) {
+                // advance iterator to the beginning of the slice
+                vectorDocStart = iterator.advance(sliceDocStart);
+            }
+            if (vectorDocStart > sliceDocEnd) {
+                // no vectors in this slice
+                sliceLengths[i] = 0;
+                sliceOffsets[i] = i == 0 ? 0 : sliceOffsets[i - 1];
+                continue;
+            }
+            final int vectorOrdStart = iterator.index();
+            final int docEnd = vectorDocStart == sliceDocEnd ? sliceDocEnd : iterator.advance(sliceDocEnd);
+            final int vectorOrdEnd = docEnd == KnnVectorValues.DocIndexIterator.NO_MORE_DOCS ? floatVectorValues.size() : iterator.index();
+            final int sliceNumVectors = vectorOrdEnd - vectorOrdStart;
+            final ClusteringFloatVectorValuesSlice slice = new ClusteringFloatVectorValuesSlice(
+                floatVectorValues,
+                j -> vectorOrdStart + j,
+                sliceNumVectors
             );
-        } else {
-            final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
-            assert slicedFieldInfo != null;
-            assert slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED : "sliceField must be SortedDocValues";
-            final SortedDocValues values = DocValueConsumerHelper.INSTANCE.getMergeSortedField(slicedFieldInfo, mergeState);
-            final int numSlices = values.getValueCount();
-            final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
-            iterator.advance(0);
-            values.nextDoc();
-            // slice field must be dense populated, but we might have documents without a vector.
-            final int[] sliceOffsets = new int[numSlices];
-            final int[] sliceLengths = new int[numSlices];
-            List<KMeansResult> kmeansResults = new ArrayList<>();
-            for (int i = 0; i < numSlices; i++) {
-                if (iterator.docID() == DocIdSetIterator.NO_MORE_DOCS) {
-                    // no more vectors, we are done
-                    sliceLengths[i] = 0;
-                    sliceOffsets[i] = i == 0 ? 0 : sliceOffsets[i - 1];
-                    continue;
-                }
-                // get start and end of an slice
-                int sliceDocStart = values.docID();
-                while (values.docID() != DocIdSetIterator.NO_MORE_DOCS && values.ordValue() == i) {
-                    values.nextDoc();
-                }
-                final int sliceDocEnd = values.docID();
-                // get the vector ordinals for the slice
-                int vectorDocStart = iterator.docID();
-                if (vectorDocStart < sliceDocStart) {
-                    // advance iterator to the beginning of the slice
-                    vectorDocStart = iterator.advance(sliceDocStart);
-                }
-                if (vectorDocStart > sliceDocEnd) {
-                    // no vectors in this slice
-                    sliceLengths[i] = 0;
-                    sliceOffsets[i] = i == 0 ? 0 : sliceOffsets[i - 1];
-                    continue;
-                }
-                final int vectorOrdStart = iterator.index();
-                final int docEnd = vectorDocStart == sliceDocEnd ? sliceDocEnd : iterator.advance(sliceDocEnd);
-                final int vectorOrdEnd = docEnd == KnnVectorValues.DocIndexIterator.NO_MORE_DOCS
-                    ? floatVectorValues.size()
-                    : iterator.index();
-                final int sliceNumVectors = vectorOrdEnd - vectorOrdStart;
-                final ClusteringFloatVectorValuesSlice slice = new ClusteringFloatVectorValuesSlice(
-                    floatVectorValues,
-                    j -> vectorOrdStart + j,
-                    sliceNumVectors
-                );
-                final KMeansResult kMeansResult = calculateCentroids(hierarchicalKMeans, slice);
-                kmeansResults.add(kMeansResult);
-                sliceLengths[i] = sliceNumVectors;
-                sliceOffsets[i] = i == 0 ? kMeansResult.centroids().length : sliceOffsets[i - 1] + kMeansResult.centroids().length;
-            }
-            final KMeansResult merged = KMeansResult.merge(kmeansResults);
-            if (logger.isDebugEnabled()) {
-                logger.debug("final centroid count: {}", merged.centroids().length);
-            }
-            final CentroidSlices centroidSlices = new CentroidSlices(sliceOffsets, sliceLengths);
-            return new CentroidAssignments(
-                floatVectorValues.dimension(),
-                merged.centroids(),
-                merged.assignments(),
-                merged.soarAssignments(),
-                centroidSlices
-            );
+            final KMeansResult kMeansResult = calculateCentroids(hierarchicalKMeans, slice);
+            kmeansResults.add(kMeansResult);
+            sliceLengths[i] = sliceNumVectors;
+            sliceOffsets[i] = i == 0 ? kMeansResult.centroids().length : sliceOffsets[i - 1] + kMeansResult.centroids().length;
         }
+        final KMeansResult merged = KMeansResult.merge(kmeansResults);
+        if (logger.isDebugEnabled()) {
+            logger.debug("final centroid count: {}", merged.centroids().length);
+        }
+        final CentroidSlices centroidSlices = new CentroidSlices(sliceOffsets, sliceLengths);
+        return new CentroidAssignments(
+            floatVectorValues.dimension(),
+            merged.centroids(),
+            merged.assignments(),
+            merged.soarAssignments(),
+            centroidSlices
+        );
     }
 
     // This class helps to access the merged view of a slice.

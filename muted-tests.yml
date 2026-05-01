@@ -439,9 +439,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
   method: testRetentionLeasesIgnoredForSoftDeletesPolicy
   issue: https://github.com/elastic/elasticsearch/issues/147859
-- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
-  method: testHKmeans
-  issue: https://github.com/elastic/elasticsearch/issues/147482
+- class: org.elasticsearch.search.internal.CancellableBulkScorerTests
+  method: testIntervalGrowsGeometrically
+  issue: https://github.com/elastic/elasticsearch/issues/147872
 - class: org.elasticsearch.xpack.sql.jdbc.JdbcPreparedStatementTests
   method: testSettingSqlDateValues
   issue: https://github.com/elastic/elasticsearch/issues/147874

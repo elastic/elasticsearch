@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -107,7 +108,7 @@ public class KeyedLockTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         Thread t = new Thread(() -> {
             latch.countDown();
-            try (Releasable r = lock.acquire("foo")) {
+            try (Releasable ignored = lock.acquire("foo")) {
                 test.incrementAndGet();
             }
 
@@ -199,7 +200,7 @@ public class KeyedLockTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         Thread t = new Thread(() -> {
             latch.countDown();
-            try (Releasable r = lock.acquire("foo")) {
+            try (Releasable ignored = lock.acquire("foo")) {
                 test.incrementAndGet();
             }
         });
@@ -263,25 +264,16 @@ public class KeyedLockTests extends ESTestCase {
                     assert connectionLock.isHeldByCurrentThread(curName);
                     assert connectionLock.isHeldByCurrentThread(curName + "bla") == false;
                     if (randomBoolean()) {
-                        try (Releasable reentrantIgnored = connectionLock.acquire(curName)) {
+                        try (Releasable ignored = connectionLock.acquire(curName)) {
                             // just acquire this and make sure we can :)
                             Thread.yield();
                         }
                     }
-                    Integer integer = counter.get(curName);
-                    if (integer == null) {
-                        counter.put(curName, 1);
-                    } else {
-                        counter.put(curName, integer.intValue() + 1);
-                    }
+                    counter.merge(curName, 1, Integer::sum);
                 }
                 AtomicInteger atomicInteger = new AtomicInteger(0);
                 AtomicInteger value = safeCounter.putIfAbsent(curName, atomicInteger);
-                if (value == null) {
-                    atomicInteger.incrementAndGet();
-                } else {
-                    value.incrementAndGet();
-                }
+                Objects.requireNonNullElse(value, atomicInteger).incrementAndGet();
             }
         }
     }
@@ -335,20 +327,11 @@ public class KeyedLockTests extends ESTestCase {
                 try (Releasable ignore = lock) {
                     assert connectionLock.isHeldByCurrentThread(curName);
                     assert connectionLock.isHeldByCurrentThread(curName + "bla") == false;
-                    Integer integer = counter.get(curName);
-                    if (integer == null) {
-                        counter.put(curName, 1);
-                    } else {
-                        counter.put(curName, integer.intValue() + 1);
-                    }
+                    counter.merge(curName, 1, Integer::sum);
                 }
                 AtomicInteger atomicInteger = new AtomicInteger(0);
                 AtomicInteger value = safeCounter.putIfAbsent(curName, atomicInteger);
-                if (value == null) {
-                    atomicInteger.incrementAndGet();
-                } else {
-                    value.incrementAndGet();
-                }
+                Objects.requireNonNullElse(value, atomicInteger).incrementAndGet();
             }
         }
     }

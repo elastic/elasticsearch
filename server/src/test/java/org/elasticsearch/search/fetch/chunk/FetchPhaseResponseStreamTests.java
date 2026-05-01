@@ -344,27 +344,47 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
     // ==================== Reference Counting Tests ====================
 
-    public void testHitsIncRefOnWrite() throws IOException {
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+    public void testHitOwnershipTransferredToQueueOnWrite() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
 
+        FetchPhaseResponseChunk chunk = createChunk(0, 5, 0);
         try {
-            FetchPhaseResponseChunk chunk = createChunk(0, 5, 0);
-            writeChunk(stream, chunk);
+            stream.writeChunk(chunk, () -> {});
 
-            FetchSearchResult result = buildFinalResult(stream);
-
-            try {
-                // Hits should still have references after writeChunk
-                for (SearchHit hit : result.hits().getHits()) {
-                    assertTrue("Hit should have references", hit.hasReferences());
-                }
-            } finally {
-                result.decRef();
+            for (SearchHit hit : chunk.getHits()) {
+                assertNull("Chunk should have released its reference to the hit after consumeHits", hit);
             }
         } finally {
-            stream.decRef();
+            chunk.close();
         }
+
+        FetchSearchResult result = buildFinalResult(stream);
+        for (SearchHit hit : result.hits().getHits()) {
+            assertTrue("Hit should have references", hit.hasReferences());
+        }
+        result.decRef();
+
+        stream.decRef();
+        assertThat("Breaker bytes should be released after stream close", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testHitsReleasedWhenStreamClosedWithoutBuildFinalResult() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
+
+        FetchPhaseResponseChunk chunk = createChunk(0, 5, 0);
+        try {
+            stream.writeChunk(chunk, () -> {});
+        } finally {
+            chunk.close();
+        }
+
+        assertThat("Breaker should account for the accumulated chunk bytes", breaker.getUsed(), greaterThan(0L));
+
+        stream.decRef();
+
+        assertThat("All breaker bytes should be released", breaker.getUsed(), equalTo(0L));
     }
 
     // ==================== Score Handling Tests ====================

@@ -300,6 +300,7 @@ events:double | pod:keyword | time_bucket:datetime
 avg_over_time_with_window
 required_capability: ts_command_v0
 required_capability: time_series_window_v1
+required_capability: fix_time_series_window_backward
 // tag::avg_over_time_with_window[]
 TS k8s
 | STATS events = sum(avg_over_time(events_received, 10minute)) by pod, time_bucket = tbucket(5minute)
@@ -311,16 +312,16 @@ TS k8s
 
 // tag::avg_over_time_with_window-result[]
 events:double | pod:keyword | time_bucket:datetime
-15.7465       | one         | 2024-05-10T00:00:00.000Z
-15.3963       | three       | 2024-05-10T00:00:00.000Z
-14.1999       | two         | 2024-05-10T00:00:00.000Z
-17.7114       | one         | 2024-05-10T00:05:00.000Z
-14.6257       | three       | 2024-05-10T00:05:00.000Z
-15.6058       | two         | 2024-05-10T00:05:00.000Z
-19.0101       | one         | 2024-05-10T00:10:00.000Z
-15.0455       | three       | 2024-05-10T00:10:00.000Z
-16.9444       | two         | 2024-05-10T00:10:00.000Z
-16.4857       | one         | 2024-05-10T00:15:00.000Z
+14.1667       | one         | 2024-05-10T00:00:00.000Z
+15.25         | three       | 2024-05-10T00:00:00.000Z
+15.9667       | two         | 2024-05-10T00:00:00.000Z
+15.7465       | one         | 2024-05-10T00:05:00.000Z
+15.3963       | three       | 2024-05-10T00:05:00.000Z
+14.1999       | two         | 2024-05-10T00:05:00.000Z
+17.7114       | one         | 2024-05-10T00:10:00.000Z
+14.6257       | three       | 2024-05-10T00:10:00.000Z
+15.6058       | two         | 2024-05-10T00:10:00.000Z
+19.0101       | one         | 2024-05-10T00:15:00.000Z
 // end::avg_over_time_with_window-result[]
 ;
 

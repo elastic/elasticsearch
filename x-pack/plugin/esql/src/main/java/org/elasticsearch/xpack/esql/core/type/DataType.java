@@ -380,7 +380,11 @@ public enum DataType implements Writeable {
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
-    PARTIAL_AGG(builder().esType("partial_agg").estimatedSize(1024).underConstruction(DataTypesTransportVersions.ESQL_AGG_FROM_PARTIAL)),
+    PARTIAL_AGG(
+        builder().esType("partial_agg")
+            .estimatedSize(1024)
+            .supportedSince(DataTypesTransportVersions.ESQL_AGG_FROM_PARTIAL, DataTypesTransportVersions.ESQL_AGG_FROM_PARTIAL)
+    ),
     AGGREGATE_METRIC_DOUBLE(
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)

@@ -120,6 +120,7 @@ public class Reindexer {
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
     private final ClusterService clusterService;
+    private final ReindexSettings reindexSettings;
     private final ProjectResolver projectResolver;
     private final Client client;
     private final ThreadPool threadPool;
@@ -127,6 +128,8 @@ public class Reindexer {
     private final ReindexSslConfig reindexSslConfig;
     @Nullable
     private final ReindexMetrics reindexMetrics;
+    @Nullable
+    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
     private final TaskManager taskManager;
     private final TransportService transportService;
     private final ReindexRelocationNodePicker relocationNodePicker;
@@ -136,24 +139,28 @@ public class Reindexer {
 
     Reindexer(
         ClusterService clusterService,
+        ReindexSettings reindexSettings,
         ProjectResolver projectResolver,
         Client client,
         ThreadPool threadPool,
         ScriptService scriptService,
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
         TransportService transportService,
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
         TaskResultsService taskResultsService
     ) {
         this.clusterService = clusterService;
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
         this.projectResolver = projectResolver;
         this.client = client;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
+        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
         this.taskManager = transportService.getTaskManager(); // implicit null check
         this.transportService = transportService;
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
@@ -282,7 +289,8 @@ public class Reindexer {
                 request,
                 listener,
                 remoteVersion,
-                reindexShutdownGracePeriod
+                reindexShutdownGracePeriod,
+                bulkByScrollSearchContextMetrics
             );
             searchAction.start();
         };
@@ -311,14 +319,6 @@ public class Reindexer {
     }
 
     /**
-     * Returns the keep-alive duration for PIT. Uses the request's scroll time when set, otherwise defaults to 5 minutes.
-     * TODO - https://github.com/elastic/elasticsearch-team/issues/2334
-     */
-    private static TimeValue pitKeepAlive(ReindexRequest request) {
-        return request.getScrollTime() != null ? request.getScrollTime() : TimeValue.timeValueMinutes(5);
-    }
-
-    /**
      * Opens a PIT on the local cluster, runs the sliced action, and closes the PIT when done.
      */
     private void openPitAndExecute(
@@ -338,7 +338,7 @@ public class Reindexer {
             : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
 
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
-            .keepAlive(pitKeepAlive(request))
+            .keepAlive(reindexSettings.pitKeepAlive())
             .allowPartialSearchResults(false);
         if (searchRequest.getProjectRouting() != null) {
             pitRequest.projectRouting(searchRequest.getProjectRouting());
@@ -354,7 +354,7 @@ public class Reindexer {
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call
         client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, listener.delegateFailureAndWrap((l, pitResponse) -> {
             BytesReference pitId = pitResponse.getPointInTimeId();
-            request.convertSearchRequestToUsePit(pitId, pitKeepAlive(request));
+            request.convertSearchRequestToUsePit(pitId, reindexSettings.pitKeepAlive());
             ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 l,
@@ -558,8 +558,8 @@ public class Reindexer {
         SearchRequest searchRequest = request.getSearchRequest();
         String[] indices = searchRequest.indices();
         // Sends a REST request to the remote node to open a PIT
-        openPit(searchRequest, indices, pitKeepAlive(request), remoteVersion, RejectAwareActionListener.wrap(pitId -> {
-            request.convertSearchRequestToUsePit(pitId, pitKeepAlive(request));
+        openPit(searchRequest, indices, reindexSettings.pitKeepAlive(), remoteVersion, RejectAwareActionListener.wrap(pitId -> {
+            request.convertSearchRequestToUsePit(pitId, reindexSettings.pitKeepAlive());
             ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 listenerWithRelocations,
@@ -734,6 +734,14 @@ public class Reindexer {
                 l.onFailure(e);
                 return;
             }
+
+            // Capture RPS under the relocation guard, blocking concurrent rethrottle from this point on.
+            // RPS is carried on the request itself; the destination allocates the RPS amongst incomplete slices.
+            // Completed slices will have the old RPS values.
+            final float capturedRPS = task.isLeader()
+                ? task.getLeaderState().captureRequestsPerSecondForRelocation()
+                : task.getWorkerState().captureRequestsPerSecondForRelocation();
+            request.setRequestsPerSecond(capturedRPS);
             request.setResumeInfo(
                 new ResumeInfo(resumeInfo.relocationOrigin(), resumeInfo.worker(), resumeInfo.slices(), sourceTaskResult)
             );
@@ -940,7 +948,8 @@ public class Reindexer {
             ReindexRequest request,
             ActionListener<BulkByScrollResponse> listener,
             @Nullable Version remoteVersion,
-            TimeValue maxTaskShutdownGracePeriod
+            TimeValue maxTaskShutdownGracePeriod,
+            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics
         ) {
             super(
                 task,
@@ -960,6 +969,9 @@ public class Reindexer {
                 scriptService,
                 sslConfig,
                 remoteVersion,
+                bulkByScrollSearchContextMetrics,
+                BulkByScrollSearchContextMetrics.TaskKind.REINDEX,
+                request.getRemoteInfo() != null,
                 maxTaskShutdownGracePeriod
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
@@ -999,7 +1011,8 @@ public class Reindexer {
                         restClient,
                         remoteInfo,
                         searchRequest,
-                        remoteVersion
+                        remoteVersion,
+                        searchContextKeepaliveDeadline
                     );
                 }
                 return new RemoteScrollablePaginatedHitSource(
@@ -1012,7 +1025,8 @@ public class Reindexer {
                     restClient,
                     remoteInfo,
                     searchRequest,
-                    remoteVersion
+                    remoteVersion,
+                    searchContextKeepaliveDeadline
                 );
             }
             return super.buildScrollableResultSource(backoffPolicy, searchRequest);

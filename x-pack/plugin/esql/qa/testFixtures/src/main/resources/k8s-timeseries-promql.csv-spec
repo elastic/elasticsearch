@@ -92,6 +92,7 @@ cost:double | step:datetime            | cluster:keyword
 range_selector_different_from_step
 required_capability: promql_command_v0
 required_capability: time_series_window_v1
+required_capability: fix_time_series_window_backward
 PROMQL index=k8s step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" sum by (pod) (avg_over_time(events_received[10m]))
 | SORT pod
 ;

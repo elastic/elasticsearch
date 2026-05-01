@@ -62,6 +62,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ESTestCase.between;
@@ -70,6 +71,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -2348,7 +2350,6 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             }
             iw.forceMerge(1);
 
-            long minValue = Collections.min(values);
             long maxValue = Collections.max(values);
             long sampleValue = randomFrom(values);
 
@@ -2358,10 +2359,9 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 assertRangeIterator(leafReader, field, numDocs, sampleValue, sampleValue); // exact match
                 assertRangeIterator(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE); // empty match
 
-                // Random ranges within [minValue, maxValue].
                 for (int i = 0; i < 5; i++) {
-                    long a = randomLongBetween(minValue, maxValue);
-                    long b = randomLongBetween(minValue, maxValue);
+                    long a = randomLong();
+                    long b = randomLong();
                     assertRangeIterator(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b));
                 }
             }
@@ -2398,7 +2398,6 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             }
             iw.forceMerge(1);
 
-            long minValue = Collections.min(values);
             long maxValue = Collections.max(values);
             long sampleValue = randomFrom(values);
 
@@ -2408,10 +2407,9 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 assertRangeIteratorIntoBitSet(leafReader, field, numDocs, sampleValue, sampleValue); // exact match
                 assertRangeIteratorIntoBitSet(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE); // empty
 
-                // Random ranges within [minValue, maxValue].
                 for (int i = 0; i < 5; i++) {
-                    long a = randomLongBetween(minValue, maxValue);
-                    long b = randomLongBetween(minValue, maxValue);
+                    long a = randomLong();
+                    long b = randomLong();
                     assertRangeIteratorIntoBitSet(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b));
                 }
             }
@@ -2448,7 +2446,6 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             }
             iw.forceMerge(1);
 
-            long minValue = Collections.min(values);
             long maxValue = Collections.max(values);
             long sampleValue = randomFrom(values);
 
@@ -2461,8 +2458,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 assertRangeQuerySearcher(leafReader, field, searcher, numDocs, maxValue + 1, Long.MAX_VALUE); // empty
 
                 for (int i = 0; i < 5; i++) {
-                    long a = randomLongBetween(minValue, maxValue);
-                    long b = randomLongBetween(minValue, maxValue);
+                    long a = randomLong();
+                    long b = randomLong();
                     assertRangeQuerySearcher(leafReader, field, searcher, numDocs, Math.min(a, b), Math.max(a, b));
                 }
             }
@@ -2540,9 +2537,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         {
             var ndv = getBaseDenseNumericValues(leafReader, field);
             var iter = ndv.tryRangeIterator(lower, upper);
-            if (iter == null) {
-                return;
-            }
+            assertNotNull(iter);
             int firstDoc = iter.nextDoc();
             if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
                 assertTrue("no matches → expected set must be empty", expected.isEmpty());
@@ -2558,22 +2553,20 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         {
             var ndv = getBaseDenseNumericValues(leafReader, field);
             var iter = ndv.tryRangeIterator(lower, upper);
-            if (iter == null) {
-                return;
-            }
+            assertNotNull(iter);
             int firstDoc = iter.nextDoc();
             if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
                 return;
             }
             var bitSet = new FixedBitSet(numDocs);
             bitSet.set(firstDoc);
-            int windowSize = Math.max(1, (numDocs - firstDoc + 3) / 4);
             int doc = firstDoc;
-            for (int upTo = firstDoc + windowSize; doc != DocIdSetIterator.NO_MORE_DOCS; upTo += windowSize) {
-                int cap = Math.min(upTo, numDocs);
-                iter.intoBitSet(cap, bitSet, 0);
+            for (int pos = firstDoc; pos < numDocs && doc != DocIdSetIterator.NO_MORE_DOCS;) {
+                int windowSize = randomIntBetween(1, numDocs - pos);
+                int upTo = pos + windowSize;
+                iter.intoBitSet(upTo, bitSet, 0);
                 doc = iter.docID();
-                if (cap >= numDocs) break;
+                pos = upTo;
             }
             assertEquals("intoBitSet partial windows [" + lower + "," + upper + "]", expected, collectBitSet(bitSet, numDocs, 0));
         }
@@ -2583,14 +2576,12 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             int offset = numDocs / 2;
             var ndv = getBaseDenseNumericValues(leafReader, field);
             var iter = ndv.tryRangeIterator(lower, upper);
-            if (iter == null) {
-                return;
-            }
+            assertNotNull(iter);
             int firstDoc = iter.advance(offset);
-            Set<Integer> expectedFromOffset = new HashSet<>();
-            for (int d : expected) {
-                if (d >= offset) expectedFromOffset.add(d);
-            }
+            Set<Integer> expectedFromOffset = expected.stream()
+                .filter(d -> d >= offset)
+                .collect(Collectors.toSet());
+
             if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
                 assertTrue("no docs at or after offset " + offset, expectedFromOffset.isEmpty());
                 return;
@@ -2606,13 +2597,9 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
     }
 
-    private static Set<Integer> collectBitSet(FixedBitSet bitSet, int limit, int offset) {
+    private static Set<Integer> collectBitSet(FixedBitSet bitSet, int limit, int offset) throws IOException {
         Set<Integer> docs = new HashSet<>();
-        for (int b = bitSet.nextSetBit(0); b != DocIdSetIterator.NO_MORE_DOCS; b = ++b < limit
-            ? bitSet.nextSetBit(b)
-            : DocIdSetIterator.NO_MORE_DOCS) {
-            docs.add(b + offset);
-        }
+        bitSet.forEach(0, limit, offset, docs::add);
         return docs;
     }
 
@@ -2620,8 +2607,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         throws IOException {
         Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
 
-        // Test through the feature flag gate (may use Lucene's implementation when flag is off).
-        var query = SortedNumericDocValuesRangeQuery.newRangeQuery(field, lower, upper);
+        // Always test the ES pushdown implementation directly, regardless of the feature flag.
+        var query = new SortedNumericDocValuesRangeQuery(field, lower, upper);
         var topDocs = searcher.search(query, numDocs + 1);
         assertEquals("hit count for range [" + lower + "," + upper + "]", expected.size(), (int) topDocs.totalHits.value());
         Set<Integer> actual = new HashSet<>();
@@ -2629,19 +2616,5 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             actual.add(scoreDoc.doc);
         }
         assertEquals("hit set for range [" + lower + "," + upper + "]", expected, actual);
-
-        // Always test the ES pushdown implementation directly, regardless of the feature flag.
-        var pushdownQuery = new SortedNumericDocValuesRangeQuery(field, lower, upper);
-        var pushdownTopDocs = searcher.search(pushdownQuery, numDocs + 1);
-        assertEquals(
-            "pushdown hit count for range [" + lower + "," + upper + "]",
-            expected.size(),
-            (int) pushdownTopDocs.totalHits.value()
-        );
-        Set<Integer> pushdownActual = new HashSet<>();
-        for (var scoreDoc : pushdownTopDocs.scoreDocs) {
-            pushdownActual.add(scoreDoc.doc);
-        }
-        assertEquals("pushdown hit set for range [" + lower + "," + upper + "]", expected, pushdownActual);
     }
 }

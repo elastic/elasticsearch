@@ -2405,7 +2405,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     // The filtered DISI must be obtained from a fresh instance since it shares state with the outer reader.
 
                     DocValuesSkipper skipper = fieldInfo != null && fieldInfo.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE
-                        ? getSkipper(fieldInfo) : null;
+                        ? getSkipper(fieldInfo)
+                        : null;
                     final FixedBitSet matches = new FixedBitSet(numericBlockSize);
                     if (skipper != null) {
                         // Skips at two levels: skipper blocks (coarse min/max range check), then
@@ -2811,7 +2812,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         };
     }
 
-    private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, long maxOrd, @Nullable FieldInfo fieldInfo) throws IOException {
+    private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, long maxOrd, @Nullable FieldInfo fieldInfo)
+        throws IOException {
         if (entry.numValues == entry.numDocsWithField) {
             return DocValues.singleton(getNumeric(entry, maxOrd, fieldInfo));
         }

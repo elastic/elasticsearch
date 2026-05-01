@@ -15,7 +15,11 @@ import java.util.EnumSet;
 public class PruneConstantSortKeysFromTopNGoldenTests extends UnmappedGoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION);
-    private static final EnumSet<Stage> STAGES_LOCAL = EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION);
+    private static final EnumSet<Stage> STAGES_LOCAL = EnumSet.of(
+        Stage.LOGICAL_OPTIMIZATION,
+        Stage.LOCAL_PHYSICAL_OPTIMIZATION,
+        Stage.NODE_REDUCE
+    );
 
     public void testConstantSortKeyViaEval() {
         // EVAL x = null makes the sort key foldable; PruneConstantSortKeysFromTopN replaces TopN with Limit.
@@ -38,10 +42,11 @@ public class PruneConstantSortKeysFromTopNGoldenTests extends UnmappedGoldenTest
     }
 
     public void testUnmappedSortKeyNullifiedAndPruned() {
-        // With unmapped_fields="nullify", ReplaceFieldWithConstantOrNull turns the missing field into null in
-        // the local optimizer; PruneConstantSortKeysFromTopN then prunes it, leaving only emp_no in the sort.
-        // With unmapped_fields="load", the field is retained as a potentially-unmapped keyword, so the rule
-        // does not fire and the TopN keeps both sort keys.
+        // With unmapped_fields="nullify", does_not_exist has MissingEsField type (established at analysis time
+        // via field-caps, meaning the field is absent from every shard). PruneConstantSortKeysFromTopN detects
+        // this at logical optimization time and removes it from the TopN sort keys, leaving only emp_no.
+        // With unmapped_fields="load", the field is PotentiallyUnmappedKeywordEsField (may exist on some shards),
+        // so the rule does not fire and the TopN keeps both sort keys.
         runTestsNullifyAndLoad("""
             FROM employees
             | KEEP emp_no, does_not_exist

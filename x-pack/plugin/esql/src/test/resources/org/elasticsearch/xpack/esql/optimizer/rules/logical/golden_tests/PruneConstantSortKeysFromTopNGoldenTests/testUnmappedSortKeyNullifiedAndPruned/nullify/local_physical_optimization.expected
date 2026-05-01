@@ -1,5 +1,5 @@
 ProjectExec[[emp_no{f}#0, does_not_exist{f}#1]]
-\_TopNExec[[Order[does_not_exist{f}#1,ASC,LAST], Order[emp_no{f}#0,ASC,LAST]],20[INTEGER],null]
+\_TopNExec[[Order[emp_no{f}#0,ASC,LAST]],20[INTEGER],null]
   \_ExchangeExec[[emp_no{f}#0, does_not_exist{f}#1],false]
     \_ProjectExec[[emp_no{f}#0, does_not_exist{r}#1]]
       \_FieldExtractExec[emp_no{f}#0]<[],[],[]>

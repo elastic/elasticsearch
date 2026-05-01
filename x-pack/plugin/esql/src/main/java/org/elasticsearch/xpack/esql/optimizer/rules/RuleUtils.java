@@ -125,6 +125,7 @@ public final class RuleUtils {
             var c = a.child();
             boolean shouldCollect = c.foldable();
             if (shouldCollect == false) {
+                // try to resolve the expression based on an existing foldables
                 c = c.transformUp(ReferenceAttribute.class, r -> collectRefsBuilder.build().resolve(r, r));
                 shouldCollect = c.foldable();
             }

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
@@ -23,10 +25,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Simplifies a {@link TopN} by removing sort keys that are foldable (constant), since sorting by a
- * constant is a no-op. If all keys are constant the {@link TopN} is replaced entirely by a
- * {@link Limit}. If only some keys are constant the {@link TopN} is rebuilt with just the remaining
- * non-constant keys.
+ * Simplifies a {@link TopN} by removing sort keys that are provably no-ops, since sorting by a
+ * constant does not affect the result order. If all keys are no-ops the {@link TopN} is replaced
+ * entirely by a {@link Limit}. If only some keys are no-ops the {@link TopN} is rebuilt with just
+ * the remaining keys.
+ *
+ * <p>A sort key is considered a no-op if:
+ * <ul>
+ *   <li>it resolves to a foldable (constant) expression via alias substitution, or</li>
+ *   <li>it is a {@link FieldAttribute} whose underlying field is a {@link MissingEsField} —
+ *       meaning the field is absent from every shard in the queried index (established at analysis
+ *       time via field-caps) and will therefore be {@code null} for every document.</li>
+ * </ul>
  *
  * <p>The rule intentionally skips {@link TopN} nodes that have been pushed down into {@link Fork}
  * branches by {@link PushDownLimitAndOrderByIntoFork}. Those inner TopNs carry sort keys that look
@@ -73,7 +83,10 @@ public final class PruneConstantSortKeysFromTopN extends ParameterizedRule<Logic
             ctx,
             p -> p instanceof Fork || p instanceof Aggregate
         );
-        List<Order> nonConstant = topN.order().stream().filter(o -> foldables.resolve(o.child(), o.child()).foldable() == false).toList();
+        List<Order> nonConstant = topN.order().stream().filter(o -> {
+            Expression key = foldables.resolve(o.child(), o.child());
+            return key.foldable() == false && isMissingField(key) == false;
+        }).toList();
         if (nonConstant.isEmpty()) {
             return new Limit(topN.source(), topN.limit(), topN.child());
         }
@@ -81,5 +94,9 @@ public final class PruneConstantSortKeysFromTopN extends ParameterizedRule<Logic
             return new TopN(topN.source(), topN.child(), nonConstant, topN.limit(), topN.local());
         }
         return topN;
+    }
+
+    private static boolean isMissingField(Expression expr) {
+        return expr instanceof FieldAttribute fa && fa.field() instanceof MissingEsField;
     }
 }

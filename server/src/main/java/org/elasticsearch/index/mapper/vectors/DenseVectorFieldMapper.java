@@ -2665,7 +2665,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public boolean updatableTo(DenseVectorIndexOptions update) {
-            return update.type.equals(this.type);
+            if (update.type.equals(this.type) == false) {
+                return false;
+            }
+            BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
+            return this.doPrecondition == that.doPrecondition;
         }
 
         @Override
@@ -2676,12 +2680,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && defaultVisitPercentage == that.defaultVisitPercentage
                 && onDiskRescore == that.onDiskRescore
                 && bits == that.bits
+                && doPrecondition == that.doPrecondition
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, flatIndexThreshold, defaultVisitPercentage, onDiskRescore, rescoreVector);
+            return Objects.hash(clusterSize, flatIndexThreshold, defaultVisitPercentage, onDiskRescore, doPrecondition, rescoreVector);
         }
 
         @Override
@@ -2729,6 +2734,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public int getBits() {
             return bits;
+        }
+
+        @Override
+        public String toString() {
+            return "{type="
+                + type
+                + ", cluster_size="
+                + clusterSize
+                + ", flat_index_threshold="
+                + flatIndexThreshold
+                + ", default_visit_percentage="
+                + defaultVisitPercentage
+                + ", on_disk_rescore="
+                + onDiskRescore
+                + ", rescore_vector="
+                + (rescoreVector == null ? "none" : rescoreVector)
+                + ", precondition="
+                + doPrecondition
+                + ", bits="
+                + bits
+                + "}";
         }
     }
 

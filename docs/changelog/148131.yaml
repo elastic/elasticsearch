@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 148131
+summary: Move to async pit close in synonyms loading - WIP
+type: bug

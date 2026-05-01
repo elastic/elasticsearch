@@ -2536,45 +2536,112 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         throws IOException {
         Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
 
-        var ndv = getBaseDenseNumericValues(leafReader, field);
-        var iter = ndv.tryRangeIterator(lower, upper);
-        if (iter == null) {
-            return;
+        // Pass 1: single full window, offset=0
+        {
+            var ndv = getBaseDenseNumericValues(leafReader, field);
+            var iter = ndv.tryRangeIterator(lower, upper);
+            if (iter == null) {
+                return;
+            }
+            int firstDoc = iter.nextDoc();
+            if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                assertTrue("no matches → expected set must be empty", expected.isEmpty());
+                return;
+            }
+            var bitSet = new FixedBitSet(numDocs);
+            bitSet.set(firstDoc);
+            iter.intoBitSet(numDocs, bitSet, 0);
+            assertEquals("intoBitSet single window [" + lower + "," + upper + "]", expected, collectBitSet(bitSet, numDocs, 0));
         }
 
-        // Advance to first matching doc so intoBitSet has a valid starting position.
-        int firstDoc = iter.nextDoc();
-        if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
-            assertTrue("no matches → expected set must be empty", expected.isEmpty());
-            return;
+        // Pass 2: four partial windows, verifying that repeated intoBitSet calls combine correctly
+        {
+            var ndv = getBaseDenseNumericValues(leafReader, field);
+            var iter = ndv.tryRangeIterator(lower, upper);
+            if (iter == null) {
+                return;
+            }
+            int firstDoc = iter.nextDoc();
+            if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                return;
+            }
+            var bitSet = new FixedBitSet(numDocs);
+            bitSet.set(firstDoc);
+            int windowSize = Math.max(1, (numDocs - firstDoc + 3) / 4);
+            int doc = firstDoc;
+            for (int upTo = firstDoc + windowSize; doc != DocIdSetIterator.NO_MORE_DOCS; upTo += windowSize) {
+                int cap = Math.min(upTo, numDocs);
+                iter.intoBitSet(cap, bitSet, 0);
+                doc = iter.docID();
+                if (cap >= numDocs) break;
+            }
+            assertEquals("intoBitSet partial windows [" + lower + "," + upper + "]", expected, collectBitSet(bitSet, numDocs, 0));
         }
 
-        var bitSet = new FixedBitSet(numDocs);
-        bitSet.set(firstDoc);
-        iter.intoBitSet(numDocs, bitSet, 0);
+        // Pass 3: non-zero offset — bitSet covers [offset, numDocs), iterator starts from offset
+        if (numDocs > 1) {
+            int offset = numDocs / 2;
+            var ndv = getBaseDenseNumericValues(leafReader, field);
+            var iter = ndv.tryRangeIterator(lower, upper);
+            if (iter == null) {
+                return;
+            }
+            int firstDoc = iter.advance(offset);
+            Set<Integer> expectedFromOffset = new HashSet<>();
+            for (int d : expected) {
+                if (d >= offset) expectedFromOffset.add(d);
+            }
+            if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                assertTrue("no docs at or after offset " + offset, expectedFromOffset.isEmpty());
+                return;
+            }
+            var bitSet = new FixedBitSet(numDocs - offset);
+            bitSet.set(firstDoc - offset);
+            iter.intoBitSet(numDocs, bitSet, offset);
+            assertEquals(
+                "intoBitSet non-zero offset [" + lower + "," + upper + "]",
+                expectedFromOffset,
+                collectBitSet(bitSet, numDocs - offset, offset)
+            );
+        }
+    }
 
-        Set<Integer> actual = new HashSet<>();
-        for (int doc = bitSet.nextSetBit(0); doc != DocIdSetIterator.NO_MORE_DOCS; doc = ++doc < numDocs
-            ? bitSet.nextSetBit(doc)
+    private static Set<Integer> collectBitSet(FixedBitSet bitSet, int limit, int offset) {
+        Set<Integer> docs = new HashSet<>();
+        for (int b = bitSet.nextSetBit(0); b != DocIdSetIterator.NO_MORE_DOCS; b = ++b < limit
+            ? bitSet.nextSetBit(b)
             : DocIdSetIterator.NO_MORE_DOCS) {
-            actual.add(doc);
+            docs.add(b + offset);
         }
-        assertEquals("intoBitSet range [" + lower + "," + upper + "]", expected, actual);
+        return docs;
     }
 
     private void assertRangeQuerySearcher(LeafReader leafReader, String field, IndexSearcher searcher, int numDocs, long lower, long upper)
         throws IOException {
         Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
 
+        // Test through the feature flag gate (may use Lucene's implementation when flag is off).
         var query = SortedNumericDocValuesRangeQuery.newRangeQuery(field, lower, upper);
         var topDocs = searcher.search(query, numDocs + 1);
-
         assertEquals("hit count for range [" + lower + "," + upper + "]", expected.size(), (int) topDocs.totalHits.value());
-
         Set<Integer> actual = new HashSet<>();
         for (var scoreDoc : topDocs.scoreDocs) {
             actual.add(scoreDoc.doc);
         }
         assertEquals("hit set for range [" + lower + "," + upper + "]", expected, actual);
+
+        // Always test the ES pushdown implementation directly, regardless of the feature flag.
+        var pushdownQuery = new SortedNumericDocValuesRangeQuery(field, lower, upper);
+        var pushdownTopDocs = searcher.search(pushdownQuery, numDocs + 1);
+        assertEquals(
+            "pushdown hit count for range [" + lower + "," + upper + "]",
+            expected.size(),
+            (int) pushdownTopDocs.totalHits.value()
+        );
+        Set<Integer> pushdownActual = new HashSet<>();
+        for (var scoreDoc : pushdownTopDocs.scoreDocs) {
+            pushdownActual.add(scoreDoc.doc);
+        }
+        assertEquals("pushdown hit set for range [" + lower + "," + upper + "]", expected, pushdownActual);
     }
 }

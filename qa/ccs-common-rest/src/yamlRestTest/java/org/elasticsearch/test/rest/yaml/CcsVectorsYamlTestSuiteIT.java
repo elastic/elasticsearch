@@ -16,11 +16,11 @@ import org.apache.lucene.tests.util.TimeUnits;
 import java.io.IOException;
 
 /**
- * Runs the search and msearch API tests only. See {@link TestSuiteApiCheck}
+ * Runs the search.vectors API tests only. See {@link TestSuiteApiCheck}
  */
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // to account for slow encryption at rest tests
-public class CssSearchYamlTestSuiteIT extends CcsCommonYamlTestSuiteIT {
-    public CssSearchYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) throws IOException {
+public class CcsVectorsYamlTestSuiteIT extends CcsCommonYamlTestSuiteIT {
+    public CcsVectorsYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) throws IOException {
         super(testCandidate);
     }
 }

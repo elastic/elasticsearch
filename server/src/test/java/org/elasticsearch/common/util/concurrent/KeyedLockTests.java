@@ -213,13 +213,13 @@ public class KeyedLockTests extends ESTestCase {
         assertFalse(lock.hasLockedKeys());
     }
 
-    public static class AcquireAndReleaseThread extends Thread {
-        private CountDownLatch startLatch;
-        KeyedLock<String> connectionLock;
-        String[] names;
-        ConcurrentHashMap<String, Integer> counter;
-        ConcurrentHashMap<String, AtomicInteger> safeCounter;
-        final int numRuns = scaledRandomIntBetween(5000, 50000);
+    private static class AcquireAndReleaseThread extends Thread {
+        private final CountDownLatch startLatch;
+        private final KeyedLock<String> connectionLock;
+        private final String[] names;
+        private final ConcurrentHashMap<String, Integer> counter;
+        private final ConcurrentHashMap<String, AtomicInteger> safeCounter;
+        private final int numRuns = scaledRandomIntBetween(5000, 50000);
 
         public AcquireAndReleaseThread(
             CountDownLatch startLatch,
@@ -290,13 +290,13 @@ public class KeyedLockTests extends ESTestCase {
         }
     }
 
-    public static class NonReentrantAcquireAndReleaseThread extends Thread {
-        private CountDownLatch startLatch;
-        KeyedLock<String> connectionLock;
-        String[] names;
-        ConcurrentHashMap<String, Integer> counter;
-        ConcurrentHashMap<String, AtomicInteger> safeCounter;
-        final int numRuns = scaledRandomIntBetween(5000, 50000);
+    private static class NonReentrantAcquireAndReleaseThread extends Thread {
+        private final CountDownLatch startLatch;
+        private final KeyedLock<String> connectionLock;
+        private final String[] names;
+        private final ConcurrentHashMap<String, Integer> counter;
+        private final ConcurrentHashMap<String, AtomicInteger> safeCounter;
+        private final int numRuns = scaledRandomIntBetween(5000, 50000);
 
         public NonReentrantAcquireAndReleaseThread(
             CountDownLatch startLatch,

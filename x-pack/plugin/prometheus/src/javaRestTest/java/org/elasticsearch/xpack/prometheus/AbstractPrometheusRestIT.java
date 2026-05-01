@@ -171,22 +171,38 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
      * Uses the write API key.
      */
     protected void writeMetric(String metricName, Map<String, String> labels) throws IOException {
-        writeMetric(metricName, labels, 1.0);
+        writeMetricTo("generic", "default", metricName, labels, 1.0);
     }
 
     protected void writeMetric(String metricName, Map<String, String> labels, double value) throws IOException {
+        writeMetricTo("generic", "default", metricName, labels, value);
+    }
+
+    /**
+     * Writes a single metric sample to the data stream identified by {@code dataset} and
+     * {@code namespace}, and refreshes it afterwards.
+     */
+    protected void writeMetricTo(String dataset, String namespace, String metricName, Map<String, String> labels) throws IOException {
+        writeMetricTo(dataset, namespace, metricName, labels, 1.0);
+    }
+
+    protected void writeMetricTo(String dataset, String namespace, String metricName, Map<String, String> labels, double value)
+        throws IOException {
+        String writeEndpoint = "/_prometheus/metrics/" + dataset + "/" + namespace + "/api/v1/write";
+        String dataStream = "metrics-" + dataset + ".prometheus-" + namespace;
+
         RemoteWrite.TimeSeries.Builder ts = RemoteWrite.TimeSeries.newBuilder().addLabels(label("__name__", metricName));
         labels.forEach((k, v) -> ts.addLabels(label(k, v)));
         ts.addSamples(sample(value, System.currentTimeMillis()));
 
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder().addTimeseries(ts.build()).build();
 
-        Request request = new Request("POST", "/_prometheus/api/v1/write");
+        Request request = new Request("POST", writeEndpoint);
         request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
         addWriteAuth(request);
         client().performRequest(request);
-        client().performRequest(new Request("POST", "/" + DEFAULT_DATA_STREAM + "/_refresh"));
+        client().performRequest(new Request("POST", "/" + dataStream + "/_refresh"));
     }
 
     protected static RemoteWrite.Label label(String name, String value) {

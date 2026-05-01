@@ -15,6 +15,7 @@ import com.squareup.javapoet.TypeSpec;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.lang.model.element.Modifier;
 
@@ -97,13 +98,14 @@ public record ArrayArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
-        assert invokeBlockEval != null && invokeBlockEval.length == 1;
+    public void resolveVectors(MethodSpec.Builder builder, Consumer<MethodSpec.Builder> onBlock, Consumer<MethodSpec.Builder> onAllNull) {
         TypeName vectorType = vectorType(type);
         builder.addStatement("$T[] $LVectors = new $T[$L.length]", vectorType, name, vectorType, name);
         builder.beginControlFlow("for (int i = 0; i < $LBlocks.length; i++)", name);
         builder.addStatement("$LVectors[i] = $LBlocks[i].asVector()", name, name);
-        builder.beginControlFlow("if ($LVectors[i] == null)", name).addStatement(invokeBlockEval[0]).endControlFlow();
+        builder.beginControlFlow("if ($LVectors[i] == null)", name);
+        onBlock.accept(builder);
+        builder.endControlFlow();
         builder.endControlFlow();
     }
 

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -64,6 +65,9 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
         "StDimension",
         StDimension::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StDimension.class)
+        .unary(StDimension::new)
+        .name("st_dimension");
 
     private static final GeometryDimensionVisitor DIMENSION_VISITOR = new GeometryDimensionVisitor();
 

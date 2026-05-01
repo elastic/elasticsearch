@@ -18,7 +18,8 @@ import org.elasticsearch.core.Nullable;
 // end generated imports
 
 /**
- * Arrow buffer backed FloatBlock.
+ * Implementation of FloatBlock backed by an Arrow buffer holding 32 bits floats.
+ * <p>
  * This class is generated. Edit {@code X-ArrowBufBlock.java.st} instead.
  */
 public final class FloatArrowBufBlock extends AbstractArrowBufBlock<FloatVector, FloatBlock> implements FloatBlock {

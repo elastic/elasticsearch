@@ -292,12 +292,13 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final boolean doPrecondition;
     private final int preconditioningBlockDimension;
     private final int flatVectorThreshold;
+    private final String sliceField;
 
-    public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
-        this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
+    public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
+        this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster, sliceField);
     }
 
-    public ESNextDiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
+    public ESNextDiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
         this(
             quantEncoding,
             vectorPerCluster,
@@ -308,32 +309,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             1,
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-            defaultFlatThreshold(vectorPerCluster)
-        );
-    }
-
-    public ESNextDiskBBQVectorsFormat(
-        QuantEncoding quantEncoding,
-        int vectorPerCluster,
-        int centroidsPerParentCluster,
-        DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
-        ExecutorService mergingExecutorService,
-        int maxMergingWorkers,
-        boolean doPrecondition,
-        int preconditioningBlockDimension
-    ) {
-        this(
-            quantEncoding,
-            vectorPerCluster,
-            centroidsPerParentCluster,
-            elementType,
-            useDirectIO,
-            mergingExecutorService,
-            maxMergingWorkers,
-            doPrecondition,
-            preconditioningBlockDimension,
-            defaultFlatThreshold(vectorPerCluster)
+            defaultFlatThreshold(vectorPerCluster),
+            sliceField
         );
     }
 
@@ -347,7 +324,35 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         int maxMergingWorkers,
         boolean doPrecondition,
         int preconditioningBlockDimension,
-        int flatVectorThreshold
+        String sliceField
+    ) {
+        this(
+            quantEncoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            elementType,
+            useDirectIO,
+            mergingExecutorService,
+            maxMergingWorkers,
+            doPrecondition,
+            preconditioningBlockDimension,
+            defaultFlatThreshold(vectorPerCluster),
+            sliceField
+        );
+    }
+
+    public ESNextDiskBBQVectorsFormat(
+        QuantEncoding quantEncoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
+        boolean doPrecondition,
+        int preconditioningBlockDimension,
+        int flatVectorThreshold,
+        String sliceField
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -401,11 +406,12 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.preconditioningBlockDimension = preconditioningBlockDimension;
         this.doPrecondition = doPrecondition;
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
+        this.sliceField = sliceField;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
     public ESNextDiskBBQVectorsFormat() {
-        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
+        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, null);
     }
 
     @Override
@@ -422,7 +428,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             numMergeWorkers,
             preconditioningBlockDimension,
             doPrecondition,
-            flatVectorThreshold
+            flatVectorThreshold,
+            sliceField
         );
     }
 

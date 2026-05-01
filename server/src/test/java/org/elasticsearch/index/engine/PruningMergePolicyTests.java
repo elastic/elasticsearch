@@ -204,7 +204,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                             final int nbDocs = randomIntBetween(10, 100);
                             for (int i = 0; i < nbDocs; i++) {
-                                if (i > 0 && randomBoolean()) {
+                                if (i > 0 && (randomBoolean() || i == nbDocs / 2)) {
                                     writer.flush();
                                 }
                                 Document doc = new Document();
@@ -310,7 +310,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                     try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                         final int nbDocs = randomIntBetween(10, 100);
                         for (int i = 0; i < nbDocs; i++) {
-                            if (i > 0 && randomBoolean()) {
+                            if (i > 0 && (randomBoolean() || i == nbDocs / 2)) {
                                 writer.flush();
                             }
                             Document doc = new Document();
@@ -372,10 +372,6 @@ public class PruningMergePolicyTests extends ESTestCase {
         final boolean pruneSequenceNumber,
         final boolean useSyntheticRecoverySource
     ) throws IOException {
-        assumeTrue(
-            "Sequence number pruning requires a feature flag",
-            IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG || pruneSequenceNumber == false
-        );
         try (var dir = newDirectory()) {
             dir.setCheckIndexOnClose(false);
 
@@ -403,7 +399,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                 final Instant now = Instant.now();
 
                 for (int seqNo = 0; seqNo < nbDocs; seqNo++) {
-                    if (seqNo > 0 && randomBoolean()) {
+                    if (seqNo > 0 && (randomBoolean() || seqNo == nbDocs / 2)) {
                         writer.flush();
                     }
                     var doc = newDocument(
@@ -578,10 +574,6 @@ public class PruningMergePolicyTests extends ESTestCase {
         boolean syntheticRecoverySource = randomBoolean();
         boolean pruneIdField = randomBoolean();
         boolean pruneSequenceNumber = randomBoolean();
-        assumeTrue(
-            "Sequence number pruning requires a feature flag",
-            IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG || (pruneSequenceNumber == false && pruneIdField == false)
-        );
         String pruneStoredFieldName = syntheticRecoverySource ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME;
         String pruneNumericDVFieldName = syntheticRecoverySource
             ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME
@@ -614,7 +606,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                 final Instant now = Instant.now();
 
                 for (int seqNo = 0; seqNo < nbDocs; seqNo++) {
-                    if (seqNo > 0 && randomBoolean()) {
+                    if (seqNo > 0 && (randomBoolean() || seqNo == nbDocs / 2)) {
                         writer.flush();
                     }
                     writer.addDocument(

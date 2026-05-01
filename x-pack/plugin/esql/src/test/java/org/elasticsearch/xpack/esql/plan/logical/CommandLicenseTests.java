@@ -49,6 +49,7 @@ public class CommandLicenseTests extends ESTestCase {
                 checkLicense(commandName, createInstance(commandClass, arg));
             } catch (Exception e) {
                 Throwable c = e.getCause();
+                log.error("Failed to create instance of command class: " + commandClass.getName() + " - " + e.getMessage() + " - " + c, e);
                 fail("Failed to create instance of command class: " + commandClass.getName() + " - " + e.getMessage() + " - " + c);
             }
         }

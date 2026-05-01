@@ -118,6 +118,59 @@ public final class DataExtractorUtils {
         return List.copyOf(result);
     }
 
+    /**
+     * Picks the better of two linked-cluster snapshots for CCS-aware datafeeds.
+     * <p>
+     * A single realtime extraction run can issue many searches (scroll pages, composite pages,
+     * chunked windows). Later responses sometimes attach slimmer {@link SearchResponse#getClusters()}
+     * metadata than earlier ones even though the coordinating view still spans more remotes.
+     * Preferring the snapshot with more <em>distinct</em> cluster aliases (and, on ties, more
+     * {@link LinkedClusterState.Status#AVAILABLE} entries) prevents {@code remote_cluster_stats}
+     * from losing a newly linked remote until the datafeed is restarted.
+     */
+    public static List<LinkedClusterState> preferRicherLinkedClusterStates(
+        List<LinkedClusterState> bestSoFar,
+        List<LinkedClusterState> candidate
+    ) {
+        if (candidate == null || candidate.isEmpty()) {
+            return bestSoFar == null || bestSoFar.isEmpty() ? List.of() : bestSoFar;
+        }
+        if (bestSoFar == null || bestSoFar.isEmpty()) {
+            return List.copyOf(candidate);
+        }
+        int candidateDistinct = distinctAliasCount(candidate);
+        int bestDistinct = distinctAliasCount(bestSoFar);
+        if (candidateDistinct > bestDistinct) {
+            return List.copyOf(candidate);
+        }
+        if (candidateDistinct < bestDistinct) {
+            return bestSoFar;
+        }
+        int candidateAvailable = countAvailable(candidate);
+        int bestAvailable = countAvailable(bestSoFar);
+        if (candidateAvailable > bestAvailable) {
+            return List.copyOf(candidate);
+        }
+        if (candidateAvailable < bestAvailable) {
+            return bestSoFar;
+        }
+        return bestSoFar;
+    }
+
+    private static int distinctAliasCount(List<LinkedClusterState> states) {
+        return (int) states.stream().map(LinkedClusterState::alias).distinct().count();
+    }
+
+    private static int countAvailable(List<LinkedClusterState> states) {
+        int n = 0;
+        for (LinkedClusterState s : states) {
+            if (s.status() == LinkedClusterState.Status.AVAILABLE) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     private static LinkedClusterState.Status mapStatus(SearchResponse.Cluster.Status clusterStatus) {
         return switch (clusterStatus) {
             case SUCCESSFUL, RUNNING, PARTIAL -> LinkedClusterState.Status.AVAILABLE;

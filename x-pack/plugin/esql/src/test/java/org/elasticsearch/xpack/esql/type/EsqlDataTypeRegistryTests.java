@@ -58,6 +58,7 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
             "idx-*",
             false,
             new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false),
+            false,
             IndexResolver.DO_NOT_GROUP
         );
         EsField f = resolution.get().mapping().get(field);

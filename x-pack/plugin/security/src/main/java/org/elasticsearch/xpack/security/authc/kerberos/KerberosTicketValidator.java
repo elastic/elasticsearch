@@ -19,12 +19,10 @@ import org.ietf.jgss.GSSManager;
 import org.ietf.jgss.Oid;
 
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
 
 import javax.security.auth.Subject;
 import javax.security.auth.login.AppConfigurationEntry;
@@ -103,14 +101,8 @@ public class KerberosTicketValidator {
             actionListener.onResponse(new Tuple<>(gssContext.isEstablished() ? gssContext.getSrcName().toString() : null, base64OutToken));
         } catch (GSSException e) {
             actionListener.onFailure(e);
-        } catch (PrivilegedActionException pve) {
-            if (pve.getCause() instanceof LoginException) {
-                actionListener.onFailure((LoginException) pve.getCause());
-            } else if (pve.getCause() instanceof GSSException) {
-                actionListener.onFailure((GSSException) pve.getCause());
-            } else {
-                actionListener.onFailure(pve.getException());
-            }
+        } catch (LoginException e) {
+            actionListener.onFailure(e);
         } finally {
             privilegedLogoutNoThrow(loginContext);
             privilegedDisposeNoThrow(gssContext);
@@ -141,16 +133,19 @@ public class KerberosTicketValidator {
      * @param subject authenticated subject
      * @return a byte[] containing the token to be sent to the peer. null indicates
      *         that no token is generated.
-     * @throws PrivilegedActionException when privileged action threw exception
+     * @throws GSSException if the GSS context establishment fails
      * @see GSSContext#acceptSecContext(byte[], int, int)
      */
     private static byte[] acceptSecContext(final byte[] base64decodedTicket, final GSSContext gssContext, Subject subject)
-        throws PrivilegedActionException {
-        // process token with gss context
-        return doAsWrapper(
-            subject,
-            (PrivilegedExceptionAction<byte[]>) () -> gssContext.acceptSecContext(base64decodedTicket, 0, base64decodedTicket.length)
-        );
+        throws GSSException {
+        try {
+            return Subject.callAs(subject, () -> gssContext.acceptSecContext(base64decodedTicket, 0, base64decodedTicket.length));
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof GSSException gsse) {
+                throw gsse;
+            }
+            throw new RuntimeException(e.getCause());
+        }
     }
 
     /**
@@ -159,75 +154,48 @@ public class KerberosTicketValidator {
      * @param gssManager {@link GSSManager}
      * @param subject logged in {@link Subject}
      * @return {@link GSSCredential} for particular mechanism
-     * @throws PrivilegedActionException when privileged action threw exception
+     * @throws GSSException if credential creation fails
      */
-    private static GSSCredential createCredentials(final GSSManager gssManager, final Subject subject) throws PrivilegedActionException {
-        return doAsWrapper(
-            subject,
-            (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(
-                null,
-                GSSCredential.DEFAULT_LIFETIME,
-                SUPPORTED_OIDS,
-                GSSCredential.ACCEPT_ONLY
-            )
-        );
-    }
-
-    /**
-     * Privileged Wrapper that invokes action with Subject.doAs to perform work as
-     * given subject.
-     *
-     * @param subject {@link Subject} to be used for this work
-     * @param action {@link PrivilegedExceptionAction} action for performing inside
-     *            Subject.doAs
-     * @return the value returned by the PrivilegedExceptionAction's run method
-     * @throws PrivilegedActionException when privileged action threw exception
-     */
-    private static <T> T doAsWrapper(final Subject subject, final PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
+    private static GSSCredential createCredentials(final GSSManager gssManager, final Subject subject) throws GSSException {
         try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAs(subject, action));
-        } catch (PrivilegedActionException pae) {
-            if (pae.getCause() instanceof PrivilegedActionException) {
-                throw (PrivilegedActionException) pae.getCause();
+            return Subject.callAs(
+                subject,
+                () -> gssManager.createCredential(null, GSSCredential.DEFAULT_LIFETIME, SUPPORTED_OIDS, GSSCredential.ACCEPT_ONLY)
+            );
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof GSSException gsse) {
+                throw gsse;
             }
-            throw pae;
+            throw new RuntimeException(e.getCause());
         }
     }
 
     /**
-     * Privileged wrapper for closing GSSContext, does not throw exceptions but logs
-     * them as a debug message.
+     * Closes GSSContext without throwing exceptions, logs failures as debug.
      *
      * @param gssContext GSSContext to be disposed.
      */
     private static void privilegedDisposeNoThrow(final GSSContext gssContext) {
         if (gssContext != null) {
             try {
-                AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                    gssContext.dispose();
-                    return null;
-                });
-            } catch (PrivilegedActionException e) {
-                LOGGER.debug("Could not dispose GSS Context", e.getCause());
+                gssContext.dispose();
+            } catch (GSSException e) {
+                LOGGER.debug("Could not dispose GSS Context", e);
             }
         }
     }
 
     /**
-     * Privileged wrapper for closing LoginContext, does not throw exceptions but
-     * logs them as a debug message.
+     * Closes LoginContext without throwing exceptions, logs failures as debug.
      *
      * @param loginContext LoginContext to be closed
      */
     private static void privilegedLogoutNoThrow(final LoginContext loginContext) {
         if (loginContext != null) {
             try {
-                AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                    loginContext.logout();
-                    return null;
-                });
-            } catch (PrivilegedActionException e) {
-                LOGGER.debug("Could not close LoginContext", e.getCause());
+                loginContext.logout();
+            } catch (LoginException e) {
+                LOGGER.debug("Could not close LoginContext", e);
             }
         }
     }
@@ -239,16 +207,14 @@ public class KerberosTicketValidator {
      * @param krbDebug if {@code true} enables jaas krb5 login module debug logs.
      * @return authenticated {@link LoginContext} instance. Note: This needs to be
      *         closed using {@link LoginContext#logout()} after usage.
-     * @throws PrivilegedActionException when privileged action threw exception
+     * @throws LoginException if authentication fails
      */
-    private static LoginContext serviceLogin(final String keytabFilePath, final boolean krbDebug) throws PrivilegedActionException {
-        return AccessController.doPrivileged((PrivilegedExceptionAction<LoginContext>) () -> {
-            final Subject subject = new Subject(false, Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
-            final Configuration conf = new KeytabJaasConf(keytabFilePath, krbDebug);
-            final LoginContext loginContext = new LoginContext(KEY_TAB_CONF_NAME, subject, null, conf);
-            loginContext.login();
-            return loginContext;
-        });
+    private static LoginContext serviceLogin(final String keytabFilePath, final boolean krbDebug) throws LoginException {
+        final Subject subject = new Subject(false, Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
+        final Configuration conf = new KeytabJaasConf(keytabFilePath, krbDebug);
+        final LoginContext loginContext = new LoginContext(KEY_TAB_CONF_NAME, subject, null, conf);
+        loginContext.login();
+        return loginContext;
     }
 
     /**

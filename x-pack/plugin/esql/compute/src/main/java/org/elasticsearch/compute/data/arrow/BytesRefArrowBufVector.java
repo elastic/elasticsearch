@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data.arrow;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -86,6 +87,17 @@ public final class BytesRefArrowBufVector extends AbstractArrowBufVector<BytesRe
         dest.length = length;
         valueBuffer.getBytes(start, dest.bytes, 0, length);
         return dest;
+    }
+
+    @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        int start = valueOffsetsBuffer.getInt((long) position * Integer.BYTES);
+        int end = valueOffsetsBuffer.getInt((long) (position + 1) * Integer.BYTES);
+        int length = end - start;
+        byte[] buf = new byte[length];
+        valueBuffer.getBytes(start, buf, 0, length);
+        scratch.init(buf, 0, length);
+        return scratch;
     }
 
     @Override

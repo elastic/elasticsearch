@@ -24,7 +24,8 @@ import java.io.IOException;
 // end generated imports
 
 /**
- * Arrow buffer backed IntVector.
+ * Implementation of IntVector backed by an Arrow buffer holding 32 bits signed integers.
+ * <p>
  * This class is generated. Edit {@code X-ArrowBufVector.java.st} instead.
  */
 public final class IntArrowBufVector extends AbstractArrowBufVector<IntVector, IntBlock> implements IntVector {
@@ -56,8 +57,8 @@ public final class IntArrowBufVector extends AbstractArrowBufVector<IntVector, I
     }
 
     @Override
-    public int getInt(int position) {
-        return valueBuffer.getInt((long) position * Integer.BYTES);
+    public int getInt(int valueIndex) {
+        return valueBuffer.getInt((long) valueIndex * Integer.BYTES);
     }
 
     @Override

@@ -9,9 +9,6 @@
 
 package org.elasticsearch.reindex;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -31,13 +28,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.core.Strings.format;
-
 public abstract class AbstractBaseReindexRestHandler<
     Request extends AbstractBulkByScrollRequest<Request>,
     A extends ActionType<BulkByScrollResponse>> extends BaseRestHandler {
-
-    private static final Logger logger = LogManager.getLogger(AbstractBaseReindexRestHandler.class);
 
     private final A action;
 
@@ -76,16 +69,7 @@ public abstract class AbstractBaseReindexRestHandler<
         }
         final var responseListener = new SubscribableListener<BulkByScrollResponse>();
         final var task = client.executeLocally(action, internal, responseListener);
-        final ActionListener<BulkByScrollResponse> loggingListener = ActionListener.wrap(response -> {
-            logger.info("{} finished with response {}", task.getId(), response);
-        }, e -> {
-            if (e instanceof TaskRelocatedException relocatedException) {
-                logger.info("{} was relocated to {}", task.getId(), relocatedException.getRelocatedTaskId().orElseThrow());
-            } else {
-                logger.warn(() -> format("%s failed with exception", task.getId()), e);
-            }
-        });
-        responseListener.addListener(loggingListener);
+        responseListener.addListener(new LoggingReindexTaskListener(task));
         return sendTask(client.getLocalNodeId(), task);
     }
 

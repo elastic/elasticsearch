@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
@@ -46,7 +47,9 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             Map.of(),
             true,
-            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+            IndexVersion.current(),
+            false
         );
     }
 
@@ -314,7 +317,9 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             Map.of(),
             true,
-            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -343,7 +348,9 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             Map.of(),
             true,
-            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -367,7 +374,9 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             Map.of(),
             true,
-            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -391,7 +400,9 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             Map.of(),
             false,
-            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -421,7 +432,9 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             Map.of(),
             true,
-            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext configuredContext = new TestDocumentParserContext(createXContentParser(input));

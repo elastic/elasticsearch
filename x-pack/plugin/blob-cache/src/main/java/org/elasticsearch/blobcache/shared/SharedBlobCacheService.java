@@ -1093,7 +1093,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          *
          * @param rangeToWrite the range of bytes to populate
          * @param writer a writer that handles writing of newly downloaded data to the shared cache
-         * @param executor the executor used to download and to write new dat
+         * @param executor the executor used to download and to write new data
          * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of the
          *                 range, in which case the listener is completed once writing is done. The listener is completed with {@code false}
          *                 if the range to write is already available in cache or if another thread will download and write the range, in
@@ -1108,61 +1108,59 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             try {
                 incRefEnsureOpen();
                 try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
-                    final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                    final var gapsOpt = tracker.waitForRange(
                         rangeToWrite,
                         rangeToWrite,
                         Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
                             assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
                         }), refs.acquire()) : refs.acquireListener()
                     );
-                    if (gaps.isEmpty()) {
+                    if (gapsOpt.isEmpty()) {
                         listener.onResponse(false);
                         return;
                     }
-                    final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
-                    logger.trace(
-                        () -> Strings.format(
-                            "fill gaps %s %s shared input stream factory",
-                            gaps,
-                            streamFactory == null ? "without" : "with"
-                        )
-                    );
-                    if (streamFactory == null) {
-                        try (var parallelGapsListener = new RefCountingListener(listener.map(unused -> true))) {
-                            for (SparseFileTracker.Gap gap : gaps) {
-                                executor.execute(
-                                    fillGapRunnable(
-                                        gap,
-                                        writer,
-                                        null,
-                                        ActionListener.releaseAfter(parallelGapsListener.acquire(), refs.acquire())
+                    executor.execute(new AbstractRunnable() {
+                        private final Releasable dispatchRef = refs.acquire();
+
+                        @Override
+                        protected void doRun() {
+                            try (dispatchRef) {
+                                final List<SparseFileTracker.Gap> gaps = gapsOpt.get().claim();
+                                if (gaps.isEmpty()) {
+                                    listener.onResponse(false);
+                                    return;
+                                }
+                                final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                                logger.trace(
+                                    () -> Strings.format(
+                                        "fill gaps %s %s shared input stream factory",
+                                        gaps,
+                                        streamFactory == null ? "without" : "with"
                                     )
                                 );
+                                final ActionListener<Void> gapsDoneListener = streamFactory != null
+                                    ? ActionListener.releaseBefore(streamFactory, listener.map(unused -> true))
+                                    : listener.map(unused -> true);
+                                try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
+                                    // Use current thread to fill the gaps in order
+                                    for (SparseFileTracker.Gap gap : gaps) {
+                                        fillGapRunnable(
+                                            gap,
+                                            writer,
+                                            streamFactory,
+                                            ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire())
+                                        ).run();
+                                    }
+                                }
                             }
                         }
-                    } else {
-                        try (
-                            var sequentialGapsListener = new RefCountingListener(
-                                ActionListener.runBefore(listener.map(unused -> true), streamFactory::close)
-                            )
-                        ) {
-                            final List<Runnable> gapFillingTasks = gaps.stream()
-                                .map(
-                                    gap -> fillGapRunnable(
-                                        gap,
-                                        writer,
-                                        streamFactory,
-                                        ActionListener.releaseAfter(sequentialGapsListener.acquire(), refs.acquire())
-                                    )
-                                )
-                                .toList();
-                            executor.execute(() -> {
-                                // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
-                                // gap will still be executed.
-                                gapFillingTasks.forEach(Runnable::run);
-                            });
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            dispatchRef.close();
+                            listener.onFailure(e);
                         }
-                    }
+                    });
                 }
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -1199,7 +1197,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                             blobCacheService.blobCacheMetrics.recordRead();
                             l.onResponse(read);
                         })
-                    );
+                    ).map(SparseFileTracker.Gaps::claim).orElse(List.of());
 
                     if (gaps.isEmpty() == false) {
                         final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);

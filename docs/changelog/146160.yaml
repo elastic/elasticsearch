@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 141305
+pr: 146160
+summary: Fix deriv aggregation function intermediate state
+type: bug

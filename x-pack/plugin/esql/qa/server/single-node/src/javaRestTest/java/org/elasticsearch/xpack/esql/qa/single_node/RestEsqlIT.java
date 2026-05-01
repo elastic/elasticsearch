@@ -740,26 +740,45 @@ public class RestEsqlIT extends RestEsqlTestCase {
             String description = p.get("description").toString();
             switch (description) {
                 case "data" -> {
-                    // We force a page size of 10 so there are likely to be sleeps with the outbound buffer full
-                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThanOrEqualTo(0))).extraOk());
-                    assertSleeps(sleeps, sleepMatcher("exchange full"));
+                    /*
+                     * We force a page size of 10 so there are likely to be sleeps with the
+                     * outbound buffer full. "Driver iterations" sleeps *may* happen if the
+                     * buffer doesn't fill up fast enough.
+                     */
+                    assertMap(
+                        sleeps,
+                        matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThanOrEqualTo(0)).extraOk()).extraOk()
+                    );
+                    assertSleeps(sleeps, sleepMatcher(either(equalTo("exchange full")).or(equalTo("driver iterations"))));
                 }
                 case "node_reduce" -> {
-                    // There will always be sleeps on the reduce drivers because they won't have results ready
-                    // There *might* be exchange_full sleeps as well
+                    /*
+                     * There will always be sleeps on the reduce drivers because they won't
+                     * have results ready. "Driver iterations" sleeps *may* happen if the
+                     * buffer doesn't fill up fast enough.
+                     */
                     Map<?, ?> counts = (Map<?, ?>) sleeps.get("counts");
                     assertThat(counts, either(hasKey((Object) "exchange empty")).or(hasKey("exchange empty OR exchange full")));
                     assertSleeps(
                         sleeps,
                         sleepMatcher(
-                            either(equalTo("exchange empty")).or(equalTo("exchange full")).or(equalTo("exchange empty OR exchange full"))
+                            either(equalTo("exchange empty")).or(equalTo("exchange full"))
+                                .or(equalTo("exchange empty OR exchange full"))
+                                .or(equalTo("driver iterations"))
                         )
                     );
                 }
                 case "final" -> {
-                    // There will always be sleeps on the reduce drivers because they won't have results ready
-                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
-                    assertSleeps(sleeps, sleepMatcher("exchange empty"));
+                    /*
+                     * There will always be sleeps on the reduce drivers because they won't
+                     * have results ready. "Driver iterations" sleeps *may* happen if the
+                     * buffer doesn't fill up fast enough.
+                     */
+                    assertMap(
+                        sleeps,
+                        matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0)).extraOk()).extraOk()
+                    );
+                    assertSleeps(sleeps, sleepMatcher(either(equalTo("exchange empty")).or(equalTo("driver iterations"))));
                 }
                 default -> throw new IllegalArgumentException("unknown task: " + description);
             }
@@ -785,6 +804,33 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testSuggestedCast() throws IOException {
+        doTestSuggestedCast(
+            "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field",
+            "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
+        );
+    }
+
+    public void testSubquerySuggestedCast() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "union types conflict resolution",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION.isEnabled()
+        );
+        doTestSuggestedCast(
+            "FROM (FROM index-%s), (FROM index-%s) | LIMIT 100 | KEEP my_field",
+            "FROM (FROM index-%s), (FROM index-%s) | LIMIT 100 | EVAL my_field = my_field::%s"
+        );
+    }
+
+    /**
+     * Shared implementation for suggested-cast tests. Creates one index per data type, iterates over
+     * all type pairs using the given query format strings, and asserts the response contains the
+     * correct {@code original_types} and {@code suggested_cast} metadata.
+     *
+     * @param queryFormat       format string with 2 string args: type1, type2
+     * @param castedQueryFormat format string with 3 string args: type1, type2, castType
+     */
+    private void doTestSuggestedCast(String queryFormat, String castedQueryFormat) throws IOException {
         // TODO: Figure out how best to make sure we don't leave out new types
         Map<DataType, String> typesAndValues = Map.ofEntries(
             Map.entry(DataType.BOOLEAN, "\"true\""),
@@ -861,11 +907,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         for (int i = 0; i < listOfTypes.size(); i++) {
             for (int j = i + 1; j < listOfTypes.size(); j++) {
+                String fromClause = String.format(Locale.ROOT, queryFormat, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
                 String query = String.format(Locale.ROOT, """
                     {
-                        "query": "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field"
+                        "query": "%s"
                     }
-                    """, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
+                    """, fromClause);
                 Request request = new Request("POST", "/_query");
                 request.setJsonEntity(query);
                 Response resp = client().performRequest(request);
@@ -891,17 +938,18 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     );
                 }
 
-                String castedQuery = String.format(
+                String castedFromClause = String.format(
                     Locale.ROOT,
-                    """
-                        {
-                            "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
-                        }
-                        """,
+                    castedQueryFormat,
                     listOfTypes.get(i).esType(),
                     listOfTypes.get(j).esType(),
                     suggestedCast == DataType.KEYWORD ? "STRING" : suggestedCast.nameUpper()
                 );
+                String castedQuery = String.format(Locale.ROOT, """
+                    {
+                        "query": "%s"
+                    }
+                    """, castedFromClause);
                 Request castedRequest = new Request("POST", "/_query");
                 castedRequest.setJsonEntity(castedQuery);
                 Response castedResponse = client().performRequest(castedRequest);

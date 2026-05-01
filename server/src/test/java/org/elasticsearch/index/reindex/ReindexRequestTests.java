@@ -44,6 +44,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertArrayEquals;
 
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
@@ -634,6 +635,26 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         ActionRequestValidationException validationException = request.validate();
         assertNotNull(validationException);
         assertEquals(List.of("from is not supported in this context"), validationException.validationErrors());
+    }
+
+    /** Verifies {@link ReindexRequest#convertSearchRequestToUsePit} wires PIT, description indices, and clears routing. */
+    public void testConvertSearchRequestToUsePit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.setSourceIndices("idx-a", "idx-b");
+        request.getSearchRequest().source(new SearchSourceBuilder().query(matchAllQuery()));
+        request.getSearchRequest().setProjectRouting("_alias:foo");
+
+        BytesReference pitId = new BytesArray("new-pit-id");
+        TimeValue keepAlive = TimeValue.timeValueMinutes(5);
+        request.convertSearchRequestToUsePit(pitId, keepAlive);
+
+        assertEquals(pitId, request.getSearchRequest().source().pointInTimeBuilder().getEncodedId());
+        assertEquals(keepAlive, request.getSearchRequest().source().pointInTimeBuilder().getKeepAlive());
+        assertNull(request.getSearchRequest().scroll());
+        assertArrayEquals(new String[] { "idx-a", "idx-b" }, request.getSourceIndicesForDescription());
+        assertEquals(0, request.getSearchRequest().indices().length);
+        assertNull(request.getSearchRequest().getProjectRouting());
     }
 
     public void testValidateGivenRemoteIndex() throws IOException {

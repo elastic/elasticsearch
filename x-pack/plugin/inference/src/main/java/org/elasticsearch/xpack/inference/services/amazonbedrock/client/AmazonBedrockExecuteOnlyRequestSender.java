@@ -73,7 +73,7 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
         Supplier<Boolean> hasRequestTimedOutFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        switch (awsRequest.taskType()) {
+        switch (awsRequest.getTaskType()) {
             case COMPLETION -> {
                 return new AmazonBedrockCompletionExecutor(
                     (AmazonBedrockCompletionRequest) awsRequest,
@@ -105,7 +105,9 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
                 );
             }
             default -> {
-                throw new UnsupportedOperationException("Unsupported task type [" + awsRequest.taskType() + "] for Amazon Bedrock request");
+                throw new UnsupportedOperationException(
+                    "Unsupported task type [" + awsRequest.getTaskType() + "] for Amazon Bedrock request"
+                );
             }
         }
     }

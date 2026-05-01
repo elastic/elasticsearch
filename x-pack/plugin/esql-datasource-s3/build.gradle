@@ -12,7 +12,7 @@ esplugin {
   name = 'esql-datasource-s3'
   description = 'S3 storage provider for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.s3.S3DataSourcePlugin'
-  extendedPlugins = ['x-pack-esql']
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-netty-commons']
 }
 
 base {
@@ -45,7 +45,12 @@ dependencies {
   implementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:sts:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
-  
+
+  // AWS SDK async HTTP transport (for S3AsyncClient)
+  implementation "software.amazon.awssdk:netty-nio-client:${versions.awsv2sdk}"
+  // Netty jars provided by esql-datasource-netty-commons via extendedPlugins classloader delegation
+  compileOnly project(path: xpackModule('esql-datasource-netty-commons'))
+
   // Apache HTTP client for AWS SDK (required by apache-client module)
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   
@@ -101,6 +106,7 @@ tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).confi
   mapping from: 'third-party-jackson-core', to: 'aws-sdk-2'
   mapping from: 'url-connection-client',    to: 'aws-sdk-2'
   mapping from: 'utils',                    to: 'aws-sdk-2'
+  mapping from: /netty-nio-client/,         to: 'aws-sdk-2'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -111,7 +117,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
     'org.apache.log.Logger',
-    
+
     // We use the Apache HTTP client rather than AWS CRT, so these classes are not needed
     'software.amazon.awssdk.crt.CRT',
     'software.amazon.awssdk.crt.auth.credentials.Credentials',
@@ -155,10 +161,11 @@ tasks.named("thirdPartyAudit").configure {
     'software.amazon.awssdk.crtcore.CrtProxyConfiguration$Builder',
     'software.amazon.awssdk.crtcore.CrtProxyConfiguration$DefaultBuilder',
     'software.amazon.awssdk.crtcore.CrtProxyConfiguration',
-    
+
     // We don't use eventstream-based features
     'software.amazon.eventstream.HeaderValue',
     'software.amazon.eventstream.Message',
-    'software.amazon.eventstream.MessageDecoder'
+    'software.amazon.eventstream.MessageDecoder',
+
   )
 }

@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Data source plugin providing Google Cloud Storage support for ESQL.
@@ -35,7 +37,7 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+    public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
         StorageProviderFactory gcsFactory = new StorageProviderFactory() {
             @Override
             public StorageProvider create(Settings settings) {
@@ -47,16 +49,16 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
                 if (config == null || config.isEmpty()) {
                     return create(settings);
                 }
-                GcsConfiguration gcsConfig = GcsConfiguration.fromFields(
-                    Objects.toString(config.get("credentials"), null),
-                    Objects.toString(config.get("project_id"), null),
-                    Objects.toString(config.get("endpoint"), null),
-                    Objects.toString(config.get("token_uri"), null),
-                    Objects.toString(config.get("auth"), null)
-                );
+                GcsConfiguration gcsConfig = GcsConfiguration.fromMap(config);
                 return new GcsStorageProvider(gcsConfig);
             }
         };
         return Map.of("gs", gcsFactory);
+    }
+
+    @Override
+    public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        DataSourceValidator v = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, supportedSchemes());
+        return Map.of(v.type(), v);
     }
 }

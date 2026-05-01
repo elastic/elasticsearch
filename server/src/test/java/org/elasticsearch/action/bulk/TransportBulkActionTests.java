@@ -61,6 +61,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
@@ -88,6 +89,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
+import static org.elasticsearch.action.bulk.TransportBulkAction.requireSliceRoutingWhenEnabled;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -325,14 +327,108 @@ public class TransportBulkActionTests extends ESTestCase {
         TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null);
     }
 
-    public void testProhibitAppendWritesInBackingIndicesSkippedForSeqNoDisabled() throws Exception {
-        assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+    public void testRequireSliceRoutingWhenSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new IndexRequest("idx").id("1");
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
+        );
+        assertThat(exception.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+    }
 
+    public void testRequireSliceRoutingWhenSliceEnabledAndRoutingProvided() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new IndexRequest("idx").id("1").routing("s1");
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata);
+    }
+
+    public void testSliceProvenanceRejectedWhenSliceSettingDisabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new IndexRequest("idx").id("1").routing("s1").setRoutingFromSlice(true);
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), false))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
+        );
+        assertThat(exception.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+    }
+
+    public void testRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new IndexRequest("idx").id("1").routing("s1").setRoutingFromSlice(false);
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), false))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata);
+    }
+
+    public void testDeleteSliceProvenanceRejectedWhenSliceSettingDisabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new DeleteRequest("idx").id("1").routing("s1").setRoutingFromSlice(true);
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), false))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
+        );
+        assertThat(exception.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+    }
+
+    public void testDeleteRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new DeleteRequest("idx").id("1").routing("s1").setRoutingFromSlice(false);
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), false))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata);
+    }
+
+    public void testProhibitAppendWritesInBackingIndicesSkippedForSeqNoDisabled() throws Exception {
         String dataStreamName = "logs-foobar";
         Index seqNoDisabledIdx = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1), IndexMetadata.INDEX_UUID_NA_VALUE);
         Index seqNoEnabledIdx = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 2), IndexMetadata.INDEX_UUID_NA_VALUE);
         final var seqNoDisabledMetadata = indexMetadata(seqNoDisabledIdx.getName()).settings(
-            settings(IndexVersions.DISABLE_SEQUENCE_NUMBERS).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+            settings(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
                 .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
         ).numberOfShards(1).numberOfReplicas(1).build();
         final var seqNoEnabledMetadata = indexMetadata(seqNoEnabledIdx.getName()).build();

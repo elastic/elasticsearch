@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.packageloader.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.test.ESTestCase;
 
@@ -15,6 +16,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
@@ -29,6 +31,18 @@ public class ModelLoaderUtilsTests extends ESTestCase {
         );
 
         assertThat(e.getMessage(), is("unsupported scheme"));
+    }
+
+    public void testGetInputStreamFromModelRepositoryMissingFileIncludesResources() {
+        final URI uri = createTempDir().resolve("missing.pt").toUri();
+
+        final ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> ModelLoaderUtils.getInputStreamFromModelRepository(uri)
+        );
+
+        assertEquals("uri", e.getResourceType());
+        assertEquals(List.of(uri.toString()), e.getResourceId());
     }
 
     public void testResolvePackageLocationTrailingSlash() throws URISyntaxException {

@@ -261,7 +261,7 @@ public class DataStreamMetadata implements Metadata.ProjectCustom {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     static class DataStreamMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {

@@ -1100,3 +1100,139 @@ time:datetime            | count:long
 2025-09-25T00:50:00.000Z | 1451
 2025-09-25T01:00:00.000Z | 147
 ;
+
+// -------------------------------------------------------------------------------
+// Documentation examples for aggregations with exponential histograms
+// -------------------------------------------------------------------------------
+
+sum for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+
+// tag::sumExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS total = ROUND(SUM(responseTime), 2)
+// end::sumExpHistoForDocs[]
+;
+
+// tag::sumExpHistoForDocs-result[]
+total:double
+1472.74
+// end::sumExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+avg for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+
+// tag::avgExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS average = ROUND(AVG(responseTime), 4)
+// end::avgExpHistoForDocs[]
+;
+
+// tag::avgExpHistoForDocs-result[]
+average:double
+0.1666
+// end::avgExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+min for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+
+// tag::minExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS minimum = ROUND(MIN(responseTime), 4)
+// end::minExpHistoForDocs[]
+;
+
+// tag::minExpHistoForDocs-result[]
+minimum:double
+2.0E-4
+// end::minExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+max for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+
+// tag::maxExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS maximum = ROUND(MAX(responseTime), 4)
+// end::maxExpHistoForDocs[]
+;
+
+// tag::maxExpHistoForDocs-result[]
+maximum:double
+6.7862
+// end::maxExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+median for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+
+// tag::medianExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS p50 = ROUND(MEDIAN(responseTime), 4)
+// end::medianExpHistoForDocs[]
+;
+
+// tag::medianExpHistoForDocs-result[]
+p50:double
+0.0211
+// end::medianExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+percentile for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+
+// tag::percentileExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS p99 = ROUND(PERCENTILE(responseTime, 99), 4)
+// end::percentileExpHistoForDocs[]
+;
+
+// tag::percentileExpHistoForDocs-result[]
+p99:double
+1.0433
+// end::percentileExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+count for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+required_capability: count_of_histogram_types
+
+// tag::countExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS cnt = COUNT(responseTime)
+// end::countExpHistoForDocs[]
+;
+
+// tag::countExpHistoForDocs-result[]
+cnt:long
+8841
+// end::countExpHistoForDocs-result[]
+;

@@ -14,6 +14,7 @@ esplugin {
   description = 'A plugin for the frozen tier functionality of DLM'
   classname = 'org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionPlugin'
   extendedPlugins = ['data-streams', 'x-pack-core']
+  deploymentTarget = "STATEFUL_ONLY"
 }
 base {
   archivesName = 'x-pack-dlm-frozen-transition'
@@ -24,4 +25,6 @@ dependencies {
   compileOnly project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:data-streams')
+  internalClusterTestImplementation project(xpackModule('blob-cache'))
+  internalClusterTestImplementation project(xpackModule('searchable-snapshots'))
 }

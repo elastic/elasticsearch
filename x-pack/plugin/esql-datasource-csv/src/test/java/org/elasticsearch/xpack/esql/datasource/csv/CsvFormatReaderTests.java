@@ -26,6 +26,9 @@ import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -42,6 +45,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -3063,5 +3067,302 @@ public class CsvFormatReaderTests extends ESTestCase {
                 return StoragePath.of("memory://test.csv");
             }
         };
+    }
+
+    // -- Stage 1: structural parse error resilience --
+    //
+    // Jackson CSV throws on malformed rows (e.g. unclosed quotes). Before, the exception
+    // propagated and killed the query. The error policy now intercepts those failures so
+    // SKIP_ROW / NULL_FIELD recover and FAIL_FAST surfaces a clear error.
+
+    public void testSkipRowOnUnclosedQuoteJacksonPath() throws IOException {
+        // Trailing quote with no closing pair triggers Jackson's "Missing closing quote" error.
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            2,"Bob is broken
+            3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        // Jackson path requires bracketMultiValues=false: use NONE multi-value syntax.
+        Map<String, Object> config = Map.of("multi_value_syntax", "NONE");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        ErrorPolicy lenient = new ErrorPolicy(10, true);
+
+        List<Long> ids = new ArrayList<>();
+        try (
+            CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(10).errorPolicy(lenient).build())
+        ) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock idBlock = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    ids.add(idBlock.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        // The good row 1,Alice must survive; behaviour for rows after the malformed line is
+        // defined by Jackson's resync — pin the row that precedes the malformed input so a
+        // regression that drops it (e.g. removing the try/catch around csvIterator.next) fails
+        // loudly. The tail behaviour is intentionally left untested as it depends on Jackson.
+        assertTrue("expected id 1 (Alice) to survive the unclosed-quote row, got " + ids, ids.contains(1L));
+    }
+
+    public void testFailFastOnUnclosedQuoteJacksonPath() {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            2,"Bob is broken
+            3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        Map<String, Object> config = Map.of("multi_value_syntax", "NONE");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+
+        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertTrue("expected CSV parse error, got: " + e.getMessage(), e.getMessage().contains("CSV parse error"));
+    }
+
+    public void testSkipRowOnBracketParseError() throws IOException {
+        // Unclosed bracket in last cell is detected by splitLineBracketAware which throws
+        // EsqlIllegalArgumentException; the policy must intercept it.
+        String csv = """
+            id:long,tags:keyword
+            1,[a,b,c]
+            2,[broken
+            3,[x,y]
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(10, true);
+
+        try (
+            CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(10).errorPolicy(lenient).build())
+        ) {
+            int totalRows = 0;
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+            // Rows 1 and 3 must survive the malformed bracketed row in the middle.
+            assertEquals(2, totalRows);
+        }
+    }
+
+    public void testStructuralErrorBudgetEnforced() {
+        StringBuilder csv = new StringBuilder("id:long,name:keyword\n");
+        for (int i = 0; i < 10; i++) {
+            csv.append("1,\"unterminated\n");
+        }
+
+        StorageObject object = createStorageObject(csv.toString());
+        Map<String, Object> config = Map.of("multi_value_syntax", "NONE");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        ErrorPolicy budgetOf2 = new ErrorPolicy(2, false);
+
+        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(budgetOf2).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertTrue("expected budget message, got: " + e.getMessage(), e.getMessage().contains("error budget exceeded"));
+    }
+
+    // -- Stage 2: empty projection (COUNT(*)) fast path --
+    //
+    // When the optimizer prunes every column (projectedColumns=[]), the reader must emit
+    // row-count-only Pages without allocating any blocks or running type conversion.
+
+    public void testEmptyProjectionEmitsRowCountOnlyPages() throws IOException {
+        String csv = """
+            id:long,name:keyword,score:double
+            1,Alice,1.5
+            2,Bob,2.5
+            3,Charlie,3.5
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of()).batchSize(10).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            assertEquals("COUNT(*) fast path must emit zero blocks", 0, page.getBlockCount());
+            page.releaseBlocks();
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testEmptyProjectionAcrossBatches() throws IOException {
+        StringBuilder csv = new StringBuilder("id:long,name:keyword\n");
+        int rowCount = 250;
+        for (int i = 0; i < rowCount; i++) {
+            csv.append(i).append(",Name").append(i).append('\n');
+        }
+
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of()).batchSize(50).build()
+            )
+        ) {
+            int totalRows = 0;
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                assertEquals("COUNT(*) fast path must emit zero blocks", 0, page.getBlockCount());
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+            assertEquals(rowCount, totalRows);
+        }
+    }
+
+    public void testEmptyProjectionAppliesColumnCountValidation() throws IOException {
+        // Even on the COUNT(*) fast path, structural row errors (extra columns) must still
+        // be routed through the error policy.
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            2,Bob,extra_column
+            3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(10, true);
+
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of()).batchSize(10).errorPolicy(lenient).build()
+            )
+        ) {
+            int totalRows = 0;
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                assertEquals(0, page.getBlockCount());
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+            // The malformed extra-column row must be skipped, leaving 2 valid rows.
+            assertEquals(2, totalRows);
+        }
+    }
+
+    public void testNullProjectionStillReadsAllColumns() throws IOException {
+        // Backward compatibility: projectedColumns=null means "no projection info available",
+        // which historically meant "read everything". Stage 2 must not regress this.
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            2,Bob
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(10).build())) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals("null projection must still produce all columns", 2, page.getBlockCount());
+            // Verify column ordering and types are preserved (id:long first, name:keyword second).
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    // -- Stage 3: recordAligned signal and split semantics --
+    //
+    // For non-first splits, the CSV reader needs to know whether the leading bytes are a
+    // partial record (byte-range macro-split — drop them) or a complete record (streaming
+    // chunk — keep them). The recordAligned flag carries that signal.
+
+    public void testRecordAlignedNonFirstSplitDoesNotDropFirstLine() throws IOException {
+        // Simulate a streaming-parallel chunk 1..N: bytes start exactly at a record boundary,
+        // schema is pre-bound via withSchema(), and the read context is firstSplit=false +
+        // recordAligned=true. The reader must NOT skip the first line.
+        String csv = "1,Alice\n2,Bob\n3,Charlie\n";
+        StorageObject object = createStorageObject(csv);
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchema(schema);
+
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).firstSplit(false).recordAligned(true).build();
+        try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals("recordAligned=true must preserve all 3 rows", 3, page.getPositionCount());
+            // Pin the leading row so a regression that re-introduces the line skip on this path
+            // (which would surface as id=2 here) fails loudly.
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(2));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testNonRecordAlignedNonFirstSplitDropsFirstLine() throws IOException {
+        // Simulate a bzip2/zstd byte-range macro-split: bytes start mid-record. The leading
+        // partial line was already emitted by the previous split, so the reader must drop it.
+        String csv = "partial-line-from-previous-split\n2,Bob\n3,Charlie\n";
+        StorageObject object = createStorageObject(csv);
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchema(schema);
+
+        // recordAligned defaults to false, matching legacy macro-split semantics.
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).firstSplit(false).build();
+        try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals("non-record-aligned non-first split must drop leading partial line", 2, page.getPositionCount());
+            // Pin the rows we kept: the partial leading line is gone; 2,Bob and 3,Charlie remain.
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(new BytesRef("Charlie"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            page.releaseBlocks();
+        }
     }
 }

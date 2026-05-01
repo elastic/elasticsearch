@@ -153,6 +153,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     private static final int READER_BUFFER_SIZE = 64 * 1024;
 
+    /** Sentinel passed to {@link CsvBatchIterator#onRowError} when the offending row could not be tokenised. */
+    private static final String[] EMPTY_ROW = new String[0];
+
     private final BlockFactory blockFactory;
     private final CsvMapper sharedCsvMapper;
     private final CsvFormatOptions options;
@@ -545,8 +548,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
         List<Attribute> effectiveSchema;
         if (context.firstSplit()) {
+            // First split: the bytes start at the beginning of the file, so the header (if present)
+            // is still on the wire. Let the iterator parse it; resolvedSchema (if bound by an upstream
+            // withSchema call) is intentionally ignored so the header is consumed and not fed to Jackson
+            // as a data row.
             effectiveSchema = null;
+        } else if (context.recordAligned()) {
+            // Non-first split that the caller guarantees starts on a record boundary
+            // (e.g. streaming-parallel chunks sliced on \n). No partial line to drop, no header
+            // to parse — use the pre-bound schema directly.
+            effectiveSchema = resolvedSchema;
         } else {
+            // Non-first byte-range split (e.g. bzip2 / zstd-indexed macro-split). The leading
+            // bytes belong to the previous split's trailing record and have already been emitted
+            // there; drop them here.
             reader.readLine();
             effectiveSchema = resolvedSchema;
         }
@@ -854,22 +869,37 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     prefetchedRowsBytes = 0;
                 }
                 if (csvIterator == null && bracketMultiValues && options.delimiter() == ',') {
-                    rows.addAll(readRowsBracketAware(batchSize - rows.size()));
+                    readRowsBracketAware(rows, batchSize - rows.size());
                 } else {
-                    while (rows.size() < batchSize && csvIterator.hasNext()) {
-                        List<?> rowList = csvIterator.next();
-                        String[] row = new String[rowList.size()];
-                        for (int i = 0; i < rowList.size(); i++) {
-                            Object val = rowList.get(i);
-                            row[i] = val != null ? val.toString() : null;
-                        }
-                        if (hasCommentFilter && row.length > 0 && row[0] != null) {
-                            String trimmedFirstCell = row[0].trim();
-                            if (trimmedFirstCell.startsWith(options.commentPrefix())) {
-                                continue;
+                    while (rows.size() < batchSize) {
+                        try {
+                            if (csvIterator.hasNext() == false) {
+                                break;
                             }
+                            List<?> rowList = csvIterator.next();
+                            String[] row = new String[rowList.size()];
+                            for (int i = 0; i < rowList.size(); i++) {
+                                Object val = rowList.get(i);
+                                row[i] = val != null ? val.toString() : null;
+                            }
+                            if (hasCommentFilter && row.length > 0 && row[0] != null) {
+                                String trimmedFirstCell = row[0].trim();
+                                if (trimmedFirstCell.startsWith(options.commentPrefix())) {
+                                    continue;
+                                }
+                            }
+                            rows.add(row);
+                        } catch (RuntimeException e) {
+                            // Jackson's MappingIterator wraps both structural parse errors and any
+                            // underlying IOException as RuntimeException since hasNext()/next() do
+                            // not declare checked exceptions. Routing them through the error policy
+                            // lets SKIP_ROW/NULL_FIELD recover from malformed rows (e.g. unclosed
+                            // quote) without killing the query; FAIL_FAST re-throws inside
+                            // onRowError. Jackson typically resynchronizes at the next record
+                            // boundary so we keep going. Errors (OOM etc.) propagate.
+                            totalRowCount++;
+                            onRowError("CSV parse error: " + e.getMessage(), e, EMPTY_ROW);
                         }
-                        rows.add(row);
                     }
                 }
 
@@ -889,9 +919,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * and ends with {@code ]} before a comma, commas inside are not column delimiters.
          * The cell value is kept as {@code [a,b,c]} so multi-value conversion can parse it.
          * Supports multi-line quoted fields.
+         * <p>
+         * Per-line {@code splitLineBracketAware} failures are routed through the error policy so a
+         * single malformed line does not abort the batch. {@link IOException}s from the underlying
+         * reader are propagated since they signal an unrecoverable I/O fault.
          */
-        private List<String[]> readRowsBracketAware(int batchSize) throws IOException {
-            List<String[]> rows = new ArrayList<>();
+        private void readRowsBracketAware(List<String[]> rows, int batchSize) throws IOException {
             String line;
             while (rows.size() < batchSize && (line = reader.readLine()) != null) {
                 line = line.trim();
@@ -906,10 +939,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                     logicalLine.append('\n').append(next);
                 }
-                String[] row = splitLineBracketAware(logicalLine.toString());
-                rows.add(row);
+                try {
+                    String[] row = splitLineBracketAware(logicalLine.toString());
+                    rows.add(row);
+                } catch (EsqlIllegalArgumentException e) {
+                    totalRowCount++;
+                    onRowError("CSV bracket parse error: " + e.getMessage(), e, EMPTY_ROW);
+                }
             }
-            return rows;
         }
 
         private static boolean hasUnclosedQuote(String s, char quote) {
@@ -1041,12 +1078,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private void initProjection() {
             int schemaSize = schema.size();
-            if (projectedColumns == null || projectedColumns.isEmpty()) {
+            if (projectedColumns == null) {
+                // null means "no projection info available" — fall back to all columns for backward compat.
                 columnCount = schemaSize;
                 projectedIdx = new int[schemaSize];
                 for (int i = 0; i < schemaSize; i++) {
                     projectedIdx[i] = i;
                 }
+            } else if (projectedColumns.isEmpty()) {
+                // Empty list means the optimizer pruned every column (e.g. COUNT(*)). Skip all type
+                // conversion and emit row-count-only Pages from convertRowsToPage.
+                columnCount = 0;
+                projectedIdx = new int[0];
             } else {
                 columnCount = projectedColumns.size();
                 projectedIdx = new int[columnCount];
@@ -1076,6 +1119,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private Page convertRowsToPage(List<String[]> rows) {
+            int schemaSize = schema.size();
+            // COUNT(*) fast path: no columns projected, so skip builder allocation and type conversion
+            // and emit a row-count-only Page. We still apply the column-count validation that the
+            // regular path uses so structural errors are routed through the policy consistently.
+            if (columnCount == 0) {
+                int acceptedRows = 0;
+                for (String[] row : rows) {
+                    totalRowCount++;
+                    if (row.length > schemaSize) {
+                        onRowError("CSV row has [" + row.length + "] columns but schema defines [" + schemaSize + "] columns", null, row);
+                        continue;
+                    }
+                    acceptedRows++;
+                }
+                return acceptedRows == 0 ? null : new Page(acceptedRows);
+            }
             BlockUtils.BuilderWrapper[] builders = new BlockUtils.BuilderWrapper[columnCount];
             try {
                 for (int i = 0; i < columnCount; i++) {
@@ -1085,7 +1144,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         rows.size()
                     );
                 }
-                int schemaSize = schema.size();
                 int acceptedRows = 0;
                 for (String[] row : rows) {
                     totalRowCount++;

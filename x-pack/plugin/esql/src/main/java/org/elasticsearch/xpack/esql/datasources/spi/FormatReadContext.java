@@ -18,13 +18,22 @@ import java.util.List;
  * instance via {@link FormatReader#withPushedFilter}. This context carries only the parameters
  * that may vary per file or per split within a single query execution.
  *
- * @param projectedColumns columns to read (null or empty means all columns)
+ * @param projectedColumns columns to read. {@code null} means "no projection info available — read
+ *                         every column" (backward compatibility default). An <em>empty</em> list
+ *                         means "the optimizer pruned every column" (e.g. {@code COUNT(*)}); format
+ *                         readers may take a fast path that skips type conversion and emits row-
+ *                         count-only {@link org.elasticsearch.compute.data.Page Page}s.
  * @param batchSize        target number of rows per page
  * @param rowLimit         maximum total rows to return ({@link FormatReader#NO_LIMIT} for unlimited)
  * @param errorPolicy      how to handle malformed rows
  * @param firstSplit       whether this is the first split for the file (consistent with {@code lastSplit};
  *                         format-agnostic replacement for the legacy {@code skipFirstLine} parameter)
  * @param lastSplit        whether this is the last split for the file (affects trailing-record handling)
+ * @param recordAligned    whether the split starts at a record boundary (no leading partial record).
+ *                         When {@code false}, line-oriented readers may need to skip a leading partial line
+ *                         (e.g. bzip2 / zstd-indexed macro-splits). When {@code true}, the split is known
+ *                         to start exactly on a record boundary (e.g. streaming-parallel chunks sliced on
+ *                         {@code \n}). Has no effect on the first split.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -32,35 +41,36 @@ public record FormatReadContext(
     int rowLimit,
     ErrorPolicy errorPolicy,
     boolean firstSplit,
-    boolean lastSplit
+    boolean lastSplit,
+    boolean recordAligned
 ) {
 
     /**
      * Creates a minimal context for the common non-split case.
      */
     public static FormatReadContext of(List<String> projectedColumns, int batchSize) {
-        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, ErrorPolicy.STRICT, true, true);
+        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, ErrorPolicy.STRICT, true, true, false);
     }
 
     /**
      * Returns a copy with a different row limit.
      */
     public FormatReadContext withRowLimit(int limit) {
-        return new FormatReadContext(projectedColumns, batchSize, limit, errorPolicy, firstSplit, lastSplit);
+        return new FormatReadContext(projectedColumns, batchSize, limit, errorPolicy, firstSplit, lastSplit, recordAligned);
     }
 
     /**
      * Returns a copy with a different error policy.
      */
     public FormatReadContext withErrorPolicy(ErrorPolicy policy) {
-        return new FormatReadContext(projectedColumns, batchSize, rowLimit, policy, firstSplit, lastSplit);
+        return new FormatReadContext(projectedColumns, batchSize, rowLimit, policy, firstSplit, lastSplit, recordAligned);
     }
 
     /**
      * Returns a copy configured for a split-based read.
      */
     public FormatReadContext withSplit(boolean first, boolean last) {
-        return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, first, last);
+        return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, first, last, recordAligned);
     }
 
     public static Builder builder() {
@@ -74,6 +84,7 @@ public record FormatReadContext(
         private ErrorPolicy errorPolicy = ErrorPolicy.STRICT;
         private boolean firstSplit = true;
         private boolean lastSplit = true;
+        private boolean recordAligned = false;
 
         private Builder() {}
 
@@ -107,11 +118,20 @@ public record FormatReadContext(
             return this;
         }
 
+        /**
+         * Marks the split as starting at a record boundary so line-oriented readers can skip the
+         * "trim leading partial record" workaround used for byte-range macro-splits.
+         */
+        public Builder recordAligned(boolean recordAligned) {
+            this.recordAligned = recordAligned;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
             }
-            return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, firstSplit, lastSplit);
+            return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, firstSplit, lastSplit, recordAligned);
         }
     }
 }

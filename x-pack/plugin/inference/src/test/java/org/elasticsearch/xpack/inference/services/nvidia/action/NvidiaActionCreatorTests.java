@@ -811,7 +811,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         }
     }
 
-    private static void assertContentTypeAndAuthorization(MockRequest outboundRequest) {
+    private static void assertContentTypeAndAuthorization(MockRequest request) {
         assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaTypeWithoutParameters()));
         assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }

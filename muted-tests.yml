@@ -273,9 +273,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/147449
-- class: org.elasticsearch.action.admin.cluster.tasks.ListTasksIT
-  method: testWaitForCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/146859
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit}
   issue: https://github.com/elastic/elasticsearch/issues/147494
@@ -418,9 +415,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.objectstore.AzureMultiProjectObjectStoreIT
   method: testObjectStoreSeparation
   issue: https://github.com/elastic/elasticsearch-serverless/issues/6311
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
-  method: testRandomActivitiesStatelessSnapshotDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/147845
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/147846
@@ -562,12 +556,27 @@ tests:
 - class: org.elasticsearch.search.CCSDuelIT
   method: testCardinalityAgg
   issue: https://github.com/elastic/elasticsearch/issues/148091
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
-  method: testRandomActivitiesStatelessSnapshotReadFromObjectStore
-  issue: https://github.com/elastic/elasticsearch/issues/148092
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/148096
 - class: org.elasticsearch.search.CCSDuelIT
   method: testShardFailures
   issue: https://github.com/elastic/elasticsearch/issues/148099
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testUnsupportedGroupKeyTypesNotAllowedInStatsBy
+  issue: https://github.com/elastic/elasticsearch/issues/148112
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testUnsupportedGroupKeyTypesNotAllowedInLimitBy
+  issue: https://github.com/elastic/elasticsearch/issues/148113
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testCompletionSuggester
+  issue: https://github.com/elastic/elasticsearch/issues/148128
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testStressWithRelocationFailures
+  issue: https://github.com/elastic/elasticsearch/issues/148129
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/50_index_patterns/_index LIKE with overly complex pattern}
+  issue: https://github.com/elastic/elasticsearch/issues/148134
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTermSuggester
+  issue: https://github.com/elastic/elasticsearch/issues/148136

@@ -219,15 +219,15 @@ public class ShutdownPrepareService {
 
     // package-private for tests
     static void maybeRequestRelocationForBulkByScroll(Task task) {
-        if (DISABLE_REINDEX_RELOCATION) {
-            logger.info(
-                "Not requesting relocation for task {} because the system property es.reindex.disable_relocation is set",
-                task.getId()
-            );
-            return;
-        }
         if (task instanceof BulkByScrollTask bulkByScrollTask) {
             if (bulkByScrollTask.isEligibleForRelocationOnShutdown() && bulkByScrollTask.isRelocationRequested() == false) {
+                if (DISABLE_REINDEX_RELOCATION) {
+                    logger.info(
+                        "Not requesting relocation for task {} because the system property es.reindex.disable_relocation is set",
+                        task.getId()
+                    );
+                    return;
+                }
                 if (bulkByScrollTask.isLeader()) {
                     logger.info("Requesting relocation task for leader bulk-by-scroll task {} and its workers", bulkByScrollTask.getId());
                 } else {

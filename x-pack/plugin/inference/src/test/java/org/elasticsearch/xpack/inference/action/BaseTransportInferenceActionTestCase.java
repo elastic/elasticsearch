@@ -399,7 +399,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(9));
             return null;
-        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;
@@ -408,6 +408,10 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             listenerAction.accept(ans.getArgument(3));
             return null;
         }).when(service).embeddingInfer(any(), any(), any(), any());
+        doAnswer(ans -> {
+            listenerAction.accept(ans.getArgument(3));
+            return null;
+        }).when(service).rerankInfer(any(), any(), any(), any());
         mockInferenceEndpointRegistry(taskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(service));
     }

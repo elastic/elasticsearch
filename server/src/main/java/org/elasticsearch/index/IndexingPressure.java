@@ -478,7 +478,8 @@ public class IndexingPressure implements IndexingPressureMonitor {
 
     private final class PrimaryExpansionTrackerImpl implements PrimaryExpansionTracker {
 
-        private final AtomicBoolean closed = new AtomicBoolean();
+        private static final long CLOSED_FLAG = Long.MIN_VALUE;
+
         private final int operations;
         private final boolean forceExecution;
         private final AtomicLong expandedBytes;
@@ -489,51 +490,62 @@ public class IndexingPressure implements IndexingPressureMonitor {
             this.expandedBytes = new AtomicLong(bytes);
         }
 
-        public void addExpandedBytes(long expandedBytes) {
-            if (closed.get() == false) {
-                IndexingPressure.this.updatePrimaryOperationsAndBytes(0, expandedBytes, forceExecution, true);
-                if (closed.get()) {
-                    final String msg = "PrimaryExpansionTracker has been closed while performing an index pressure expansion";
-                    logger.error(msg, new IllegalStateException(msg));
-                    // Reverting the increase to avoid any impact on the index pressure
-                    IndexingPressure.this.releasePrimaryOperationsAndBytes(0, expandedBytes, true);
-                    assert false : msg;
-                } else {
-                    this.expandedBytes.addAndGet(expandedBytes);
-                }
-            } else {
+        public void addExpandedBytes(long bytes) {
+
+            long expansion = expandedBytes.get();
+
+            if (expansion == CLOSED_FLAG) {
                 final String msg = "Expanding IndexingPressure memory on a closed tracker";
                 logger.error(msg, new IllegalStateException(msg));
                 assert false : msg;
+            } else {
+                IndexingPressure.this.updatePrimaryOperationsAndBytes(0, bytes, forceExecution, true);
+                while (!expandedBytes.compareAndSet(expansion, expansion + bytes)) {
+                    expansion = expandedBytes.get();
+                    if (expansion == CLOSED_FLAG) {
+                        final String msg = "PrimaryExpansionTracker has been closed while performing an index pressure expansion";
+                        logger.error(msg, new IllegalStateException(msg));
+                        // Reverting the increase to avoid any impact on the index pressure
+                        IndexingPressure.this.releasePrimaryOperationsAndBytes(0, bytes, true);
+                        assert false : msg;
+                        break;
+                    }
+                }
             }
         }
 
-        public void removeExpandedBytes(long expandedBytes) {
-            if (closed.get() == false) {
-                IndexingPressure.this.releasePrimaryOperationsAndBytes(0, expandedBytes, true);
-                if (closed.get()) {
-                    final String msg = "PrimaryExpansionTracker has been closed while performing an index pressure reduction";
-                    logger.error(msg, new IllegalStateException(msg));
-                    // Reverting the decrease as it should have already been done by the call to close.
-                    IndexingPressure.this.updatePrimaryOperationsAndBytes(0, expandedBytes, forceExecution, true);
-                    assert false : msg;
-                } else {
-                    this.expandedBytes.getAndAdd(-expandedBytes);
-                }
-            } else {
+        public void removeExpandedBytes(long bytes) {
+
+            long expansion = expandedBytes.get();
+
+            if (expansion == CLOSED_FLAG) {
                 final String msg = "Releasing some IndexingPressure memory on a closed tracker";
                 logger.error(msg, new IllegalStateException(msg));
                 assert false : msg;
+            } else {
+                IndexingPressure.this.releasePrimaryOperationsAndBytes(0, bytes, true);
+                while (!expandedBytes.compareAndSet(expansion, expansion - bytes)) {
+                    expansion = expandedBytes.get();
+                    if (expansion == CLOSED_FLAG) {
+                        final String msg = "PrimaryExpansionTracker has been closed while performing an index pressure reduction";
+                        logger.error(msg, new IllegalStateException(msg));
+                        // Reverting the increase to avoid any impact on the index pressure
+                        IndexingPressure.this.updatePrimaryOperationsAndBytes(0, bytes, forceExecution, true);
+                        assert false : msg;
+                        break;
+                    }
+                }
             }
         }
 
         @Override
         public void close() {
-            if (closed.compareAndSet(false, true)) {
-                IndexingPressure.this.releasePrimaryOperationsAndBytes(operations, expandedBytes.get(), true);
+            long expansion = expandedBytes.getAndSet(CLOSED_FLAG);
+            if (expansion == CLOSED_FLAG) {
+                logger.error("PrimaryExpansionTracker has been closed twice", new IllegalStateException("Releasable is called twice"));
+                assert false : "PrimaryExpansionTracker has been closed twice";
             } else {
-                logger.error("IndexingPressure memory is adjusted twice", new IllegalStateException("Releasable is called twice"));
-                assert false : "IndexingPressure is adjusted twice";
+                IndexingPressure.this.releasePrimaryOperationsAndBytes(operations, expansion, true);
             }
         }
     }

@@ -40,6 +40,14 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     private boolean endOfFile = false;
     private Page nextPage;
 
+    /**
+     * Storage objects up to this size are eagerly slurped into a {@code byte[]} so the decoder can
+     * use Jackson's {@code createParser(byte[])} fast path instead of the {@code InputStream}
+     * dispatch. Streaming-parallel chunks are ~1 MiB, single-file reads are usually well under
+     * this; very large files fall back to streaming so they do not pin a multi-hundred-MiB array.
+     */
+    static final int BYTE_ARRAY_FAST_PATH_MAX_SIZE = 16 * 1024 * 1024;
+
     NdJsonPageIterator(
         StorageObject object,
         List<String> projectedColumns,
@@ -61,15 +69,51 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation);
         }
         this.rowLimit = rowLimit;
-        this.pageDecoder = new NdJsonPageDecoder(
-            inputStream,
-            resolvedAttributes,
-            projectedColumns,
-            batchSize,
-            blockFactory,
-            errorPolicy,
-            sourceLocation
-        );
+        if (canUseByteArrayFastPath(object)) {
+            byte[] data;
+            try (InputStream toClose = inputStream) {
+                data = toClose.readAllBytes();
+            }
+            this.pageDecoder = new NdJsonPageDecoder(
+                data,
+                0,
+                data.length,
+                resolvedAttributes,
+                projectedColumns,
+                batchSize,
+                blockFactory,
+                errorPolicy,
+                sourceLocation
+            );
+        } else {
+            this.pageDecoder = new NdJsonPageDecoder(
+                inputStream,
+                resolvedAttributes,
+                projectedColumns,
+                batchSize,
+                blockFactory,
+                errorPolicy,
+                sourceLocation
+            );
+        }
+    }
+
+    /**
+     * The byte-array fast path is available for storage objects with a known, bounded length;
+     * decompressing wrappers throw {@link UnsupportedOperationException} from {@link StorageObject#length()}
+     * and stay on the streaming path. Transient {@link IOException}s from {@link StorageObject#length()}
+     * also fall back to streaming so a metadata hiccup does not abort an open call; the streaming
+     * read will surface the same condition if the data itself is unreachable.
+     */
+    private static boolean canUseByteArrayFastPath(StorageObject object) {
+        try {
+            long len = object.length();
+            return len >= 0 && len <= BYTE_ARRAY_FAST_PATH_MAX_SIZE;
+        } catch (UnsupportedOperationException e) {
+            return false;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     @Override

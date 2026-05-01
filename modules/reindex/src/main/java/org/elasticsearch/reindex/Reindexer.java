@@ -48,6 +48,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
@@ -122,7 +123,10 @@ public class Reindexer {
     /// Allows setting the system property `es.reindex.disable_pit_scroll` as an escape hatch to disable the use of PIT-based search, and
     /// force the use of the legacy scroll-based search.
     // TODO(#2715): Remove this when we're confident the PIT version works
-    private static final boolean DISABLE_PIT_SEARCH = Boolean.getBoolean("es.reindex.disable_pit_search");
+    private static final boolean DISABLE_PIT_SEARCH = Booleans.parseBooleanLenient(
+        System.getProperty("es.reindex.disable_pit_search"),
+        false
+    );
 
     private final ClusterService clusterService;
     private final ReindexSettings reindexSettings;

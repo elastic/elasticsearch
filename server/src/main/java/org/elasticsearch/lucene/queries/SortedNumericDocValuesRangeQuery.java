@@ -115,6 +115,8 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                // 1) Preamble: early exits and primary sort optimization, copied from Lucene's
+                // implementation. These must run before the TSDB path.
                 if (context.reader().getFieldInfos().fieldInfo(field) == null) {
                     return null;
                 }
@@ -137,6 +139,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                     }
                 }
 
+                // 2) TSDB optimization: SIMD bitmask scanning over numeric codec blocks.
                 if (singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
                     var rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue, skipper);
                     if (rangeIterator != null) {
@@ -144,18 +147,13 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                     }
                 }
 
-                // No TSDB SIMD path available; fall back to Lucene's standard implementation.
+                // 3) Delegate: fall back to Lucene's standard implementation.
                 return delegateWeight.scorerSupplier(context);
             }
 
             @Override
             public int count(LeafReaderContext context) throws IOException {
-                int maxDoc = context.reader().maxDoc();
-                int cnt = docCountIgnoringDeletes(context);
-                if (cnt == maxDoc) {
-                    return context.reader().numDocs();
-                }
-                return cnt;
+                return delegateWeight.count(context);
             }
 
             private int docCountIgnoringDeletes(LeafReaderContext context) throws IOException {

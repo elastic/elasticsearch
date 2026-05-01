@@ -233,6 +233,10 @@ pub enum ColPred {
     Gt(StatValue),
     LtEq(StatValue),
     Lt(StatValue),
+    /// Skip pages where every value equals the rejected literal (min == max == v).
+    NotEq(StatValue),
+    /// Skip pages whose entire [min, max] range contains none of the listed values.
+    InList(Vec<StatValue>),
 }
 
 pub struct IndexPred {
@@ -255,6 +259,11 @@ fn collect_index_preds_inner(expr: &FilterExpr, out: &mut Vec<IndexPred>) {
                 out.push(IndexPred { col_name: col.clone(), pred: ColPred::Eq(val) });
             }
         }
+        FilterExpr::NotEq(left, right) => {
+            if let (FilterExpr::Column(col), Some(val)) = (left.as_ref(), literal_to_stat(right)) {
+                out.push(IndexPred { col_name: col.clone(), pred: ColPred::NotEq(val) });
+            }
+        }
         FilterExpr::GtEq(left, right) => {
             if let (FilterExpr::Column(col), Some(val)) = (left.as_ref(), literal_to_stat(right)) {
                 out.push(IndexPred { col_name: col.clone(), pred: ColPred::GtEq(val) });
@@ -273,6 +282,14 @@ fn collect_index_preds_inner(expr: &FilterExpr, out: &mut Vec<IndexPred>) {
         FilterExpr::Lt(left, right) => {
             if let (FilterExpr::Column(col), Some(val)) = (left.as_ref(), literal_to_stat(right)) {
                 out.push(IndexPred { col_name: col.clone(), pred: ColPred::Lt(val) });
+            }
+        }
+        FilterExpr::InList(col_expr, items) => {
+            if let FilterExpr::Column(col) = col_expr.as_ref() {
+                let vals: Vec<StatValue> = items.iter().filter_map(literal_to_stat).collect();
+                if vals.is_empty() == false {
+                    out.push(IndexPred { col_name: col.clone(), pred: ColPred::InList(vals) });
+                }
             }
         }
         FilterExpr::And(a, b) => {
@@ -319,6 +336,28 @@ fn page_survives_col_pred(pmin: &Option<StatValue>, pmax: &Option<StatValue>, pr
             let lo_ok = pmin.as_ref().map_or(true, |min| stat_cmp(val, min).map_or(true, |o| o != std::cmp::Ordering::Less));
             let hi_ok = pmax.as_ref().map_or(true, |max| stat_cmp(val, max).map_or(true, |o| o != std::cmp::Ordering::Greater));
             lo_ok && hi_ok
+        }
+        ColPred::NotEq(val) => {
+            // Can prune only when every value in the page equals val (min == max == val).
+            match (pmin.as_ref(), pmax.as_ref()) {
+                (Some(min), Some(max)) => {
+                    let min_eq = stat_cmp(min, val).map_or(false, |o| o == std::cmp::Ordering::Equal);
+                    let max_eq = stat_cmp(max, val).map_or(false, |o| o == std::cmp::Ordering::Equal);
+                    !(min_eq && max_eq)
+                }
+                _ => true,
+            }
+        }
+        ColPred::InList(vals) => {
+            // Can prune when no list value falls within [page_min, page_max].
+            match (pmin.as_ref(), pmax.as_ref()) {
+                (Some(min), Some(max)) => vals.iter().any(|v| {
+                    let gte_min = stat_cmp(v, min).map_or(true, |o| o != std::cmp::Ordering::Less);
+                    let lte_max = stat_cmp(v, max).map_or(true, |o| o != std::cmp::Ordering::Greater);
+                    gte_min && lte_max
+                }),
+                _ => true,
+            }
         }
     }
 }
@@ -714,11 +753,106 @@ pub fn row_group_matches(
     }
 }
 
+/// Returns `true` when row-group statistics prove that **every** row in the group
+/// satisfies the predicate — no RowFilter evaluation or filter-column I/O is needed.
+///
+/// This is the complement of [`row_group_matches`]: where that function returns `false`
+/// to eliminate row groups that cannot contain any matching rows, this function returns
+/// `true` to skip the runtime filter for row groups where every row is guaranteed to pass.
+///
+/// Conservative: returns `false` for anything that cannot be determined from min/max stats
+/// alone (e.g. `Like`, `Not`, `InList`). `And` requires both branches to trivially pass;
+/// `Or` requires at least one branch to trivially pass.
+pub fn row_group_trivially_passes(
+    expr: &FilterExpr,
+    rg: &RowGroupMetaData,
+    schema: &SchemaDescriptor,
+) -> bool {
+    match expr {
+        FilterExpr::NotEq(left, right) => {
+            if let FilterExpr::Column(col) = left.as_ref() {
+                if let Some(lit) = literal_to_stat(right) {
+                    if let Some(cs) = get_col_stats(rg, col, schema) {
+                        if let (Some(min), Some(max)) = (&cs.min, &cs.max) {
+                            // All values != lit when the entire range lies strictly below or above lit.
+                            let all_below = stat_cmp(max, &lit).map_or(false, |o| o == std::cmp::Ordering::Less);
+                            let all_above = stat_cmp(min, &lit).map_or(false, |o| o == std::cmp::Ordering::Greater);
+                            return all_below || all_above;
+                        }
+                    }
+                }
+            }
+            false
+        }
+        FilterExpr::Gt(left, right) => {
+            if let FilterExpr::Column(col) = left.as_ref() {
+                if let Some(lit) = literal_to_stat(right) {
+                    if let Some(cs) = get_col_stats(rg, col, schema) {
+                        if let Some(min) = &cs.min {
+                            return stat_cmp(min, &lit).map_or(false, |o| o == std::cmp::Ordering::Greater);
+                        }
+                    }
+                }
+            }
+            false
+        }
+        FilterExpr::GtEq(left, right) => {
+            if let FilterExpr::Column(col) = left.as_ref() {
+                if let Some(lit) = literal_to_stat(right) {
+                    if let Some(cs) = get_col_stats(rg, col, schema) {
+                        if let Some(min) = &cs.min {
+                            return stat_cmp(min, &lit).map_or(false, |o| o != std::cmp::Ordering::Less);
+                        }
+                    }
+                }
+            }
+            false
+        }
+        FilterExpr::Lt(left, right) => {
+            if let FilterExpr::Column(col) = left.as_ref() {
+                if let Some(lit) = literal_to_stat(right) {
+                    if let Some(cs) = get_col_stats(rg, col, schema) {
+                        if let Some(max) = &cs.max {
+                            return stat_cmp(max, &lit).map_or(false, |o| o == std::cmp::Ordering::Less);
+                        }
+                    }
+                }
+            }
+            false
+        }
+        FilterExpr::LtEq(left, right) => {
+            if let FilterExpr::Column(col) = left.as_ref() {
+                if let Some(lit) = literal_to_stat(right) {
+                    if let Some(cs) = get_col_stats(rg, col, schema) {
+                        if let Some(max) = &cs.max {
+                            return stat_cmp(max, &lit).map_or(false, |o| o != std::cmp::Ordering::Greater);
+                        }
+                    }
+                }
+            }
+            false
+        }
+        FilterExpr::IsNotNull(inner) => {
+            if let FilterExpr::Column(col) = inner.as_ref() {
+                if let Some(cs) = get_col_stats(rg, col, schema) {
+                    return cs.null_count == 0;
+                }
+            }
+            false
+        }
+        FilterExpr::And(a, b) => {
+            row_group_trivially_passes(a, rg, schema) && row_group_trivially_passes(b, rg, schema)
+        }
+        FilterExpr::Or(a, b) => {
+            row_group_trivially_passes(a, rg, schema) || row_group_trivially_passes(b, rg, schema)
+        }
+        _ => false,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Arrow row-level filter: convert FilterExpr to ArrowPredicateFn
 // ---------------------------------------------------------------------------
-
-/// Collects all column names referenced in the filter expression.
 pub fn collect_columns(expr: &FilterExpr) -> Vec<String> {
     let mut cols = Vec::new();
     collect_columns_inner(expr, &mut cols);

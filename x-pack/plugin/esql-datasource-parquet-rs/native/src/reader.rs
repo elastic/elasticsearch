@@ -951,10 +951,6 @@ async fn spawn_file_workers<R: AsyncFileReader + Clone + Send + Unpin + 'static>
         return Ok(0);
     }
 
-    // Compute projection mask once — it's the same for every chunk.
-    let projection_mask = projection_root_indices(&parquet_schema, projected_cols, filter)?
-        .map(|roots| ProjectionMask::roots(&parquet_schema, roots));
-
     let n_workers = max_concurrency.min(surviving.len()).max(1);
     let chunks: Vec<Vec<usize>> = (0..n_workers)
         .map(|w| surviving.iter().skip(w).step_by(n_workers).copied().collect())
@@ -962,6 +958,29 @@ async fn spawn_file_workers<R: AsyncFileReader + Clone + Send + Unpin + 'static>
         .collect();
 
     for chunk in chunks {
+        // Check whether every row group in this chunk is guaranteed to have all rows pass
+        // the filter (e.g. NotEq(AdvEngineID, 0) when min(AdvEngineID) > 0). When true we
+        // skip the RowFilter and exclude filter-only columns from the projection so that no
+        // unnecessary column I/O is issued for the chunk.
+        let chunk_trivially_passes = filter.as_ref().map_or(false, |expr| {
+            chunk.iter().all(|&rg_idx| {
+                filter::row_group_trivially_passes(expr, metadata.row_group(rg_idx), &parquet_schema)
+            })
+        });
+        let effective_filter: &Option<Arc<FilterExpr>> = if chunk_trivially_passes { &None } else { filter };
+
+        if log::log_enabled!(log::Level::Debug) && chunk_trivially_passes {
+            log::debug!(
+                target: "esql_parquet_rs::reader",
+                "chunk_rgs={:?} trivially_passes=true: skipping RowFilter",
+                chunk
+            );
+        }
+
+        // Projection mask is computed per chunk so trivially-passing chunks exclude filter-only columns.
+        let projection_mask = projection_root_indices(&parquet_schema, projected_cols, effective_filter)?
+            .map(|roots| ProjectionMask::roots(&parquet_schema, roots));
+
         let mut builder =
             parquet::arrow::async_reader::ParquetRecordBatchStreamBuilder::new_with_metadata(
                 obj_reader.clone(),
@@ -975,7 +994,7 @@ async fn spawn_file_workers<R: AsyncFileReader + Clone + Send + Unpin + 'static>
 
         builder = builder.with_row_groups(chunk.clone());
 
-        if let Some(expr) = filter {
+        if let Some(expr) = effective_filter {
             // Build a page-level RowSelection from column index statistics so parquet-rs
             // skips page I/O for pages that cannot contain matching rows (offset index
             // must be loaded, which it is via PageIndexPolicy::Required).

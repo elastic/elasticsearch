@@ -20,6 +20,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -523,6 +524,7 @@ public class BooleanFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final Explicit<Boolean> ignoreMalformed;
     private final IndexSettings indexSettings;
+    private final boolean writeDimensionRouting;
     private final boolean storeMalformedFields;
 
     private final String offsetsFieldName;
@@ -549,6 +551,9 @@ public class BooleanFieldMapper extends FieldMapper {
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
+        this.writeDimensionRouting = builder.dimension.getValue()
+            && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
+            && efs.extractDimensionsWhileMapping();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.storeMalformedFields = storeMalformedFields;
         this.offsetsFieldName = offsetsFieldName;
@@ -576,6 +581,18 @@ public class BooleanFieldMapper extends FieldMapper {
     @Override
     public String getOffsetFieldName() {
         return offsetsFieldName;
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Plain boolean mappers can be driven through parseCreateField by the bulk batch path.
+        // ignore_malformed is allowed — parseCreateField handles it via addIgnoredField, which
+        // BatchDocumentParserContext records. Dimensions, copy_to, multi-fields, and scripts pull
+        // in behavior that the batch path does not support.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && fieldType().isDimension() == false;
     }
 
     @Override
@@ -621,7 +638,7 @@ public class BooleanFieldMapper extends FieldMapper {
             return;
         }
 
-        if (fieldType().isDimension()) {
+        if (writeDimensionRouting) {
             context.getRoutingFields().addBoolean(fieldType().name(), value);
         }
         if (indexed) {

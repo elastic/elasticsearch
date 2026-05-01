@@ -113,6 +113,16 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
         return excludeChildTasks;
     }
 
+    /// Copies all fields from `request` into this request, including the cancel-specific fields. Useful when transparently forwarding a
+    /// request through a wrapper action (e.g. the double-broadcast path in [TransportCancelTasksAction]).
+    public CancelTasksRequest copyFieldsFrom(final CancelTasksRequest request) {
+        super.copyFieldsFrom(request);
+        this.reason = request.reason;
+        this.waitForCompletion = request.waitForCompletion;
+        this.excludeChildTasks = request.excludeChildTasks;
+        return this;
+    }
+
     @Override
     public String getDescription() {
         StringBuilder sb = new StringBuilder();

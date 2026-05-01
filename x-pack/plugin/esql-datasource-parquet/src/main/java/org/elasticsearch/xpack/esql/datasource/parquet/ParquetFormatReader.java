@@ -23,6 +23,7 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
@@ -47,12 +48,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
-import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -68,11 +69,13 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 
 /**
  * FormatReader implementation for Parquet files.
@@ -97,6 +100,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     private final ParquetPushedExpressions pushedExpressions;
     private final boolean forceBaselinePath;
     private final boolean optimizedReader;
+    private final boolean lateMaterializationEnabled;
     // Shared across all iterators created by this reader: holds lazy decompressor instances and
     // pays the per-codec init cost once. The factory is stateless across files/row groups.
     private final PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
@@ -104,13 +108,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
 
     static final String CONFIG_OPTIMIZED_READER = "optimized_reader";
+    static final String CONFIG_LATE_MATERIALIZATION = "late_materialization";
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false, true);
+        this(blockFactory, FilterCompat.NOOP, null, false, true, true);
     }
 
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
-        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader);
+        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, true);
     }
 
     private ParquetFormatReader(
@@ -118,13 +123,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         FilterCompat.Filter pushedFilter,
         ParquetPushedExpressions pushedExpressions,
         boolean forceBaselinePath,
-        boolean optimizedReader
+        boolean optimizedReader,
+        boolean lateMaterializationEnabled
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
         this.pushedExpressions = pushedExpressions;
         this.forceBaselinePath = forceBaselinePath;
         this.optimizedReader = optimizedReader;
+        this.lateMaterializationEnabled = lateMaterializationEnabled;
     }
 
     /**
@@ -133,16 +140,23 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
      * testing against the optimized path.
      */
     ParquetFormatReader withBaselinePath() {
-        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, true, optimizedReader);
+        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, true, optimizedReader, lateMaterializationEnabled);
     }
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof FilterCompat.Filter filter) {
-            return new ParquetFormatReader(blockFactory, filter, null, forceBaselinePath, optimizedReader);
+            return new ParquetFormatReader(blockFactory, filter, null, forceBaselinePath, optimizedReader, lateMaterializationEnabled);
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
-            return new ParquetFormatReader(blockFactory, FilterCompat.NOOP, exprs, forceBaselinePath, optimizedReader);
+            return new ParquetFormatReader(
+                blockFactory,
+                FilterCompat.NOOP,
+                exprs,
+                forceBaselinePath,
+                optimizedReader,
+                lateMaterializationEnabled
+            );
         }
         return this;
     }
@@ -153,10 +167,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             return this;
         }
         boolean newOptimized = parseBooleanConfig(config, CONFIG_OPTIMIZED_READER, optimizedReader);
-        if (newOptimized == optimizedReader) {
+        boolean newLateMat = parseBooleanConfig(config, CONFIG_LATE_MATERIALIZATION, lateMaterializationEnabled);
+        if (newOptimized == optimizedReader && newLateMat == lateMaterializationEnabled) {
             return this;
         }
-        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, forceBaselinePath, newOptimized);
+        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, forceBaselinePath, newOptimized, newLateMat);
     }
 
     private static boolean parseBooleanConfig(Map<String, Object> config, String key, boolean defaultValue) {
@@ -212,6 +227,44 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
             throw newInvalidParquetFileException(uri, e);
         }
+    }
+
+    private static ParquetFileReader openParquetFile(
+        StorageObject object,
+        InputFile inputFile,
+        ParquetReadOptions options,
+        ParquetMetadata cachedFooter
+    ) throws IOException {
+        String uri = object.path().toString();
+        try {
+            return ParquetFileReader.open(inputFile, cachedFooter, options, inputFile.newStream());
+        } catch (IOException e) {
+            throw newInvalidParquetFileException(uri, e);
+        } catch (RuntimeException e) {
+            if (e instanceof CircuitBreakingException) {
+                throw e;
+            }
+            if (e instanceof ElasticsearchException) {
+                throw e;
+            }
+            throw newInvalidParquetFileException(uri, e);
+        }
+    }
+
+    /**
+     * Filters a cached footer's row groups to only those whose midpoint falls within [rangeStart, rangeEnd).
+     * This mirrors parquet-mr's split assignment logic (see {@code ParquetInputFormat.getRowGroupInfo})
+     * which is applied during footer parsing but skipped when using a pre-parsed {@link ParquetMetadata}.
+     */
+    private static ParquetMetadata filterBlocksByRange(ParquetMetadata metadata, long rangeStart, long rangeEnd) {
+        List<BlockMetaData> filtered = new ArrayList<>();
+        for (BlockMetaData block : metadata.getBlocks()) {
+            long midpoint = block.getStartingPos() + block.getCompressedSize() / 2;
+            if (midpoint >= rangeStart && midpoint < rangeEnd) {
+                filtered.add(block);
+            }
+        }
+        return new ParquetMetadata(metadata.getFileMetaData(), filtered);
     }
 
     private static IOException newInvalidParquetFileException(String uri, Exception e) {
@@ -599,17 +652,34 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
      * structural (corrupt page, schema mismatch) rather than row-level.
      */
     @Override
-    public CloseableIterator<Page> readRange(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        long rangeStart,
-        long rangeEnd,
-        List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
+    public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
+        long rangeStart = context.rangeStart();
+        long rangeEnd = context.rangeEnd();
+        List<String> projectedColumns = context.projectedColumns();
+        int batchSize = context.batchSize();
+        List<Attribute> resolvedAttributes = context.resolvedAttributes();
+
         InputFile parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart);
-        ParquetFileReader reader = openParquetFile(object, parquetInputFile, readOptionsBuilder().withRange(rangeStart, rangeEnd).build());
+        ParquetReadOptions rangeOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
+        ParquetFileReader reader;
+        if (context.fileContext() instanceof ParquetMetadata cachedFooter) {
+            ParquetMetadata rangeMetadata = filterBlocksByRange(cachedFooter, rangeStart, rangeEnd);
+            reader = openParquetFile(object, parquetInputFile, rangeOptions, rangeMetadata);
+        } else {
+            // Parse the full footer (all row groups) and cache it for subsequent splits.
+            // ParquetFileReader.open with a range only retains blocks whose midpoint falls
+            // in the range, making getFooter() unusable for other splits. readFooter with
+            // options that have no range returns the complete metadata. The underlying
+            // FooterByteCache ensures the footer bytes are fetched from storage only once.
+            ParquetMetadata fullFooter = ParquetFileReader.readFooter(
+                parquetInputFile,
+                readOptionsBuilder().build(),
+                parquetInputFile.newStream()
+            );
+            context.setFileContext(fullFooter);
+            ParquetMetadata rangeMetadata = filterBlocksByRange(fullFooter, rangeStart, rangeEnd);
+            reader = openParquetFile(object, parquetInputFile, rangeOptions, rangeMetadata);
+        }
         try {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
@@ -623,11 +693,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             // parquet-mr never sees the filter and the reader does not need to be re-opened.
             if (useOptimized == false && FilterCompat.isFilteringRequired(recordFilter)) {
                 reader.close();
-                reader = openParquetFile(
-                    object,
-                    parquetInputFile,
-                    readOptionsBuilder().withRange(rangeStart, rangeEnd).withRecordFilter(recordFilter).build()
-                );
+                ParquetReadOptions filteredOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd)
+                    .withRecordFilter(recordFilter)
+                    .build();
+                if (context.fileContext() instanceof ParquetMetadata cf) {
+                    reader = openParquetFile(object, parquetInputFile, filteredOptions, filterBlocksByRange(cf, rangeStart, rangeEnd));
+                } else {
+                    reader = openParquetFile(object, parquetInputFile, filteredOptions);
+                }
                 fileMetaData = reader.getFileMetaData();
                 parquetSchema = fileMetaData.getSchema();
             }
@@ -724,6 +797,22 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
         }
 
+        ParquetPushedExpressions effectivePushed = null;
+        if (lateMaterializationEnabled && pushedExpressions != null) {
+            double predicateRatio = computePredicateColumnByteRatio(blocks, projectedAttributes, pushedExpressions);
+            if (predicateRatio < LATE_MATERIALIZATION_PREDICATE_RATIO_THRESHOLD) {
+                effectivePushed = pushedExpressions;
+            } else {
+                logger.debug(
+                    "Late materialization disabled for [{}]: predicate column ratio [{}/{}] exceeds threshold [{}]",
+                    storageObject.path(),
+                    (long) (predicateRatio * 100),
+                    100,
+                    (long) (LATE_MATERIALIZATION_PREDICATE_RATIO_THRESHOLD * 100)
+                );
+            }
+        }
+
         return new OptimizedParquetColumnIterator(
             reader,
             projectedSchema,
@@ -738,8 +827,45 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             storageObject,
             allRowRanges,
             survivingRowGroups,
-            codecFactory
+            codecFactory,
+            effectivePushed
         );
+    }
+
+    static final double LATE_MATERIALIZATION_PREDICATE_RATIO_THRESHOLD = 0.5;
+
+    /**
+     * Computes the ratio of predicate column bytes to total projected column bytes,
+     * averaged across all row groups. Uses compressed on-disk sizes from Parquet metadata.
+     */
+    private static double computePredicateColumnByteRatio(
+        List<BlockMetaData> blocks,
+        List<Attribute> projectedAttributes,
+        ParquetPushedExpressions pushed
+    ) {
+        Set<String> predicateNames = pushed.predicateColumnNames();
+        if (predicateNames.isEmpty()) {
+            return 0.0;
+        }
+        Set<String> projectedNames = new HashSet<>();
+        for (Attribute attr : projectedAttributes) {
+            projectedNames.add(attr.name());
+        }
+        long predicateBytes = 0;
+        long totalBytes = 0;
+        for (BlockMetaData block : blocks) {
+            for (ColumnChunkMetaData col : block.getColumns()) {
+                String name = col.getPath().toDotString();
+                if (projectedNames.contains(name)) {
+                    long size = col.getTotalSize();
+                    totalBytes += size;
+                    if (predicateNames.contains(name)) {
+                        predicateBytes += size;
+                    }
+                }
+            }
+        }
+        return totalBytes > 0 ? (double) predicateBytes / totalBytes : 0.0;
     }
 
     /**

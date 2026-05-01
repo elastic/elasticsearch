@@ -674,7 +674,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
 
         // Select merge strategy
         TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster);
-        TieredMergeStrategy.Strategy strategy = tieredStrategy.selectStrategy(segmentSizes, segmentCentroidCounts);
+        TieredMergeStrategy.MergeAction action = tieredStrategy.selectAction(segmentSizes, segmentCentroidCounts, segmentCentroidData);
 
         if (logger.isInfoEnabled()) {
             int totalVectors = 0;
@@ -688,75 +688,26 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             logger.info(
                 "DiskBBQ merge for field [{}]: selected strategy [{}], segments={}, totalVectors={}, totalCentroids={}",
                 fieldInfo.name,
-                strategy,
+                action.strategy(),
                 numSegments,
                 totalVectors,
                 totalCentroids
             );
         }
 
-        switch (strategy) {
-            case INSERTION -> {
-                // Use only the dominant segment's centroids — they already represent the majority of vectors.
-                int dominantIdx = TieredMergeStrategy.findDominantSegment(segmentSizes);
-                float[][] dominantCentroids = segmentCentroidData[dominantIdx].centroids();
-                HierarchicalKMeans hierarchicalKMeans;
-                if (mergeExec != null) {
-                    hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
-                } else {
-                    hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
-                }
-                KMeansResult kMeansResult = hierarchicalKMeans.clusterByInsertion(floatVectorValues, dominantCentroids, vectorPerCluster);
-                return new CentroidAssignments(
-                    fieldInfo.getVectorDimension(),
-                    kMeansResult.centroids(),
-                    kMeansResult.assignments(),
-                    kMeansResult.soarAssignments()
-                );
-            }
-            case CONCATENATION -> {
-                // Collect all prior centroids, reduce to target K, single assignment pass (no iterative convergence)
-                java.util.List<float[]> allPriorCentroids = new java.util.ArrayList<>();
-                for (IVFVectorsReader.CentroidData data : segmentCentroidData) {
-                    if (data != null) {
-                        java.util.Collections.addAll(allPriorCentroids, data.centroids());
-                    }
-                }
-                float[][] initialCentroids = allPriorCentroids.toArray(new float[0][]);
-                HierarchicalKMeans hierarchicalKMeans;
-                if (mergeExec != null) {
-                    hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
-                } else {
-                    hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
-                }
-                KMeansResult kMeansResult = hierarchicalKMeans.clusterByConcatenation(
-                    floatVectorValues,
-                    initialCentroids,
-                    vectorPerCluster
-                );
-                return new CentroidAssignments(
-                    fieldInfo.getVectorDimension(),
-                    kMeansResult.centroids(),
-                    kMeansResult.assignments(),
-                    kMeansResult.soarAssignments()
-                );
-            }
-            default -> {
-                // FULL_REBUILD: current behavior
-                return calculateCentroidsFullRebuild(floatVectorValues, fieldInfo);
-            }
-        }
-    }
-
-    private CentroidAssignments calculateCentroidsFullRebuild(KMeansFloatVectorValues floatVectorValues, FieldInfo fieldInfo)
-        throws IOException {
         HierarchicalKMeans hierarchicalKMeans;
         if (mergeExec != null) {
             hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
         } else {
             hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
         }
-        return calculateCentroids(hierarchicalKMeans, floatVectorValues, fieldInfo);
+        KMeansResult kMeansResult = action.execute(hierarchicalKMeans, floatVectorValues, vectorPerCluster);
+        return new CentroidAssignments(
+            fieldInfo.getVectorDimension(),
+            kMeansResult.centroids(),
+            kMeansResult.assignments(),
+            kMeansResult.soarAssignments()
+        );
     }
 
     /**

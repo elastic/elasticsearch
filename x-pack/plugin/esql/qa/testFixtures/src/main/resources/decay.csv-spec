@@ -232,6 +232,27 @@ decay_result:double
 0.75
 ;
 
+unsignedLongLinear
+required_capability: decay_function
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10::unsigned_long, 10::unsigned_long, {"offset": 0, "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+unsignedLongMixedNumericParameters
+required_capability: decay_function
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
 cartesianPointLinear1
 required_capability: decay_function
 

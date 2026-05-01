@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 148123
+summary: Add metrics to track commit and BCC references counts
+type: enhancement

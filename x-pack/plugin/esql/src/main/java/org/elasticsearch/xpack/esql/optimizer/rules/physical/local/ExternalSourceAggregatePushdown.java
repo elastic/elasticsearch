@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.MergedSplitStats;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -84,14 +85,21 @@ final class ExternalSourceAggregatePushdown {
      * <p>
      * When a single split is present and has its own statistics, those are preferred over
      * file-level metadata to avoid misclassification when split stats differ from the whole.
+     * <p>
+     * Uses {@link ExternalSplit#splitStats()} on each split, which handles both
+     * {@link org.elasticsearch.xpack.esql.datasources.FileSplit} and
+     * {@link org.elasticsearch.xpack.esql.datasources.CoalescedSplit} transparently.
      */
-    static SplitStats resolveFilteredStats(ExternalSourceExec externalExec, Expression filterCondition) {
+    static org.elasticsearch.xpack.esql.datasources.spi.SplitStats resolveFilteredStats(
+        ExternalSourceExec externalExec,
+        Expression filterCondition
+    ) {
         List<? extends ExternalSplit> splits = externalExec.splits();
 
         if (splits.isEmpty() || splits.size() == 1) {
-            SplitStats stats = null;
-            if (splits.size() == 1 && splits.getFirst() instanceof FileSplit fs && fs.splitStats() != null) {
-                stats = fs.splitStats();
+            org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = null;
+            if (splits.size() == 1) {
+                stats = splits.getFirst().splitStats();
             }
             if (stats == null) {
                 stats = SplitStats.of(externalExec.sourceMetadata());
@@ -107,12 +115,10 @@ final class ExternalSourceAggregatePushdown {
             };
         }
 
-        List<SplitStats> matchedStats = new ArrayList<>();
-        for (ExternalSplit split : splits) {
-            if (split instanceof FileSplit == false) {
-                return null;
-            }
-            SplitStats stats = ((FileSplit) split).splitStats();
+        List<ExternalSplit> flatSplits = CoalescedSplit.flatten(splits);
+        List<org.elasticsearch.xpack.esql.datasources.spi.SplitStats> matchedStats = new ArrayList<>();
+        for (ExternalSplit split : flatSplits) {
+            org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = split.splitStats();
             if (stats == null) {
                 return null;
             }
@@ -130,6 +136,6 @@ final class ExternalSourceAggregatePushdown {
         if (matchedStats.isEmpty()) {
             return SplitStats.EMPTY;
         }
-        return SplitStats.merge(matchedStats);
+        return new MergedSplitStats(matchedStats);
     }
 }

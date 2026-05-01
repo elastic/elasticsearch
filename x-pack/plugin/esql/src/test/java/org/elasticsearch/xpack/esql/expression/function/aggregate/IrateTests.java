@@ -145,7 +145,24 @@ public class IrateTests extends AbstractAggregationTestCase {
                     DataType.DOUBLE,
                     matcher
                 );
-                // TODO: once warnings are emitted for invalid temporality, add withWarning assertions here like RateTests
+                if (temporality == RateTests.TemporalityParameter.INVALID && nonNullDataRows.isEmpty() == false) {
+                    return result.withWarning(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                    )
+                        .withWarning(
+                            "Line 1:1: org.elasticsearch.compute.aggregation.InvalidTemporalityException: "
+                                + "Invalid temporality value: [gotcha], expected [cumulative] or [delta]"
+                        );
+                }
+                if (temporality == RateTests.TemporalityParameter.DELTA && nonNullDataRows.isEmpty() == false) {
+                    return result.withWarning(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                    )
+                        .withWarning(
+                            "Line 1:1: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality yet,"
+                                + " delta temporality series will be ignored. Upgrade your cluster to fix this."
+                        );
+                }
                 return result;
             }
         );

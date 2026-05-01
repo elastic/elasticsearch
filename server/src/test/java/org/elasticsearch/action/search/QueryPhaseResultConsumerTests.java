@@ -365,6 +365,8 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 0,
                 null,
                 SearchResponse.Clusters.EMPTY,
+                null,
+                null,
                 null
             );
             try {

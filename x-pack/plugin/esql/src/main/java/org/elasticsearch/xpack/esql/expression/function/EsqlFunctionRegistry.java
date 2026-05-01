@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongSur
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
@@ -432,6 +433,7 @@ public class EsqlFunctionRegistry {
                 Signum.DEFINITION,
                 Sin.DEFINITION,
                 Sinh.DEFINITION,
+                Sparkline.DEFINITION,
                 Sqrt.DEFINITION,
                 Tan.DEFINITION,
                 Tanh.DEFINITION,
@@ -622,7 +624,7 @@ public class EsqlFunctionRegistry {
                 RangeMin.DEFINITION,
                 RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
-                Sparkline.DEFINITION } };
+                ToText.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

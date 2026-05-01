@@ -42,6 +42,14 @@ artifacts {
 def restTestBlacklist = []
 // TODO: fix this rest test to not depend on a hardcoded port!
 restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
+// ES|QL YAML rest tests are run by :x-pack:plugin:esql:qa:server:single-node:yamlRestTest
+// via restResources.restTests.includeXpack 'esql'. Skip them here to avoid running the same
+// suite twice in CI.
+restTestBlacklist.add('esql/*')
+// ML YAML rest tests are run by :x-pack:plugin:ml:qa:single-node-tests:yamlRestTest
+// via restResources.restTests.includeXpack 'ml'. Skip them here to avoid running the
+// same suite twice in CI.
+restTestBlacklist.add('ml/*')
 if (buildParams.snapshotBuild == false) {
   // these tests attempt to install basic/internal licenses signed against the dev/public.key
   // Since there is no infrastructure in place (anytime soon) to generate licenses using the production

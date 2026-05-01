@@ -13,14 +13,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.ExtraParam;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
@@ -133,7 +134,11 @@ public class GroupedTopNBenchmark {
             elementTypes,
             encoders,
             sortOrders,
-            new GroupKeyEncoder(groupKeyChannels, elementTypes, new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder")),
+            new GroupKeyEncoder(
+                groupKeyChannels,
+                elementTypes,
+                new PagedBytesBuilder(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker(), "group-key-encoder", 64)
+            ),
             8 * 1024,
             Long.MAX_VALUE
         );

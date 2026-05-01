@@ -55,7 +55,18 @@ public class MockSearchService extends SearchService {
 
     private Function<CancellableTask, CancellableTask> onCheckCancelled = Function.identity();
 
-    /** Throw an {@link AssertionError} if there are still in-flight contexts. */
+    /**
+     * Throw an {@link AssertionError} if there are still in-flight contexts.
+     * <p>
+     * Note: this assertion can spuriously trip when {@code search.low_level_cancellation} is {@code false}
+     *     (a setting that is randomized by {@link org.elasticsearch.test.ESIntegTestCase}) and a test stops
+     *     the coordinating node while a search is in-flight. With low-level cancellation disabled, the
+     *     search is not canceled when the associated connection drops, leaving the reader context active
+     *     long enough to fail this check. Tests that deliberately stop coordinators mid-search should
+     *     override the setting via their {@code nodeSettings}
+     *     (e.g. {@code search.low_level_cancellation: true}) rather than relaxing this assertion, so that
+     *     genuine context leaks remain detectable.
+     */
     public static void assertNoInFlightContext() {
         final Map<ReaderContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
         if (copy.isEmpty() == false) {

@@ -128,6 +128,8 @@ public class Reindexer {
     private final ReindexSslConfig reindexSslConfig;
     @Nullable
     private final ReindexMetrics reindexMetrics;
+    @Nullable
+    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
     private final TaskManager taskManager;
     private final TransportService transportService;
     private final ReindexRelocationNodePicker relocationNodePicker;
@@ -144,6 +146,7 @@ public class Reindexer {
         ScriptService scriptService,
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
         TransportService transportService,
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
@@ -157,6 +160,7 @@ public class Reindexer {
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
+        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
         this.taskManager = transportService.getTaskManager(); // implicit null check
         this.transportService = transportService;
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
@@ -285,7 +289,8 @@ public class Reindexer {
                 request,
                 listener,
                 remoteVersion,
-                reindexShutdownGracePeriod
+                reindexShutdownGracePeriod,
+                bulkByScrollSearchContextMetrics
             );
             searchAction.start();
         };
@@ -943,7 +948,8 @@ public class Reindexer {
             ReindexRequest request,
             ActionListener<BulkByScrollResponse> listener,
             @Nullable Version remoteVersion,
-            TimeValue maxTaskShutdownGracePeriod
+            TimeValue maxTaskShutdownGracePeriod,
+            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics
         ) {
             super(
                 task,
@@ -963,6 +969,9 @@ public class Reindexer {
                 scriptService,
                 sslConfig,
                 remoteVersion,
+                bulkByScrollSearchContextMetrics,
+                BulkByScrollSearchContextMetrics.TaskKind.REINDEX,
+                request.getRemoteInfo() != null,
                 maxTaskShutdownGracePeriod
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
@@ -1002,7 +1011,8 @@ public class Reindexer {
                         restClient,
                         remoteInfo,
                         searchRequest,
-                        remoteVersion
+                        remoteVersion,
+                        searchContextKeepaliveDeadline
                     );
                 }
                 return new RemoteScrollablePaginatedHitSource(
@@ -1015,7 +1025,8 @@ public class Reindexer {
                     restClient,
                     remoteInfo,
                     searchRequest,
-                    remoteVersion
+                    remoteVersion,
+                    searchContextKeepaliveDeadline
                 );
             }
             return super.buildScrollableResultSource(backoffPolicy, searchRequest);

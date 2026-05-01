@@ -269,7 +269,7 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
         var topN = instance.topN();
         var returnDocuments = instance.returnDocuments();
         var taskSettings = instance.taskSettings();
-        switch (randomInt(2)) {
+        switch (randomInt(4)) {
             case 0 -> inputs = randomValueOtherThan(inputs, RerankRequestTests::randomInputs);
             case 1 -> query = randomValueOtherThan(query, RerankRequestTests::getRandomSupportedInferenceString);
             case 2 -> topN = randomValueOtherThan(topN, () -> randomFrom(randomIntBetween(1, 1028), null));

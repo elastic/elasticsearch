@@ -358,6 +358,11 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 );
                 return;
             }
+
+            ValidationException validationException = new ValidationException();
+            validateRerankParameters(request.returnDocuments(), request.topN(), validationException);
+            validationException.throwIfValidationErrorsExist();
+
             doRerankInfer(model, request, resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);

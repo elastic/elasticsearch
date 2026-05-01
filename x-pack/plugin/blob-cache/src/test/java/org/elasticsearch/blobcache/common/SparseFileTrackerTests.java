@@ -15,6 +15,8 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -33,13 +35,11 @@ import static org.elasticsearch.blobcache.BlobCacheTestUtils.randomRanges;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SparseFileTrackerTests extends ESTestCase {
@@ -145,10 +145,11 @@ public class SparseFileTrackerTests extends ESTestCase {
 
             var gaps = tracker.waitForRange(range, subRange, wrapper.apply(subRange, future));
             assertThat(future.isDone(), equalTo(false));
-            assertThat(gaps, notNullValue());
-            assertThat(gaps, hasSize(1));
+            assertThat(gaps.isPresent(), is(true));
+            var gapsList = gaps.get().claim();
+            assertThat(gapsList, hasSize(1));
 
-            fillGap(bytes, gaps.get(0));
+            fillGap(bytes, gapsList.get(0));
 
             assertThat(future.isDone(), equalTo(true));
         }
@@ -162,8 +163,7 @@ public class SparseFileTrackerTests extends ESTestCase {
 
             var gaps = tracker.waitForRange(range, subRange, wrapper.apply(subRange, future));
             assertThat(future.isDone(), equalTo(true));
-            assertThat(gaps, notNullValue());
-            assertThat(gaps, hasSize(0));
+            assertThat(gaps.isEmpty(), is(true));
         }
     }
 
@@ -198,7 +198,7 @@ public class SparseFileTrackerTests extends ESTestCase {
                     assertTrue(expectNotification.get());
                     assertTrue(wasNotified.compareAndSet(false, true));
                 })
-            );
+            ).get().claim();
             for (int gapIndex = 0; gapIndex < gaps.size(); gapIndex++) {
                 final SparseFileTracker.Gap gap = gaps.get(gapIndex);
                 assertThat(gap.start(), greaterThanOrEqualTo(start));
@@ -221,12 +221,14 @@ public class SparseFileTrackerTests extends ESTestCase {
         }
 
         final AtomicBoolean wasNotified = new AtomicBoolean();
-        final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
-            range,
-            range,
-            ActionTestUtils.assertNoFailureListener(ignored -> assertTrue(wasNotified.compareAndSet(false, true)))
+        assertThat(
+            sparseFileTracker.waitForRange(
+                range,
+                range,
+                ActionTestUtils.assertNoFailureListener(ignored -> assertTrue(wasNotified.compareAndSet(false, true)))
+            ).isEmpty(),
+            is(true)
         );
-        assertThat(gaps, empty());
         assertTrue(wasNotified.get());
     }
 
@@ -268,7 +270,9 @@ public class SparseFileTrackerTests extends ESTestCase {
             final ActionListener<Void> listener = ActionTestUtils.assertNoFailureListener(
                 ignored -> assertTrue(wasNotified.compareAndSet(false, true))
             );
-            final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(range, subRange, listener);
+            final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(range, subRange, listener)
+                .map(SparseFileTracker.Gaps::claim)
+                .orElse(List.of());
 
             assertTrue(
                 "All bytes of the sub range " + subRange + " are available, listener must be executed immediately",
@@ -300,16 +304,14 @@ public class SparseFileTrackerTests extends ESTestCase {
 
             final AtomicBoolean wasNotified = new AtomicBoolean();
             final AtomicBoolean expectNotification = new AtomicBoolean();
-            final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
-                range,
-                subRange,
-                ActionTestUtils.assertNoFailureListener(ignored -> {
-                    assertTrue(expectNotification.get());
-                    assertTrue(wasNotified.compareAndSet(false, true));
-                })
-            );
+            final var gaps = sparseFileTracker.waitForRange(range, subRange, ActionTestUtils.assertNoFailureListener(ignored -> {
+                assertTrue(expectNotification.get());
+                assertTrue(wasNotified.compareAndSet(false, true));
+            }));
 
             assertFalse("Listener should not have been executed yet", wasNotified.get());
+            assertTrue("Expected gaps since subRange has unavailable bytes", gaps.isPresent());
+            final List<SparseFileTracker.Gap> gapsList = gaps.get().claim();
 
             assertTrue(sparseFileTracker.waitForRangeIfPending(subRange, waitIfPendingListener));
             assertFalse(waitIfPendingWasNotified.get());
@@ -322,7 +324,7 @@ public class SparseFileTrackerTests extends ESTestCase {
             }
             assertThat(triggeringProgress, greaterThanOrEqualTo(0L));
 
-            for (final SparseFileTracker.Gap gap : gaps) {
+            for (final SparseFileTracker.Gap gap : gapsList) {
                 assertThat(gap.start(), greaterThanOrEqualTo(range.start()));
                 assertThat(gap.end(), lessThanOrEqualTo(range.end()));
 
@@ -393,12 +395,14 @@ public class SparseFileTrackerTests extends ESTestCase {
         }
 
         final AtomicBoolean wasNotified = new AtomicBoolean();
-        final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
-            range,
-            subRange,
-            ActionTestUtils.assertNoFailureListener(ignored -> assertTrue(wasNotified.compareAndSet(false, true)))
+        assertThat(
+            sparseFileTracker.waitForRange(
+                range,
+                subRange,
+                ActionTestUtils.assertNoFailureListener(ignored -> assertTrue(wasNotified.compareAndSet(false, true)))
+            ).isEmpty(),
+            is(true)
         );
-        assertThat(gaps, empty());
         assertTrue(wasNotified.get());
     }
 
@@ -428,6 +432,103 @@ public class SparseFileTrackerTests extends ESTestCase {
 
         deterministicTaskQueue.runAllTasks();
         assertTrue(listenersCalled.stream().allMatch(AtomicBoolean::get));
+    }
+
+    /**
+     * The tracker allocates pending ranges at coarse granularity. When a second caller requests a range that partially
+     * overlaps an existing pending range, the second caller may receive gaps that extend outside the range it requested.
+     * The second caller is responsible for filling the entire gap, not just the portion within its requested range.
+     */
+    public void testClaimedGapsCanExtendBeyondRequestedRange() {
+        final SparseFileTracker tracker = new SparseFileTracker("test", 100);
+
+        // Caller 1 creates a pending range covering [0, 50)
+        final PlainActionFuture<Void> future1 = new PlainActionFuture<>();
+        final var gaps1 = tracker.waitForRange(ByteRange.of(0, 50), ByteRange.of(0, 50), future1);
+        assertTrue(gaps1.isPresent());
+
+        // Caller 2 requests [30, 80) — partially overlapping with caller 1's pending range
+        final PlainActionFuture<Void> future2 = new PlainActionFuture<>();
+        final var gaps2 = tracker.waitForRange(ByteRange.of(30, 80), ByteRange.of(30, 80), future2);
+        assertTrue(gaps2.isPresent());
+
+        // Caller 2 claims first: it wins the [0, 50) range even though that starts before its own range of [30, 80)
+        final List<SparseFileTracker.Gap> gaps2List = gaps2.get().claim();
+        assertThat(gaps2List.stream().anyMatch(g -> g.start() < 30), is(true));
+        assertThat(gaps2List.size(), equalTo(2));
+
+        // Caller 1 now claims nothing for [0, 50) since it was already taken by caller 2
+        assertThat(gaps1.get().claim(), equalTo(List.of()));
+
+        // Caller 2 fills all its gaps (including the bytes before 30 that are outside its requested range)
+        for (SparseFileTracker.Gap gap : gaps2List) {
+            for (long i = gap.start(); i < gap.end(); i++) {
+                gap.onProgress(i + 1);
+            }
+            gap.onCompletion();
+        }
+
+        // Both listeners fire: caller 2's [30, 80) is complete, and caller 1's [0, 50) was filled by caller 2
+        assertTrue(future1.isDone());
+        assertTrue(future2.isDone());
+    }
+
+    /**
+     * Multiple callers that invoke waitForRange before any of them call claim all receive Optional.of(Gaps), but
+     * claim() is exclusive: the union of gaps returned across all callers covers each absent byte exactly once.
+     */
+    public void testWaitForRangeClaimExclusivity() {
+        final long fileLength = between(2, 100);
+        final SparseFileTracker tracker = new SparseFileTracker("test", fileLength);
+
+        // Each caller requests a random sub-range so gaps are spread across different parts of the file
+        final int callerCount = between(2, 5);
+        final List<ByteRange> ranges = new ArrayList<>();
+        final List<SparseFileTracker.Gaps> pendingGaps = new ArrayList<>();
+        final List<PlainActionFuture<Void>> futures = new ArrayList<>();
+        for (int i = 0; i < callerCount; i++) {
+            final long start = randomLongBetween(0, fileLength - 1);
+            final long end = randomLongBetween(start + 1, fileLength);
+            final ByteRange range = ByteRange.of(start, end);
+            ranges.add(range);
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            futures.add(future);
+            // No claim() has run yet, so every caller must see unclaimed gaps
+            final var gaps = tracker.waitForRange(range, range, future);
+            assertTrue(gaps.isPresent());
+            pendingGaps.add(gaps.get());
+        }
+
+        // Claim in shuffled order: the winner of each byte is whoever calls claim() first, not who called waitForRange first
+        Collections.shuffle(pendingGaps, random());
+        final List<SparseFileTracker.Gap> allClaimed = new ArrayList<>();
+        for (SparseFileTracker.Gaps gaps : pendingGaps) {
+            allClaimed.addAll(gaps.claim());
+        }
+
+        // Total claimed bytes must equal the size of the union of all requested ranges
+        assertThat(allClaimed.stream().mapToLong(g -> g.end() - g.start()).sum(), equalTo(unionSize(fileLength, ranges)));
+
+        futures.forEach(f -> assertThat(f.isDone(), is(false)));
+
+        // Fill all claimed gaps; all listeners must fire once their range is complete
+        for (SparseFileTracker.Gap gap : allClaimed) {
+            for (long i = gap.start(); i < gap.end(); i++) {
+                if (between(0, 100) < 10) {
+                    gap.onProgress(i + 1);
+                }
+            }
+            gap.onCompletion();
+        }
+        futures.forEach(f -> assertThat(f.isDone(), is(true)));
+    }
+
+    private static long unionSize(long fileLength, List<ByteRange> ranges) {
+        final BitSet covered = new BitSet((int) fileLength);
+        for (ByteRange range : ranges) {
+            covered.set((int) range.start(), (int) range.end());
+        }
+        return covered.cardinality();
     }
 
     public void testThreadSafety() throws InterruptedException {
@@ -486,8 +587,8 @@ public class SparseFileTrackerTests extends ESTestCase {
                     completedRange,
                     completedRange,
                     ActionTestUtils.assertNoFailureListener(ignored -> listenerCalled.set(true))
-                ),
-                hasSize(0)
+                ).isEmpty(),
+                is(true)
             );
             assertThat(listenerCalled.get(), is(true));
         }
@@ -533,9 +634,11 @@ public class SparseFileTrackerTests extends ESTestCase {
                 ActionListener.runBefore(listener, () -> assertThat(tracker.getComplete(), equalTo(progress)))
             );
             assertThat(listener.isDone(), equalTo(false));
-            assertThat(gaps, hasSize(1));
+            assertThat(gaps.isPresent(), is(true));
+            var gapsList = gaps.get().claim();
+            assertThat(gapsList, hasSize(1));
 
-            gaps.forEach(gap -> {
+            gapsList.forEach(gap -> {
                 long latestUpdatedCompletePointer = gap.start();
 
                 for (long j = gap.start(); j < gap.end(); j++) {
@@ -590,7 +693,9 @@ public class SparseFileTrackerTests extends ESTestCase {
             assertThat(tracker.getAbsentBytesWithin(ByteRange.of(begin, end)), equalTo(amount));
             long start = randomLongBetween(0, length);
             ByteRange range = ByteRange.of(start, randomLongBetween(start, length));
-            List<SparseFileTracker.Gap> gaps = tracker.waitForRange(range, range, ActionListener.noop());
+            List<SparseFileTracker.Gap> gaps = tracker.waitForRange(range, range, ActionListener.noop())
+                .map(SparseFileTracker.Gaps::claim)
+                .orElse(List.of());
             assertThat(tracker.getAbsentBytesWithin(ByteRange.of(begin, end)), equalTo(amount));
             long sum = gaps.stream().mapToLong(g -> Math.max(Math.min(g.end(), end) - Math.max(g.start(), begin), 0)).sum();
             gaps.forEach(g -> g.onCompletion());
@@ -667,9 +772,9 @@ public class SparseFileTrackerTests extends ESTestCase {
                 ByteRange.of(rangeStart, rangeEnd),
                 ByteRange.of(subRangeStart, subRangeEnd),
                 actionListener
-            );
+            ).map(SparseFileTracker.Gaps::claim).orElse(List.of());
 
-            long gapSum = gaps.stream().mapToLong(g -> g.end() - g.start()).sum();
+            long gapSum = gaps.stream().mapToLong(g -> Math.min(g.end(), rangeEnd) - Math.max(g.start(), rangeStart)).sum();
             assertThat(sparseFileTracker.getAbsentBytesWithin(ByteRange.of(rangeStart, rangeEnd)), greaterThanOrEqualTo(gapSum));
             gaps.forEach(g -> {
                 assertThat(sparseFileTracker.getAbsentBytesWithin(ByteRange.of(g.start(), g.end())), equalTo(g.end() - g.start()));

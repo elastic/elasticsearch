@@ -78,6 +78,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.core.Strings.format;
@@ -688,19 +689,7 @@ public class CompositeRolesStore {
         final Map<Tuple<String, String>, ApplicationPrivilegeDescriptor> appPrivLookup = appPrivileges.stream()
             .collect(Collectors.toMap(p -> new Tuple<>(p.getApplication(), p.getName()), p -> p));
         for (RoleDescriptor rd : roleDescriptors) {
-            final List<ApplicationPrivilegeDescriptor> roleAppPrivs = new ArrayList<>();
-            for (RoleDescriptor.ApplicationResourcePrivileges ap : rd.getApplicationPrivileges()) {
-                for (String priv : ap.getPrivileges()) {
-                    // Miss == either an action pattern (e.g. "data:read/*", never stored) or a
-                    // reference to an undefined stored privilege. Both are silently skipped; providers
-                    // that need action-pattern visibility can read roleDescriptor.getApplicationPrivileges().
-                    final ApplicationPrivilegeDescriptor descriptor = appPrivLookup.get(new Tuple<>(ap.getApplication(), priv));
-                    if (descriptor == null) {
-                        continue;
-                    }
-                    roleAppPrivs.add(descriptor);
-                }
-            }
+            final List<ApplicationPrivilegeDescriptor> roleAppPrivs = getApplicationPrivilegeDescriptors(rd, appPrivLookup);
             for (ImplicitPrivilegesProvider provider : implicitPrivilegesProviders) {
                 final Collection<IndicesPrivileges> implicit = provider.getImplicitIndicesPrivileges(rd, roleAppPrivs);
                 final IndicesPrivileges[] kept = implicit.stream()
@@ -720,6 +709,92 @@ public class CompositeRolesStore {
             }
         }
         addIndicesPrivilegesToBuilder(builder, fieldPermissionsCache, indicesPrivilegesMap, restrictedIndicesPrivilegesMap, true);
+    }
+
+    private static List<ApplicationPrivilegeDescriptor> getApplicationPrivilegeDescriptors(
+        RoleDescriptor rd,
+        Map<Tuple<String, String>, ApplicationPrivilegeDescriptor> appPrivLookup
+    ) {
+        final List<ApplicationPrivilegeDescriptor> roleAppPrivs = new ArrayList<>();
+        for (RoleDescriptor.ApplicationResourcePrivileges ap : rd.getApplicationPrivileges()) {
+            for (String priv : ap.getPrivileges()) {
+                // Miss == either an action pattern (e.g. "data:read/*", never stored) or a
+                // reference to an undefined stored privilege. Both are silently skipped; providers
+                // that need action-pattern visibility can read roleDescriptor.getApplicationPrivileges().
+                final ApplicationPrivilegeDescriptor descriptor = appPrivLookup.get(new Tuple<>(ap.getApplication(), priv));
+                if (descriptor == null) {
+                    continue;
+                }
+                roleAppPrivs.add(descriptor);
+            }
+        }
+        return roleAppPrivs;
+    }
+
+    public void addImplicitPrivilegesToRoles(
+        Collection<RoleDescriptor> roleDescriptors,
+        ActionListener<Collection<RoleDescriptor>> listener
+    ) {
+        if (implicitPrivilegesProviders.isEmpty()) {
+            listener.onResponse(roleDescriptors);
+            return;
+        }
+        Set<String> applicationNames = roleDescriptors.stream()
+            .flatMap(rd -> Stream.of(rd.getApplicationPrivileges()))
+            .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
+            .collect(Collectors.toSet());
+        Set<String> privilegeNames = roleDescriptors.stream()
+            .flatMap(rd -> Stream.of(rd.getApplicationPrivileges()))
+            .flatMap(arp -> Stream.of(arp.getPrivileges()))
+            .collect(Collectors.toSet());
+        if (applicationNames.isEmpty() || privilegeNames.isEmpty()) {
+            listener.onResponse(decorateWithImplicitPrivileges(roleDescriptors, Map.of()));
+            return;
+        }
+        privilegeStore.getPrivileges(applicationNames, privilegeNames, false, ActionListener.wrap(appPrivileges -> {
+            Map<Tuple<String, String>, ApplicationPrivilegeDescriptor> appPrivLookup = appPrivileges.stream()
+                .collect(Collectors.toMap(p -> new Tuple<>(p.getApplication(), p.getName()), p -> p));
+            listener.onResponse(decorateWithImplicitPrivileges(roleDescriptors, appPrivLookup));
+        }, listener::onFailure));
+    }
+
+    private Collection<RoleDescriptor> decorateWithImplicitPrivileges(
+        Collection<RoleDescriptor> roleDescriptors,
+        Map<Tuple<String, String>, ApplicationPrivilegeDescriptor> appPrivLookup
+    ) {
+        List<RoleDescriptor> result = new ArrayList<>();
+        for (RoleDescriptor rd : roleDescriptors) {
+            List<ApplicationPrivilegeDescriptor> roleAppPrivs = getApplicationPrivilegeDescriptors(rd, appPrivLookup);
+            List<IndicesPrivileges> implicitPrivileges = implicitPrivilegesProviders.stream()
+                .flatMap(p -> p.getImplicitIndicesPrivileges(rd, roleAppPrivs).stream())
+                .<IndicesPrivileges>map(IndicesPrivileges.ImplicitlyGranted::new)
+                // always include implicit permissions that do not rely on DLS/FLS; omit ones that do if DLS/FLS is disabled
+                .filter(ip -> dlsFlsEnabled || !ip.isUsingDocumentOrFieldLevelSecurity())
+                .toList();
+            if (implicitPrivileges.isEmpty()) {
+                result.add(rd);
+                continue;
+            }
+            IndicesPrivileges[] ips = Stream.concat(Stream.of(rd.getIndicesPrivileges()), implicitPrivileges.stream())
+                .toArray(IndicesPrivileges[]::new);
+            result.add(
+                new RoleDescriptor(
+                    rd.getName(),
+                    rd.getClusterPrivileges(),
+                    ips,
+                    rd.getApplicationPrivileges(),
+                    rd.getConditionalClusterPrivileges(),
+                    rd.getRunAs(),
+                    rd.getMetadata(),
+                    rd.getTransientMetadata(),
+                    rd.getRemoteIndicesPrivileges(),
+                    rd.getRemoteClusterPermissions(),
+                    rd.getRestriction(),
+                    rd.getDescription()
+                )
+            );
+        }
+        return result;
     }
 
     public void invalidateProject() {

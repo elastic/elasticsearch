@@ -69,11 +69,13 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 
 /**
  * FormatReader implementation for Parquet files.
@@ -98,6 +100,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     private final ParquetPushedExpressions pushedExpressions;
     private final boolean forceBaselinePath;
     private final boolean optimizedReader;
+    private final boolean lateMaterializationEnabled;
     // Shared across all iterators created by this reader: holds lazy decompressor instances and
     // pays the per-codec init cost once. The factory is stateless across files/row groups.
     private final PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
@@ -105,13 +108,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
 
     static final String CONFIG_OPTIMIZED_READER = "optimized_reader";
+    static final String CONFIG_LATE_MATERIALIZATION = "late_materialization";
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false, true);
+        this(blockFactory, FilterCompat.NOOP, null, false, true, true);
     }
 
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
-        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader);
+        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, true);
     }
 
     private ParquetFormatReader(
@@ -119,13 +123,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         FilterCompat.Filter pushedFilter,
         ParquetPushedExpressions pushedExpressions,
         boolean forceBaselinePath,
-        boolean optimizedReader
+        boolean optimizedReader,
+        boolean lateMaterializationEnabled
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
         this.pushedExpressions = pushedExpressions;
         this.forceBaselinePath = forceBaselinePath;
         this.optimizedReader = optimizedReader;
+        this.lateMaterializationEnabled = lateMaterializationEnabled;
     }
 
     /**
@@ -134,16 +140,23 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
      * testing against the optimized path.
      */
     ParquetFormatReader withBaselinePath() {
-        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, true, optimizedReader);
+        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, true, optimizedReader, lateMaterializationEnabled);
     }
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof FilterCompat.Filter filter) {
-            return new ParquetFormatReader(blockFactory, filter, null, forceBaselinePath, optimizedReader);
+            return new ParquetFormatReader(blockFactory, filter, null, forceBaselinePath, optimizedReader, lateMaterializationEnabled);
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
-            return new ParquetFormatReader(blockFactory, FilterCompat.NOOP, exprs, forceBaselinePath, optimizedReader);
+            return new ParquetFormatReader(
+                blockFactory,
+                FilterCompat.NOOP,
+                exprs,
+                forceBaselinePath,
+                optimizedReader,
+                lateMaterializationEnabled
+            );
         }
         return this;
     }
@@ -154,10 +167,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             return this;
         }
         boolean newOptimized = parseBooleanConfig(config, CONFIG_OPTIMIZED_READER, optimizedReader);
-        if (newOptimized == optimizedReader) {
+        boolean newLateMat = parseBooleanConfig(config, CONFIG_LATE_MATERIALIZATION, lateMaterializationEnabled);
+        if (newOptimized == optimizedReader && newLateMat == lateMaterializationEnabled) {
             return this;
         }
-        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, forceBaselinePath, newOptimized);
+        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, forceBaselinePath, newOptimized, newLateMat);
     }
 
     private static boolean parseBooleanConfig(Map<String, Object> config, String key, boolean defaultValue) {
@@ -783,6 +797,22 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
         }
 
+        ParquetPushedExpressions effectivePushed = null;
+        if (lateMaterializationEnabled && pushedExpressions != null) {
+            double predicateRatio = computePredicateColumnByteRatio(blocks, projectedAttributes, pushedExpressions);
+            if (predicateRatio < LATE_MATERIALIZATION_PREDICATE_RATIO_THRESHOLD) {
+                effectivePushed = pushedExpressions;
+            } else {
+                logger.debug(
+                    "Late materialization disabled for [{}]: predicate column ratio [{}/{}] exceeds threshold [{}]",
+                    storageObject.path(),
+                    (long) (predicateRatio * 100),
+                    100,
+                    (long) (LATE_MATERIALIZATION_PREDICATE_RATIO_THRESHOLD * 100)
+                );
+            }
+        }
+
         return new OptimizedParquetColumnIterator(
             reader,
             projectedSchema,
@@ -797,8 +827,45 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             storageObject,
             allRowRanges,
             survivingRowGroups,
-            codecFactory
+            codecFactory,
+            effectivePushed
         );
+    }
+
+    static final double LATE_MATERIALIZATION_PREDICATE_RATIO_THRESHOLD = 0.5;
+
+    /**
+     * Computes the ratio of predicate column bytes to total projected column bytes,
+     * averaged across all row groups. Uses compressed on-disk sizes from Parquet metadata.
+     */
+    private static double computePredicateColumnByteRatio(
+        List<BlockMetaData> blocks,
+        List<Attribute> projectedAttributes,
+        ParquetPushedExpressions pushed
+    ) {
+        Set<String> predicateNames = pushed.predicateColumnNames();
+        if (predicateNames.isEmpty()) {
+            return 0.0;
+        }
+        Set<String> projectedNames = new HashSet<>();
+        for (Attribute attr : projectedAttributes) {
+            projectedNames.add(attr.name());
+        }
+        long predicateBytes = 0;
+        long totalBytes = 0;
+        for (BlockMetaData block : blocks) {
+            for (ColumnChunkMetaData col : block.getColumns()) {
+                String name = col.getPath().toDotString();
+                if (projectedNames.contains(name)) {
+                    long size = col.getTotalSize();
+                    totalBytes += size;
+                    if (predicateNames.contains(name)) {
+                        predicateBytes += size;
+                    }
+                }
+            }
+        }
+        return totalBytes > 0 ? (double) predicateBytes / totalBytes : 0.0;
     }
 
     /**

@@ -707,6 +707,17 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
+    public boolean supportsBatchIndexing() {
+        // Plain ip mappers can be driven through parseCreateField by the bulk batch path.
+        // ignore_malformed and null_value are allowed. Dimensions, copy_to, multi-fields, and
+        // scripts pull in behavior that the batch path does not support.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && fieldType().isDimension() == false;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         ESInetAddressPoint address;
         XContentString value = context.parser().optimizedTextOrNull();

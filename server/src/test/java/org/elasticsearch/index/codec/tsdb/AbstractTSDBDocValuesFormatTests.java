@@ -19,6 +19,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
@@ -2422,6 +2423,106 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
     }
 
+    public void testRangeIteratorVsBruteForceNoSkipper() throws IOException {
+        final String field = "dense_value";
+        int numDocs = randomIntBetween(1, 4096 * 4);
+        long currentTimestamp = BASE_TIMESTAMP;
+
+        List<Long> values = new ArrayList<>();
+        var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
+        if (randomBoolean()) {
+            config.setIndexSort(
+                new Sort(
+                    new SortedNumericSortField(field, SortField.Type.LONG, false),
+                    new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
+                )
+            );
+        }
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
+                long v = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
+                values.add(v);
+                d.add(new SortedNumericDocValuesField(field, v));
+                currentTimestamp += 1000L;
+                iw.addDocument(d);
+                if (i % 256 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.forceMerge(1);
+
+            long minValue = Collections.min(values);
+            long maxValue = Collections.max(values);
+            long sampleValue = randomFrom(values);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leafReader = reader.leaves().getFirst().reader();
+
+                assertRangeIterator(leafReader, field, numDocs, sampleValue, sampleValue, null); // exact match
+                assertRangeIterator(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE, null); // empty match
+
+                for (int i = 0; i < 5; i++) {
+                    long a = randomLongBetween(minValue, maxValue);
+                    long b = randomLongBetween(minValue, maxValue);
+                    assertRangeIterator(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b), null);
+                }
+            }
+        }
+    }
+
+    public void testRangeIteratorIntoBitSetNoSkipper() throws IOException {
+        final String field = "dense_value";
+        int numDocs = randomIntBetween(1, 4096 * 4);
+        long currentTimestamp = BASE_TIMESTAMP;
+
+        List<Long> values = new ArrayList<>();
+        var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
+        if (randomBoolean()) {
+            config.setIndexSort(
+                new Sort(
+                    new SortedNumericSortField(field, SortField.Type.LONG, false),
+                    new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
+                )
+            );
+        }
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
+                long v = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
+                values.add(v);
+                d.add(new SortedNumericDocValuesField(field, v));
+                currentTimestamp += 1000L;
+                iw.addDocument(d);
+                if (i % 256 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.forceMerge(1);
+
+            long minValue = Collections.min(values);
+            long maxValue = Collections.max(values);
+            long sampleValue = randomFrom(values);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leafReader = reader.leaves().getFirst().reader();
+
+                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, sampleValue, sampleValue, null); // exact match
+                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE, null); // empty
+
+                for (int i = 0; i < 5; i++) {
+                    long a = randomLongBetween(minValue, maxValue);
+                    long b = randomLongBetween(minValue, maxValue);
+                    assertRangeIteratorIntoBitSet(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b), null);
+                }
+            }
+        }
+    }
+
     public void testRangeQueryViaIndexSearcher() throws IOException {
         final String field = "dense_value";
         int numDocs = randomIntBetween(1, 4096 * 4);
@@ -2487,12 +2588,16 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
     }
 
     private void assertRangeIterator(LeafReader leafReader, String field, int numDocs, long lower, long upper) throws IOException {
+        assertRangeIterator(leafReader, field, numDocs, lower, upper, leafReader.getDocValuesSkipper(field));
+    }
+
+    private void assertRangeIterator(LeafReader leafReader, String field, int numDocs, long lower, long upper, DocValuesSkipper skipper)
+        throws IOException {
         Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
 
         // Pass 1: nextDoc() correctness + docIDRunEnd() contract.
         {
             var ndv = getBaseDenseNumericValues(leafReader, field);
-            var skipper = leafReader.getDocValuesSkipper(field);
             var iter = ndv.tryRangeIterator(lower, upper, skipper);
             assertNotNull(iter);
             Set<Integer> actual = new HashSet<>();
@@ -2516,7 +2621,6 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         // Pass 2: advance() to each matching doc in order.
         if (expected.isEmpty() == false) {
             var ndv = getBaseDenseNumericValues(leafReader, field);
-            var skipper = leafReader.getDocValuesSkipper(field);
             var iter = ndv.tryRangeIterator(lower, upper, skipper);
             assertNotNull(iter);
             List<Integer> sortedDocs = expected.stream().sorted().toList();
@@ -2532,7 +2636,6 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         // Pass 3: advance past the segment → NO_MORE_DOCS.
         {
             var ndv = getBaseDenseNumericValues(leafReader, field);
-            var skipper = leafReader.getDocValuesSkipper(field);
             var iter = ndv.tryRangeIterator(lower, upper, skipper);
             assertNotNull(iter);
             assertEquals(DocIdSetIterator.NO_MORE_DOCS, iter.advance(numDocs));
@@ -2541,10 +2644,20 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
 
     private void assertRangeIteratorIntoBitSet(LeafReader leafReader, String field, int numDocs, long lower, long upper)
         throws IOException {
+        assertRangeIteratorIntoBitSet(leafReader, field, numDocs, lower, upper, leafReader.getDocValuesSkipper(field));
+    }
+
+    private void assertRangeIteratorIntoBitSet(
+        LeafReader leafReader,
+        String field,
+        int numDocs,
+        long lower,
+        long upper,
+        DocValuesSkipper skipper
+    ) throws IOException {
         Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
 
         var ndv = getBaseDenseNumericValues(leafReader, field);
-        var skipper = leafReader.getDocValuesSkipper(field);
         var iter = ndv.tryRangeIterator(lower, upper, skipper);
         if (iter == null) {
             return;
@@ -2562,7 +2675,9 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         iter.intoBitSet(numDocs, bitSet, 0);
 
         Set<Integer> actual = new HashSet<>();
-        for (int doc = bitSet.nextSetBit(0); doc != DocIdSetIterator.NO_MORE_DOCS; doc = bitSet.nextSetBit(doc + 1)) {
+        for (int doc = bitSet.nextSetBit(0); doc != DocIdSetIterator.NO_MORE_DOCS; doc = ++doc < numDocs
+            ? bitSet.nextSetBit(doc)
+            : DocIdSetIterator.NO_MORE_DOCS) {
             actual.add(doc);
         }
         assertEquals("intoBitSet range [" + lower + "," + upper + "]", expected, actual);

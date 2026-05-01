@@ -258,7 +258,9 @@ public interface BlockLoader {
 
     /**
      * An interface for numeric doc values readers that can optionally produce a {@link DocIdSetIterator}
-     * optimized for range queries, incorporating block-level skipping via a {@link DocValuesSkipper}.
+     * optimized for range queries. When a {@link DocValuesSkipper} is provided, implementations may
+     * additionally skip entire skipper blocks that fall outside the query range; when {@code null},
+     * the iterator scans all numeric blocks directly using SIMD bitmasks.
      * <p>
      * The returned iterator shares internal block-decoding state with the reader that produced it.
      * Callers must not use the originating reader after obtaining the iterator; the iterator assumes

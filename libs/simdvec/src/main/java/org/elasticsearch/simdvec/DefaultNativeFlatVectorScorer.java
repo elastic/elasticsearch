@@ -85,94 +85,56 @@ public class DefaultNativeFlatVectorScorer implements FlatVectorsScorer {
         return "DefaultNativeFlatVectorScorer()";
     }
 
+    private static float byteEuclidean(byte[] v1, byte[] v2) {
+        return 1 / (1f + ESVectorUtil.squareDistance(v1, v2));
+    }
+
+    private static float byteDotProduct(byte[] v1, byte[] v2) {
+        float denom = (float) (v1.length * (1 << 15));
+        return 0.5f + ESVectorUtil.dotProduct(v1, v2) / denom;
+    }
+
+    private static float byteCosine(byte[] v1, byte[] v2) {
+        return (1 + ESVectorUtil.cosine(v1, v2)) / 2;
+    }
+
+    private static float byteMaximumInnerProduct(byte[] v1, byte[] v2) {
+        return scaleMaxInnerProductScore(ESVectorUtil.dotProduct(v1, v2));
+    }
+
+    private static float floatEuclidean(float[] v1, float[] v2) {
+        return normalizeDistanceToUnitInterval(ESVectorUtil.squareDistance(v1, v2));
+    }
+
+    private static float floatDotProduct(float[] v1, float[] v2) {
+        return normalizeToUnitInterval(ESVectorUtil.dotProduct(v1, v2));
+    }
+
+    private static float floatCosine(float[] v1, float[] v2) {
+        // no ES version, we expect all float vectors to be normalized
+        return normalizeToUnitInterval(VectorUtil.cosine(v1, v2));
+    }
+
+    private static float floatMaximumInnerProduct(float[] v1, float[] v2) {
+        return scaleMaxInnerProductScore(ESVectorUtil.dotProduct(v1, v2));
+    }
+
     public static float compare(VectorSimilarityFunction function, float[] a, float[] b) {
         return switch (function) {
-            case EUCLIDEAN -> normalizeDistanceToUnitInterval(ESVectorUtil.squareDistance(a, b));
-            case DOT_PRODUCT -> normalizeToUnitInterval(ESVectorUtil.dotProduct(a, b));
-            case COSINE -> normalizeToUnitInterval(VectorUtil.cosine(a, b)); // no ES version, we expect all float vectors to be normalized
-            case MAXIMUM_INNER_PRODUCT -> scaleMaxInnerProductScore(ESVectorUtil.dotProduct(a, b));
+            case EUCLIDEAN -> floatEuclidean(a, b);
+            case DOT_PRODUCT -> floatDotProduct(a, b);
+            case COSINE -> floatCosine(a, b);
+            case MAXIMUM_INNER_PRODUCT -> floatMaximumInnerProduct(a, b);
         };
     }
 
     public static float compare(VectorSimilarityFunction function, byte[] a, byte[] b) {
         return switch (function) {
-            case EUCLIDEAN -> 1 / (1f + ESVectorUtil.squareDistance(a, b));
-            case DOT_PRODUCT -> {
-                float denom = (float) (a.length * (1 << 15));
-                yield 0.5f + ESVectorUtil.dotProduct(a, b) / denom;
-            }
-            case COSINE -> (1 + ESVectorUtil.cosine(a, b)) / 2;
-            case MAXIMUM_INNER_PRODUCT -> scaleMaxInnerProductScore(ESVectorUtil.dotProduct(a, b));
+            case EUCLIDEAN -> byteEuclidean(a, b);
+            case DOT_PRODUCT -> byteDotProduct(a, b);
+            case COSINE -> byteCosine(a, b);
+            case MAXIMUM_INNER_PRODUCT -> byteDotProduct(a, b);
         };
-    }
-
-    private static class ByteScoringSupplier implements RandomVectorScorerSupplier {
-        private final ByteVectorValues vectors;
-        private final ByteVectorValues targetVectors;
-        private final VectorSimilarityFunction function;
-
-        private ByteScoringSupplier(ByteVectorValues vectors, VectorSimilarityFunction function) throws IOException {
-            this.vectors = vectors;
-            targetVectors = vectors.copy();
-            this.function = function;
-        }
-
-        private abstract static class ByteUpdateableScorer extends UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer {
-            protected final byte[] vector;
-            protected final ByteVectorValues targetVectors;
-
-            private ByteUpdateableScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) {
-                super(vectors);
-                this.vector = new byte[vectors.dimension()];
-                this.targetVectors = targetVectors;
-            }
-
-            @Override
-            public void setScoringOrdinal(int node) throws IOException {
-                System.arraycopy(targetVectors.vectorValue(node), 0, vector, 0, vector.length);
-            }
-        }
-
-        @Override
-        public UpdateableRandomVectorScorer scorer() throws IOException {
-            return switch (function) {
-                case EUCLIDEAN -> new ByteUpdateableScorer(vectors, targetVectors) {
-                    @Override
-                    public float score(int node) throws IOException {
-                        return 1 / (1f + ESVectorUtil.squareDistance(vector, targetVectors.vectorValue(node)));
-                    }
-                };
-                case DOT_PRODUCT -> new ByteUpdateableScorer(vectors, targetVectors) {
-                    @Override
-                    public float score(int node) throws IOException {
-                        float denom = (float) (vector.length * (1 << 15));
-                        return 0.5f + ESVectorUtil.dotProduct(vector, targetVectors.vectorValue(node)) / denom;
-                    }
-                };
-                case COSINE -> new ByteUpdateableScorer(vectors, targetVectors) {
-                    @Override
-                    public float score(int node) throws IOException {
-                        return (1 + ESVectorUtil.cosine(vector, targetVectors.vectorValue(node))) / 2;
-                    }
-                };
-                case MAXIMUM_INNER_PRODUCT -> new ByteUpdateableScorer(vectors, targetVectors) {
-                    @Override
-                    public float score(int node) throws IOException {
-                        return scaleMaxInnerProductScore(ESVectorUtil.dotProduct(vector, targetVectors.vectorValue(node)));
-                    }
-                };
-            };
-        }
-
-        @Override
-        public RandomVectorScorerSupplier copy() throws IOException {
-            return new ByteScoringSupplier(vectors, function);
-        }
-
-        @Override
-        public String toString() {
-            return "ByteScoringSupplier(similarityFunction=" + function + ")";
-        }
     }
 
     private static class FloatScoringSupplier implements RandomVectorScorerSupplier {
@@ -208,25 +170,25 @@ public class DefaultNativeFlatVectorScorer implements FlatVectorsScorer {
                 case EUCLIDEAN -> new FloatUpdateableScorer(vectors, targetVectors) {
                     @Override
                     public float score(int node) throws IOException {
-                        return normalizeDistanceToUnitInterval(ESVectorUtil.squareDistance(vector, targetVectors.vectorValue(node)));
+                        return floatEuclidean(vector, targetVectors.vectorValue(node));
                     }
                 };
                 case DOT_PRODUCT -> new FloatUpdateableScorer(vectors, targetVectors) {
                     @Override
                     public float score(int node) throws IOException {
-                        return normalizeToUnitInterval(ESVectorUtil.dotProduct(vector, targetVectors.vectorValue(node)));
+                        return floatDotProduct(vector, targetVectors.vectorValue(node));
                     }
                 };
                 case COSINE -> new FloatUpdateableScorer(vectors, targetVectors) {
                     @Override
                     public float score(int node) throws IOException {
-                        return normalizeToUnitInterval(VectorUtil.cosine(vector, targetVectors.vectorValue(node)));
+                        return floatCosine(vector, targetVectors.vectorValue(node));
                     }
                 };
                 case MAXIMUM_INNER_PRODUCT -> new FloatUpdateableScorer(vectors, targetVectors) {
                     @Override
                     public float score(int node) throws IOException {
-                        return scaleMaxInnerProductScore(ESVectorUtil.dotProduct(vector, targetVectors.vectorValue(node)));
+                        return floatMaximumInnerProduct(vector, targetVectors.vectorValue(node));
                     }
                 };
             };
@@ -240,6 +202,74 @@ public class DefaultNativeFlatVectorScorer implements FlatVectorsScorer {
         @Override
         public String toString() {
             return "FloatScoringSupplier(similarityFunction=" + function + ")";
+        }
+    }
+
+    private static class ByteScoringSupplier implements RandomVectorScorerSupplier {
+        private final ByteVectorValues vectors;
+        private final ByteVectorValues targetVectors;
+        private final VectorSimilarityFunction function;
+
+        private ByteScoringSupplier(ByteVectorValues vectors, VectorSimilarityFunction function) throws IOException {
+            this.vectors = vectors;
+            targetVectors = vectors.copy();
+            this.function = function;
+        }
+
+        private abstract static class ByteUpdateableScorer extends UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer {
+            protected final byte[] vector;
+            protected final ByteVectorValues targetVectors;
+
+            private ByteUpdateableScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) {
+                super(vectors);
+                this.vector = new byte[vectors.dimension()];
+                this.targetVectors = targetVectors;
+            }
+
+            @Override
+            public void setScoringOrdinal(int node) throws IOException {
+                System.arraycopy(targetVectors.vectorValue(node), 0, vector, 0, vector.length);
+            }
+        }
+
+        @Override
+        public UpdateableRandomVectorScorer scorer() throws IOException {
+            return switch (function) {
+                case EUCLIDEAN -> new ByteUpdateableScorer(vectors, targetVectors) {
+                    @Override
+                    public float score(int node) throws IOException {
+                        return byteEuclidean(vector, targetVectors.vectorValue(node));
+                    }
+                };
+                case DOT_PRODUCT -> new ByteUpdateableScorer(vectors, targetVectors) {
+                    @Override
+                    public float score(int node) throws IOException {
+                        return byteDotProduct(vector, targetVectors.vectorValue(node));
+                    }
+                };
+                case COSINE -> new ByteUpdateableScorer(vectors, targetVectors) {
+                    @Override
+                    public float score(int node) throws IOException {
+                        return byteCosine(vector, targetVectors.vectorValue(node));
+                    }
+                };
+                case MAXIMUM_INNER_PRODUCT -> new ByteUpdateableScorer(vectors, targetVectors) {
+                    @Override
+                    public float score(int node) throws IOException {
+                        return byteMaximumInnerProduct(vector, targetVectors.vectorValue(node));
+                    }
+                };
+            };
+        }
+
+        @Override
+        public RandomVectorScorerSupplier copy() throws IOException {
+            return new ByteScoringSupplier(vectors, function);
+        }
+
+        @Override
+        public String toString() {
+            return "ByteScoringSupplier(similarityFunction=" + function + ")";
         }
     }
 
@@ -258,25 +288,25 @@ public class DefaultNativeFlatVectorScorer implements FlatVectorsScorer {
                 case EUCLIDEAN -> new FloatVectorScorer(values, query) {
                     @Override
                     public float score(int node) throws IOException {
-                        return normalizeDistanceToUnitInterval(ESVectorUtil.squareDistance(query, values.vectorValue(node)));
+                        return floatEuclidean(query, values.vectorValue(node));
                     }
                 };
                 case DOT_PRODUCT -> new FloatVectorScorer(values, query) {
                     @Override
                     public float score(int node) throws IOException {
-                        return normalizeToUnitInterval(ESVectorUtil.dotProduct(query, values.vectorValue(node)));
+                        return floatDotProduct(query, values.vectorValue(node));
                     }
                 };
                 case COSINE -> new FloatVectorScorer(values, query) {
                     @Override
                     public float score(int node) throws IOException {
-                        return normalizeToUnitInterval(VectorUtil.cosine(query, values.vectorValue(node)));
+                        return floatCosine(query, values.vectorValue(node));
                     }
                 };
                 case MAXIMUM_INNER_PRODUCT -> new FloatVectorScorer(values, query) {
                     @Override
                     public float score(int node) throws IOException {
-                        return scaleMaxInnerProductScore(ESVectorUtil.dotProduct(query, values.vectorValue(node)));
+                        return floatMaximumInnerProduct(query, values.vectorValue(node));
                     }
                 };
             };
@@ -298,26 +328,25 @@ public class DefaultNativeFlatVectorScorer implements FlatVectorsScorer {
                 case EUCLIDEAN -> new ByteVectorScorer(values, query) {
                     @Override
                     public float score(int node) throws IOException {
-                        return 1 / (1f + ESVectorUtil.squareDistance(query, values.vectorValue(node)));
+                        return byteEuclidean(query, values.vectorValue(node));
                     }
                 };
                 case DOT_PRODUCT -> new ByteVectorScorer(values, query) {
                     @Override
                     public float score(int node) throws IOException {
-                        float denom = (float) (query.length * (1 << 15));
-                        return 0.5f + ESVectorUtil.dotProduct(query, values.vectorValue(node)) / denom;
+                        return byteDotProduct(query, values.vectorValue(node));
                     }
                 };
                 case COSINE -> new ByteVectorScorer(values, query) {
                     @Override
                     public float score(int node) throws IOException {
-                        return (1 + ESVectorUtil.cosine(query, values.vectorValue(node))) / 2;
+                        return byteCosine(query, values.vectorValue(node));
                     }
                 };
                 case MAXIMUM_INNER_PRODUCT -> new ByteVectorScorer(values, query) {
                     @Override
                     public float score(int node) throws IOException {
-                        return scaleMaxInnerProductScore(ESVectorUtil.dotProduct(query, values.vectorValue(node)));
+                        return byteMaximumInnerProduct(query, values.vectorValue(node));
                     }
                 };
             };

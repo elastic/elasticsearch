@@ -49,8 +49,8 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.junit.After;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -190,7 +190,6 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         );
         updateClusterSettings(Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), REPO_NAME));
 
-
         // --- Create data stream with frozen_after lifecycle ---
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .frozenAfter(TimeValue.timeValueSeconds(1))
@@ -262,11 +261,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         assertThat("Project metadata should not be null", projectMetadata, notNullValue());
 
         // Verify the original index has been cleaned up (removed from cluster state)
-        assertThat(
-            "Original index [" + candidateIndex + "] should have been deleted",
-            projectMetadata.index(candidateIndex),
-            nullValue()
-        );
+        assertThat("Original index [" + candidateIndex + "] should have been deleted", projectMetadata.index(candidateIndex), nullValue());
 
         // Verify the clone index has been cleaned up
         String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
@@ -289,7 +284,6 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
             DLMConvertToFrozen.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
             is(true)
         );
-
 
         logger.info("--> end-to-end DLM frozen transition test completed successfully");
     }

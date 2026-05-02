@@ -570,6 +570,39 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         }
     }
 
+    @Override
+    public boolean supportsBatchRead() {
+        return true;
+    }
+
+    @Override
+    public CloseableIterator<Page> readAll(List<StorageObject> objects, List<String> projectedColumns, int batchSize) throws IOException {
+        NativeLibLoader.ensureLoaded();
+        String[] paths = new String[objects.size()];
+        for (int i = 0; i < objects.size(); i++) {
+            paths[i] = resolveReadPath(objects.get(i));
+        }
+        String[] cols = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
+        long filterHandle = 0;
+        long readerHandle = 0;
+        try {
+            if (pushedExpressions.isEmpty() == false) {
+                filterHandle = ParquetRsFilterPushdownSupport.translateExpressions(pushedExpressions);
+            }
+            readerHandle = ParquetRsBridge.openReaderMulti(paths, cols, batchSize, -1, filterHandle, configJson);
+            ParquetRsBatchIterator iterator = new ParquetRsBatchIterator(readerHandle, blockFactory);
+            readerHandle = 0;
+            return iterator;
+        } finally {
+            if (filterHandle != 0) {
+                ParquetRsBridge.freeExpr(filterHandle);
+            }
+            if (readerHandle != 0) {
+                ParquetRsBridge.closeReader(readerHandle);
+            }
+        }
+    }
+
     /**
      * Iterates over batches from the native parquet-rs reader using the Arrow C Data Interface.
      * Each batch is imported as a VectorSchemaRoot, then columns are zero-copy wrapped as ESQL blocks.

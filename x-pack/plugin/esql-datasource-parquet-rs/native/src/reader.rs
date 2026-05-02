@@ -499,7 +499,7 @@ fn open_async_for_range(
             };
 
             let pre_selected = if let Some(ref expr) = filter {
-                prune_by_dictionary(&store, &object_path, arrow_meta.metadata(), arrow_meta.parquet_schema(), pre_selected, expr).await
+                prune_by_dictionary(&store, &object_path, arrow_meta.metadata(), arrow_meta.parquet_schema(), pre_selected, expr, max_concurrency).await
             } else {
                 pre_selected
             };
@@ -639,14 +639,6 @@ fn warn_once_unhandled_dict_combo(phys_type: PhysicalType, target: &filter::Stat
     }
 }
 
-/// Maximum number of dictionary-page fetches in flight at once during
-/// `prune_by_dictionary`. Dictionary pages are typically small (~1MB compressed
-/// for INT64 with ~125k distinct values), so the bound is set by S3 connection
-/// pool / RTT × per-fetch latency, not memory. 8 fully overlaps the typical
-/// per-file row-group count (6-9 for the 100M ClickBench dataset) without
-/// piling on connections.
-const DICT_PRUNE_CONCURRENCY: usize = 8;
-
 /// Outcome of dictionary-based pruning for one row group.
 struct RgPruneResult {
     rg_idx: usize,
@@ -660,7 +652,7 @@ struct RgPruneResult {
 /// dictionary page bytes for that column in each candidate row group and scans them. If none
 /// of the target values appear in the dictionary, the row group is removed from the result.
 ///
-/// Per-row-group dictionary fetches run in parallel (bounded by `DICT_PRUNE_CONCURRENCY`)
+/// Per-row-group dictionary fetches run in parallel (bounded by `max_concurrency`)
 /// so that for an 8-RG file we incur ~1 RTT of S3 latency instead of 8.
 ///
 /// On any I/O or parse error the row group is kept (conservative). Only called when the filter
@@ -672,6 +664,7 @@ async fn prune_by_dictionary(
     parquet_schema: &SchemaDescriptor,
     candidates: Vec<usize>,
     filter: &FilterExpr,
+    max_concurrency: usize,
 ) -> Vec<usize> {
     let eq_preds = filter::collect_eq_predicates(filter);
     if eq_preds.is_empty() {
@@ -707,7 +700,7 @@ async fn prune_by_dictionary(
                 evaluate_rg_dict_prune(&store, &path, metadata, rg_idx, col_preds).await
             }
         })
-        .buffer_unordered(DICT_PRUNE_CONCURRENCY)
+        .buffer_unordered(max_concurrency)
         .collect()
         .await;
 
@@ -735,7 +728,7 @@ async fn prune_by_dictionary(
         log::debug!(
             target: "esql_parquet_rs::pruning",
             "prune_by_dictionary: candidates_in={} surviving={} concurrency={} preds={:?}",
-            candidates_in, surviving.len(), DICT_PRUNE_CONCURRENCY,
+            candidates_in, surviving.len(), max_concurrency,
             col_preds.iter().map(|(i, vs)| format!("col_idx={} n_vals={}", i, vs.len())).collect::<Vec<_>>()
         );
     }
@@ -1473,7 +1466,7 @@ fn open_async(
 
             let candidates: Vec<usize> = (0..arrow_meta.metadata().num_row_groups()).collect();
             let candidates = if let Some(ref expr) = filter {
-                prune_by_dictionary(&store, &object_path, arrow_meta.metadata(), arrow_meta.parquet_schema(), candidates, expr).await
+                prune_by_dictionary(&store, &object_path, arrow_meta.metadata(), arrow_meta.parquet_schema(), candidates, expr, max_concurrency).await
             } else {
                 candidates
             };
@@ -1556,7 +1549,7 @@ fn open_multi(
                     prune_by_dictionary(
                         &store, &path,
                         meta.metadata(), meta.parquet_schema(),
-                        candidates, expr,
+                        candidates, expr, max_concurrency,
                     )
                     .await
                 } else {
@@ -1572,17 +1565,46 @@ fn open_multi(
         let n_workers = max_concurrency;
         let (tx, rx) = mpsc::channel::<Result<RecordBatch, ParquetError>>(n_workers * 2);
 
-        for (obj_reader, arrow_meta, candidates) in all_files {
-            if candidates.is_empty() {
-                continue; // fully pruned by dictionary
+        // Spawn a background task that reads files one at a time in the data phase to guard
+        // against over-concurrency. The metadata+pruning phase above is still fully parallel.
+        // Processing sequentially here caps concurrent S3 data streams to max_concurrency,
+        // the same ceiling as the single-file path.
+        //
+        // IMPORTANT: this must be a background task, NOT run inside block_on. The block_on
+        // must return rx to the caller (Java), which then drains the channel via nextBatch().
+        // Running the loop here would deadlock once tx fills up (Java never sees rx).
+        ASYNC_RUNTIME.spawn(async move {
+            for (obj_reader, arrow_meta, candidates) in all_files {
+                if candidates.is_empty() {
+                    continue; // fully pruned by dictionary
+                }
+                let (file_tx, mut file_rx) =
+                    mpsc::channel::<Result<RecordBatch, ParquetError>>(n_workers * 2);
+                match spawn_file_workers(
+                    CoalescingReader::new(obj_reader), arrow_meta, &projected_cols, batch_size,
+                    limit, &filter, max_concurrency, &file_tx, Some(candidates),
+                )
+                .await
+                {
+                    Err(e) => {
+                        let _ = tx
+                            .send(Err(ParquetError::External(Box::new(
+                                std::io::Error::other(e.to_string()),
+                            ))))
+                            .await;
+                        return;
+                    }
+                    Ok(_) => {}
+                }
+                drop(file_tx);
+                while let Some(batch) = file_rx.recv().await {
+                    if tx.send(batch).await.is_err() {
+                        return; // consumer closed early (e.g. LIMIT reached)
+                    }
+                }
             }
-            spawn_file_workers(
-                CoalescingReader::new(obj_reader), arrow_meta, &projected_cols, batch_size, limit,
-                &filter, max_concurrency, &tx, Some(candidates),
-            )
-            .await?;
-        }
-        drop(tx);
+            // tx dropped here, signalling end-of-stream to the Java consumer
+        });
 
         Ok::<_, JniError>(rx)
     })?;

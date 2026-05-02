@@ -6,6 +6,7 @@ use lru::LruCache;
 use object_store::ObjectStore;
 use object_store::aws::AmazonS3Builder;
 use object_store::azure::MicrosoftAzureBuilder;
+use object_store::client::ClientOptions;
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::http::HttpBuilder;
 use object_store::local::LocalFileSystem;
@@ -202,7 +203,14 @@ fn build_s3(
     let url = Url::parse(uri)?;
     let bucket = url.host_str().ok_or("missing bucket in S3 URL")?;
 
-    let mut builder = AmazonS3Builder::new().with_bucket_name(bucket);
+    // HTTP/2 multiplexes all concurrent worker requests over a single persistent TCP
+    // connection, eliminating per-connection DNS lookups and TLS handshakes that would
+    // otherwise be needed when multiple row-group workers issue concurrent GET requests.
+    let client_options = ClientOptions::new().with_allow_http2();
+
+    let mut builder = AmazonS3Builder::new()
+        .with_bucket_name(bucket)
+        .with_client_options(client_options);
     if let Some(v) = config.get("endpoint") {
         builder = builder.with_endpoint(v).with_allow_http(true);
     }

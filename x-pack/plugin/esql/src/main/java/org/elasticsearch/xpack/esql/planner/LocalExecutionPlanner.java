@@ -1402,6 +1402,7 @@ public class LocalExecutionPlanner {
             .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
+            .parallelism(instanceCount)
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);

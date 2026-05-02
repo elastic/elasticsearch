@@ -93,4 +93,34 @@ public interface RangeAwareFormatReader extends FormatReader {
      * @param executor executor for running blocking I/O tasks concurrently
      */
     default void prepareBatch(List<StorageObject> objects, Executor executor) throws IOException {}
+
+    /**
+     * Returns {@code true} if this reader supports batch multi-file reads via
+     * {@link #readAll}. When supported the execution framework calls {@link #readAll}
+     * for a batch of files instead of calling {@link #readRange} once per split,
+     * allowing the reader to process multiple files concurrently in a single call.
+     * <p>
+     * Only enabled when there are no per-file virtual partition columns (those require
+     * per-split injection that is incompatible with a unified batch iterator).
+     * The default implementation returns {@code false}.
+     */
+    default boolean supportsBatchRead() {
+        return false;
+    }
+
+    /**
+     * Reads all given objects in a single batched call, returning a unified page iterator.
+     * Called by the framework instead of {@link #readRange} when {@link #supportsBatchRead()}
+     * returns {@code true}.
+     * <p>
+     * The reader is responsible for applying any pushed filters and projections internally.
+     * The returned iterator may interleave pages from different files.
+     *
+     * @param objects          storage objects for all files in the batch
+     * @param projectedColumns columns to project, or {@code null} for all columns
+     * @param batchSize        target page size in rows
+     */
+    default CloseableIterator<Page> readAll(List<StorageObject> objects, List<String> projectedColumns, int batchSize) throws IOException {
+        throw new UnsupportedOperationException("readAll not supported by " + getClass().getSimpleName());
+    }
 }

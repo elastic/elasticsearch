@@ -177,6 +177,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .sliceQueue(context.sliceQueue())
                 .errorPolicy(errorPolicy)
                 .parsingParallelism(context.parsingParallelism())
+                .parallelism(context.parallelism())
                 .pushedExpressions(pushedExpressions)
                 .pushdownSupport(pushdownSupport)
                 .onClose(onClose)

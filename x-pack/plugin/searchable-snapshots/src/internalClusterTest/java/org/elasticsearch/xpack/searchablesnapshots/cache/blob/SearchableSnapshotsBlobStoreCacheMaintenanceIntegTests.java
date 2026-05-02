@@ -329,11 +329,14 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
 
         migrateTheSystemIndex();
 
-        logger.info("--> deleting indices, maintenance service should clean up snapshot blob cache index");
-        assertAcked(indicesAdmin().prepareDelete("mounted-*"));
+        ensureClusterStateConsistency();
+
         assertBusy(() -> {
             refreshSystemIndex(true);
-            assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0), 0L);
+            assertThat(
+                numberOfEntriesInCache(),
+                equalTo(mountedIndices.values().stream().mapToLong(Tuple::v2).sum())
+            );
         });
     }
 

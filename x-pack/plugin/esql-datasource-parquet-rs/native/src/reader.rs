@@ -62,9 +62,16 @@ fn parquet_root_column_index(parquet_schema: &SchemaDescriptor, name: &str) -> O
 ///
 /// When `projected_cols` is absent, callers read every column (`None`: skip `with_projection`).
 ///
-/// Otherwise we merge columns touched by the pushed filter: the parquet async decoder intersects
-/// predicate cache masks with `self.projection`, so omitting filter-only roots can prevent predicate
-/// columns from being decoded while evaluation falls back to overly permissive boolean masks (wrong counts).
+/// When `projected_cols` is `Some(empty)` and a filter is present, only the filter columns are
+/// projected so the `RowFilter` predicate can run (used by COUNT-only queries).
+///
+/// When `projected_cols` is `Some(cols)` with actual output columns, only those columns are
+/// projected. Filter-only columns are intentionally excluded: parquet-rs (≥ 51.0.0) evaluates
+/// `RowFilter` predicates against a separate column batch that is independent of the main
+/// projection, so there is no need to include filter columns in the output projection.
+/// Excluding them enables late materialisation: the filter predicate runs on its narrow column
+/// set, the resulting row selection is applied before decoding the wider output columns, and
+/// pages of output columns that contain no passing rows are skipped entirely.
 fn projection_root_indices(
     parquet_schema: &SchemaDescriptor,
     projected_cols: &Option<Vec<String>>,
@@ -101,9 +108,6 @@ fn projection_root_indices(
                     err(format!("unknown parquet column [{name}] referenced in projection"))
                 })?;
                 roots.insert(idx);
-            }
-            if let Some(f) = filter {
-                union_filter_roots(parquet_schema, f.as_ref(), &mut roots)?;
             }
             Ok(Some(roots.into_iter().collect()))
         }

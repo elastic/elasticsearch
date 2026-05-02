@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -143,13 +144,26 @@ public class SearchServiceTests extends IndexShardTestCase {
     // Verify that a range filter nested inside a bool `should` clause does not contribute to
     // the time_range_filter_from metric — only mandatory (must/filter) clauses should be tracked.
     public void testCanMatchTimeRangeFilterInsideShouldClauseIsNotTracked() throws IOException {
+        dotestNotTrackedTimeRangeFilter(BoolQueryBuilder::should);
+    }
+
+    // Verify that a range filter nested inside a bool `mustNot` clause does not contribute to
+    // the time_range_filter_from metric — only mandatory (must/filter) clauses should be tracked.
+    public void testCanMatchTimeRangeFilterInsideMustNotClauseIsNotTracked() throws IOException {
+        dotestNotTrackedTimeRangeFilter(BoolQueryBuilder::mustNot);
+    }
+
+    private void dotestNotTrackedTimeRangeFilter(BiFunction<BoolQueryBuilder, QueryBuilder, BoolQueryBuilder> queryWrapper)
+        throws IOException {
         // outer filter: @timestamp >= 2025-12-01 (should match the indexed doc from 2025-12-09)
         // inner should: @timestamp >= 2020-01-01 (old date in an optional clause — must not be tracked)
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
             .source(
                 new SearchSourceBuilder().query(
-                    new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").from("2025-12-01"))
-                        .should(new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").from("2020-01-01")))
+                    queryWrapper.apply(
+                        new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").from("2025-12-01")),
+                        new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").from("2020-01-01"))
+                    )
                 )
             );
         SearchService.CanMatchContext canMatchContext = doTestCanMatch(searchRequest, null, true, null, false);

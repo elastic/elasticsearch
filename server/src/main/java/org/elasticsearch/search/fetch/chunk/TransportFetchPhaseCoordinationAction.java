@@ -43,6 +43,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
 
 import static org.elasticsearch.action.search.SearchTransportService.FETCH_ID_ACTION_NAME;
 
@@ -218,14 +220,25 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
                 responseStream.trackBreakerBytes(bytesSize);
 
+                List<SearchHit> tempHits = new ArrayList<>(hitCount);
+
                 try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
+
+                    // Step 1: deserialize safely
                     for (int i = 0; i < hitCount; i++) {
                         SearchHit hit = SearchHit.readFrom(in, false);
-
-                        // Add with explicit sequence number
-                        long hitSequence = lastChunkSequenceStart + i;
-                        responseStream.addHitWithSequence(hit, hitSequence);
+                        tempHits.add(hit);
                     }
+
+                    // Step 2: only after success → add to stream
+                    for (int i = 0; i < tempHits.size(); i++) {
+                        long hitSequence = lastChunkSequenceStart + i;
+                        responseStream.addHitWithSequence(tempHits.get(i), hitSequence);
+                    }
+
+                } catch (Exception e) {
+                    // No manual cleanup needed for SearchHit
+                    throw e;
                 }
             }
 

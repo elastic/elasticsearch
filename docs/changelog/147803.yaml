@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 147803
+summary: Fix resource leak in chunked fetch phase on partial failure
+type: bug

@@ -1854,6 +1854,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Returns a listener that guarantees {@code releasable} is closed and {@code listener}
      * is notified, regardless of whether the operation succeeds or fails.
      *
+     * {@code releasable} is closed before the wrapped listener is invoked so that
+     * cleanup doesn't run while refcounts are still held.
+     *
      * Visible for testing.
      */
     static <T> ActionListener<T> wrapFailureListener(
@@ -1861,29 +1864,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Releasable releasable,
         Consumer<Exception> onFailureCleanup
     ) {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(T response) {
-                try {
-                    listener.onResponse(response);
-                } finally {
-                    Releasables.close(releasable);
-                }
+        return ActionListener.releaseBefore(releasable, listener.delegateResponse((delegate, e) -> {
+            try {
+                onFailureCleanup.accept(e);
+            } catch (Exception cleanupException) {
+                e.addSuppressed(cleanupException);
+            } finally {
+                delegate.onFailure(e);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    onFailureCleanup.accept(e);
-                } finally {
-                    try {
-                        Releasables.close(releasable);
-                    } finally {
-                        listener.onFailure(e);
-                    }
-                }
-            }
-        };
+        }));
     }
 
     private static boolean isScrollContext(ReaderContext context) {

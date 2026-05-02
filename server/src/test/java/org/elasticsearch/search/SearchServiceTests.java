@@ -325,11 +325,10 @@ public class SearchServiceTests extends IndexShardTestCase {
         var releasableClosed = new AtomicBoolean(false);
         var response = new AtomicReference<String>();
 
-        var wrapped = wrapFailureListener(
-            ActionListener.<String>wrap(response::set, e -> fail("unexpected failure")),
-            () -> releasableClosed.set(true),
-            e -> fail("cleanup must not run on success")
-        );
+        var wrapped = wrapFailureListener(ActionListener.<String>wrap((r) -> {
+            assertTrue("releasable must be closed before listener.onResponse runs", releasableClosed.get());
+            response.set(r);
+        }, e -> fail("unexpected failure")), () -> releasableClosed.set(true), e -> fail("cleanup must not run on success"));
         wrapped.onResponse("ok");
 
         assertTrue("releasable must be closed after onResponse", releasableClosed.get());
@@ -354,7 +353,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         assertSame("original exception must reach the listener", cause, failure.get());
     }
 
-    public void testWrapFailureListenerCleanupThrows() {
+    public void testWrapFailureListenerCleanupExceptionIsHandled() {
         var releasableClosed = new AtomicBoolean(false);
         var failure = new AtomicReference<Exception>();
         var cause = new RuntimeException("search failed");
@@ -366,8 +365,8 @@ public class SearchServiceTests extends IndexShardTestCase {
                 throw new RuntimeException("cleanup exploded");
             }
         );
+        wrapped.onFailure(cause);
 
-        expectThrows(RuntimeException.class, () -> wrapped.onFailure(cause));
         assertTrue("releasable must be closed even when cleanup throws", releasableClosed.get());
         assertSame("listener.onFailure must be called even when cleanup throws", cause, failure.get());
     }

@@ -277,17 +277,28 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
 /// element 0 is `long[]` with `[offset, compressedLen, rowCount, rgUncompressedBytes]` per row group;
 /// element 1 is `String[][]` — one `String[]` per row group holding a flat sequence
 /// `[name, columnUncompressedBytes, nullCount, min, max]` per column.
+///
+/// `meta_handle`: opaque handle from `loadArrowMetadata`, or `0` to fetch the footer inline.
+/// When non-zero the handle's `ArrowReaderMetadata` is used directly, bypassing the shared LRU cache.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_discoverRowGroupSplits<'local>(
     mut env: EnvUnowned<'local>,
     _class: JClass<'local>,
     file_path: JString<'local>,
     config_json: JString<'local>,
+    meta_handle: jlong,
 ) -> jni::objects::JObjectArray<'local> {
     env.with_env(|env| -> JniResult<jni::objects::JObjectArray<'local>> {
         let path = file_path.try_to_string(env)?;
         let config = extract_storage_config(env, &config_json)?;
-        let metadata = load_metadata(&path, &config).map_err(jni_err)?;
+        let metadata = if meta_handle != 0 {
+            // Safety: handle is a valid Box<ArrowReaderMetadata> allocated by loadArrowMetadata
+            // and still alive for the duration of this call (Java holds it in metadataHandleCache).
+            let arrow_meta = unsafe { &*(meta_handle as *const ArrowReaderMetadata) };
+            arrow_meta.metadata().clone()
+        } else {
+            load_metadata(&path, &config).map_err(jni_err)?
+        };
 
         let num_rg = metadata.num_row_groups();
         let mut quads = Vec::with_capacity(num_rg * 4);

@@ -121,7 +121,11 @@ final class ParquetRsBridge {
      * </ul>
      *
      */
-    static native Object[] discoverRowGroupSplits(String filePath, String configJson);
+    /**
+     * @param metaHandle opaque handle returned by {@link #loadArrowMetadata}, or {@code 0} to fetch the
+     *                   footer inline via the shared LRU cache.
+     */
+    static native Object[] discoverRowGroupSplits(String filePath, String configJson, long metaHandle);
 
     // ---- Filter expression building ----
     //

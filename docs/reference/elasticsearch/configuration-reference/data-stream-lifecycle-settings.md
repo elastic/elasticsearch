@@ -52,9 +52,12 @@ $$$data-streams-lifecycle-target-floor-segment$$$
 $$$data-streams-lifecycle-signalling-error-retry-interval$$$
 
 `data_streams.lifecycle.signalling.error_retry_interval`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Represents the number of retries data stream lifecycle has to perform for an index in an error step to signal that the index is not progressing (For instance, it's stuck in an error step). The current signalling mechanism is a log statement at the `error` level however, the signalling mechanism can be extended in the future. Defaults to 10 retries.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) The number of retries the data stream lifecycle has to perform for an index in an error step to signal that the index is not progressing (for example, it's stuck in an error step). The current signalling mechanism is a log statement at the `error` level. However, the signalling mechanism can be extended in the future. Defaults to 10 retries.
 
 ## Frozen tier transition settings [_frozen_tier_transition_settings]
+```{applies_to}
+stack: ga 9.5
+```
 
 The following settings control the behavior of the [frozen tier transition](/reference/elasticsearch/rest-apis/data-stream-lifecycle-frozen-transition.md), which automatically converts data stream backing indices to [searchable snapshots](docs-content://deploy-manage/tools/snapshot-and-restore/searchable-snapshots.md) on the frozen tier.
 

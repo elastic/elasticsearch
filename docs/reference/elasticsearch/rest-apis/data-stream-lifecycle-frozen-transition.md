@@ -18,6 +18,10 @@ Before using DLM frozen phase transitions:
 - A **default snapshot repository** must be registered. DLM uses the cluster's default snapshot repository to store the frozen snapshot. See [Register a snapshot repository](docs-content://deploy-manage/tools/snapshot-and-restore/self-managed.md) for details.
 - The data stream must have [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configured with the `frozen_after` field. This field is only valid on the data lifecycle and cannot be set on the failure-store lifecycle.
 
+::::{note}
+The frozen phase transition feature is a commercial feature that requires an appropriate license. For more information, refer to [Elasticsearch pricing and subscriptions](https://www.elastic.co/subscriptions).
+::::
+
 ## Configure `frozen_after` [dlm-frozen-transition-configure]
 
 Set the `frozen_after` field when creating or updating a data stream's lifecycle using the [update data stream lifecycle API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-data-lifecycle):
@@ -74,7 +78,3 @@ Certain errors are classified as unrecoverable and will block retries until the 
 
 - **Missing snapshot repository** — The default snapshot repository has been removed or is unreachable. Re-register the repository to resume conversions.
 - **License compliance failure** — The required license has expired or been removed. Renew the license to resume conversions.
-
-## Licensing [dlm-frozen-transition-licensing]
-
-The frozen phase transition feature is a commercial feature that requires an appropriate license. For more information, refer to [Elasticsearch pricing and subscriptions](https://www.elastic.co/subscriptions).

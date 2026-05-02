@@ -45,7 +45,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -92,8 +94,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -300,7 +304,7 @@ public class ReindexerTests extends ESTestCase {
             true,
             randomOrigin()
         );
-        leaderTask.setWorkerCount(2);
+        leaderTask.setWorkerCount(2, Float.POSITIVE_INFINITY);
 
         final TaskManager taskManager = mock(TaskManager.class);
         when(taskManager.getCancellableTasks()).thenReturn(Map.of(parentTaskId, leaderTask));
@@ -511,6 +515,90 @@ public class ReindexerTests extends ESTestCase {
         verify(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
         verify(resumeListener).onResponse(any());
         verifyNoMoreInteractions(resumeListener);
+    }
+
+    public void testRelocationSetsRequestRpsFromWorkerTask() {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final float workerRps = randomFloatBetween(0.1f, 1000f, true);
+        final AtomicReference<ResumeBulkByScrollRequest> capturedRequest = new AtomicReference<>();
+
+        final Reindexer reindexer = reindexerWithRelocation(relocationClusterService(), relocationTransportService(capturedRequest));
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorker(workerRps, null);
+        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.requestRelocation();
+
+        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            reindexRequest(),
+            ActionListener.noop(),
+            future
+        );
+        wrapped.onResponse(reindexResponseWithResumeInfo());
+
+        assertTrue(future.isDone());
+        assertNotNull(capturedRequest.get());
+        final ReindexRequest delegateRequest = (ReindexRequest) capturedRequest.get().getDelegate();
+        assertThat(delegateRequest.getRequestsPerSecond(), equalTo(workerRps));
+    }
+
+    public void testRelocationSetsRequestRpsFromLeaderTask() {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final float leaderRps = randomFloatBetween(1f, 1000f, true);
+        final int totalSlices = randomIntBetween(3, 6);
+        final int completedSliceCount = randomIntBetween(1, totalSlices - 1);
+        final AtomicReference<ResumeBulkByScrollRequest> capturedRequest = new AtomicReference<>();
+
+        final Reindexer reindexer = reindexerWithRelocation(relocationClusterService(), relocationTransportService(capturedRequest));
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorkerCount(totalSlices, leaderRps);
+        task.getLeaderState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.requestRelocation();
+
+        final Map<Integer, ResumeInfo.SliceStatus> slices = new LinkedHashMap<>();
+        for (int i = 0; i < completedSliceCount; i++) {
+            final BulkByScrollResponse sliceResponse = new BulkByScrollResponse(
+                TimeValue.ZERO,
+                new BulkByScrollTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
+                List.of(),
+                List.of(),
+                false
+            );
+            slices.put(i, new ResumeInfo.SliceStatus(i, null, new ResumeInfo.WorkerResult(sliceResponse, null)));
+        }
+        for (int i = completedSliceCount; i < totalSlices; i++) {
+            final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
+                randomAlphaOfLength(10),
+                System.currentTimeMillis(),
+                new BulkByScrollTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), randomFloat(), null, timeValueMillis(0)),
+                null
+            );
+            slices.put(i, new ResumeInfo.SliceStatus(i, workerResumeInfo, null));
+        }
+
+        final BulkByScrollResponse response = new BulkByScrollResponse(
+            TimeValue.MINUS_ONE,
+            new BulkByScrollTask.Status(List.of(), null, 0f),
+            List.of(),
+            List.of(),
+            false,
+            new ResumeInfo(randomOrigin(), null, slices)
+        );
+
+        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            reindexRequest(),
+            ActionListener.noop(),
+            future
+        );
+        wrapped.onResponse(response);
+
+        assertTrue(future.isDone());
+        assertNotNull(capturedRequest.get());
+        final ReindexRequest delegateRequest = (ReindexRequest) capturedRequest.get().getDelegate();
+        assertThat(delegateRequest.getRequestsPerSecond(), equalTo(leaderRps));
     }
 
     public void testExecuteStoresSourceTaskResult() throws Exception {
@@ -915,8 +1003,10 @@ public class ReindexerTests extends ESTestCase {
                 FeatureService featureService = mock(FeatureService.class);
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
+                final ClusterService clusterService = clusterServiceMock();
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -1146,6 +1236,7 @@ public class ReindexerTests extends ESTestCase {
             when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
             when(clusterService.localNode()).thenReturn(localNode);
             when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+            when(clusterService.getClusterSettings()).thenReturn(clusterSettingsForReindexPit(Settings.EMPTY));
 
             final ProjectResolver projectResolver = mock(ProjectResolver.class);
             when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -1155,6 +1246,7 @@ public class ReindexerTests extends ESTestCase {
 
             final Reindexer reindexer = new Reindexer(
                 clusterService,
+                reindexSettingsFor(clusterService),
                 projectResolver,
                 client,
                 threadPool,
@@ -1218,8 +1310,10 @@ public class ReindexerTests extends ESTestCase {
                 FeatureService featureService = mock(FeatureService.class);
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
+                final ClusterService clusterService = clusterServiceMock();
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -1292,8 +1386,10 @@ public class ReindexerTests extends ESTestCase {
                 FeatureService featureService = mock(FeatureService.class);
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
+                final ClusterService clusterService = clusterServiceMock();
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -1355,11 +1451,7 @@ public class ReindexerTests extends ESTestCase {
                 }
             };
             try {
-                final ClusterService clusterService = mock(ClusterService.class);
-                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
-                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-                when(clusterService.localNode()).thenReturn(localNode);
-                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+                final ClusterService clusterService = clusterServiceMock();
 
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -1368,7 +1460,8 @@ public class ReindexerTests extends ESTestCase {
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -1436,8 +1529,10 @@ public class ReindexerTests extends ESTestCase {
                 FeatureService featureService = mock(FeatureService.class);
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
+                final ClusterService clusterService = clusterServiceMock();
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -1507,8 +1602,10 @@ public class ReindexerTests extends ESTestCase {
                 FeatureService featureService = mock(FeatureService.class);
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
+                final ClusterService clusterService = clusterServiceMock();
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -1581,8 +1678,10 @@ public class ReindexerTests extends ESTestCase {
                 FeatureService featureService = mock(FeatureService.class);
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
+                final ClusterService clusterService = clusterServiceMock();
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -1651,8 +1750,10 @@ public class ReindexerTests extends ESTestCase {
                 FeatureService featureService = mock(FeatureService.class);
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
+                final ClusterService clusterService = clusterServiceMock();
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -1721,8 +1822,10 @@ public class ReindexerTests extends ESTestCase {
                 FeatureService featureService = mock(FeatureService.class);
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
+                final ClusterService clusterService = clusterServiceMock();
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -1787,11 +1890,7 @@ public class ReindexerTests extends ESTestCase {
             }
         };
         try {
-            final ClusterService clusterService = mock(ClusterService.class);
-            final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
-            when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-            when(clusterService.localNode()).thenReturn(localNode);
-            when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+            final ClusterService clusterService = clusterServiceMock();
 
             final ProjectResolver projectResolver = mock(ProjectResolver.class);
             when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -1828,7 +1927,8 @@ public class ReindexerTests extends ESTestCase {
             );
             try {
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -1868,11 +1968,15 @@ public class ReindexerTests extends ESTestCase {
     /**
      * Remote clusters before PIT support (below 7.10) must use scroll-based pagination. Verifies the mock server receives no
      * {@code POST} to open a point-in-time while a 7.9-style version response still allows reindex to complete using scroll.
+     * Also verifies on every matching request (inside the mock handler) that the {@code scroll} query parameter on the remote
+     * initial {@code _search} and on {@code _search/scroll} equals the reindex scroll keep-alive.
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexUsesScrollWhenVersionBeforePitSupport() throws Exception {
         assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
+        final TimeValue expectedScroll = TimeValue.timeValueMinutes(randomIntBetween(1, 8));
+        final long expectedScrollNanos = expectedScroll.nanos();
         final AtomicInteger pitPostCount = new AtomicInteger();
         final String version79 = "{\"version\":{\"number\":\"7.9.0\"},\"tagline\":\"You Know, for Search\"}";
         final String scrollBody = "{\"_scroll_id\":\"fake-scroll\",\"timed_out\":false,\"hits\":{\"total\":0,\"hits\":[]}"
@@ -1893,10 +1997,16 @@ public class ReindexerTests extends ESTestCase {
                     return;
                 }
                 if (path.contains("/_search") && "POST".equals(method) && path.contains("scroll") == false) {
+                    String scrollParam = parseRawQueryParam(exchange.getRequestURI().getRawQuery(), "scroll");
+                    assertNotNull(scrollParam);
+                    assertThat(TimeValue.parseTimeValue(scrollParam, "scroll").nanos(), equalTo(expectedScrollNanos));
                     respondJson(exchange, 200, scrollBody);
                     return;
                 }
                 if (path.contains("_search/scroll") && "POST".equals(method)) {
+                    String scrollParam = parseRawQueryParam(exchange.getRequestURI().getRawQuery(), "scroll");
+                    assertNotNull(scrollParam);
+                    assertThat(TimeValue.parseTimeValue(scrollParam, "scroll").nanos(), equalTo(expectedScrollNanos));
                     respondJson(exchange, 200, scrollBody);
                     return;
                 }
@@ -1911,7 +2021,7 @@ public class ReindexerTests extends ESTestCase {
         });
         server.start();
         try {
-            runRemotePitTestWithMockServer(server, r -> {}, initFuture -> {
+            runRemotePitTestWithMockServer(server, r -> r.setScroll(expectedScroll), initFuture -> {
                 BulkByScrollResponse response = initFuture.actionGet();
                 assertNotNull(response);
                 assertThat(pitPostCount.get(), equalTo(0));
@@ -1922,9 +2032,64 @@ public class ReindexerTests extends ESTestCase {
     }
 
     /**
-     * Local PIT open uses the reindex request's scroll keep-alive as the PIT keep-alive when the user has set a scroll timeout.
+     * Remote open-PIT uses {@link ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING} for {@code keep_alive}. The reindex {@code scroll}
+     * parameter does not affect PIT.
      */
-    public void testLocalOpenPitUsesScrollTimeAsKeepAliveWhenSet() {
+    @SuppressForbidden(reason = "use http server for testing")
+    public void testRemoteOpenPitUsesClusterPitKeepAliveSetting() throws Exception {
+        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final TimeValue expected = TimeValue.timeValueMinutes(randomIntBetween(5, 20));
+        final AtomicReference<String> capturedKeepAlive = new AtomicReference<>();
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            try {
+                String path = exchange.getRequestURI().getPath();
+                String method = exchange.getRequestMethod();
+                if (path.contains("_pit") && "POST".equals(method)) {
+                    String query = exchange.getRequestURI().getRawQuery();
+                    if (query != null) {
+                        for (String part : query.split("&")) {
+                            int eq = part.indexOf('=');
+                            if (eq > 0 && "keep_alive".equals(part.substring(0, eq))) {
+                                capturedKeepAlive.set(URLDecoder.decode(part.substring(eq + 1), StandardCharsets.UTF_8));
+                                break;
+                            }
+                        }
+                    }
+                    respondJson(exchange, 200, REMOTE_PIT_OPEN_RESPONSE);
+                } else if (path.equals("/") || path.isEmpty()) {
+                    respondJson(exchange, 200, REMOTE_PIT_TEST_VERSION_JSON);
+                } else if (path.contains("_search") && "POST".equals(method)) {
+                    respondJson(exchange, 200, REMOTE_PIT_EMPTY_SEARCH_RESPONSE);
+                } else if (path.contains("_search/scroll") && "DELETE".equals(method)) {
+                    exchange.sendResponseHeaders(200, -1);
+                } else {
+                    exchange.sendResponseHeaders(404, -1);
+                }
+            } finally {
+                exchange.close();
+            }
+        });
+        server.start();
+        try {
+            Settings pitSettings = Settings.builder()
+                .put(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey(), expected.getStringRep())
+                .build();
+            runRemotePitTestWithMockServer(server, r -> r.setScroll(TimeValue.timeValueHours(4)), initFuture -> {
+                assertNotNull(initFuture.actionGet());
+                assertThat(capturedKeepAlive.get(), equalTo(expected.getStringRep()));
+            }, pitSettings);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    /**
+     * Local PIT open uses {@link ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING} for keep-alive. The reindex {@code scroll} parameter
+     * does not affect PIT.
+     */
+    public void testLocalOpenPitUsesClusterPitKeepAliveSetting() {
         assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
@@ -1936,11 +2101,8 @@ public class ReindexerTests extends ESTestCase {
                 }
             };
             try {
-                final ClusterService clusterService = mock(ClusterService.class);
-                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
-                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-                when(clusterService.localNode()).thenReturn(localNode);
-                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+                final TimeValue pitKeepAlive = TimeValue.timeValueMinutes(randomIntBetween(3, 20));
+                final ClusterService clusterService = clusterServiceMockWithReindexPitKeepAlive(pitKeepAlive);
 
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -1949,7 +2111,8 @@ public class ReindexerTests extends ESTestCase {
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -1962,13 +2125,11 @@ public class ReindexerTests extends ESTestCase {
                     mock(TaskResultsService.class)
                 );
 
-                final int scrollMinutes = randomIntBetween(3, 20);
-                final TimeValue scrollKeepAlive = TimeValue.timeValueMinutes(scrollMinutes);
                 final ReindexRequest request = new ReindexRequest();
                 request.setSourceIndices("source");
                 request.setDestIndex("dest");
                 request.setSlices(1);
-                request.setScroll(scrollKeepAlive);
+                request.setScroll(TimeValue.timeValueHours(2));
 
                 final BulkByScrollTask task = new BulkByScrollTask(
                     randomTaskId(),
@@ -1987,7 +2148,7 @@ public class ReindexerTests extends ESTestCase {
 
                 OpenPointInTimeRequest pitRequest = client.getCapturedPitRequest();
                 assertNotNull(pitRequest);
-                assertThat(pitRequest.keepAlive(), equalTo(scrollKeepAlive));
+                assertThat(pitRequest.keepAlive(), equalTo(pitKeepAlive));
             } finally {
                 terminate(threadPool);
             }
@@ -1997,8 +2158,8 @@ public class ReindexerTests extends ESTestCase {
     }
 
     /**
-     * When the search request has no scroll keep-alive, local PIT open uses the default keep-alive (five minutes), matching
-     * {@link Reindexer}'s {@code pitKeepAlive} fallback.
+     * When the search request has no scroll keep-alive, local PIT open still uses the default from
+     * {@link ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING} (five minutes).
      */
     public void testLocalOpenPitUsesDefaultKeepAliveWhenScrollTimeUnset() {
         assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
@@ -2012,11 +2173,7 @@ public class ReindexerTests extends ESTestCase {
                 }
             };
             try {
-                final ClusterService clusterService = mock(ClusterService.class);
-                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
-                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-                when(clusterService.localNode()).thenReturn(localNode);
-                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+                final ClusterService clusterService = clusterServiceMock();
 
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -2025,7 +2182,8 @@ public class ReindexerTests extends ESTestCase {
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -2061,7 +2219,7 @@ public class ReindexerTests extends ESTestCase {
 
                 OpenPointInTimeRequest pitRequest = client.getCapturedPitRequest();
                 assertNotNull(pitRequest);
-                assertThat(pitRequest.keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
+                assertThat(pitRequest.keepAlive(), equalTo(TimeValue.timeValueMinutes(15)));
             } finally {
                 terminate(threadPool);
             }
@@ -2086,11 +2244,7 @@ public class ReindexerTests extends ESTestCase {
                 }
             };
             try {
-                final ClusterService clusterService = mock(ClusterService.class);
-                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
-                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-                when(clusterService.localNode()).thenReturn(localNode);
-                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+                final ClusterService clusterService = clusterServiceMock();
 
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -2099,7 +2253,8 @@ public class ReindexerTests extends ESTestCase {
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -2160,11 +2315,7 @@ public class ReindexerTests extends ESTestCase {
                 }
             };
             try {
-                final ClusterService clusterService = mock(ClusterService.class);
-                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
-                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-                when(clusterService.localNode()).thenReturn(localNode);
-                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+                final ClusterService clusterService = clusterServiceMock();
 
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -2173,7 +2324,8 @@ public class ReindexerTests extends ESTestCase {
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(false);
 
                 final Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     client,
                     threadPool,
@@ -2273,6 +2425,7 @@ public class ReindexerTests extends ESTestCase {
             when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
             when(clusterService.localNode()).thenReturn(localNode);
             when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+            when(clusterService.getClusterSettings()).thenReturn(clusterSettingsForReindexPit(Settings.EMPTY));
 
             ProjectResolver projectResolver = mock(ProjectResolver.class);
             when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -2291,7 +2444,8 @@ public class ReindexerTests extends ESTestCase {
                 when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
                 Reindexer reindexer = new Reindexer(
-                    clusterServiceMock(),
+                    clusterService,
+                    reindexSettingsFor(clusterService),
                     projectResolver,
                     mock(Client.class),
                     threadPool,
@@ -2396,8 +2550,10 @@ public class ReindexerTests extends ESTestCase {
         when(threadPool.generic()).thenReturn(DIRECT_EXECUTOR_SERVICE);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettingsForReindexPit(Settings.EMPTY));
         Reindexer reindexer = new Reindexer(
             clusterService,
+            reindexSettingsFor(clusterService),
             mock(ProjectResolver.class),
             mock(Client.class),
             threadPool,
@@ -2667,6 +2823,23 @@ public class ReindexerTests extends ESTestCase {
         return server;
     }
 
+    /**
+     * Returns the first value for {@code paramName} in a raw HTTP query string, URL-decoded, or {@code null} if absent.
+     */
+    @Nullable
+    private static String parseRawQueryParam(String rawQuery, String paramName) {
+        if (rawQuery == null) {
+            return null;
+        }
+        for (String part : rawQuery.split("&")) {
+            int eq = part.indexOf('=');
+            if (eq > 0 && paramName.equals(part.substring(0, eq))) {
+                return URLDecoder.decode(part.substring(eq + 1), StandardCharsets.UTF_8);
+            }
+        }
+        return null;
+    }
+
     private static void respondJson(HttpExchange exchange, int status, String json) throws IOException {
         byte[] body = json.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
@@ -2684,6 +2857,20 @@ public class ReindexerTests extends ESTestCase {
         HttpServer server,
         Consumer<ReindexRequest> requestConfigurer,
         Consumer<PlainActionFuture<BulkByScrollResponse>> assertions
+    ) {
+        runRemotePitTestWithMockServer(server, requestConfigurer, assertions, Settings.EMPTY);
+    }
+
+    /**
+     * @param pitKeepAliveLayerSettings settings layer passed to {@link #clusterSettingsForReindexPit} for
+     *                                   {@link ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING}
+     */
+    @SuppressForbidden(reason = "use http server for testing")
+    private void runRemotePitTestWithMockServer(
+        HttpServer server,
+        Consumer<ReindexRequest> requestConfigurer,
+        Consumer<PlainActionFuture<BulkByScrollResponse>> assertions,
+        Settings pitKeepAliveLayerSettings
     ) {
         BytesArray matchAll = new BytesArray("{\"match_all\":{}}");
         RemoteInfo remoteInfo = new RemoteInfo(
@@ -2711,6 +2898,7 @@ public class ReindexerTests extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         when(clusterService.localNode()).thenReturn(localNode);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettingsForReindexPit(pitKeepAliveLayerSettings));
 
         ProjectResolver projectResolver = mock(ProjectResolver.class);
         when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -2730,6 +2918,7 @@ public class ReindexerTests extends ESTestCase {
 
             Reindexer reindexer = new Reindexer(
                 clusterService,
+                reindexSettingsFor(clusterService),
                 projectResolver,
                 mock(Client.class),
                 threadPool,
@@ -2803,7 +2992,7 @@ public class ReindexerTests extends ESTestCase {
         );
         return new BulkByScrollResponse(
             TimeValue.MINUS_ONE,
-            new BulkByScrollTask.Status(List.of(), null),
+            new BulkByScrollTask.Status(List.of(), null, 0f),
             List.of(),
             List.of(),
             false,
@@ -2856,7 +3045,7 @@ public class ReindexerTests extends ESTestCase {
             randomBoolean(),
             randomOrigin()
         );
-        task.setWorkerCount(randomIntBetween(2, 10));
+        task.setWorkerCount(randomIntBetween(2, 10), Float.POSITIVE_INFINITY);
         return task;
     }
 
@@ -2901,8 +3090,10 @@ public class ReindexerTests extends ESTestCase {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettingsForReindexPit(Settings.EMPTY));
         return new Reindexer(
             clusterService,
+            reindexSettingsFor(clusterService),
             mock(ProjectResolver.class),
             searchClient,
             threadPool,
@@ -2915,6 +3106,32 @@ public class ReindexerTests extends ESTestCase {
             mock(FeatureService.class),
             taskResultsService
         );
+    }
+
+    private static final DiscoveryNode RELOCATION_TARGET_NODE = DiscoveryNodeUtils.builder("target-node").build();
+
+    private static ClusterService relocationClusterService() {
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("source-node").build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.localNode()).thenReturn(sourceNode);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.get("target-node")).thenReturn(RELOCATION_TARGET_NODE);
+        return clusterService;
+    }
+
+    private static TransportService relocationTransportService(AtomicReference<ResumeBulkByScrollRequest> capturedRequest) {
+        final TransportService transportService = mock(TransportService.class);
+        doAnswer(invocation -> {
+            capturedRequest.set(invocation.getArgument(2));
+            TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
+            return null;
+        }).when(transportService)
+            .sendRequest(eq(RELOCATION_TARGET_NODE), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+        return transportService;
     }
 
     private static ReindexRequest reindexRequest() {
@@ -2939,6 +3156,28 @@ public class ReindexerTests extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         when(clusterService.localNode()).thenReturn(localNode);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettingsForReindexPit(Settings.EMPTY));
+        return clusterService;
+    }
+
+    private static ClusterSettings clusterSettingsForReindexPit(Settings nodeSettings) {
+        return new ClusterSettings(nodeSettings, Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING));
+    }
+
+    private static ReindexSettings reindexSettingsFor(ClusterService clusterService) {
+        return new ReindexSettings(clusterService.getClusterSettings());
+    }
+
+    private static ClusterService clusterServiceMockWithReindexPitKeepAlive(TimeValue keepAlive) {
+        final Settings clusterLayerSettings = Settings.builder()
+            .put(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey(), keepAlive.getStringRep())
+            .build();
+        final ClusterService clusterService = mock(ClusterService.class);
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        when(clusterService.localNode()).thenReturn(localNode);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettingsForReindexPit(clusterLayerSettings));
         return clusterService;
     }
 }

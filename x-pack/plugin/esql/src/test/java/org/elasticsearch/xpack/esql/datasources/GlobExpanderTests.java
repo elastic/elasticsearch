@@ -504,17 +504,17 @@ public class GlobExpanderTests extends ESTestCase {
 
         @Override
         public StorageObject newObject(StoragePath path) {
-            return new StubStorageObject(path);
+            return new StubStorageObject(path, 0, existingPaths.contains(path.toString()));
         }
 
         @Override
         public StorageObject newObject(StoragePath path, long length) {
-            return new StubStorageObject(path, length);
+            return new StubStorageObject(path, length, true);
         }
 
         @Override
         public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
-            return new StubStorageObject(path, length);
+            return new StubStorageObject(path, length, true);
         }
 
         @Override
@@ -557,14 +557,12 @@ public class GlobExpanderTests extends ESTestCase {
     private static class StubStorageObject implements StorageObject {
         private final StoragePath path;
         private final long length;
+        private final boolean exists;
 
-        StubStorageObject(StoragePath path) {
-            this(path, 0);
-        }
-
-        StubStorageObject(StoragePath path, long length) {
+        StubStorageObject(StoragePath path, long length, boolean exists) {
             this.path = path;
             this.length = length;
+            this.exists = exists;
         }
 
         @Override
@@ -589,7 +587,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         @Override
         public boolean exists() {
-            return true;
+            return exists;
         }
 
         @Override

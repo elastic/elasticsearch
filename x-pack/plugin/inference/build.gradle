@@ -572,7 +572,11 @@ tasks.named('yamlRestTest') {
   usesDefaultDistribution("Uses the inference API")
   if (buildParams.snapshotBuild == false) {
     // semantic field is not available yet in release builds
-    def semanticFieldTests = ['inference/120_semantic_field_mapping/*', 'inference/130_semantic_field_query/*']
+    def semanticFieldTests = [
+      'inference/120_semantic_field_mapping/*',
+      'inference/130_semantic_field_query/*',
+      "inference/140_semantic_field_query_vector_builder/*"
+    ]
     systemProperty 'tests.rest.blacklist', semanticFieldTests.join(',')
   }
 }

@@ -30,6 +30,10 @@ setup:
             field_name_not_ignored: 10
 
   - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
       indices.get_mapping:
         index: test_index
 
@@ -74,6 +78,10 @@ setup:
           foo:
             test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
             field_name_not_ignored: [ 10, 20, 30 ]
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
   - do:
       indices.get_mapping:

@@ -46,10 +46,14 @@ public record FormatReadContext(
 ) {
 
     /**
-     * Creates a minimal context for the common non-split case.
+     * Creates a minimal context for the common non-split case. Leaves {@code errorPolicy} as
+     * {@code null} so the reader falls back to its own default — typically the policy resolved
+     * from the user's {@code WITH} options via {@link FormatReader#withConfig}, or the
+     * {@link FormatReader#defaultErrorPolicy()} when no user options are set. Callers that need
+     * to override the policy should use {@link #builder()} or {@link #withErrorPolicy(ErrorPolicy)}.
      */
     public static FormatReadContext of(List<String> projectedColumns, int batchSize) {
-        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, ErrorPolicy.STRICT, true, true, false);
+        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, null, true, true, false);
     }
 
     /**
@@ -81,7 +85,10 @@ public record FormatReadContext(
         private List<String> projectedColumns;
         private int batchSize;
         private int rowLimit = FormatReader.NO_LIMIT;
-        private ErrorPolicy errorPolicy = ErrorPolicy.STRICT;
+        // Defaults to null so the reader falls back to its own resolved policy
+        // (typically the WITH-options policy from withConfig). Callers that want to override
+        // explicitly should call errorPolicy(...).
+        private ErrorPolicy errorPolicy = null;
         private boolean firstSplit = true;
         private boolean lastSplit = true;
         private boolean recordAligned = false;

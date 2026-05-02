@@ -3447,35 +3447,35 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Schema sampling must skip malformed rows (the bracket-aware path is disabled here so the
-     * Jackson {@code RuntimeException}-wrapping path is exercised) and still infer the schema
-     * from the well-formed rows around them. Files that other engines (ClickHouse, DuckDB,
-     * Spark) accept must also infer here.
+     * Schema sampling honours skip_row the same way the data path does. The malformed row in
+     * the middle is dropped, sampling continues, schema is inferred from the surrounding good
+     * rows. This exercises the Jackson {@code RuntimeException}-wrapping path (multi_value
+     * syntax is set to NONE so the bracket-aware path is bypassed).
      */
-    public void testCollectSampleRowsTolerantOfMalformedRows() throws IOException {
-        // Row 2 has an unclosed quote — Jackson will throw on it.
+    public void testSamplingHonoursSkipRowPolicy() throws IOException {
+        // Row 2 has an unclosed quote — Jackson throws on it.
         String csv = "1,Alice\n2,\"Bob\n3,Charlie\n4,Dave\n";
         StorageObject object = createStorageObject(csv);
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false, "multi_value_syntax", "NONE"));
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100)
+        );
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             // Schema must be inferred from the rows that did parse — query must not 500.
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
-            // The row with the unclosed quote and any rows Jackson swallows during recovery
-            // are dropped under FAIL_FAST during sampling, but at least one row must come out.
             assertTrue("expected at least one row to survive sampling, got " + page.getPositionCount(), page.getPositionCount() >= 1);
             page.releaseBlocks();
         }
     }
 
     /**
-     * If schema sampling cannot collect a single well-formed row, surface a capped client
-     * error (HTTP 400) rather than letting Jackson's {@code RuntimeException} escape as a 500.
+     * Sampling under FAIL_FAST (the default) surfaces the very first malformed row as a
+     * client error (HTTP 400), with the row index, capped excerpt, and the hint pointing at
+     * skip_row. Same exception type and message shape the data-row path uses.
      */
-    public void testCollectSampleRowsAllBadRowsThrowsClientError() {
-        // Every line is malformed (unclosed quote at end). After {@link
-        // CsvFormatReader#MAX_CONSECUTIVE_SAMPLING_FAILURES} consecutive failures we bail.
+    public void testSamplingFailFastThrowsClientErrorWithHint() {
+        // Every line is malformed (unclosed quote at end). FAIL_FAST throws on row 1.
         StringBuilder csv = new StringBuilder();
         for (int i = 0; i < CsvFormatReader.MAX_CONSECUTIVE_SAMPLING_FAILURES + 4; i++) {
             csv.append(i).append(",\"unterminated\n");
@@ -3490,10 +3490,123 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue("expected schema inference message, got: " + e.getMessage(), e.getMessage().contains("schema inference failed"));
+        assertTrue("expected sampling error message, got: " + e.getMessage(), e.getMessage().contains("CSV schema sampling failed"));
+        assertTrue("expected row index, got: " + e.getMessage(), e.getMessage().contains("row [1]"));
+        assertTrue("expected skip_row hint, got: " + e.getMessage(), e.getMessage().contains("skip_row"));
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
-        // Message must be capped, not megabytes of stack trace.
         assertTrue("expected capped message, got " + e.getMessage().length() + " chars", e.getMessage().length() <= 4096);
+    }
+
+    /**
+     * Sampling under SKIP_ROW with a tight budget exhausts and surfaces a capped budget error.
+     * Sampling errors count against the SAME max_errors budget the data path uses, matching
+     * ClickHouse's input_format_allow_errors_num semantics.
+     */
+    public void testSamplingSkipRowExceedsBudget() {
+        StringBuilder csv = new StringBuilder();
+        // 30 malformed rows, budget of 5 errors → throws after 6th error.
+        for (int i = 0; i < 30; i++) {
+            csv.append(i).append(",\"unterminated\n");
+        }
+        StorageObject object = createStorageObject(csv.toString());
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 5)
+        );
+
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertTrue("expected budget message, got: " + e.getMessage(), e.getMessage().contains("schema sampling exceeded error budget"));
+        assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
+    }
+
+    /**
+     * Sampling under SKIP_ROW with a generous budget but a permanently malformed file bails
+     * after MAX_CONSECUTIVE_SAMPLING_FAILURES (the Jackson-resync safety net), surfacing a
+     * "no rows could be parsed" error.
+     */
+    public void testSamplingSkipRowConsecutiveFailureSafetyNet() {
+        StringBuilder csv = new StringBuilder();
+        for (int i = 0; i < CsvFormatReader.MAX_CONSECUTIVE_SAMPLING_FAILURES + 4; i++) {
+            csv.append(i).append(",\"unterminated\n");
+        }
+        StorageObject object = createStorageObject(csv.toString());
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", Long.MAX_VALUE)
+        );
+
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertTrue("expected zero-rows message, got: " + e.getMessage(), e.getMessage().contains("schema inference failed"));
+        assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
+    }
+
+    /**
+     * Sanity check: the FAIL_FAST hint distinguishes structural errors (suggest skip_row) from
+     * field-type errors (suggest null_field). Field-type error: skip_row drops the whole row
+     * when one field is bad; null_field is the better escape hatch.
+     */
+    public void testFailFastHintForFieldTypeErrorMentionsNullField() {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            not_a_number,Bob
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        // Field-type error → the hint should point at null_field specifically.
+        assertTrue("expected null_field hint, got: " + e.getMessage(), e.getMessage().contains("null_field"));
+        // structural=false should NOT mention skip_row in the recommendation.
+        assertFalse("did not expect skip_row hint for field error, got: " + e.getMessage(), e.getMessage().contains("skip_row"));
+    }
+
+    /**
+     * Sanity check: the FAIL_FAST hint for a structural (tokeniser) error mentions skip_row.
+     */
+    public void testFailFastHintForStructuralErrorMentionsSkipRow() {
+        String csv = """
+            id:long,name:keyword
+            1,"unterminated row
+            """;
+        StorageObject object = createStorageObject(csv);
+        // Bracket parsing disabled so the Jackson tokeniser fires the structural error.
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "NONE"));
+
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertTrue("expected skip_row hint, got: " + e.getMessage(), e.getMessage().contains("skip_row"));
     }
 
     public void testCsvErrorMessagesSummarizeShortValuePassesThrough() {

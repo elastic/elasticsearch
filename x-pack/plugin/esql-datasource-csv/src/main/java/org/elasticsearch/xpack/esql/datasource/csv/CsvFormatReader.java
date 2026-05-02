@@ -163,17 +163,34 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final List<String> extensions;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
+    /**
+     * ErrorPolicy used by the planning-time {@link #metadata} call (which has no per-query
+     * {@link FormatReadContext}). Resolved from the {@code WITH} options in {@link #withConfig}
+     * so a user request like {@code WITH {"error_mode": "skip_row"}} also applies to schema
+     * sampling — matching ClickHouse's {@code input_format_allow_errors_*} semantics.
+     * Defaults to {@link #defaultErrorPolicy()} (FAIL_FAST), so unset implies "fail at planning
+     * if the file cannot be sampled cleanly", consistent with the rest of the system.
+     */
+    private final ErrorPolicy effectivePolicy;
 
     public CsvFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, CsvFormatOptions.DEFAULT, "csv", List.of(".csv", ".tsv"), null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE);
+        this(
+            blockFactory,
+            CsvFormatOptions.DEFAULT,
+            "csv",
+            List.of(".csv", ".tsv"),
+            null,
+            CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
+            ErrorPolicy.STRICT
+        );
     }
 
     public CsvFormatReader(BlockFactory blockFactory, String format, List<String> extensions) {
-        this(blockFactory, CsvFormatOptions.DEFAULT, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE);
+        this(blockFactory, CsvFormatOptions.DEFAULT, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT);
     }
 
     public CsvFormatReader(BlockFactory blockFactory, CsvFormatOptions options, String format, List<String> extensions) {
-        this(blockFactory, options, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE);
+        this(blockFactory, options, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT);
     }
 
     private CsvFormatReader(
@@ -182,7 +199,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String format,
         List<String> extensions,
         List<Attribute> resolvedSchema,
-        int schemaSampleSize
+        int schemaSampleSize,
+        ErrorPolicy effectivePolicy
     ) {
         this.blockFactory = blockFactory;
         this.options = options;
@@ -190,6 +208,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.extensions = extensions;
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
+        this.effectivePolicy = effectivePolicy;
         this.sharedCsvMapper = createMapper(options);
     }
 
@@ -346,12 +365,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     public CsvFormatReader withOptions(CsvFormatOptions newOptions) {
-        return new CsvFormatReader(blockFactory, newOptions, format, extensions, resolvedSchema, schemaSampleSize);
+        return new CsvFormatReader(blockFactory, newOptions, format, extensions, resolvedSchema, schemaSampleSize, effectivePolicy);
     }
 
     @Override
     public CsvFormatReader withSchema(List<Attribute> schema) {
-        return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize);
+        return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize, effectivePolicy);
     }
 
     @Override
@@ -362,15 +381,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CsvFormatOptions parsed = parseOptionsFromConfig(config);
         int newSampleSize = parseInt(config.get("schema_sample_size"), schemaSampleSize);
         Check.isTrue(newSampleSize > 0, "schema_sample_size must be positive, got: {}", newSampleSize);
+        ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
         CsvFormatReader result = parsed != null ? withOptions(parsed) : this;
-        if (newSampleSize != result.schemaSampleSize) {
+        if (newSampleSize != result.schemaSampleSize || resolvedPolicy != result.effectivePolicy) {
             result = new CsvFormatReader(
                 result.blockFactory,
                 result.options,
                 result.format,
                 result.extensions,
                 result.resolvedSchema,
-                newSampleSize
+                newSampleSize,
+                resolvedPolicy
             );
         }
         return result;
@@ -418,7 +439,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String[] columnNames = headerLine.split(Pattern.quote(Character.toString(options.delimiter())));
         Iterator<List<?>> csvIterator = newCsvIterator(reader);
         CircuitBreaker breaker = blockFactory.breaker();
-        SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker);
+        SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
         try {
             return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
         } finally {
@@ -429,7 +450,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private List<Attribute> inferSchemaWithSyntheticNames(BufferedReader reader) throws IOException {
         Iterator<List<?>> csvIterator = newCsvIterator(reader);
         CircuitBreaker breaker = blockFactory.breaker();
-        SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker);
+        SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
         try {
             if (sample.rows().isEmpty()) {
                 throw new IOException("CSV file has no data rows");
@@ -496,53 +517,61 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     record SchemaSample(List<String[]> rows, long reservedBytes) {}
 
-    /** Maximum number of consecutive parse failures tolerated during schema sampling before
-     *  giving up. Jackson's stream-based CSV parser cannot guarantee resync after a malformed
-     *  record (the tokeniser may have consumed bytes mid-field), so even when many rows have
-     *  already been sampled successfully we cap the back-to-back failures to avoid infinite
-     *  retries on a permanently confused parser state. Matches the ClickHouse / DuckDB
-     *  philosophy of bounding sampling work via {@code sample_size}. */
+    /** Hard cap on consecutive parse failures during schema sampling, applied INDEPENDENTLY of
+     *  the user's {@link ErrorPolicy}. Jackson's stream-based CSV parser cannot guarantee
+     *  resync after a malformed record (the tokeniser may have consumed bytes mid-field), so
+     *  even a generous {@code max_errors} budget cannot make progress past a permanently
+     *  confused parser state. ClickHouse / DuckDB don't need this guard because their C++
+     *  parsers can resync reliably. */
     static final int MAX_CONSECUTIVE_SAMPLING_FAILURES = 16;
 
-    /** Maximum number of distinct error excerpts captured for the "could not sample any row"
-     *  failure message. Keeps the eventual {@link ParsingException} small. */
+    /** Maximum number of distinct error excerpts captured for the failure message. Keeps the
+     *  eventual {@link ParsingException} small. */
     private static final int MAX_CAPTURED_SAMPLING_ERRORS = 3;
 
     /**
-     * Best-effort sampling for schema inference. Tolerates malformed rows so files that other
-     * engines (ClickHouse, DuckDB, Spark) accept also infer here. The contract is:
+     * Samples rows for schema inference, honouring the given {@link ErrorPolicy} the same way
+     * the data-row path does:
      * <ul>
-     *   <li>Try to sample up to {@code sampleSize} well-formed rows from {@code csvIterator}.</li>
-     *   <li>If a row throws (Jackson {@link RuntimeException} wrapping a parse error), skip it
-     *       and continue. Capture the first {@link #MAX_CAPTURED_SAMPLING_ERRORS} causes for
-     *       the failure message in case all rows are bad.</li>
-     *   <li>Bail after {@link #MAX_CONSECUTIVE_SAMPLING_FAILURES} consecutive failures — at
-     *       that point the parser state is almost certainly unrecoverable.</li>
-     *   <li>If at least one row was sampled, return it (callers infer types from the partial
-     *       sample). Only when ZERO rows could be sampled do we throw {@link ParsingException}
-     *       (HTTP 400) with a short, capped summary of what went wrong.</li>
+     *   <li>{@code FAIL_FAST}: throw {@link ParsingException} (HTTP 400) on the first malformed
+     *       row, with a capped row excerpt and a hint pointing at {@code skip_row}.</li>
+     *   <li>{@code SKIP_ROW} / {@code NULL_FIELD}: skip bad rows, continue sampling, throw if
+     *       the budget ({@code max_errors} / {@code max_error_ratio}) is exceeded.</li>
      * </ul>
-     * The {@link ErrorPolicy} configured for the query is intentionally <em>not</em> consulted
-     * here: schema inference is a best-effort planning step and runtime row-handling policy
-     * still applies once data starts flowing.
+     * Independent of the policy, sampling bails after
+     * {@link #MAX_CONSECUTIVE_SAMPLING_FAILURES} consecutive failures (Jackson resync guard),
+     * and throws if zero rows could be collected.
+     *
+     * <p>Aligning sampling with the runtime policy matches ClickHouse's
+     * {@code input_format_allow_errors_*} semantics (one budget covering both phases) and
+     * means a {@code WITH {"error_mode": "skip_row"}} request is honoured at planning time
+     * too — not just once data starts flowing.
      */
-    static SchemaSample collectSampleRows(Iterator<List<?>> csvIterator, String commentPrefix, int sampleSize, CircuitBreaker breaker) {
+    static SchemaSample collectSampleRows(
+        Iterator<List<?>> csvIterator,
+        String commentPrefix,
+        int sampleSize,
+        CircuitBreaker breaker,
+        ErrorPolicy policy
+    ) {
         List<String[]> sampleRows = new ArrayList<>();
         long reservedBytes = 0;
         boolean success = false;
         List<String> capturedErrors = null;
         Throwable firstCause = null;
+        long errorCount = 0;
+        long totalRowCount = 0;
         int consecutiveFailures = 0;
+        boolean failFast = policy.mode() == ErrorPolicy.Mode.FAIL_FAST;
         try {
             boolean hasCommentFilter = commentPrefix != null && commentPrefix.isEmpty() == false;
             while (sampleRows.size() < sampleSize) {
-                boolean advanced;
                 try {
                     if (csvIterator.hasNext() == false) {
                         break;
                     }
                     List<?> rowList = csvIterator.next();
-                    advanced = true;
+                    totalRowCount++;
                     String[] row = new String[rowList.size()];
                     for (int i = 0; i < rowList.size(); i++) {
                         Object val = rowList.get(i);
@@ -559,7 +588,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     sampleRows.add(row);
                     consecutiveFailures = 0;
                 } catch (RuntimeException e) {
-                    advanced = false;
+                    totalRowCount++;
+                    errorCount++;
+                    if (failFast) {
+                        // Single point of truth for FAIL_FAST: same exception type and hint as
+                        // the data-row path so users see consistent error messages whether
+                        // sampling or reading actually tripped the failure.
+                        throw failFastSamplingError(totalRowCount, e);
+                    }
                     consecutiveFailures++;
                     if (firstCause == null) {
                         firstCause = e;
@@ -570,18 +606,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (capturedErrors.size() < MAX_CAPTURED_SAMPLING_ERRORS) {
                         capturedErrors.add(CsvErrorMessages.summarize(e.getMessage()));
                     }
+                    if (policy.isBudgetExceeded(errorCount, totalRowCount)) {
+                        throw budgetExceededSamplingError(errorCount, totalRowCount, policy, capturedErrors, firstCause);
+                    }
                     if (consecutiveFailures >= MAX_CONSECUTIVE_SAMPLING_FAILURES) {
+                        // Jackson cannot resync; bail with whatever we have. If we have at least
+                        // one row this is a successful (partial) sample; otherwise the empty
+                        // check below converts it to a ParsingException.
                         break;
                     }
                 }
-                if (advanced == false) {
-                    // Defensive: if neither hasNext returned false nor next succeeded nor threw,
-                    // bail to avoid spinning. Should be unreachable in practice.
-                    break;
-                }
             }
             if (sampleRows.isEmpty() && capturedErrors != null) {
-                throw schemaSamplingFailure(capturedErrors, firstCause);
+                throw zeroRowsSamplingError(capturedErrors, firstCause);
             }
             success = true;
             return new SchemaSample(sampleRows, reservedBytes);
@@ -592,14 +629,48 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    /**
-     * Builds a {@link ParsingException} (HTTP 400) for the case where schema sampling could
-     * not collect a single well-formed row. Includes capped excerpts of the underlying parse
-     * errors so the user can locate and fix the offending input without the response carrying
-     * megabytes of stack trace.
-     */
-    private static ParsingException schemaSamplingFailure(List<String> capturedErrors, Throwable firstCause) {
+    private static ParsingException failFastSamplingError(long row, Throwable cause) {
+        Exception e = cause instanceof Exception ex ? ex : null;
+        return new ParsingException(
+            e,
+            Source.EMPTY,
+            "{}",
+            "CSV schema sampling failed at row ["
+                + row
+                + "]: "
+                + CsvErrorMessages.summarize(cause != null ? cause.getMessage() : "(no message)")
+                + "; set error_mode to skip_row (or null_field) in WITH options to skip and warn instead of failing"
+        );
+    }
+
+    private static ParsingException budgetExceededSamplingError(
+        long errorCount,
+        long rowCount,
+        ErrorPolicy policy,
+        List<String> capturedErrors,
+        Throwable firstCause
+    ) {
+        Exception cause = firstCause instanceof Exception ex ? ex : null;
+        StringBuilder details = new StringBuilder("CSV schema sampling exceeded error budget: [").append(errorCount)
+            .append("] errors in [")
+            .append(rowCount)
+            .append("] sampled rows, maximum allowed is [")
+            .append(policy.maxErrors())
+            .append("] errors or [")
+            .append(policy.maxErrorRatio())
+            .append("] ratio; first errors: ");
+        appendCapturedErrors(details, capturedErrors);
+        return new ParsingException(cause, Source.EMPTY, "{}", details.toString());
+    }
+
+    private static ParsingException zeroRowsSamplingError(List<String> capturedErrors, Throwable firstCause) {
+        Exception cause = firstCause instanceof Exception ex ? ex : null;
         StringBuilder details = new StringBuilder("CSV schema inference failed: no rows could be parsed; first errors: ");
+        appendCapturedErrors(details, capturedErrors);
+        return new ParsingException(cause, Source.EMPTY, "{}", details.toString());
+    }
+
+    private static void appendCapturedErrors(StringBuilder details, List<String> capturedErrors) {
         for (int i = 0; i < capturedErrors.size(); i++) {
             if (i > 0) {
                 details.append("; ");
@@ -609,8 +680,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 break;
             }
         }
-        Exception cause = firstCause instanceof Exception ex ? ex : null;
-        return new ParsingException(cause, Source.EMPTY, "{}", details.toString());
     }
 
     /**
@@ -659,7 +728,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             reader.readLine();
             effectiveSchema = resolvedSchema;
         }
-        ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
+        // Falls back to effectivePolicy (resolved from WITH options in withConfig) so a user
+        // request like WITH {"error_mode": "skip_row"} also applies to the data path when no
+        // upstream caller has built a FormatReadContext with an explicit policy. The planner
+        // path always sets context.errorPolicy() explicitly.
+        ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : effectivePolicy;
         return new CsvBatchIterator(
             reader,
             stream,
@@ -1008,7 +1081,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             // onRowError. Jackson typically resynchronizes at the next record
                             // boundary so we keep going. Errors (OOM etc.) propagate.
                             totalRowCount++;
-                            onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW);
+                            onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
                         }
                     }
                 }
@@ -1052,9 +1125,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 try {
                     String[] row = splitLineBracketAware(logicalLine.toString());
                     rows.add(row);
-                } catch (EsqlIllegalArgumentException e) {
+                } catch (MalformedRowException e) {
                     totalRowCount++;
-                    onRowError("CSV bracket parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW);
+                    onRowError(e.getMessage(), e, EMPTY_ROW, true);
                 }
             }
         }
@@ -1143,10 +1216,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             if (inQuotes) {
-                throw new EsqlIllegalArgumentException("Unclosed quoted field in line [{}]", line);
+                throw new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarize(line) + "]");
             }
             if (inBrackets) {
-                throw new EsqlIllegalArgumentException("Unclosed bracket cell in line [{}]", line);
+                throw new MalformedRowException("Unclosed bracket cell in line [" + CsvErrorMessages.summarize(line) + "]");
             }
             if (current.length() > 0) {
                 entries.add(current.toString().trim());
@@ -1157,7 +1230,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private List<Attribute> inferSchemaFromBatchReader(String headerLine) throws IOException {
             String[] columnNames = headerLine.split(Pattern.quote(Character.toString(options.delimiter())));
             csvIterator = newCsvIterator(reader);
-            SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, blockFactory.breaker());
+            SchemaSample sample = collectSampleRows(
+                csvIterator,
+                options.commentPrefix(),
+                schemaSampleSize,
+                blockFactory.breaker(),
+                errorPolicy
+            );
             if (sample.rows().isEmpty()) {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;
@@ -1169,7 +1248,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private List<Attribute> inferSchemaHeaderlessFromBatchReader() throws IOException {
             csvIterator = newCsvIterator(reader);
-            SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, blockFactory.breaker());
+            SchemaSample sample = collectSampleRows(
+                csvIterator,
+                options.commentPrefix(),
+                schemaSampleSize,
+                blockFactory.breaker(),
+                errorPolicy
+            );
             if (sample.rows().isEmpty()) {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;
@@ -1238,7 +1323,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (String[] row : rows) {
                     totalRowCount++;
                     if (row.length > schemaSize) {
-                        onRowError("CSV row has [" + row.length + "] columns but schema defines [" + schemaSize + "] columns", null, row);
+                        onRowError(
+                            "CSV row has [" + row.length + "] columns but schema defines [" + schemaSize + "] columns",
+                            null,
+                            row,
+                            true
+                        );
                         continue;
                     }
                     acceptedRows++;
@@ -1258,7 +1348,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (String[] row : rows) {
                     totalRowCount++;
                     if (row.length > schemaSize) {
-                        onRowError("CSV row has [" + row.length + "] columns but schema defines [" + schemaSize + "] columns", null, row);
+                        onRowError(
+                            "CSV row has [" + row.length + "] columns but schema defines [" + schemaSize + "] columns",
+                            null,
+                            row,
+                            true
+                        );
                         continue;
                     }
                     if (convertRowInPlace(row)) {
@@ -1298,7 +1393,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     } else {
                         String err = lastFieldError;
                         lastFieldError = null;
-                        onRowError(err, null, row);
+                        // Field-type error: skip_row drops the whole row when one field is bad;
+                        // null_field is usually the better escape hatch. structural=false so the
+                        // FAIL_FAST hint suggests null_field.
+                        onRowError(err, null, row, false);
                         return false;
                     }
                 } else {
@@ -1534,16 +1632,29 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
 
-        private void onRowError(String message, Exception cause, String[] row) {
+        /**
+         * Single point of truth for what happens to a row that failed structural parsing or
+         * row-shape validation.
+         *
+         * @param structural {@code true} for tokeniser errors (Jackson, bracket parser) and
+         *                   row-shape mismatches (column count) where {@code skip_row} is the
+         *                   natural escape hatch; {@code false} for field-type errors where
+         *                   {@code null_field} is the better suggestion. Only affects the hint
+         *                   appended to the FAIL_FAST {@link ParsingException}.
+         */
+        private void onRowError(String message, Exception cause, String[] row, boolean structural) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
-                // Malformed user data → client error (HTTP 400), not a 500. Include the row index
-                // and a capped excerpt so the user can locate and fix the offending input
-                // without the response carrying megabytes of context.
+                // Malformed user data → client error (HTTP 400), not a 500. Include the row index,
+                // a capped row excerpt, and a hint pointing at the relaxed error modes so the
+                // user knows there is a way out without grepping the docs.
+                String hint = structural
+                    ? "; set error_mode to skip_row (or null_field) in WITH options to skip and warn instead of failing"
+                    : "; set error_mode to null_field in WITH options to null-fill the bad field instead of failing";
                 throw new ParsingException(
                     cause,
                     Source.EMPTY,
                     "{}",
-                    "CSV parse error at row [" + totalRowCount + "]: " + message + "; row: " + CsvErrorMessages.summarizeRow(row)
+                    "CSV parse error at row [" + totalRowCount + "]: " + message + "; row: " + CsvErrorMessages.summarizeRow(row) + hint
                 );
             }
             errorCount++;

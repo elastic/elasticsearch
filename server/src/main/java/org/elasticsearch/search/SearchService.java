@@ -1823,11 +1823,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<T> listener,
         Function<T, FetchSearchResult> fetchResultExtractor
     ) {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(T response) {
+        return listener.delegateFailure((delegate, response) -> {
+            try {
                 try {
-                    listener.onResponse(response);
+                    delegate.onResponse(response);
                 } finally {
                     // Release bytes after the response handler completes, even if it throws.
                     // Exceptions are intentionally allowed to propagate so that wrapFailureListener
@@ -1837,13 +1836,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
                     }
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
+            } catch (Exception e) {
                 listener.onFailure(e);
             }
-        };
+        });
     }
 
     private <T> ActionListener<T> wrapFailureListener(ActionListener<T> listener, ReaderContext context, Releasable releasable) {

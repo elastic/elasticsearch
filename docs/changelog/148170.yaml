@@ -1,0 +1,5 @@
+area: Search
+issues: []
+PR: 148170
+summary: Stabilize testCleanUpMigratedSystemIndexAfterIndicesAreDeleted by ensuring cluster state consistency after system index migration
+type: bug

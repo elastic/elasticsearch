@@ -5,7 +5,7 @@ use std::sync::Arc;
 use super::ASYNC_RUNTIME;
 use super::filter::{self, FilterExpr};
 use super::jni_utils::extract_storage_config;
-use arrow::array::{Array, StructArray};
+use arrow::array::{Array, BooleanArray, StructArray};
 use arrow::ffi;
 use arrow::record_batch::RecordBatch;
 use bytes::{Buf, Bytes};
@@ -899,6 +899,74 @@ fn page_kind(p: &Page) -> &'static str {
     }
 }
 
+/// Converts a `BooleanArray` (predicate result) into `Vec<RowSelector>` for use with
+/// `RowSelection`. Null values are treated as `false` (row does not pass).
+/// Returns the selectors and whether any row passed (has a `true` in the mask).
+fn bool_array_to_selectors(mask: &BooleanArray) -> (Vec<RowSelector>, bool) {
+    let n = mask.len();
+    if n == 0 {
+        return (vec![], false);
+    }
+    let mut selectors: Vec<RowSelector> = Vec::new();
+    let mut run_start = 0usize;
+    let first = mask.is_valid(0) && mask.value(0);
+    let mut run_val = first;
+    let mut any_passing = first;
+    for i in 1..n {
+        let v = mask.is_valid(i) && mask.value(i);
+        any_passing |= v;
+        if v != run_val {
+            let count = i - run_start;
+            selectors.push(if run_val { RowSelector::select(count) } else { RowSelector::skip(count) });
+            run_start = i;
+            run_val = v;
+        }
+    }
+    let count = n - run_start;
+    selectors.push(if run_val { RowSelector::select(count) } else { RowSelector::skip(count) });
+    (selectors, any_passing)
+}
+
+/// Composes two `RowSelector` lists into one absolute selection.
+///
+/// `outer` covers all rows in a chunk (mix of skip/select, e.g. from column-index stats).
+/// `inner` covers only the rows *selected* by `outer` (phase-1 predicate results).
+/// The result selects rows that pass both: outer-skipped rows remain skipped, and within
+/// outer-selected rows the inner skip/select is applied.
+fn compose_row_selections(outer: Vec<RowSelector>, inner: Vec<RowSelector>) -> Vec<RowSelector> {
+    let mut result: Vec<RowSelector> = Vec::new();
+    let mut inner_iter = inner.into_iter();
+    let mut inner_rem: usize = 0;
+    let mut inner_skip: bool = false;
+
+    for outer_sel in outer {
+        if outer_sel.skip {
+            match result.last_mut() {
+                Some(last) if last.skip => last.row_count += outer_sel.row_count,
+                _ => result.push(RowSelector::skip(outer_sel.row_count)),
+            }
+        } else {
+            let mut rows_left = outer_sel.row_count;
+            while rows_left > 0 {
+                if inner_rem == 0 {
+                    match inner_iter.next() {
+                        Some(s) => { inner_rem = s.row_count; inner_skip = s.skip; }
+                        None => break,
+                    }
+                }
+                let take = rows_left.min(inner_rem);
+                match result.last_mut() {
+                    Some(last) if last.skip == inner_skip => last.row_count += take,
+                    _ => result.push(if inner_skip { RowSelector::skip(take) } else { RowSelector::select(take) }),
+                }
+                inner_rem -= take;
+                rows_left -= take;
+            }
+        }
+    }
+    result
+}
+
 /// Spawn worker tasks for a single file, sending decoded batches into `tx`.
 /// Returns the number of surviving row groups (0 means the file was fully pruned).
 ///
@@ -916,7 +984,6 @@ async fn spawn_file_workers<R: AsyncFileReader + Clone + Send + Unpin + 'static>
     pre_selected: Option<Vec<usize>>,
 ) -> Result<usize, JniError> {
     let metadata = arrow_meta.metadata().clone();
-    let arrow_schema = arrow_meta.schema().clone();
     let parquet_schema = arrow_meta.parquet_schema().clone();
 
     let candidates: Vec<usize> = pre_selected
@@ -962,132 +1029,399 @@ async fn spawn_file_workers<R: AsyncFileReader + Clone + Send + Unpin + 'static>
         .collect();
 
     for chunk in chunks {
-        // Check whether every row group in this chunk is guaranteed to have all rows pass
-        // the filter (e.g. NotEq(AdvEngineID, 0) when min(AdvEngineID) > 0). When true we
-        // skip the RowFilter and exclude filter-only columns from the projection so that no
-        // unnecessary column I/O is issued for the chunk.
+        // When every row group in the chunk is guaranteed to satisfy the filter from
+        // statistics alone, suppress the filter entirely so phase-1 is skipped.
         let chunk_trivially_passes = filter.as_ref().map_or(false, |expr| {
             chunk.iter().all(|&rg_idx| {
                 filter::row_group_trivially_passes(expr, metadata.row_group(rg_idx), &parquet_schema)
             })
         });
-        let effective_filter: &Option<Arc<FilterExpr>> = if chunk_trivially_passes { &None } else { filter };
+        let effective_filter: Option<Arc<FilterExpr>> = if chunk_trivially_passes {
+            if log::log_enabled!(log::Level::Debug) {
+                log::debug!(
+                    target: "esql_parquet_rs::reader",
+                    "chunk_rgs={:?} trivially_passes=true: skipping filter",
+                    chunk
+                );
+            }
+            None
+        } else {
+            filter.clone()
+        };
 
-        if log::log_enabled!(log::Level::Debug) && chunk_trivially_passes {
-            log::debug!(
-                target: "esql_parquet_rs::reader",
-                "chunk_rgs={:?} trivially_passes=true: skipping RowFilter",
-                chunk
-            );
-        }
-
-        // Projection mask is computed per chunk so trivially-passing chunks exclude filter-only columns.
-        let projection_mask = projection_root_indices(&parquet_schema, projected_cols, effective_filter)?
-            .map(|roots| ProjectionMask::roots(&parquet_schema, roots));
-
-        let mut builder =
-            parquet::arrow::async_reader::ParquetRecordBatchStreamBuilder::new_with_metadata(
-                obj_reader.clone(),
-                arrow_meta.clone(),
-            );
-
-        builder = builder.with_batch_size(batch_size as usize);
-        if limit > 0 {
-            builder = builder.with_limit(limit as usize);
-        }
-
-        builder = builder.with_row_groups(chunk.clone());
-
-        if let Some(expr) = effective_filter {
-            // Build a page-level RowSelection from column index statistics so parquet-rs
-            // skips page I/O for pages that cannot contain matching rows (offset index
-            // must be loaded, which it is via PageIndexPolicy::Required).
+        // Column-index page selection from statistics. Used in phase-1 to reduce the
+        // number of filter-column pages fetched; the phase-1 predicate result then
+        // supersedes this for phase-2 output column reads.
+        let (col_index_selectors, any_col_index_skip) = {
             let mut selectors: Vec<RowSelector> = Vec::new();
             let mut any_skip = false;
-            let mut total_rows_in_chunk = 0usize;
-            let mut total_rows_skipped = 0usize;
-            for &rg_idx in &chunk {
-                let rg_rows = metadata.row_group(rg_idx).num_rows() as usize;
-                total_rows_in_chunk += rg_rows;
-                if let Some(rg_sel) = filter::row_group_page_selection(
-                    expr, &metadata, &parquet_schema, rg_idx,
-                ) {
-                    any_skip = true;
-                    let rg_skipped: usize = rg_sel.iter()
-                        .filter(|s| s.skip)
-                        .map(|s| s.row_count)
-                        .sum();
-                    total_rows_skipped += rg_skipped;
-                    selectors.extend(rg_sel);
+            if let Some(ref expr) = effective_filter {
+                let mut total_rows_in_chunk = 0usize;
+                let mut total_rows_skipped = 0usize;
+                for &rg_idx in &chunk {
+                    let rg_rows = metadata.row_group(rg_idx).num_rows() as usize;
+                    total_rows_in_chunk += rg_rows;
+                    if let Some(rg_sel) = filter::row_group_page_selection(
+                        expr, &metadata, &parquet_schema, rg_idx,
+                    ) {
+                        any_skip = true;
+                        let rg_skipped: usize = rg_sel.iter()
+                            .filter(|s| s.skip)
+                            .map(|s| s.row_count)
+                            .sum();
+                        total_rows_skipped += rg_skipped;
+                        selectors.extend(rg_sel);
+                    } else {
+                        selectors.push(RowSelector::select(rg_rows));
+                    }
+                }
+                if any_skip {
+                    log::debug!(
+                        target: "esql_parquet_rs::reader",
+                        "chunk_rgs={:?} batch_size={} limit={} filter={} page_pruning: rows_skipped={}/{} ({:.1}%)",
+                        chunk, batch_size, limit, expr,
+                        total_rows_skipped, total_rows_in_chunk,
+                        if total_rows_in_chunk > 0 {
+                            100.0 * total_rows_skipped as f64 / total_rows_in_chunk as f64
+                        } else { 0.0 }
+                    );
                 } else {
-                    selectors.push(RowSelector::select(rg_rows));
+                    log::debug!(
+                        target: "esql_parquet_rs::reader",
+                        "chunk_rgs={:?} batch_size={} limit={} filter={} page_pruning: no skips (rows={})",
+                        chunk, batch_size, limit, expr, total_rows_in_chunk
+                    );
                 }
             }
-            if any_skip {
-                log::debug!(
-                    target: "esql_parquet_rs::reader",
-                    "chunk_rgs={:?} batch_size={} limit={} filter={} page_pruning: rows_skipped={}/{} ({:.1}%)",
-                    chunk, batch_size, limit, expr,
-                    total_rows_skipped, total_rows_in_chunk,
-                    if total_rows_in_chunk > 0 {
-                        100.0 * total_rows_skipped as f64 / total_rows_in_chunk as f64
-                    } else { 0.0 }
-                );
-                builder = builder.with_row_selection(RowSelection::from(selectors));
-            } else {
-                log::debug!(
-                    target: "esql_parquet_rs::reader",
-                    "chunk_rgs={:?} batch_size={} limit={} filter={} page_pruning: no skips (rows={})",
-                    chunk, batch_size, limit, expr, total_rows_in_chunk
-                );
+            (selectors, any_skip)
+        };
+
+        // Decide whether to use two-phase reads or a single-pass with inline filtering.
+        //
+        // Two-phase is worthwhile when there are filter-only columns — columns referenced
+        // by the predicate that are NOT needed in the output. Phase-1 reads those cheap
+        // columns, builds an exact RowSelection, and phase-2 then skips output-column
+        // pages whose rows were all filtered out. Classic example: CounterID (INT32,
+        // tiny) filters rows so only a small fraction of URL/Title/Referer pages are read.
+        //
+        // When ALL filter columns are also output columns (e.g. WHERE URL != ""), reading
+        // them in a separate phase would double the I/O for those large columns. Use
+        // single-pass + inline row filtering instead.
+        let has_filter_only_cols: bool = match (&effective_filter, projected_cols) {
+            (None, _) | (_, None) => false,
+            (Some(expr), Some(output_cols)) => {
+                if output_cols.is_empty() {
+                    // COUNT(*): no output columns at all — every filter column is filter-only.
+                    !filter::collect_columns(expr).is_empty()
+                } else {
+                    let fc = filter::collect_columns(expr);
+                    let out_set: std::collections::HashSet<&str> =
+                        output_cols.iter().map(|s| s.as_str()).collect();
+                    fc.iter().any(|c| !out_set.contains(c.as_str()))
+                }
             }
+        };
 
-            let row_filter = filter::build_row_filter(expr, arrow_schema.clone(), &parquet_schema);
-            builder = builder.with_row_filter(row_filter);
-        }
+        // Phase-1 mask: filter columns only (only relevant for two-phase path).
+        let filter_mask: Option<ProjectionMask> = if has_filter_only_cols {
+            match &effective_filter {
+                None => None,
+                Some(expr) => {
+                    projection_root_indices(&parquet_schema, &Some(vec![]), &Some(expr.clone()))?
+                        .map(|roots| ProjectionMask::roots(&parquet_schema, roots))
+                }
+            }
+        } else {
+            None
+        };
 
-        if let Some(ref mask) = projection_mask {
-            builder = builder.with_projection(mask.clone());
-        }
+        // Output / single-pass projection mask.
+        // COUNT(*) with a filter uses two-phase: phase-2 must return row counts without
+        // fetching column data. An empty roots mask achieves this (0-field schema batches).
+        let output_mask: Option<ProjectionMask> = match projected_cols {
+            None => None,
+            Some(cols) if cols.is_empty() => {
+                Some(ProjectionMask::roots(&parquet_schema, vec![]))
+            }
+            Some(_) => projection_root_indices(&parquet_schema, projected_cols, &None)?
+                .map(|roots| ProjectionMask::roots(&parquet_schema, roots)),
+        };
 
-        let mut stream = builder.build().map_err(err)?;
+        let obj_reader = obj_reader.clone();
+        let arrow_meta = arrow_meta.clone();
         let tx = tx.clone();
+
         tokio::spawn(async move {
             let result = std::panic::AssertUnwindSafe(async {
-                loop {
-                    // Wrap each row-group fetch in a stall timeout. Unlike the
-                    // setup timeout, this covers the *streaming* phase: a hung S3
-                    // connection or a deadlocked decode would otherwise block
-                    // `nextBatch` forever with no error surfaced to Java.
-                    //
-                    // `next_row_group()` returns `Result<Option<...>, ParquetError>`:
-                    //   Ok(None)    → clean end of stream
-                    //   Ok(Some(r)) → row group ready to iterate
-                    //   Err(e)      → I/O or decode error; forward to consumer
-                    // `tokio::time::timeout` wraps that as `Result<Result<Option<...>>, Elapsed>`.
-                    let rg_result = match tokio::time::timeout(
-                        WORKER_STALL_TIMEOUT,
-                        stream.next_row_group(),
-                    ).await {
-                        Ok(inner) => inner,
-                        Err(_elapsed) => {
-                            let msg = format!(
-                                "parquet worker stalled: no row-group progress for {}s",
-                                WORKER_STALL_TIMEOUT.as_secs()
-                            );
-                            log::error!(target: "esql_parquet_rs::reader", "{}", msg);
-                            let _ = tx.send(Err(ParquetError::General(msg))).await;
-                            break;
+                if has_filter_only_cols {
+                    let expr = effective_filter.as_ref().unwrap();
+                    let fmask = filter_mask.unwrap();
+
+                    // ── PHASE 1: read filter-only columns, evaluate predicate ─────────────
+                    let mut p1_builder =
+                        parquet::arrow::async_reader::ParquetRecordBatchStreamBuilder::new_with_metadata(
+                            obj_reader.clone(),
+                            arrow_meta.clone(),
+                        )
+                        .with_batch_size(batch_size as usize)
+                        .with_row_groups(chunk.clone())
+                        .with_projection(fmask);
+                    if any_col_index_skip {
+                        p1_builder = p1_builder
+                            .with_row_selection(RowSelection::from(col_index_selectors.clone()));
+                    }
+                    let mut p1_stream = match p1_builder.build() {
+                        Ok(s) => s,
+                        Err(e) => { let _ = tx.send(Err(e)).await; return; }
+                    };
+
+                    let mut p1_selectors: Vec<RowSelector> = Vec::new();
+                    let mut any_passing = false;
+                    loop {
+                        let rg = match tokio::time::timeout(
+                            WORKER_STALL_TIMEOUT,
+                            p1_stream.next_row_group(),
+                        )
+                        .await
+                        {
+                            Ok(r) => r,
+                            Err(_) => {
+                                let msg = format!(
+                                    "parquet worker stalled in phase-1 after {}s",
+                                    WORKER_STALL_TIMEOUT.as_secs()
+                                );
+                                log::error!(target: "esql_parquet_rs::reader", "{}", msg);
+                                let _ = tx.send(Err(ParquetError::General(msg))).await;
+                                return;
+                            }
+                        };
+                        let rg_reader = match rg {
+                            Ok(None) => break,
+                            Ok(Some(r)) => r,
+                            Err(e) => {
+                                let _ = tx.send(Err(e)).await;
+                                return;
+                            }
+                        };
+                        for batch_result in rg_reader {
+                            let batch = match batch_result {
+                                Ok(b) => b,
+                                Err(e) => { let _ = tx.send(Err(ParquetError::from(e))).await; return; }
+                            };
+                            let mask = match filter::evaluate_filter(expr, &batch) {
+                                Ok(m) => m,
+                                Err(e) => {
+                                    let _ = tx.send(Err(ParquetError::General(e.to_string()))).await;
+                                    return;
+                                }
+                            };
+                            let (sels, has_pass) = bool_array_to_selectors(&mask);
+                            p1_selectors.extend(sels);
+                            any_passing |= has_pass;
                         }
+                    }
+
+                    if !any_passing {
+                        log::debug!(
+                            target: "esql_parquet_rs::reader",
+                            "chunk_rgs={:?} filter={} phase-1: 0 passing rows",
+                            chunk, expr
+                        );
+                        return;
+                    }
+
+                    // Compose col-index selection (absolute positions) with phase-1 results
+                    // (relative to col-index-selected rows) to get the exact row selection
+                    // for phase-2. When no col-index skipping occurred, p1_selectors already
+                    // covers all rows in absolute terms.
+                    let final_selectors = if any_col_index_skip {
+                        compose_row_selections(col_index_selectors, p1_selectors)
+                    } else {
+                        p1_selectors
                     };
-                    let reader = match rg_result {
-                        Ok(None) => break,        // clean end of stream
-                        Ok(Some(r)) => r,
-                        Err(e) => { let _ = tx.send(Err(e)).await; break; }
+                    let final_selection = RowSelection::from(final_selectors);
+
+                    log::debug!(
+                        target: "esql_parquet_rs::reader",
+                        "chunk_rgs={:?} filter={} phase-1 done, starting phase-2 with row selection",
+                        chunk, expr
+                    );
+
+                    // ── PHASE 2: read output columns using phase-1 row selection ──────────
+                    // Pages of output columns where all rows were filtered out are skipped
+                    // by parquet-rs before any S3 fetch is issued for those pages.
+                    let mut p2_builder =
+                        parquet::arrow::async_reader::ParquetRecordBatchStreamBuilder::new_with_metadata(
+                            obj_reader,
+                            arrow_meta,
+                        )
+                        .with_batch_size(batch_size as usize)
+                        .with_row_groups(chunk.clone())
+                        .with_row_selection(final_selection);
+                    if limit > 0 {
+                        p2_builder = p2_builder.with_limit(limit as usize);
+                    }
+                    if let Some(ref mask) = output_mask {
+                        p2_builder = p2_builder.with_projection(mask.clone());
+                    }
+                    let mut p2_stream = match p2_builder.build() {
+                        Ok(s) => s,
+                        Err(e) => { let _ = tx.send(Err(e)).await; return; }
                     };
-                    for batch in reader {
-                        if tx.send(batch.map_err(|e| ParquetError::from(e))).await.is_err() {
-                            return;
+
+                    loop {
+                        let rg_result = match tokio::time::timeout(
+                            WORKER_STALL_TIMEOUT,
+                            p2_stream.next_row_group(),
+                        )
+                        .await
+                        {
+                            Ok(inner) => inner,
+                            Err(_elapsed) => {
+                                let msg = format!(
+                                    "parquet worker stalled: no row-group progress for {}s",
+                                    WORKER_STALL_TIMEOUT.as_secs()
+                                );
+                                log::error!(target: "esql_parquet_rs::reader", "{}", msg);
+                                let _ = tx.send(Err(ParquetError::General(msg))).await;
+                                return;
+                            }
+                        };
+                        let reader = match rg_result {
+                            Ok(None) => break,
+                            Ok(Some(r)) => r,
+                            Err(e) => { let _ = tx.send(Err(e)).await; return; }
+                        };
+                        for batch in reader {
+                            if tx.send(batch.map_err(|e| ParquetError::from(e))).await.is_err() {
+                                return;
+                            }
+                        }
+                    }
+                } else if let Some(ref expr) = effective_filter {
+                    // ── SINGLE-PASS WITH INLINE FILTERING ────────────────────────────────
+                    // All filter columns are also output columns (e.g. WHERE URL != "").
+                    // Reading them separately in phase-1 would double the I/O for those
+                    // large columns. Read output cols once and filter rows inline instead.
+                    let mut builder =
+                        parquet::arrow::async_reader::ParquetRecordBatchStreamBuilder::new_with_metadata(
+                            obj_reader,
+                            arrow_meta,
+                        )
+                        .with_batch_size(batch_size as usize);
+                    if limit > 0 {
+                        builder = builder.with_limit(limit as usize);
+                    }
+                    builder = builder.with_row_groups(chunk.clone());
+                    if any_col_index_skip {
+                        builder = builder.with_row_selection(RowSelection::from(col_index_selectors));
+                    }
+                    if let Some(ref mask) = output_mask {
+                        builder = builder.with_projection(mask.clone());
+                    }
+                    let mut stream = match builder.build() {
+                        Ok(s) => s,
+                        Err(e) => { let _ = tx.send(Err(e)).await; return; }
+                    };
+
+                    loop {
+                        let rg_result = match tokio::time::timeout(
+                            WORKER_STALL_TIMEOUT,
+                            stream.next_row_group(),
+                        )
+                        .await
+                        {
+                            Ok(inner) => inner,
+                            Err(_elapsed) => {
+                                let msg = format!(
+                                    "parquet worker stalled: no row-group progress for {}s",
+                                    WORKER_STALL_TIMEOUT.as_secs()
+                                );
+                                log::error!(target: "esql_parquet_rs::reader", "{}", msg);
+                                let _ = tx.send(Err(ParquetError::General(msg))).await;
+                                return;
+                            }
+                        };
+                        let reader = match rg_result {
+                            Ok(None) => break,
+                            Ok(Some(r)) => r,
+                            Err(e) => { let _ = tx.send(Err(e)).await; return; }
+                        };
+                        for batch_result in reader {
+                            let batch = match batch_result {
+                                Ok(b) => b,
+                                Err(e) => { let _ = tx.send(Err(ParquetError::from(e))).await; return; }
+                            };
+                            let row_mask = match filter::evaluate_filter(expr, &batch) {
+                                Ok(m) => m,
+                                Err(e) => {
+                                    let _ = tx.send(Err(ParquetError::General(e.to_string()))).await;
+                                    return;
+                                }
+                            };
+                            let filtered =
+                                match arrow::compute::filter_record_batch(&batch, &row_mask) {
+                                    Ok(b) => b,
+                                    Err(e) => {
+                                        let _ = tx
+                                            .send(Err(ParquetError::General(e.to_string())))
+                                            .await;
+                                        return;
+                                    }
+                                };
+                            if filtered.num_rows() > 0 && tx.send(Ok(filtered)).await.is_err() {
+                                return;
+                            }
+                        }
+                    }
+
+                } else {
+                    // ── SINGLE PASS: no filter, or filter trivially satisfied ─────────────
+                    let mut builder =
+                        parquet::arrow::async_reader::ParquetRecordBatchStreamBuilder::new_with_metadata(
+                            obj_reader,
+                            arrow_meta,
+                        )
+                        .with_batch_size(batch_size as usize);
+                    if limit > 0 {
+                        builder = builder.with_limit(limit as usize);
+                    }
+                    builder = builder.with_row_groups(chunk.clone());
+                    if let Some(ref mask) = output_mask {
+                        builder = builder.with_projection(mask.clone());
+                    }
+                    let mut stream = match builder.build() {
+                        Ok(s) => s,
+                        Err(e) => { let _ = tx.send(Err(e)).await; return; }
+                    };
+
+                    loop {
+                        let rg_result = match tokio::time::timeout(
+                            WORKER_STALL_TIMEOUT,
+                            stream.next_row_group(),
+                        )
+                        .await
+                        {
+                            Ok(inner) => inner,
+                            Err(_elapsed) => {
+                                let msg = format!(
+                                    "parquet worker stalled: no row-group progress for {}s",
+                                    WORKER_STALL_TIMEOUT.as_secs()
+                                );
+                                log::error!(target: "esql_parquet_rs::reader", "{}", msg);
+                                let _ = tx.send(Err(ParquetError::General(msg))).await;
+                                return;
+                            }
+                        };
+                        let reader = match rg_result {
+                            Ok(None) => break,
+                            Ok(Some(r)) => r,
+                            Err(e) => { let _ = tx.send(Err(e)).await; return; }
+                        };
+                        for batch in reader {
+                            if tx.send(batch.map_err(|e| ParquetError::from(e))).await.is_err() {
+                                return;
+                            }
                         }
                     }
                 }

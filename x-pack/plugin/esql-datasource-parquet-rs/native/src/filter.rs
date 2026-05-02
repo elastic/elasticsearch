@@ -6,14 +6,13 @@ use arrow::array::{
     TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
 };
 use arrow::compute::kernels::cmp;
-use arrow::datatypes::{DataType, SchemaRef};
+use arrow::datatypes::DataType;
 use arrow::record_batch::RecordBatch;
 use jni::EnvUnowned;
 use jni::errors::{Result as JniResult, ThrowRuntimeExAndDefault};
 use jni::objects::{JClass, JLongArray, JString};
 use jni::sys::jlong;
-use parquet::arrow::arrow_reader::{ArrowPredicateFn, RowFilter, RowSelection, RowSelector};
-use parquet::arrow::ProjectionMask;
+use parquet::arrow::arrow_reader::{RowSelection, RowSelector};
 use parquet::file::metadata::{ParquetMetaData, RowGroupMetaData};
 use parquet::file::page_index::column_index::ColumnIndexMetaData;
 use parquet::schema::types::SchemaDescriptor;
@@ -885,29 +884,7 @@ fn collect_columns_inner(expr: &FilterExpr, cols: &mut Vec<String>) {
     }
 }
 
-/// Builds a `RowFilter` from a `FilterExpr` for use with `ParquetRecordBatchReaderBuilder`.
-pub fn build_row_filter(
-    expr: &FilterExpr,
-    _schema: SchemaRef,
-    parquet_schema: &SchemaDescriptor,
-) -> RowFilter {
-    let cols = collect_columns(expr);
-    let col_indices: Vec<usize> = cols.iter()
-        .filter_map(|name| {
-            (0..parquet_schema.num_columns())
-                .find(|&i| parquet_schema.column(i).name().eq_ignore_ascii_case(name))
-        })
-        .collect();
-
-    let projection = ProjectionMask::leaves(parquet_schema, col_indices);
-    let expr_clone = expr.clone();
-    let pred = ArrowPredicateFn::new(projection, move |batch: RecordBatch| {
-        evaluate_filter(&expr_clone, &batch)
-    });
-    RowFilter::new(vec![Box::new(pred)])
-}
-
-fn evaluate_filter(expr: &FilterExpr, batch: &RecordBatch) -> arrow::error::Result<BooleanArray> {
+pub fn evaluate_filter(expr: &FilterExpr, batch: &RecordBatch) -> arrow::error::Result<BooleanArray> {
     let num_rows = batch.num_rows();
     match expr {
         FilterExpr::Eq(left, right) => eval_comparison(left, right, batch, cmp::eq),

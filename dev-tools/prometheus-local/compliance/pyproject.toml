@@ -1,20 +1,33 @@
+#  Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+#  or more contributor license agreements. Licensed under the "Elastic License
+#  2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+#  Public License v 1"; you may not use this file except in compliance with, at
+#  your election, the "Elastic License 2.0", the "GNU Affero General Public
+#  License v3.0 only", or the "Server Side Public License, v 1".
+
 [project]
 name = "promcheck"
 version = "0.1.0"
 description = "Compare PromQL query results between Prometheus and Elasticsearch"
 requires-python = ">=3.14"
 dependencies = [
-    "click>=8.1",
-    "python-snappy",
-    "requests",
+    "click>=8.3",
+    "httpx>=0.28",
+    "python-snappy>=0.7",
 ]
 
 [project.scripts]
-promcheck = "promcheck:main"
+promcheck = "main:main"
+
+[dependency-groups]
+dev = ["pytest>=9"]
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=82"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["promcheck", "util", "corpus", "runner"]
+py-modules = ["main", "util", "corpus", "comparator", "tsgen", "config", "proc", "state"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

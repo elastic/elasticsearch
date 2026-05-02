@@ -1,19 +1,29 @@
-"""Domain types, constants, and output helpers shared by the rest of the
-package."""
+#  Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+#  or more contributor license agreements. Licensed under the "Elastic License
+#  2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+#  Public License v 1"; you may not use this file except in compliance with, at
+#  your election, the "Elastic License 2.0", the "GNU Affero General Public
+#  License v3.0 only", or the "Server Side Public License, v 1".
 
 from __future__ import annotations
 
-import os
+import asyncio
+import math
 import re
 import sys
-import threading
 import time
-from collections.abc import Iterator
-from contextlib import contextmanager
-from dataclasses import dataclass, field
-from pathlib import Path
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any
 
 import click
+import httpx
+
+if TYPE_CHECKING:
+    from comparator import CompareResult
+    from corpus import CorpusStats
 
 
 # ---------------------------------------------------------------------------
@@ -24,23 +34,17 @@ JOB_LABEL = "promcheck"
 INSTANCE_LABEL = "test:9999"
 COMMON_LABELS = {"job": JOB_LABEL, "instance": INSTANCE_LABEL}
 
-SAMPLE_INTERVAL_SECONDS = 15
+SEED_WINDOW_SECONDS = 30 * 60  # total time span of seeded data (30 minutes)
+MIN_SAMPLES_PER_SERIES = 4  # window/granularity must yield at least this many
 
-DEFAULT_HTTP_TIMEOUT = 30
-DEFAULT_HTTP_RETRIES = 3
 DEFAULT_FAILURE_CAP = 5
 DEFAULT_SEED = 42
-DEFAULT_SAMPLES = 120
 
 EXIT_OK = 0
 EXIT_DIFFS = 1
 EXIT_ERROR = 2
 
 COUNTER_SUFFIXES = ("_total", "_count", "_sum", "_seconds")
-
-UNKNOWN_VAR_PLACEHOLDER = "__compare_promql_unknown__"
-
-UNSUPPORTED_FUNCTIONS = frozenset({"histogram_quantile"})
 
 GRAFANA_VAR_SUBS: dict[str, str] = {
     "$__rate_interval": "5m",
@@ -169,7 +173,6 @@ PROMQL_KEYWORDS = frozenset(
 )
 
 METRIC_NAME_RE = re.compile(r"\b([a-zA-Z_:][a-zA-Z0-9_:]*)\b")
-UNSUBSTITUTED_VAR_RE = re.compile(r"\$\w+")
 
 STATUS_FG: dict[str, str | None] = {
     "OK": "green",
@@ -210,18 +213,18 @@ def section(title: str, suffix: str = "") -> None:
     click.echo(click.style(f"=== {title} ===", bold=True) + suffix_text)
 
 
-@contextmanager
-def spinner(message: str) -> Iterator[None]:
+@asynccontextmanager
+async def spinner(message: str) -> AsyncIterator[None]:
     if not sys.stdout.isatty():
         echo(f"  ... {message}")
         yield
         return
 
-    stop = threading.Event()
     chars = "|/-\\"
     started = time.monotonic()
+    stop = asyncio.Event()
 
-    def animate() -> None:
+    async def animate() -> None:
         i = 0
         while not stop.is_set():
             elapsed = time.monotonic() - started
@@ -231,16 +234,18 @@ def spinner(message: str) -> Iterator[None]:
             )
             sys.stdout.flush()
             i += 1
-            stop.wait(0.08)
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=0.08)
+            except TimeoutError:
+                pass
 
-    thread = threading.Thread(target=animate, daemon=True)
-    thread.start()
+    task = asyncio.create_task(animate())
 
     try:
         yield
     finally:
         stop.set()
-        thread.join()
+        await task
         sys.stdout.write("\r" + " " * (len(message) + 14) + "\r")
         sys.stdout.flush()
 
@@ -251,72 +256,10 @@ def spinner(message: str) -> Iterator[None]:
 
 
 @dataclass(frozen=True)
-class AppConfig:
-    prometheus_url: str
-    es_url: str
-    script_dir: Path
-    compose_dir: Path
-    es_root: Path
-    es_pid_file: Path
-    http_timeout: int = DEFAULT_HTTP_TIMEOUT
-    http_retries: int = DEFAULT_HTTP_RETRIES
-
-    @classmethod
-    def from_environment(cls) -> AppConfig:
-        # `compliance/` lives at <repo>/dev-tools/prometheus-local/compliance.
-        # docker-compose.yml lives one level up; es repo root is three up.
-        script_dir = Path(__file__).resolve().parent
-        compose_dir = script_dir.parent
-        es_root = script_dir.parent.parent.parent
-        return cls(
-            prometheus_url=os.environ.get(
-                "COMPARE_PROMQL_PROMETHEUS_URL",
-                "http://prometheus.localhost",
-            ),
-            es_url=os.environ.get("COMPARE_PROMQL_ES_URL", "http://localhost:9200"),
-            script_dir=script_dir,
-            compose_dir=compose_dir,
-            es_root=es_root,
-            es_pid_file=script_dir / ".es.pid",
-        )
-
-
-@dataclass(frozen=True)
-class QueryCase:
-    name: str
-    expr: str
-    range_seconds: int
-    step_seconds: int
-    notes: str = ""
-
-
-@dataclass(frozen=True)
-class CorpusStats:
-    loaded: int = 0
-    blank: int = 0
-    unsupported: int = 0
-    unsubstitutable: int = 0
-    duplicate: int = 0
-
-    @property
-    def skipped(self) -> int:
-        return self.unsupported + self.unsubstitutable + self.duplicate
-
-    def increment(self, field_name: str) -> CorpusStats:
-        return CorpusStats(
-            loaded=self.loaded + (field_name == "loaded"),
-            blank=self.blank + (field_name == "blank"),
-            unsupported=self.unsupported + (field_name == "unsupported"),
-            unsubstitutable=self.unsubstitutable + (field_name == "unsubstitutable"),
-            duplicate=self.duplicate + (field_name == "duplicate"),
-        )
-
-
-@dataclass(frozen=True)
 class PointDiff:
     timestamp: float
-    prom: float
-    es: float
+    control: float
+    test: float
     abs_diff: float
 
 
@@ -325,31 +268,372 @@ class SeriesIssue:
     description: str
 
 
-@dataclass
-class QueryComparison:
-    case: QueryCase
-    start_sec: float
-    end_sec: float
-    ok: bool = False
-    series_count: int = 0
-    point_count: int = 0
-    failure_count: int = 0
-    max_abs_diff: float = 0.0
-    series_issues: list[SeriesIssue] = field(default_factory=list)
-    failures: list[PointDiff] = field(default_factory=list)
-    prom_latency_ms: float = 0.0
-    es_latency_ms: float = 0.0
-    error: str | None = None
-    skipped: bool = False
-
-    @property
-    def status(self) -> str:
-        if self.skipped:
-            return "SKIP"
-        if self.error is not None:
-            return "ERROR"
-        return "OK" if self.ok else "FAIL"
-
-
 class HttpError(RuntimeError):
     pass
+
+
+# ---------------------------------------------------------------------------
+# Variable substitution
+# ---------------------------------------------------------------------------
+
+
+def substitute(query: str, kv: dict[str, str]) -> tuple[bool, str]:
+    """Substitute `$var` and `${var}` references in `query` using `kv`.
+
+    Returns `(ok, result)`. `ok` is False whenever at least one unknown
+    variable appears - either inside a string literal (where we leave a
+    `__unknown__` placeholder so the rest of the query still parses) or
+    outside one (where we leave the raw `$var` text in place since there's
+    no valid PromQL placeholder for it). The loader uses `ok=False` to
+    drop the query entirely - no PromQL engine accepts a bare `$`.
+    """
+    out: list[str] = []
+    i = 0
+    quote: str | None = None
+    all_known = True
+
+    while i < len(query):
+        ch = query[i]
+
+        if ch in ("'", '"'):
+            if quote is None:
+                quote = ch
+            elif quote == ch:
+                quote = None
+            out.append(ch)
+            i += 1
+            continue
+
+        if ch != "$":
+            out.append(ch)
+            i += 1
+            continue
+
+        if i + 1 < len(query) and query[i + 1] == "{":
+            end = i + 2
+            while end < len(query) and (query[end].isalnum() or query[end] == "_"):
+                end += 1
+
+            if end == i + 2:
+                out.append(ch)
+                i += 1
+                continue
+
+            has_closing_brace = end < len(query) and query[end] == "}"
+            raw = "$" + query[i + 2 : end]
+            original = query[i : end + 1] if has_closing_brace else query[i:end]
+            i = end + 1 if has_closing_brace else end
+        else:
+            end = i + 1
+            while end < len(query) and (query[end].isalnum() or query[end] == "_"):
+                end += 1
+
+            if end == i + 1:
+                out.append(ch)
+                i += 1
+                continue
+
+            raw = query[i:end]
+            original = raw
+            i = end
+
+        value = kv.get(raw)
+        if value is not None:
+            out.append(value)
+        elif quote is not None:
+            all_known = False
+            out.append("__unknown__")
+        else:
+            all_known = False
+            out.append(original)
+
+    return all_known, "".join(out)
+
+
+# ---------------------------------------------------------------------------
+# Reporting
+# ---------------------------------------------------------------------------
+
+
+def format_ts(timestamp: float) -> str:
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%S"
+    )
+
+
+def shorten(text: str, limit: int = 100) -> str:
+    text = text.replace("\n", " ")
+    return text if len(text) <= limit else text[: limit - 1] + "..."
+
+
+def status_label(status: str) -> str:
+    return click.style(
+        f"{status:<5}",
+        fg=STATUS_FG.get(status),
+        bold=status in STATUS_BOLD,
+        dim=status in STATUS_DIM,
+    )
+
+
+def print_one_line(comparison: CompareResult) -> None:
+    status = status_label(comparison.status)
+    name = click.style(f"{comparison.case.name:<22}", bold=True)
+    expr = click.style(shorten(comparison.case.expr, 90), dim=True)
+
+    suffix = ""
+
+    if comparison.skipped and comparison.error:
+        suffix = " " + click.style(shorten(comparison.error, 60), dim=True)
+    elif comparison.error:
+        suffix = " " + click.style(shorten(comparison.error, 60), fg="red")
+    elif comparison.failure_count:
+        diff = (
+            "inf"
+            if math.isinf(comparison.max_abs_diff)
+            else f"{comparison.max_abs_diff:.3g}"
+        )
+        suffix = " " + click.style(
+            f"max_abs={diff} ({comparison.failure_count} pts)",
+            fg="red",
+        )
+    elif comparison.series_issues:
+        suffix = " " + click.style(
+            f"{len(comparison.series_issues)} series issue(s)",
+            fg="yellow",
+        )
+
+    click.echo(f"  {status} {name} {expr}{suffix}")
+
+
+def print_query_detail(comparison: CompareResult) -> None:
+    case = comparison.case
+
+    click.echo()
+    click.echo(f"  {click.style(case.name, bold=True)}")
+    click.echo(f"    {click.style('expr   :', dim=True)} {case.expr}")
+    click.echo(
+        f"    {click.style('window :', dim=True)} "
+        f"[{format_ts(comparison.start_sec)} .. "
+        f"{format_ts(comparison.end_sec)}]  "
+        f"step={case.step_seconds}s"
+    )
+
+    if case.notes:
+        click.echo(f"    {click.style('notes  :', dim=True)} {case.notes}")
+
+    if comparison.error:
+        click.echo(
+            f"    {click.style('ERROR', fg='red', bold=True)}: {comparison.error}"
+        )
+        return
+
+    click.echo(
+        f"    {click.style('stats  :', dim=True)} "
+        f"series={comparison.series_count} "
+        f"points={comparison.point_count} "
+        f"control={comparison.control_latency_ms:.0f}ms "
+        f"test={comparison.test_latency_ms:.0f}ms"
+    )
+
+    for issue in comparison.series_issues[:5]:
+        click.echo(f"    {click.style('issue  :', fg='yellow')} {issue.description}")
+
+    if len(comparison.series_issues) > 5:
+        click.echo(
+            f"    {click.style('issue  :', fg='yellow')} "
+            f"... ({len(comparison.series_issues) - 5} more)"
+        )
+
+    if comparison.failure_count:
+        diff = (
+            "inf"
+            if math.isinf(comparison.max_abs_diff)
+            else f"{comparison.max_abs_diff:.4g}"
+        )
+        click.echo(
+            f"    {click.style('diffs  :', fg='red')} "
+            f"max_abs={diff} "
+            f"({comparison.failure_count} of {comparison.point_count} pts)"
+        )
+
+        for failure in comparison.failures:
+            click.echo(
+                f"      {format_ts(failure.timestamp)}  "
+                f"control={failure.control:.8g}  "
+                f"test={failure.test:.8g}  "
+                f"abs={failure.abs_diff:.3e}"
+            )
+
+
+def print_summary(results: Sequence[CompareResult]) -> None:
+    counts: dict[str, int] = {}
+
+    for result in results:
+        counts[result.status] = counts.get(result.status, 0) + 1
+
+    section("Summary")
+
+    notes = {
+        "OK": "matched exactly",
+        "FAIL": "differ",
+        "ERROR": "query errored on one engine",
+        "SKIP": "error matched --filter-err",
+    }
+
+    for status in ("OK", "FAIL", "ERROR", "SKIP"):
+        count = counts.get(status, 0)
+        if not count:
+            continue
+
+        click.echo(
+            f"  {status_label(status)} {count:>4}  "
+            f"{click.style(notes[status], dim=True)}"
+        )
+
+    click.echo(f"  {click.style('TOTAL', bold=True):<5} {len(results):>4}")
+
+    bad = [result for result in results if not result.ok and not result.skipped]
+    if not bad:
+        return
+
+    click.echo()
+    click.echo(click.style("Differences:", bold=True))
+
+    for result in bad:
+        if result.error:
+            detail = click.style(shorten(result.error, 70), fg="red")
+        else:
+            diff = (
+                "inf"
+                if math.isinf(result.max_abs_diff)
+                else f"{result.max_abs_diff:.3g}"
+            )
+            detail = click.style(f"max_abs={diff}", fg="red")
+
+        click.echo(
+            f"  {status_label(result.status)} "
+            f"{click.style(f'{result.case.name:<22}', bold=True)} {detail}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# HTTP
+# ---------------------------------------------------------------------------
+
+
+class HttpClient:
+    def __init__(
+        self,
+        *,
+        timeout: int,
+        retries: int,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self.timeout = timeout
+        self.retries = retries
+        self.client = client or httpx.AsyncClient(timeout=timeout)
+
+    async def aclose(self) -> None:
+        await self.client.aclose()
+
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        retries: int | None = None,
+        backoff: float = 0.5,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        attempts = retries if retries is not None else self.retries
+        last_error: BaseException | None = None
+
+        for attempt in range(attempts):
+            try:
+                response = await self.client.request(method, url, **kwargs)
+            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+                last_error = exc
+            else:
+                if response.status_code < 500:
+                    return response
+                last_error = HttpError(
+                    f"HTTP {response.status_code} from {url}: {response.text[:200]}"
+                )
+
+            await asyncio.sleep(backoff * (2**attempt))
+
+        raise HttpError(
+            f"HTTP {method} {url} failed after {attempts} attempts: {last_error}"
+        )
+
+    async def get(self, url: str, **kwargs: Any) -> httpx.Response:
+        return await self.request("GET", url, **kwargs)
+
+    async def post(self, url: str, **kwargs: Any) -> httpx.Response:
+        return await self.request("POST", url, **kwargs)
+
+    async def delete(self, url: str, **kwargs: Any) -> httpx.Response:
+        return await self.request("DELETE", url, **kwargs)
+
+
+class RegexType(click.ParamType):
+    """A regex pattern compiled at parse time. Click skips `convert` when the
+    option is missing and the default is None, so the orchestrator receives
+    `re.Pattern | None` without us having to handle None here."""
+
+    name = "regex"
+
+    def convert(
+        self,
+        value: str | re.Pattern[str],
+        param: click.Parameter | None,
+        ctx: click.Context | None,
+    ) -> re.Pattern[str]:
+        if isinstance(value, re.Pattern):
+            return value
+        try:
+            return re.compile(value)
+        except re.error as exc:
+            self.fail(f"invalid regex {value!r}: {exc}", param, ctx)
+
+
+REGEX = RegexType()
+
+
+_DURATION_RE = re.compile(r"^(\d+)([smh])$")
+_DURATION_UNITS = {"s": 1, "m": 60, "h": 3600}
+
+
+class GranularityType(click.ParamType):
+    name = "duration"
+
+    def convert(
+        self,
+        value: str | int,
+        param: click.Parameter | None,
+        ctx: click.Context | None,
+    ) -> int:
+        if isinstance(value, int):
+            return value
+
+        match = _DURATION_RE.match(value)
+        if not match:
+            self.fail(
+                f"invalid duration {value!r}; expected NNs / NNm / NNh", param, ctx
+            )
+        seconds = int(match.group(1)) * _DURATION_UNITS[match.group(2)]
+        if seconds <= 0:
+            self.fail(f"duration must be > 0, got {value!r}", param, ctx)
+
+        samples = SEED_WINDOW_SECONDS // seconds
+        if samples < MIN_SAMPLES_PER_SERIES:
+            self.fail(
+                f"--spacing {value} yields {samples} samples per series in a "
+                f"{SEED_WINDOW_SECONDS}s window; need >= {MIN_SAMPLES_PER_SERIES}",
+                param,
+                ctx,
+            )
+        return seconds
+
+
+CHRONO = GranularityType()

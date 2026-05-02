@@ -30,6 +30,7 @@ services:
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
       - --web.enable-remote-write-receiver
+      - --web.enable-admin-api
     restart: unless-stopped
     labels:
       - traefik.enable=true

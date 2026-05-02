@@ -51,6 +51,16 @@ import java.util.concurrent.atomic.AtomicReference;
  *   <li>Parser threads parse each chunk independently using the format reader</li>
  *   <li>Results are yielded in chunk order via per-slot page queues</li>
  * </ol>
+ * <p>
+ * Shutdown blocking sites: when the iterator's {@code close()} is invoked the segmentator may
+ * be parked on (a) the upstream {@link InputStream#read(byte[], int, int)}, (b) {@code bufferPool.take()},
+ * (c) {@code chunkQueue.put()}, or (d) {@code dispatchPermits.acquire()}. Close sets
+ * {@code closed=true}, releases one permit on {@code dispatchPermits} (covers (d)), and drains
+ * both the chunk queue and page queues (covers (b) and (c) by freeing slots so {@code put}/{@code take}
+ * either succeeds or completes after the post-acquire {@code closed} re-check). Case (a) is the
+ * responsibility of the upstream stream wrapper — most stream-only codecs return on close; if the
+ * upstream blocks indefinitely on read, close will time out after the iterator's close-timeout and
+ * log a warning.
  */
 public final class StreamingParallelParsingCoordinator {
 
@@ -101,7 +111,9 @@ public final class StreamingParallelParsingCoordinator {
         );
     }
 
-    private static final class StreamingParallelIterator implements CloseableIterator<Page> {
+    // Package-private so close-path tests can assert on segmentator wait state via
+    // isSegmentatorParkedOnDispatchPermits(); production callers see only CloseableIterator<Page>.
+    static final class StreamingParallelIterator implements CloseableIterator<Page> {
 
         private static final Page POISON = new Page(0);
         private static final long CLOSE_TIMEOUT_SECONDS = 60;
@@ -116,11 +128,15 @@ public final class StreamingParallelParsingCoordinator {
         private volatile SegmentableFormatReader reader;
         private final List<String> projectedColumns;
         private final int batchSize;
+        private final int parallelism;
         private final ErrorPolicy errorPolicy;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
-        private final int windowSize;
+        /** Capacity of {@link #bufferPool} (one pooled buffer per possible in-flight chunk-sized slice). */
+        private final int bufferPoolSize;
+        /** Length of {@link #pageQueues}; must match {@link #bufferPoolSize} so chunk index modulo never collides. */
+        private final int pageQueueRingSize;
         private final int chunkSize;
         private final ArrayBlockingQueue<Page>[] pageQueues;
 
@@ -128,14 +144,14 @@ public final class StreamingParallelParsingCoordinator {
         private final CountDownLatch allDone;
         private final AtomicInteger chunksDispatched = new AtomicInteger();
         /**
-         * Bounds the gap between dispatched and consumed chunks. {@link #pageQueues} is indexed by
-         * {@code chunk.index % windowSize}; without this semaphore a fast parser could recycle a
-         * buffer (and a slow segmentator could dispatch a new chunk) before the consumer drained
-         * the previous chunk's slot, interleaving pages from two generations into the same queue.
-         * Acquired by the segmentator before {@link #dispatchChunk}, released by the consumer when
-         * a chunk's POISON has been observed.
+         * Bounds how far ahead of the consumer the segmentator may dispatch. {@link #pageQueues} is
+         * indexed by {@code chunk.index % pageQueueRingSize}; without this semaphore a fast parser
+         * could recycle a buffer (and the segmentator could dispatch a new chunk) before the consumer
+         * drained the previous chunk's slot, interleaving pages from two generations into the same queue.
+         * Acquired by the segmentator in {@link #dispatchChunk}; released by the consumer when a chunk's
+         * POISON has been observed.
          */
-        private final Semaphore consumerSlots;
+        private final Semaphore dispatchPermits;
 
         private int currentChunk = 0;
         private Page buffered = null;
@@ -153,23 +169,25 @@ public final class StreamingParallelParsingCoordinator {
             this.reader = reader;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
+            this.parallelism = parallelism;
             this.errorPolicy = errorPolicy;
-            this.windowSize = parallelism + 1;
+            this.bufferPoolSize = parallelism + 1;
+            this.pageQueueRingSize = parallelism + 1;
 
             this.chunkSize = Math.toIntExact(reader.minimumSegmentSize());
 
-            this.bufferPool = new ArrayBlockingQueue<>(windowSize);
-            for (int i = 0; i < windowSize; i++) {
+            this.bufferPool = new ArrayBlockingQueue<>(bufferPoolSize);
+            for (int i = 0; i < bufferPoolSize; i++) {
                 bufferPool.add(new byte[chunkSize]);
             }
 
             this.chunkQueue = new ArrayBlockingQueue<>(parallelism);
-            this.consumerSlots = new Semaphore(windowSize);
+            this.dispatchPermits = new Semaphore(pageQueueRingSize);
 
             @SuppressWarnings("unchecked")
-            ArrayBlockingQueue<Page>[] queues = new ArrayBlockingQueue[windowSize];
+            ArrayBlockingQueue<Page>[] queues = new ArrayBlockingQueue[pageQueueRingSize];
             this.pageQueues = queues;
-            for (int i = 0; i < windowSize; i++) {
+            for (int i = 0; i < pageQueueRingSize; i++) {
                 pageQueues[i] = new ArrayBlockingQueue<>(16);
             }
 
@@ -232,7 +250,12 @@ public final class StreamingParallelParsingCoordinator {
                             if (chunkIndex == 0) {
                                 bindSchemaFromFirstChunk(buf, totalBytes);
                             }
-                            dispatchChunk(chunkIndex++, buf, totalBytes, true);
+                            if (dispatchChunk(chunkIndex, buf, totalBytes, true)) {
+                                chunkIndex++;
+                            } else {
+                                recycleBuffer(buf);
+                                break;
+                            }
                         } else {
                             // Single record larger than chunk size — grow a temporary buffer
                             byte[] grown = growUntilNewline(stream, buf, totalBytes, chunkSize);
@@ -241,7 +264,13 @@ public final class StreamingParallelParsingCoordinator {
                                 if (chunkIndex == 0) {
                                     bindSchemaFromFirstChunk(grown, grown.length);
                                 }
-                                dispatchChunk(chunkIndex++, grown, grown.length, true);
+                                if (dispatchChunk(chunkIndex, grown, grown.length, true)) {
+                                    chunkIndex++;
+                                } else {
+                                    recycleBuffer(buf);
+                                    recycleBuffer(grown);
+                                    break;
+                                }
                             } else {
                                 int validLen = grownNewline + 1;
                                 carryLen = grown.length - validLen;
@@ -250,7 +279,13 @@ public final class StreamingParallelParsingCoordinator {
                                 if (chunkIndex == 0) {
                                     bindSchemaFromFirstChunk(grown, validLen);
                                 }
-                                dispatchChunk(chunkIndex++, grown, validLen, false);
+                                if (dispatchChunk(chunkIndex, grown, validLen, false)) {
+                                    chunkIndex++;
+                                } else {
+                                    recycleBuffer(buf);
+                                    recycleBuffer(grown);
+                                    break;
+                                }
                             }
                             // The original buffer was consumed by grow; don't recycle it
                         }
@@ -269,8 +304,13 @@ public final class StreamingParallelParsingCoordinator {
                     if (chunkIndex == 0) {
                         bindSchemaFromFirstChunk(buf, validLen);
                     }
-                    dispatchChunk(chunkIndex++, buf, validLen, isEof);
-                    if (isEof) break;
+                    if (dispatchChunk(chunkIndex, buf, validLen, isEof)) {
+                        chunkIndex++;
+                        if (isEof) break;
+                    } else {
+                        recycleBuffer(buf);
+                        break;
+                    }
                 }
             } catch (Exception e) {
                 firstError.compareAndSet(null, e);
@@ -279,7 +319,7 @@ public final class StreamingParallelParsingCoordinator {
                     stream.close();
                 } catch (IOException ignored) {}
 
-                int parserCount = windowSize - 1;
+                int parserCount = parallelism;
                 for (int i = 0; i < parserCount; i++) {
                     try {
                         chunkQueue.put(Chunk.POISON);
@@ -321,25 +361,36 @@ public final class StreamingParallelParsingCoordinator {
             }
         }
 
-        private void dispatchChunk(int index, byte[] buffer, int length, boolean last) {
-            // Wait until the consumer has released a slot — pageQueues are indexed by
-            // chunk.index % windowSize, so dispatching chunk N+windowSize before chunk N's
-            // POISON has been observed would push pages from two generations into the same
-            // queue and break ordering.
+        /**
+         * Waits for {@link #dispatchPermits}, then enqueues a chunk for parsers unless the coordinator
+         * is closed or the calling thread is interrupted.
+         *
+         * @return {@code true} if the chunk was queued; {@code false} if dispatch aborted. On {@code false},
+         *         {@link #chunksDispatched} is unchanged and the caller must {@link #recycleBuffer(byte[])}
+         *         when {@code buffer} is pool-sized (oversized temporary buffers are simply dropped).
+         */
+        private boolean dispatchChunk(int index, byte[] buffer, int length, boolean last) {
             try {
-                consumerSlots.acquire();
+                dispatchPermits.acquire();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 firstError.compareAndSet(null, e);
-                return;
+                return false;
             }
-            chunksDispatched.incrementAndGet();
+            if (closed) {
+                dispatchPermits.release();
+                return false;
+            }
             try {
                 chunkQueue.put(new Chunk(index, buffer, length, last));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 firstError.compareAndSet(null, e);
+                dispatchPermits.release();
+                return false;
             }
+            chunksDispatched.incrementAndGet();
+            return true;
         }
 
         private void runParser() {
@@ -357,7 +408,7 @@ public final class StreamingParallelParsingCoordinator {
                         break;
                     }
 
-                    int queueSlot = chunk.index % windowSize;
+                    int queueSlot = chunk.index % pageQueueRingSize;
                     ArrayBlockingQueue<Page> queue = pageQueues[queueSlot];
                     try {
                         ByteArrayStorageObject chunkObj = new ByteArrayStorageObject(
@@ -513,7 +564,7 @@ public final class StreamingParallelParsingCoordinator {
                     continue;
                 }
 
-                int slot = currentChunk % windowSize;
+                int slot = currentChunk % pageQueueRingSize;
                 ArrayBlockingQueue<Page> queue = pageQueues[slot];
                 Page page = queue.poll(100, TimeUnit.MILLISECONDS);
 
@@ -522,7 +573,7 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 if (page == POISON) {
                     currentChunk++;
-                    consumerSlots.release();
+                    dispatchPermits.release();
                     continue;
                 }
                 return page;
@@ -539,15 +590,24 @@ public final class StreamingParallelParsingCoordinator {
             }
         }
 
+        /**
+         * Test-only accessor: returns {@code true} when at least one thread is parked on
+         * {@link #dispatchPermits}. Used by close-path tests to deterministically wait for the
+         * segmentator to reach the permit-acquire blocking site instead of relying on wall-clock sleeps.
+         */
+        boolean isSegmentatorParkedOnDispatchPermits() {
+            return dispatchPermits.hasQueuedThreads();
+        }
+
         @Override
         public void close() throws IOException {
             if (closed) {
                 return;
             }
             closed = true;
-            // Wake the segmentator if it is parked on consumerSlots.acquire(); a stale permit count
-            // is harmless because the segmentator also checks `closed` after acquiring.
-            consumerSlots.release(Integer.MAX_VALUE / 2);
+            // Wake the segmentator if parked on dispatchPermits.acquire(); after a successful acquire it
+            // re-checks {@code closed} and exits {@link #dispatchChunk} without enqueueing.
+            dispatchPermits.release();
             drainAllQueues();
             try {
                 if (allDone.await(CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS) == false) {

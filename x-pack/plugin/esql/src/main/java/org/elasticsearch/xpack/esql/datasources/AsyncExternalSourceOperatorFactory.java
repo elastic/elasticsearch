@@ -17,6 +17,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -84,6 +86,8 @@ import static org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.
  * @see AsyncExternalSourceOperator
  */
 public class AsyncExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
+
+    private static final Logger logger = LogManager.getLogger(AsyncExternalSourceOperatorFactory.class);
 
     private final StorageProvider storageProvider;
     private final FormatReader formatReader;
@@ -946,7 +950,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * Resolves the effective inner reader and codec from a possibly-wrapped format reader.
      * Used by dispatch sites to determine whether streaming parallel parsing is applicable.
      */
-    private static SegmentableFormatReader resolveSegmentableReader(FormatReader reader) {
+    static SegmentableFormatReader resolveSegmentableReader(FormatReader reader) {
         if (reader instanceof SegmentableFormatReader seg) {
             return seg;
         }
@@ -956,7 +960,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return null;
     }
 
-    private static boolean isStreamOnlyCompressed(FormatReader reader) {
+    static boolean isStreamOnlyCompressed(FormatReader reader) {
         if (reader instanceof CompressionDelegatingFormatReader cdr) {
             DecompressionCodec codec = cdr.codec();
             return (codec instanceof SplittableDecompressionCodec) == false && (codec instanceof IndexedDecompressionCodec) == false;
@@ -964,7 +968,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return false;
     }
 
-    private CloseableIterator<Page> openWithParallelism(FormatReader reader, StorageObject obj, List<String> cols, ErrorPolicy policy)
+    CloseableIterator<Page> openWithParallelism(FormatReader reader, StorageObject obj, List<String> cols, ErrorPolicy policy)
         throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -985,6 +989,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     throw e;
                 }
                 try {
+                    // The stream-only codecs reachable here (gzip via GZIPInputStream, zstd via
+                    // ZstdInputStream) follow the JDK FilterInputStream convention: closing the
+                    // wrapper closes the underlying `raw`. New stream-only codecs added to this
+                    // path must preserve that contract.
                     return StreamingParallelParsingCoordinator.parallelRead(
                         seg,
                         decompressed,
@@ -1005,6 +1013,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // for bzip2). Until we wire splittable parallel decompression here, fall back to
             // the single-threaded path through the CompressionDelegatingFormatReader, which
             // wraps the StorageObject in a DecompressingStorageObject before reading.
+            logger.debug(
+                "falling back to single-threaded read for splittable/indexed codec [{}]: codec-aware parallel decompression not yet wired",
+                codec.name()
+            );
             return null;
         }
         return ParallelParsingCoordinator.parallelRead(seg, obj, cols, batchSize, parsingParallelism, executor, policy);

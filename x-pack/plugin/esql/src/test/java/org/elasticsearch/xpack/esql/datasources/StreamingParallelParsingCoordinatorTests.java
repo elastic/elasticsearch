@@ -33,10 +33,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
@@ -211,6 +213,93 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Guards against reuse of {@code chunk.index % pageQueueRingSize} slots ahead of the consumer:
+     * without {@code dispatchPermits} a fast parser could recycle buffers and interleave pages from
+     * different chunk generations into the same queue while the consumer is still draining an earlier chunk.
+     * <p>
+     * Internally repeats {@value #SLOT_REUSE_REPEATS} times to make the race likely to surface on any single CI
+     * run instead of relying on the framework's repeat-the-suite mechanism (which forbidden APIs disallows).
+     */
+    private static final int SLOT_REUSE_REPEATS = 20;
+
+    public void testFastParserSlowConsumerPreservesOrder() throws Exception {
+        int lineCount = 20_000;
+        String content = buildContent(lineCount);
+        byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
+
+        ExecutorService executor = Executors.newFixedThreadPool(16);
+        try {
+            for (int attempt = 0; attempt < SLOT_REUSE_REPEATS; attempt++) {
+                InputStream stream = new ByteArrayInputStream(contentBytes);
+                LineFormatReader reader = new LineFormatReader(1024);
+                CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    stream,
+                    List.of("line"),
+                    50,
+                    8,
+                    executor,
+                    ErrorPolicy.STRICT
+                );
+                List<String> allLines = collectLinesSlow(iterator, 1);
+                assertEquals("attempt " + attempt, lineCount, allLines.size());
+                int prev = -1;
+                for (String line : allLines) {
+                    assertTrue(line, line.startsWith("line-"));
+                    int ord = Integer.parseInt(line.substring("line-".length()), 10);
+                    assertTrue("attempt " + attempt + ": lines must be strictly increasing, saw " + ord + " after " + prev, ord > prev);
+                    prev = ord;
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Closing must unblock the segmentator when it is parked on {@code dispatchPermits.acquire()}
+     * while no consumer drains permits — relies on {@code dispatchChunk} observing {@code closed} after a wake-up acquire.
+     * <p>
+     * Synchronisation is deterministic: we wait via {@link #assertBusy} until
+     * {@link StreamingParallelParsingCoordinator.StreamingParallelIterator#isSegmentatorParkedOnDispatchPermits()}
+     * returns {@code true}, then assert that {@link CloseableIterator#close()} returns within a generous
+     * deadline. A timing-only sleep would leave the test passing for the wrong reason if the segmentator
+     * happened to be blocked on {@code chunkQueue.put} or upstream {@code read()} instead.
+     */
+    public void testCloseWhileSegmentatorParkedOnDispatchPermit() throws Exception {
+        int parallelism = 2;
+        byte[] payload = new byte[100 * 1024];
+        Arrays.fill(payload, (byte) 'x');
+        for (int i = 127; i < payload.length - 1; i += 128) {
+            payload[i] = '\n';
+        }
+        payload[payload.length - 1] = '\n';
+
+        InputStream stream = new ByteArrayInputStream(payload);
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            LineFormatReader reader = new LineFormatReader(256);
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                List.of("line"),
+                50,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            StreamingParallelParsingCoordinator.StreamingParallelIterator streamingIterator =
+                (StreamingParallelParsingCoordinator.StreamingParallelIterator) iterator;
+            assertBusy(() -> assertTrue(streamingIterator.isSegmentatorParkedOnDispatchPermits()), 5, TimeUnit.SECONDS);
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            iterator.close();
+            assertTrue("close() must return within 5s of segmentator being parked", System.nanoTime() <= deadlineNanos);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {
@@ -230,6 +319,27 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     lines.add(block.getBytesRef(i, scratch).utf8ToString());
                 }
                 page.releaseBlocks();
+            }
+        }
+        return lines;
+    }
+
+    private static List<String> collectLinesSlow(CloseableIterator<Page> iterator, int sleepEveryNPages) throws Exception {
+        List<String> lines = new ArrayList<>();
+        try (iterator) {
+            BytesRef scratch = new BytesRef();
+            int pageOrdinal = 0;
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                BytesRefBlock block = page.<BytesRefBlock>getBlock(0);
+                for (int i = 0; i < block.getPositionCount(); i++) {
+                    lines.add(block.getBytesRef(i, scratch).utf8ToString());
+                }
+                page.releaseBlocks();
+                pageOrdinal++;
+                if (sleepEveryNPages > 0 && pageOrdinal % sleepEveryNPages == 0) {
+                    Thread.sleep(1L);
+                }
             }
         }
         return lines;

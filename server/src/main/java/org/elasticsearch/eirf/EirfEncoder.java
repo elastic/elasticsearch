@@ -72,18 +72,11 @@ public class EirfEncoder implements Releasable {
     private String[] cachedPath;
     /** True after {@link #parseToScratch} returns and before {@link #commitScratchTo} is called. */
     private boolean rowStaged;
-    /** Used by the legacy single-partition constructor that supplies its own row output. */
-    private final RecyclerBytesStreamOutput externallySuppliedDefaultOutput;
 
     public EirfEncoder() {
-        this(null);
-    }
-
-    public EirfEncoder(final RecyclerBytesStreamOutput rowOutput) {
         this.schema = new EirfSchema();
         this.scratch = new ScratchBuffers(INITIAL_CAPACITY);
         this.cachedPath = new String[INITIAL_CAPACITY];
-        this.externallySuppliedDefaultOutput = rowOutput;
     }
 
     /**
@@ -232,13 +225,7 @@ public class EirfEncoder implements Releasable {
     private Partition getOrCreatePartition(int partitionKey) {
         Partition partition = partitions.get(partitionKey);
         if (partition == null) {
-            RecyclerBytesStreamOutput output;
-            if (partitionKey == DEFAULT_PARTITION && externallySuppliedDefaultOutput != null && partitions.isEmpty()) {
-                output = externallySuppliedDefaultOutput;
-            } else {
-                output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
-            }
-            partition = new Partition(output);
+            partition = new Partition(new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE));
             partitions.put(partitionKey, partition);
         }
         return partition;

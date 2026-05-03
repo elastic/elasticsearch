@@ -775,6 +775,10 @@ public class AuthorizationService {
             runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             return;
         }
+        // The modify data stream API uses a boolean failure_store flag rather than selector syntax (::failures)
+        // to indicate failure store operations. We bridge this to the RBAC model by appending the FAILURES
+        // selector so that privileges like manage_failure_store (which require the FAILURES selector predicate)
+        // are evaluated correctly.
         final List<String> dataStreamNames = actions.stream().map(a -> {
             assert IndexNameExpressionResolver.hasSelectorSuffix(a.getDataStream()) == false
                 : "data stream name should not contain selectors: " + a.getDataStream();

@@ -98,6 +98,8 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
             if (actions.isEmpty()) {
                 return addValidationError("must specify at least one data stream modification action", null);
             }
+            // Data stream names are not resolved through IndexNameExpressionResolver in this API,
+            // so selectors must be rejected here. Use the failure_store field instead.
             for (DataStreamAction action : actions) {
                 if (IndexNameExpressionResolver.hasSelectorSuffix(action.getDataStream())) {
                     return addValidationError("selectors [::] are not supported in data stream modification actions", null);

@@ -16,6 +16,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 
+import java.util.EnumMap;
 import java.util.Map;
 
 import static software.amazon.awssdk.http.HttpStatusCode.FORBIDDEN;
@@ -57,25 +58,15 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
     }
 
     private String lookUpOperationNameByMethod(RetryMethod method) {
-        assert METHODS_TO_OPERATIONS.containsKey(method.getName());
-        return METHODS_TO_OPERATIONS.get(method.getName()).getKey();
+        assert METHODS_TO_OPERATIONS.containsKey(method);
+        return METHODS_TO_OPERATIONS.get(method).getKey();
     }
 
-    private static final Map<String, S3BlobStore.Operation> METHODS_TO_OPERATIONS = Map.ofEntries(
-        Map.entry("blobExists", S3BlobStore.Operation.HEAD_OBJECT),
-        Map.entry("readBlob", S3BlobStore.Operation.GET_OBJECT),
-        Map.entry("readBlobPreferredLength", S3BlobStore.Operation.GET_OBJECT),
-        Map.entry("writeBlob", S3BlobStore.Operation.PUT_OBJECT),
-        Map.entry("writeMetadataBlob", S3BlobStore.Operation.PUT_OBJECT),
-        Map.entry("writeBlobAtomic", S3BlobStore.Operation.PUT_OBJECT), // stream/bytes overloads; see note below
-        Map.entry("copyBlob", S3BlobStore.Operation.COPY_OBJECT),
-        Map.entry("delete", S3BlobStore.Operation.DELETE_OBJECTS),
-        Map.entry("deleteBlobsIgnoringIfNotExists", S3BlobStore.Operation.DELETE_OBJECTS),
-        Map.entry("listBlobs", S3BlobStore.Operation.LIST_OBJECTS),
-        Map.entry("listBlobsByPrefix", S3BlobStore.Operation.LIST_OBJECTS),
-        Map.entry("children", S3BlobStore.Operation.LIST_OBJECTS),
-        Map.entry("getRegister", S3BlobStore.Operation.GET_OBJECT),
-        Map.entry("compareAndSetRegister", S3BlobStore.Operation.PUT_OBJECT),
-        Map.entry("compareAndExchangeRegister", S3BlobStore.Operation.PUT_OBJECT)
+    private static final EnumMap<RetryMethod, S3BlobStore.Operation> METHODS_TO_OPERATIONS = new EnumMap<>(
+        Map.ofEntries(
+            Map.entry(RetryMethod.LIST_BLOBS, S3BlobStore.Operation.LIST_OBJECTS),
+            Map.entry(RetryMethod.LIST_BLOBS_BY_PREFIX, S3BlobStore.Operation.LIST_OBJECTS),
+            Map.entry(RetryMethod.CHILDREN, S3BlobStore.Operation.LIST_OBJECTS)
+        )
     );
 }

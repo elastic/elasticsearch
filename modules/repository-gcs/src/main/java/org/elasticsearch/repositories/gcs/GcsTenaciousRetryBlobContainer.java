@@ -15,6 +15,7 @@ import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import java.net.UnknownHostException;
+import java.util.EnumMap;
 import java.util.Map;
 
 public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
@@ -49,23 +50,16 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
     }
 
     private String lookUpOperationNameByMethod(RetryMethod method) {
-        assert METHODS_TO_OPERATIONS.containsKey(method.getName());
-        return METHODS_TO_OPERATIONS.get(method.getName()).key();
+        assert METHODS_TO_OPERATIONS.containsKey(method);
+        return METHODS_TO_OPERATIONS.get(method).key();
     }
 
-    private static final Map<String, StorageOperation> METHODS_TO_OPERATIONS = Map.ofEntries(
-        Map.entry("blobExists", StorageOperation.GET),
-        Map.entry("readBlob", StorageOperation.GET),
-        Map.entry("writeBlob", StorageOperation.INSERT),
-        Map.entry("writeMetadataBlob", StorageOperation.INSERT),
-        Map.entry("writeBlobAtomic", StorageOperation.INSERT),
-        Map.entry("copyBlob", StorageOperation.COPY),
-        Map.entry("delete", StorageOperation.DELETE),
-        Map.entry("deleteBlobsIgnoringIfNotExists", StorageOperation.DELETE),
-        Map.entry("listBlobs", StorageOperation.LIST),
-        Map.entry("listBlobsByPrefix", StorageOperation.LIST),
-        Map.entry("children", StorageOperation.LIST),
-        Map.entry("getRegister", StorageOperation.GET)
+    EnumMap<RetryMethod, StorageOperation> METHODS_TO_OPERATIONS = new EnumMap<>(
+        Map.ofEntries(
+            Map.entry(RetryMethod.LIST_BLOBS, StorageOperation.LIST),
+            Map.entry(RetryMethod.LIST_BLOBS_BY_PREFIX, StorageOperation.LIST),
+            Map.entry(RetryMethod.CHILDREN, StorageOperation.LIST)
+        )
     );
 
 }

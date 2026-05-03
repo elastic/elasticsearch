@@ -699,7 +699,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         String name = visitFunctionName(ctx.functionName());
         List<Expression> args = new ArrayList<>(expressions(ctx.booleanExpression()));
         if (ctx.mapExpression() != null) {
-            MapExpression mapArg = visitMapExpression(ctx.mapExpression());
+            MapExpression mapArg = DateParse.FUNCTION_NAME.equals(EsqlFunctionRegistry.normalizeName(name))
+                ? visitMapExpressionWithFieldRefs(ctx.mapExpression())
+                : visitMapExpression(ctx.mapExpression());
             args.add(mapArg);
         }
         if ("is_null".equals(EsqlFunctionRegistry.normalizeName(name))) {
@@ -737,15 +739,44 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         return visitIdentifierOrParameter(ctx.identifierOrParameter());
     }
+    
     @Override
     public MapExpression visitMapExpression(EsqlBaseParser.MapExpressionContext ctx) {
         List<Expression> namedArgs = new ArrayList<>(ctx.entryExpression().size());
         List<String> names = new ArrayList<>(ctx.entryExpression().size());
         List<EsqlBaseParser.EntryExpressionContext> kvCtx = ctx.entryExpression();
-
         for (EsqlBaseParser.EntryExpressionContext entry : kvCtx) {
             EsqlBaseParser.StringContext stringCtx = entry.string();
             String key = unquote(stringCtx.QUOTED_STRING().getText()); // key is case-sensitive
+            if (key.isBlank()) {
+                throw new ParsingException(source(ctx), "Invalid named parameter [{}], empty key is not supported", entry.getText());
+            }
+            if (names.contains(key)) {
+                throw new ParsingException(source(ctx), "Duplicated named parameters with the same name [{}] is not supported", key);
+            }
+            Expression value = expression(entry.value.constant() != null ? entry.value.constant() : entry.value.mapExpression());
+            String entryText = entry.getText();
+            if (value instanceof Literal l) {
+                namedArgs.add(Literal.keyword(source(stringCtx), key));
+                namedArgs.add(l);
+                names.add(key);
+            } else if (value instanceof MapExpression) {
+                namedArgs.add(Literal.keyword(source(stringCtx), key));
+                namedArgs.add(value);
+            } else {
+                throw new ParsingException(source(ctx), "Invalid named parameter [{}], only constant value is supported", entryText);
+            }
+        }
+        return new MapExpression(source(ctx), namedArgs);
+    }
+
+    private MapExpression visitMapExpressionWithFieldRefs(EsqlBaseParser.MapExpressionContext ctx) {
+        List<Expression> namedArgs = new ArrayList<>(ctx.entryExpression().size());
+        List<String> names = new ArrayList<>(ctx.entryExpression().size());
+
+        for (EsqlBaseParser.EntryExpressionContext entry : ctx.entryExpression()) {
+            EsqlBaseParser.StringContext stringCtx = entry.string();
+            String key = unquote(stringCtx.QUOTED_STRING().getText());
 
             if (key.isBlank()) {
                 throw new ParsingException(source(ctx), "Invalid named parameter [{}], empty key is not supported", entry.getText());
@@ -754,14 +785,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 throw new ParsingException(source(ctx), "Duplicated named parameters with the same name [{}] is not supported", key);
             }
 
-            // Support: literals, nested maps, and field references/expressions
             Expression value;
             if (entry.value.constant() != null) {
                 value = expression(entry.value.constant());
             } else if (entry.value.mapExpression() != null) {
                 value = expression(entry.value.mapExpression());
             } else if (entry.value.qualifiedName() != null) {
-                // NEW: Support field references like {"time_zone": timezone_field}
                 value = visitQualifiedName(entry.value.qualifiedName());
             } else {
                 throw new ParsingException(source(entry), "Invalid map value in [{}]", entry.getText());

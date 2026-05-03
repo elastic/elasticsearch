@@ -70,6 +70,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
 
     private static final String TIME_ZONE_PARAM_NAME = "time_zone";
     private static final String LOCALE_PARAM_NAME = "locale";
+    public static final String FuNCTION_NAME = "date_parse";
 
     private final Expression first;
     private final Expression second;

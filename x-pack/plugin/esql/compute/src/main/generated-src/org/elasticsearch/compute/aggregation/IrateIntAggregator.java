@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 // end generated imports
@@ -40,9 +41,13 @@ import org.elasticsearch.core.Releasables;
     processNulls = true
 )
 public class IrateIntAggregator {
-    public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos) {
+
+    public static final String DELTA_UNSUPPORTED_WARNING =
+        "Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.";
+
+    public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos, Warnings warnings) {
         final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
-        return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor);
+        return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor, warnings);
     }
 
     public static void combine(
@@ -62,10 +67,12 @@ public class IrateIntAggregator {
                 current.ensureCapacity(groupId);
                 current.append(groupId, timestamp, value);
             } else {
-                // TODO: emit warning that delta is unsupported on this cluster version
+                current.warnings.registerException(IllegalArgumentException.class, DELTA_UNSUPPORTED_WARNING);
             }
         } catch (InvalidTemporalityException e) {
-            // TODO: emit a warning
+            // We can't use @GroupingAggregator(warnExceptions=..) here because that would require a breaking change to the
+            // intermediate state
+            current.warnings.registerException(e);
         }
     }
 
@@ -109,16 +116,18 @@ public class IrateIntAggregator {
     public static final class IntIrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
         private TemporalityAccessor cachedTemporalityAccessor;
         private ObjectArray<IntIrateState> states;
+        private final Warnings warnings;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
         private final int dateFactor;
 
-        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor) {
+        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor, Warnings warnings) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
             this.dateFactor = dateFactor;
+            this.warnings = warnings;
         }
 
         void ensureCapacity(int groupId) {

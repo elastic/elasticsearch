@@ -170,6 +170,11 @@ If you only have the directive within the subquery, null values will be returned
 :::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_metadata_outer.md
 :::
 
+## Limitations [esql-subquery-limitations]
+
+:::{include} _snippets/common/subquery_limitations.md
+:::
+
 ## Comparing views, subqueries and FORK
 
 :::{include} _snippets/common/comparing_views_subqueries_fork.md

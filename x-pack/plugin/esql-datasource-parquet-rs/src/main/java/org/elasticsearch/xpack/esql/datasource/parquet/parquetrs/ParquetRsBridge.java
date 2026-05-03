@@ -38,6 +38,8 @@ final class ParquetRsBridge {
 
     static native long openReaderMulti(
         String[] filePaths,
+        long[] splitOffsets,
+        long[] splitLengths,
         String[] projectedColumns,
         int batchSize,
         long limit,

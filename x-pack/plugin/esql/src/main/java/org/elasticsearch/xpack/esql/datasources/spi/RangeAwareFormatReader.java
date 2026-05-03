@@ -116,11 +116,20 @@ public interface RangeAwareFormatReader extends FormatReader {
      * The reader is responsible for applying any pushed filters and projections internally.
      * The returned iterator may interleave pages from different files.
      *
-     * @param objects          storage objects for all files in the batch
+     * @param splits           per-split descriptors; each carries a storage object plus the byte
+     *                         range {@code [offset, offset+length)} that identifies which row
+     *                         groups within the file belong to this split
      * @param projectedColumns columns to project, or {@code null} for all columns
      * @param batchSize        target page size in rows
      */
-    default CloseableIterator<Page> readAll(List<StorageObject> objects, List<String> projectedColumns, int batchSize) throws IOException {
+    default CloseableIterator<Page> readAll(List<SplitRef> splits, List<String> projectedColumns, int batchSize) throws IOException {
         throw new UnsupportedOperationException("readAll not supported by " + getClass().getSimpleName());
     }
+
+    /**
+     * Per-split descriptor passed to {@link #readAll}. Carries the storage object together
+     * with the byte range {@code [offset, offset+length)} that identifies the row groups
+     * belonging to this split within the file.
+     */
+    record SplitRef(StorageObject object, long offset, long length) {}
 }

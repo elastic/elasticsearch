@@ -9,6 +9,7 @@ use object_store::azure::MicrosoftAzureBuilder;
 use object_store::client::ClientOptions;
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::http::HttpBuilder;
+use object_store::limit::LimitStore;
 use object_store::local::LocalFileSystem;
 use url::Url;
 
@@ -57,6 +58,12 @@ impl StorageConfig {
 pub fn needs_file_size_hint(uri: &str) -> bool {
     uri.starts_with("az://") || uri.starts_with("abfss://") || uri.starts_with("wasbs://")
 }
+
+/// Maximum number of concurrent object store operations (head, get_range, get_ranges, etc.)
+/// across all queries sharing the same bucket. Applies globally per store instance via
+/// `LimitStore`. 64 concurrent range reads saturates typical S3 bandwidth without
+/// triggering stream timeouts. Hadoop S3A defaults to 96; AWS SDK defaults to 50.
+const S3_MAX_CONCURRENT_REQUESTS: usize = 64;
 
 /// Maximum number of `ObjectStore` instances retained process-wide. Each entry holds
 /// a `reqwest::Client` with its own connection + TLS session pool, so unbounded growth
@@ -238,7 +245,7 @@ fn build_s3(
         builder = builder.with_region("us-east-1");
     }
 
-    Ok(Arc::new(builder.build()?))
+    Ok(Arc::new(LimitStore::new(builder.build()?, S3_MAX_CONCURRENT_REQUESTS)))
 }
 
 /// Parses `wasbs://` / `abfss://` / `az://` Azure URLs.
@@ -280,7 +287,7 @@ fn build_azure(
         builder = builder.with_sas_authorization(pairs);
     }
 
-    Ok(Arc::new(builder.build()?))
+    Ok(Arc::new(LimitStore::new(builder.build()?, S3_MAX_CONCURRENT_REQUESTS)))
 }
 
 fn build_gcs(
@@ -299,7 +306,7 @@ fn build_gcs(
         builder = builder.with_service_account_key(v);
     }
 
-    Ok(Arc::new(builder.build()?))
+    Ok(Arc::new(LimitStore::new(builder.build()?, S3_MAX_CONCURRENT_REQUESTS)))
 }
 
 fn build_http(
@@ -317,7 +324,7 @@ fn build_http(
         .with_url(&base)
         .with_client_options(options)
         .build()?;
-    Ok(Arc::new(store))
+    Ok(Arc::new(LimitStore::new(store, S3_MAX_CONCURRENT_REQUESTS)))
 }
 
 fn resolve_local(

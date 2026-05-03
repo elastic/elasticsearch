@@ -12,7 +12,7 @@ use bytes::{Buf, Bytes};
 use tokio::sync::mpsc;
 use jni::EnvUnowned;
 use jni::errors::{Error as JniError, Result as JniResult, ThrowRuntimeExAndDefault};
-use jni::objects::{JClass, JObjectArray, JString};
+use jni::objects::{JClass, JLongArray, JObjectArray, JString};
 use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jint, jlong};
 use super::store::{StorageConfig, resolve_store, needs_file_size_hint};
 use futures::{StreamExt, TryStreamExt};
@@ -203,6 +203,8 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
     mut env: EnvUnowned,
     _class: JClass,
     file_paths: JObjectArray,
+    split_offsets: JLongArray<'_>,
+    split_lengths: JLongArray<'_>,
     projected_columns: JObjectArray,
     batch_size: jint,
     limit: jlong,
@@ -217,6 +219,19 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
             let jstr: JString = JString::cast_local(env, obj)?;
             paths.push(jstr.try_to_string(env)?);
         }
+
+        let mut offsets = vec![0i64; num_files];
+        let mut lengths = vec![0i64; num_files];
+        split_offsets.get_region(env, 0, &mut offsets)?;
+        split_lengths.get_region(env, 0, &mut lengths)?;
+
+        let file_ranges: Vec<(String, i64, i64)> = paths
+            .into_iter()
+            .zip(offsets)
+            .zip(lengths)
+            .map(|((path, off), len)| (path, off, len))
+            .collect();
+
         let storage_config = extract_storage_config(env, &config_json)?;
 
         let projected_cols: Option<Vec<String>> = if projected_columns.is_null() {
@@ -238,9 +253,10 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
             None
         };
 
-        let plan = build_plan_string(&paths.join(", "), &projected_cols, batch_size, limit, &filter);
+        let plan_paths = file_ranges.iter().map(|(p, _, _)| p.as_str()).collect::<Vec<_>>().join(", ");
+        let plan = build_plan_string(&plan_paths, &projected_cols, batch_size, limit, &filter);
 
-        let kind = open_multi(&paths, &storage_config, projected_cols, batch_size, limit, filter, s3_concurrency())?;
+        let kind = open_multi(&file_ranges, &storage_config, projected_cols, batch_size, limit, filter, s3_concurrency())?;
 
         let remaining = if limit > 0 { Some(limit as usize) } else { None };
         let state = Box::new(ParquetReaderState { kind, remaining, plan });
@@ -1503,7 +1519,7 @@ fn open_async(
 /// concurrently across all files in a single `buffer_unordered` pass, feeding a
 /// single mpsc channel.
 fn open_multi(
-    file_paths: &[String],
+    file_ranges: &[(String, i64, i64)],
     config: &StorageConfig,
     projected_cols: Option<Vec<String>>,
     batch_size: jint,
@@ -1512,19 +1528,31 @@ fn open_multi(
     max_concurrency: usize,
 ) -> JniResult<ReaderKind> {
     let rx = ASYNC_RUNTIME.block_on(async {
-        let mut file_infos: Vec<(String, Arc<dyn ObjectStore>, object_store::path::Path)> =
-            Vec::with_capacity(file_paths.len());
-        for path in file_paths {
-            let (store, object_path) = resolve_store(path, config).map_err(err)?;
-            file_infos.push((path.clone(), store, object_path));
+        // Group by path so each unique file fetches its footer exactly once,
+        // even when multiple splits reference the same file.
+        // Use a Vec to preserve a stable per-file processing order.
+        let mut unique_files: Vec<(String, Vec<(i64, i64)>)> = Vec::new();
+        for (path, offset, length) in file_ranges {
+            if let Some(entry) = unique_files.iter_mut().find(|(p, _)| p == path) {
+                entry.1.push((*offset, *offset + *length));
+            } else {
+                unique_files.push((path.clone(), vec![(*offset, *offset + *length)]));
+            }
         }
 
-        let needs_head = file_paths.first().map_or(false, |p| needs_file_size_hint(p));
+        let mut file_infos: Vec<(String, Vec<(i64, i64)>, Arc<dyn ObjectStore>, object_store::path::Path)> =
+            Vec::with_capacity(unique_files.len());
+        for (path_str, ranges) in unique_files {
+            let (store, object_path) = resolve_store(&path_str, config).map_err(err)?;
+            file_infos.push((path_str, ranges, store, object_path));
+        }
+
+        let needs_head = file_ranges.first().map_or(false, |(p, _, _)| needs_file_size_hint(p));
         let meta_options = meta_options_for(filter.is_some());
 
         // Per-file: cache check → metadata fetch on miss → dictionary pruning.
         // All files processed concurrently within max_concurrency.
-        let file_stream = futures::stream::iter(file_infos.into_iter().map(|(path_str, store, path)| {
+        let file_stream = futures::stream::iter(file_infos.into_iter().map(|(path_str, ranges, store, path)| {
             let filter_clone = filter.clone();
             let opts = meta_options.clone();
             async move {
@@ -1544,7 +1572,17 @@ fn open_multi(
                     (reader, meta)
                 };
 
-                let candidates: Vec<usize> = (0..meta.metadata().num_row_groups()).collect();
+                // Select row groups whose midpoint falls within any of the claimed ranges.
+                // Matches the Java-side coalescing assignment logic (same as open_async_for_range).
+                let candidates: Vec<usize> = (0..meta.metadata().num_row_groups())
+                    .filter(|&i| {
+                        let mid = super::metadata::row_group_range_assignment_midpoint(
+                            meta.metadata().row_group(i),
+                        );
+                        ranges.iter().any(|&(start, end)| mid >= start && mid < end)
+                    })
+                    .collect();
+
                 let candidates = if let Some(ref expr) = filter_clone {
                     prune_by_dictionary(
                         &store, &path,

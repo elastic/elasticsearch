@@ -576,11 +576,17 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
     }
 
     @Override
-    public CloseableIterator<Page> readAll(List<StorageObject> objects, List<String> projectedColumns, int batchSize) throws IOException {
+    public CloseableIterator<Page> readAll(List<RangeAwareFormatReader.SplitRef> splits, List<String> projectedColumns, int batchSize)
+        throws IOException {
         NativeLibLoader.ensureLoaded();
-        String[] paths = new String[objects.size()];
-        for (int i = 0; i < objects.size(); i++) {
-            paths[i] = resolveReadPath(objects.get(i));
+        String[] paths = new String[splits.size()];
+        long[] offsets = new long[splits.size()];
+        long[] lengths = new long[splits.size()];
+        for (int i = 0; i < splits.size(); i++) {
+            RangeAwareFormatReader.SplitRef ref = splits.get(i);
+            paths[i] = resolveReadPath(ref.object());
+            offsets[i] = ref.offset();
+            lengths[i] = ref.length();
         }
         String[] cols = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
         long filterHandle = 0;
@@ -589,7 +595,7 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             if (pushedExpressions.isEmpty() == false) {
                 filterHandle = ParquetRsFilterPushdownSupport.translateExpressions(pushedExpressions);
             }
-            readerHandle = ParquetRsBridge.openReaderMulti(paths, cols, batchSize, -1, filterHandle, configJson);
+            readerHandle = ParquetRsBridge.openReaderMulti(paths, offsets, lengths, cols, batchSize, -1, filterHandle, configJson);
             ParquetRsBatchIterator iterator = new ParquetRsBatchIterator(readerHandle, blockFactory);
             readerHandle = 0;
             return iterator;

@@ -764,7 +764,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return false;
         }
 
-        List<StorageObject> objects = new ArrayList<>(claims.size());
+        List<RangeAwareFormatReader.SplitRef> splitRefs = new ArrayList<>(claims.size());
         for (ExternalSplit claim : claims) {
             for (ExternalSplit leaf : flattenToLeaves(claim)) {
                 if (leaf instanceof FileSplit fs) {
@@ -772,12 +772,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     StorageObject obj = fileLengthStr != null
                         ? storageProvider.newObject(fs.path(), Long.parseLong(fileLengthStr))
                         : storageProvider.newObject(fs.path());
-                    objects.add(obj);
+                    splitRefs.add(new RangeAwareFormatReader.SplitRef(obj, fs.offset(), fs.length()));
                 }
             }
         }
 
-        if (objects.isEmpty()) {
+        if (splitRefs.isEmpty()) {
             return false;
         }
 
@@ -785,7 +785,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) formatReader;
         CloseableIterator<Page> pages = null;
         try {
-            pages = rangeReader.readAll(objects, cols, batchSize);
+            pages = rangeReader.readAll(splitRefs, cols, batchSize);
             state.pages = pages;
             return true;
         } catch (Exception e) {

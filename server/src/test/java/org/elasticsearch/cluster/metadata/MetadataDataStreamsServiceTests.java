@@ -702,6 +702,66 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         return dataStream.copy().setSettings(settings).build();
     }
 
+    public void testSelectorInDataStreamNameIsRejected() {
+        final long epochMillis = System.currentTimeMillis();
+        final String dataStreamName = randomAlphaOfLength(5);
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
+
+        IndexMetadata backingIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp"))
+            .build();
+        mb.put(backingIndex, false);
+        mb.put(DataStreamTestHelper.newInstance(dataStreamName, List.of(backingIndex.getIndex())));
+
+        final IndexMetadata standaloneIndex = IndexMetadata.builder(randomAlphaOfLength(6))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp"))
+            .build();
+        mb.put(standaloneIndex, false);
+        ProjectMetadata project = mb.build();
+
+        String indexName = standaloneIndex.getIndex().getName();
+
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataDataStreamsService.modifyDataStream(
+                    project,
+                    List.of(DataStreamAction.addBackingIndex(dataStreamName + "::failures", indexName)),
+                    this::getMapperService,
+                    Settings.EMPTY
+                )
+            );
+            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "::failures] not found"));
+        }
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataDataStreamsService.modifyDataStream(
+                    project,
+                    List.of(DataStreamAction.addBackingIndex(dataStreamName + "::data", indexName)),
+                    this::getMapperService,
+                    Settings.EMPTY
+                )
+            );
+            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "::data] not found"));
+        }
+        {
+            DataStreamAction action = DataStreamAction.addBackingIndex(dataStreamName + "::failures", indexName);
+            action.setFailureStore(true);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataDataStreamsService.modifyDataStream(project, List.of(action), this::getMapperService, Settings.EMPTY)
+            );
+            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "::failures] not found"));
+        }
+    }
+
     private MapperService getMapperService(IndexMetadata im) {
         try {
             String mapping = im.mapping().source().toString();

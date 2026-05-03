@@ -2020,6 +2020,70 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return performRequest(user, request);
     }
 
+    public void testModifyDataStreamRejectsSelectorInDataStreamName() throws Exception {
+        setupDataStream();
+        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        String failureIndexName = backingIndices.v2();
+
+        {
+            Request request = new Request("POST", "/_data_stream/_modify");
+            request.setJsonEntity(Strings.format("""
+                {
+                  "actions": [
+                    {
+                      "remove_backing_index": {
+                        "data_stream": "test1::failures",
+                        "index": "%s",
+                        "failure_store": true
+                      }
+                    }
+                  ]
+                }
+                """, failureIndexName));
+            ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("test1::failures"));
+        }
+        {
+            Request request = new Request("POST", "/_data_stream/_modify");
+            request.setJsonEntity(Strings.format("""
+                {
+                  "actions": [
+                    {
+                      "remove_backing_index": {
+                        "data_stream": "test1::data",
+                        "index": "%s",
+                        "failure_store": false
+                      }
+                    }
+                  ]
+                }
+                """, failureIndexName));
+            ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("test1::data"));
+        }
+        {
+            Request request = new Request("POST", "/_data_stream/_modify");
+            request.setJsonEntity(Strings.format("""
+                {
+                  "actions": [
+                    {
+                      "add_backing_index": {
+                        "data_stream": "test1::failures",
+                        "index": "%s",
+                        "failure_store": false
+                      }
+                    }
+                  ]
+                }
+                """, failureIndexName));
+            ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("test1::failures"));
+        }
+    }
+
     public void testDataStreamApis() throws Exception {
         setupDataStream();
         setupOtherDataStream();

@@ -32,6 +32,7 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.InvalidSelectorException;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -774,7 +775,14 @@ public class AuthorizationService {
             runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             return;
         }
-        final List<String> dataStreamNames = actions.stream().map(DataStreamAction::getDataStream).toList();
+        final List<String> dataStreamNames = actions.stream().map(a -> {
+            assert IndexNameExpressionResolver.hasSelectorSuffix(a.getDataStream()) == false
+                : "data stream name should not contain selectors: " + a.getDataStream();
+            return IndexNameExpressionResolver.combineSelector(
+                a.getDataStream(),
+                a.isFailureStore() ? IndexComponentSelector.FAILURES : null
+            );
+        }).toList();
         final RequestInfo dsRequestInfo = new RequestInfo(
             requestInfo.getAuthentication(),
             new DataStreamAuthorizationRequest(modifyRequest, dataStreamNames.toArray(String[]::new)),
@@ -1300,7 +1308,7 @@ public class AuthorizationService {
 
     /**
      * Thin wrapper so that authorization denial messages reference data stream names
-     * instead of the backing index names returned by {@link ModifyDataStreamsAction.Request#indices()}.
+     * instead of the indices being added or removed returned by {@link ModifyDataStreamsAction.Request#indices()}.
      */
     private static class DataStreamAuthorizationRequest extends ActionRequest implements IndicesRequest {
 

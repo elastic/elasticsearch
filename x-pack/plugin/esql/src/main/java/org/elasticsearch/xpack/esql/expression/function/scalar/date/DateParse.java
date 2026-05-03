@@ -98,9 +98,9 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
                     name = TIME_ZONE_PARAM_NAME,
                     type = "keyword",
                     valueHint = { "standard" },
-                    description = "Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values 
-                    in the query string to UTC. Can be a literal string (e.g. "US/Eastern") or a field reference containing 
-                    the timezone per document."
+                    description = "Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values "
+                        + "in the query string to UTC. Can be a literal string (e.g. \"US/Eastern\") or a field reference "
+                        + "containing the timezone per document."
                 ),
                 @MapParam.MapParamEntry(
                     name = LOCALE_PARAM_NAME,

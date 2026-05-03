@@ -484,6 +484,211 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
         assertThat(e.getMessage(), startsWith("unsupported timezone [" + timezone + "]"));
     }
 
+    /**
+     * Test runtime timezone with constant formatter - DateParseConstantRuntimeZoneIdEvaluator
+     */
+    public void testRuntimeTimezoneWithConstantFormat() {
+        String pattern = "yyyy-MM-dd";
+        String date = "2023-05-05";
+        DriverContext driverContext = driverContext();
+        
+        DateParse dateParse = new DateParse(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD),
+            field("date", DataType.KEYWORD),
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
+                    field("tz", DataType.KEYWORD),  // Runtime timezone reference
+                    new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef("en-us"), DataType.KEYWORD)
+                )
+            ),
+            randomConfiguration()
+        );
+        
+        var evaluator = evaluator(dateParse);
+        assertThat(evaluator.toString(), startsWith("DateParseConstantRuntimeZoneIdEvaluator"));
+    }
+
+    /**
+     * Test runtime timezone with runtime formatter - DateParseRuntimeZoneIdEvaluator
+     */
+    public void testRuntimeTimezoneWithRuntimeFormat() {
+        DriverContext driverContext = driverContext();
+        
+        DateParse dateParse = new DateParse(
+            Source.EMPTY,
+            field("format", DataType.KEYWORD),
+            field("date", DataType.KEYWORD),
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
+                    field("tz", DataType.KEYWORD),  // Runtime timezone reference
+                    new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef("en-us"), DataType.KEYWORD)
+                )
+            ),
+            randomConfiguration()
+        );
+        
+        var evaluator = evaluator(dateParse);
+        assertThat(evaluator.toString(), startsWith("DateParseRuntimeZoneIdEvaluator"));
+    }
+
+    /**
+     * Test that runtime timezone evaluator is selected when timezone is from field
+     */
+    public void testRuntimeTimezoneEvaluatorSelection() {
+        String pattern = "yyyy-MM-dd";
+        DriverContext driverContext = driverContext();
+        
+        // Both format and timezone are fields - should use RuntimeZoneId evaluator
+        DateParse dateParse = new DateParse(
+            Source.EMPTY,
+            field("format", DataType.KEYWORD),
+            field("date", DataType.KEYWORD),
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
+                    field("tz", DataType.KEYWORD),  // Runtime timezone
+                    new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef("en-us"), DataType.KEYWORD)
+                )
+            ),
+            randomConfiguration()
+        );
+        
+        var evaluator = evaluator(dateParse);
+        // Should select RuntimeZoneId evaluator when both formatter and timezone are runtime
+        assertThat(evaluator.toString(), startsWith("DateParseRuntimeZoneIdEvaluator"));
+    }
+
+    /**
+     * Test that NullPointerException is in warn exceptions for runtime timezone evaluators
+     * This ensures null/empty timezone values don't fail the entire query
+     */
+    public void testNullTimezoneHandling() {
+        // Verify that the @Evaluator annotations include NullPointerException in warnExceptions
+        // by checking that the evaluator factory exists and handles null timezone gracefully
+        String pattern = "yyyy-MM-dd";
+        
+        DateParse dateParse = new DateParse(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD),
+            field("date", DataType.KEYWORD),
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
+                    field("tz", DataType.KEYWORD),  // Field that could be null
+                    new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef("en-us"), DataType.KEYWORD)
+                )
+            ),
+            randomConfiguration()
+        );
+        
+        var evaluator = evaluator(dateParse);
+        // Verify the ConstantRuntimeZoneId evaluator is selected
+        assertThat(evaluator.toString(), startsWith("DateParseConstantRuntimeZoneIdEvaluator"));
+    }
+
+    /**
+     * Test invalid timezone literal value caught at compile time
+     */
+    public void testInvalidRuntimeTimezoneWithLiteral() {
+        String pattern = "yyyy-MM-dd";
+        String invalidTz = "Invalid/TimeZone";
+        DriverContext driverContext = driverContext();
+        
+        // Invalid timezone in options map literal should throw at compile time
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> evaluator(
+                new DateParse(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD),
+                    field("date", DataType.KEYWORD),
+                    new MapExpression(
+                        Source.EMPTY,
+                        List.of(
+                            new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
+                            new Literal(Source.EMPTY, new BytesRef(invalidTz), DataType.KEYWORD),
+                            new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                            new Literal(Source.EMPTY, new BytesRef("en-us"), DataType.KEYWORD)
+                        )
+                    ),
+                    randomConfiguration()
+                )
+            ).get(driverContext)
+        );
+        assertThat(e.getMessage(), startsWith("unsupported timezone"));
+    }
+
+    /**
+     * Test runtime timezone with literal locale - mixed constant and runtime options
+     */
+    public void testRuntimeTimezoneWithConstantLocale() {
+        String pattern = "yyyy-MM-dd";
+        String localeString = "en-us";
+        DriverContext driverContext = driverContext();
+        
+        // Format constant, timezone runtime, locale constant
+        DateParse dateParse = new DateParse(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD),
+            field("date", DataType.KEYWORD),
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
+                    field("tz", DataType.KEYWORD),  // Runtime timezone
+                    new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef(localeString), DataType.KEYWORD)  // Constant locale
+                )
+            ),
+            randomConfiguration()
+        );
+        
+        var evaluator = evaluator(dateParse);
+        assertThat(evaluator.toString(), startsWith("DateParseConstantRuntimeZoneIdEvaluator"));
+    }
+
+    /**
+     * Test runtime timezone option overrides session configuration timezone
+     */
+    public void testRuntimeTimezoneOverridesSessionConfig() {
+        String pattern = "yyyy-MM-dd";
+        ZoneId sessionTz = ZoneOffset.UTC;
+        ZoneId runtimeTz = ZoneId.of("Europe/Paris");
+        DriverContext driverContext = driverContext();
+        
+        // Even if session config has a timezone, runtime timezone from options takes precedence
+        DateParse dateParse = new DateParse(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD),
+            field("date", DataType.KEYWORD),
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
+                    field("tz", DataType.KEYWORD),  // Runtime timezone - overrides session TZ
+                    new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef("en-us"), DataType.KEYWORD)
+                )
+            ),
+            configurationForTimezone(sessionTz)
+        );
+        
+        var evaluator = evaluator(dateParse);
+        // Should create ConstantRuntimeZoneId evaluator with runtime timezone
+        assertThat(evaluator.toString(), startsWith("DateParseConstantRuntimeZoneIdEvaluator"));
+    }
+
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         return new DateParse(

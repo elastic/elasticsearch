@@ -21,9 +21,9 @@ import java.time.temporal.ChronoField;
 /**
  * PromQL built-in function definitions that do not correspond to a dedicated ES|QL function class.
  */
-class PromqlBuiltinFunctionDefinitions {
+public class PromqlBuiltinFunctionDefinitions {
 
-    static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()
+    public static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()
         .vectorConversion()
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns the scalar as a vector with no labels.")

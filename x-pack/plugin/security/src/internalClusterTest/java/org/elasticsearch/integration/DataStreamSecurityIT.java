@@ -73,14 +73,12 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
             index_only_role:
               cluster: [ manage_index_templates ]
               indices:
-                - names: 'user_a-*'
+                - names: 'my-index-*'
                   privileges: [ all ]
             ds_only_role:
               cluster: [ manage_index_templates ]
               indices:
                 - names: 'ds-one'
-                  privileges: [ manage ]
-                - names: '.ds-ds-one*'
                   privileges: [ manage ]
             """, SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
     }
@@ -240,7 +238,8 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         );
 
         indexOnlyClient.index(
-            new IndexRequest("user_a-idx").source("{\"@timestamp\": \"2024-01-01T00:00:00Z\", \"message\": \"test\"}", XContentType.JSON)
+            new IndexRequest("my-index-1").source("""
+                {"@timestamp": "2024-01-01T00:00:00Z", "message": "test"}""", XContentType.JSON)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
 
@@ -250,7 +249,7 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
                 new ModifyDataStreamsAction.Request(
                     TEST_REQUEST_TIMEOUT,
                     TEST_REQUEST_TIMEOUT,
-                    List.of(DataStreamAction.addBackingIndex("ds-two", "user_a-idx"))
+                    List.of(DataStreamAction.addBackingIndex("ds-two", "my-index-1"))
                 )
             ).actionGet();
         });
@@ -297,10 +296,9 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         );
 
         adminClient.index(
-            new IndexRequest("standalone-index").source(
-                "{\"@timestamp\": \"2024-01-01T00:00:00Z\", \"message\": \"data\"}",
-                XContentType.JSON
-            ).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            new IndexRequest("extra-index").source("""
+                {"@timestamp": "2024-01-01T00:00:00Z", "message": "data"}""", XContentType.JSON)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
 
         assertAcked(
@@ -309,7 +307,7 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
                 new ModifyDataStreamsAction.Request(
                     TEST_REQUEST_TIMEOUT,
                     TEST_REQUEST_TIMEOUT,
-                    List.of(DataStreamAction.addBackingIndex("logs-app", "standalone-index"))
+                    List.of(DataStreamAction.addBackingIndex("logs-app", "extra-index"))
                 )
             ).actionGet()
         );
@@ -409,10 +407,9 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         );
 
         adminClient.index(
-            new IndexRequest("unrelated-index").source(
-                "{\"@timestamp\": \"2024-01-01T00:00:00Z\", \"message\": \"data\"}",
-                XContentType.JSON
-            ).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            new IndexRequest("unrelated-index").source("""
+                {"@timestamp": "2024-01-01T00:00:00Z", "message": "data"}""", XContentType.JSON)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {

@@ -654,9 +654,7 @@ public class StatelessPlugin extends Plugin
             .put(FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30));
         settings.put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME)
             .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0)
-            /*
-             * Start reactive-balancing settings
-             */
+            /* Start reactive-balancing settings */
             .put(StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey(), 0)
             .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0)
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true)
@@ -669,10 +667,8 @@ public class StatelessPlugin extends Plugin
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .put(WriteLoadConstraintSettings.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.getKey(), true)
-            /*
-             * End reactive-balancing settings
-             */
-            .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false);
+        /* End reactive-balancing settings */
+        ;
         if (sharedCachedSettingExplicitlySet == false) {
             if (hasSearchRole) {
                 settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "90%")

@@ -295,6 +295,42 @@ public class KnnIndexer {
         }
     }
 
+    /**
+     * Opens a stateless directory for the given index path.
+     */
+    static Directory openStatelessDirectory(Path indexPath) throws IOException {
+        Path workPath = indexPath.resolveSibling(indexPath.getFileName() + ".stateless_work");
+        Files.createDirectories(workPath);
+        logger.info("Opening stateless directory for index at {} with work path {}", indexPath, workPath);
+        return newStatelessDirectory(indexPath, workPath);
+    }
+
+    /**
+     * Creates a directory backed by stateless infrastructure, from an existing
+     * Lucene index on disk. Loaded via reflection because the factory resides in the
+     * stateless test artifact (unnamed module) which cannot be directly referenced
+     * from this named module ({@code org.elasticsearch.test.knn}).
+     */
+    private static Directory newStatelessDirectory(Path indexPath, Path workPath) throws IOException {
+        try {
+            Class<?> factoryClass = Class.forName("org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory");
+            var method = factoryClass.getMethod("create", Path.class, Path.class);
+            return (Directory) method.invoke(null, indexPath, workPath);
+        } catch (Exception e) {
+            throw new IOException("Failed to create stateless directory. Ensure the stateless test artifact is on the classpath.", e);
+        }
+    }
+
+    static void logStatelessCacheStats(Directory dir, String label) {
+        try {
+            Class<?> factoryClass = Class.forName("org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory");
+            var method = factoryClass.getMethod("logCacheStats", Directory.class, String.class);
+            method.invoke(null, dir, label);
+        } catch (Exception e) {
+            logger.warn("Failed to log stateless cache stats", e);
+        }
+    }
+
     private static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
         return (name, context) -> {
             if (context.hints().contains(StandardIOBehaviorHint.INSTANCE) || name.endsWith(".cfs")) {

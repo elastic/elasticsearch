@@ -69,6 +69,7 @@ entryExpression
 mapValue
     : constant
     | mapExpression
+    | qualifiedName
     ;
 
 constant

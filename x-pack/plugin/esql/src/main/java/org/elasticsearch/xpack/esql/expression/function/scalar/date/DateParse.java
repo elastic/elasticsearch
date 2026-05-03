@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -18,7 +19,9 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -236,12 +239,31 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         return parse(val.utf8ToString(), toFormatter(formatter, locale), zoneId, locale);
     }
 
+    @Evaluator(extraName = "ConstantRuntimeZoneId", warnExceptions = { IllegalArgumentException.class, ZoneRulesException.class, NullPointerException.class })
+    static long process(BytesRef val, @Fixed DateFormatter formatter, BytesRef zoneId, @Fixed Locale locale)
+        throws IllegalArgumentException, ZoneRulesException {
+        return parse(val.utf8ToString(), formatter, parseZoneId(zoneId), locale);
+    }
+
+    @Evaluator(extraName = "RuntimeZoneId", warnExceptions = { IllegalArgumentException.class, ZoneRulesException.class, NullPointerException.class })
+    static long process(BytesRef val, BytesRef formatter, BytesRef zoneId, @Fixed Locale locale) throws IllegalArgumentException,
+        ZoneRulesException {
+        return parse(val.utf8ToString(), toFormatter(formatter, locale), parseZoneId(zoneId), locale);
+    }
+
     private static long parse(String date, DateFormatter formatter, ZoneId zoneId, Locale locale) {
         try {
             return DateFormatters.from(formatter.parse(date), locale, zoneId).toInstant().toEpochMilli();
         } catch (DateTimeException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
         }
+    }
+
+    private static ZoneId parseZoneId(BytesRef zoneIdStr) {
+        if (zoneIdStr == null || zoneIdStr.length == 0) {
+            return null;
+        }
+        return ZoneId.of(zoneIdStr.utf8ToString());
     }
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
@@ -262,47 +284,157 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        Expression field = field();
-        Expression format = format();
-        ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
+        ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field());
 
-        var parsedOptions = this.parseOptions();
-        String localeAsString = (String) parsedOptions.get(LOCALE_PARAM_NAME);
-        Locale locale = localeAsString == null ? Locale.ROOT : LocaleUtils.parse(localeAsString);
+        Expression options = options();
 
-        String timezoneAsString = (String) parsedOptions.get(TIME_ZONE_PARAM_NAME);
-        ZoneId timezone = configuration().zoneId();
-        try {
-            if (timezoneAsString != null) {
-                timezone = ZoneId.of(timezoneAsString);
-            }
-        } catch (ZoneRulesException e) {
-            throw new IllegalArgumentException("unsupported timezone [" + timezoneAsString + "]");
+        Locale locale = extractLocale(options);
+        Expression timezoneExpr = extractTimezoneExpr(options);
+
+        ZoneId constantTimezone = resolveConstantTimezone(timezoneExpr, toEvaluator);
+        ExpressionEvaluator.Factory timezoneEvaluator = resolveTimezoneEvaluator(timezoneExpr, toEvaluator);
+
+        return resolveFormatterAndBuildEvaluator(
+            format(),
+            locale,
+            toEvaluator,
+            fieldEvaluator,
+            constantTimezone,
+            timezoneEvaluator
+        );
+    }
+
+    private Locale extractLocale(Expression options) {
+        if (options == null) {
+            return Locale.ROOT;
         }
+
+        for (EntryExpression entry : ((MapExpression) options).entryExpressions()) {
+            if (!(entry.key() instanceof Literal keyLit)) {
+                throw new InvalidArgumentException("Option keys must be literal values");
+            }
+
+            if (LOCALE_PARAM_NAME.equals(BytesRefs.toString(keyLit.value()))) {
+                if (!(entry.value() instanceof Literal valLit)) {
+                    throw new InvalidArgumentException(
+                        "Invalid option [" + LOCALE_PARAM_NAME + "] in [" + sourceText() + "], expected a [keyword] value");
+                }
+                return LocaleUtils.parse(BytesRefs.toString(valLit.value()));
+            }
+        }
+
+        return Locale.ROOT;
+    }
+
+    private Expression extractTimezoneExpr(Expression options) {
+        if (options == null) {
+            return null;
+        }
+
+        for (EntryExpression entry : ((MapExpression) options).entryExpressions()) {
+            if (!(entry.key() instanceof Literal keyLit)) {
+                throw new InvalidArgumentException("Option keys must be literal values");
+            }
+
+            String optionKey = BytesRefs.toString(keyLit.value());
+
+            if (!ALLOWED_OPTIONS.containsKey(optionKey)) {
+                throw new InvalidArgumentException(
+                    "Invalid option [" + optionKey + "] in [" + sourceText() + "], expected one of " + ALLOWED_OPTIONS.keySet());
+            }
+
+            if (TIME_ZONE_PARAM_NAME.equals(optionKey)) {
+                if (!DataType.isString(entry.value().dataType())) {
+                    throw new InvalidArgumentException(
+                        "Invalid option [" + optionKey + "] in [" + sourceText() + "], expected a [keyword] value");
+                }
+                return entry.value();
+            }
+        }
+
+        return null;
+    }
+
+    private ZoneId resolveConstantTimezone(Expression timezoneExpr, ToEvaluator toEvaluator) {
+        if (timezoneExpr == null) {
+            return configuration().zoneId();
+        }
+
+        if (!timezoneExpr.foldable()) {
+            return null;
+        }
+
+        try {
+            String tzString = BytesRefs.toString((BytesRef) timezoneExpr.fold(toEvaluator.foldCtx()));
+            return ZoneId.of(tzString);
+        } catch (ZoneRulesException e) {
+            throw new IllegalArgumentException("unsupported timezone [" + timezoneExpr + "]: " + e.getMessage());
+        }
+    }
+
+    private ExpressionEvaluator.Factory resolveTimezoneEvaluator(Expression timezoneExpr, ToEvaluator toEvaluator) {
+        if (timezoneExpr == null || timezoneExpr.foldable()) {
+            return null;
+        }
+        return toEvaluator.apply(timezoneExpr);
+    }
+
+    private ExpressionEvaluator.Factory resolveFormatterAndBuildEvaluator(
+        Expression format,
+        Locale locale,
+        ToEvaluator toEvaluator,
+        ExpressionEvaluator.Factory fieldEvaluator,
+        ZoneId constantTimezone,
+        ExpressionEvaluator.Factory timezoneEvaluator) {
 
         if (format == null) {
-            return new DateParseConstantEvaluator.Factory(
-                source(),
-                fieldEvaluator,
-                DEFAULT_DATE_TIME_FORMATTER.withLocale(locale),
-                timezone,
-                locale
-            );
+            DateFormatter formatter = DEFAULT_DATE_TIME_FORMATTER.withLocale(locale);
+            return selectEvaluator(fieldEvaluator, formatter, null, constantTimezone, timezoneEvaluator, locale);
         }
-        if (DataType.isString(format.dataType()) == false) {
+
+        if (!DataType.isString(format.dataType())) {
             throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");
         }
 
         if (format.foldable()) {
             try {
                 DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), locale);
-                return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, formatter, timezone, locale);
+                return selectEvaluator(fieldEvaluator, formatter, null, constantTimezone, timezoneEvaluator, locale);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
             }
         }
+
+        // Format is runtime
         ExpressionEvaluator.Factory formatEvaluator = toEvaluator.apply(format);
-        return new DateParseEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, timezone, locale);
+        return selectEvaluator(fieldEvaluator, null, formatEvaluator, constantTimezone, timezoneEvaluator, locale);
+    }
+
+    private ExpressionEvaluator.Factory selectEvaluator(
+        ExpressionEvaluator.Factory fieldEvaluator,
+        DateFormatter formatter,
+        ExpressionEvaluator.Factory formatEvaluator,
+        ZoneId constantTimezone,
+        ExpressionEvaluator.Factory timezoneEvaluator,
+        Locale locale) {
+
+        if (formatEvaluator != null && timezoneEvaluator != null) {
+            return new DateParseRuntimeZoneIdEvaluator.Factory(
+                source(), fieldEvaluator, formatEvaluator, timezoneEvaluator, locale);
+        }
+
+        if (formatEvaluator != null) {
+            return new DateParseEvaluator.Factory(
+                source(), fieldEvaluator, formatEvaluator, constantTimezone, locale);
+        }
+
+        if (timezoneEvaluator != null) {
+            return new DateParseConstantRuntimeZoneIdEvaluator.Factory(
+                source(), fieldEvaluator, formatter, timezoneEvaluator, locale);
+        }
+
+        return new DateParseConstantEvaluator.Factory(
+            source(), fieldEvaluator, formatter, constantTimezone, locale);
     }
 
     private static DateFormatter toFormatter(Object format, Locale locale) {

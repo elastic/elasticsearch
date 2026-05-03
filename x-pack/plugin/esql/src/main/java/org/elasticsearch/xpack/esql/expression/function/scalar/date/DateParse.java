@@ -70,7 +70,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
 
     private static final String TIME_ZONE_PARAM_NAME = "time_zone";
     private static final String LOCALE_PARAM_NAME = "locale";
-    public static final String FuNCTION_NAME = "date_parse";
+    public static final String FUNCTION_NAME = "date_parse";
 
     private final Expression first;
     private final Expression second;
@@ -227,7 +227,9 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
     public boolean foldable() {
         Expression field = field();
         Expression format = format();
-        return field.foldable() && (format == null || format.foldable());
+        Expression options = options();
+        Expression timezoneExpr = extractTimezoneExpr(options);
+        return field.foldable() && (format == null || format.foldable())&& (timezoneExpr == null || timezoneExpr.foldable());
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })
@@ -370,7 +372,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
             String tzString = BytesRefs.toString((BytesRef) timezoneExpr.fold(toEvaluator.foldCtx()));
             return ZoneId.of(tzString);
         } catch (ZoneRulesException e) {
-            throw new IllegalArgumentException("unsupported timezone [" + timezoneExpr + "]: " + e.getMessage());
+            throw new IllegalArgumentException("unsupported timezone [" + timezoneExpr + "]");
         }
     }
 

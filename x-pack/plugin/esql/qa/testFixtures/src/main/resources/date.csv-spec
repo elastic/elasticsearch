@@ -1940,3 +1940,46 @@ from employees
 emp_no:integer | hire_date:date             | monthName:keyword
 10004          | 1986-12-01T00:00:00.000Z   | November
 ;
+
+evalDateParseWithDynamicTimezone
+required_capability: date_parse_options
+
+row timestamp = "2023-05-06T10:00:00", tz = "US/Eastern"
+| eval parsed = date_parse("yyyy-MM-dd'T'HH:mm:ss", timestamp, {"time_zone": tz})
+| keep timestamp, tz, parsed;
+
+timestamp:keyword   | tz:keyword     | parsed:datetime
+2023-05-06T10:00:00 | US/Eastern     | 2023-05-06T14:00:00.000Z
+;
+
+evalDateParseWithDynamicTimezoneTokyо
+required_capability: date_parse_options
+
+row timestamp = "2023-05-06T08:15:00", tz = "Asia/Tokyo"
+| eval parsed = date_parse("yyyy-MM-dd'T'HH:mm:ss", timestamp, {"time_zone": tz})
+| keep timestamp, tz, parsed;
+
+timestamp:keyword   | tz:keyword  | parsed:datetime
+2023-05-06T08:15:00 | Asia/Tokyo  | 2023-05-05T23:15:00.000Z
+;
+
+evalDateParseDynamicTimezoneFromEmployees
+required_capability: date_parse_options
+
+FROM employees 
+| WHERE emp_no >= 10001 AND emp_no <= 10003
+| SORT emp_no
+| EVAL tz = CASE(
+    emp_no == 10001, "US/Eastern",
+    emp_no == 10002, "Europe/Paris",
+    emp_no == 10003, "Asia/Tokyo"
+  )
+| EVAL birth_str = DATE_FORMAT("yyyy-MM-dd'T'HH:mm:ss", birth_date)
+| EVAL parsed = DATE_PARSE("yyyy-MM-dd'T'HH:mm:ss", birth_str, {"time_zone": tz})
+| KEEP emp_no, birth_date, tz, parsed;
+
+emp_no:integer | birth_date:datetime          | tz:keyword     | parsed:datetime
+10001          | 1953-09-02T00:00:00.000Z     | US/Eastern     | 1953-09-02T04:00:00.000Z
+10002          | 1964-06-02T00:00:00.000Z     | Europe/Paris   | 1964-06-01T23:00:00.000Z
+10003          | 1959-12-03T00:00:00.000Z     | Asia/Tokyo     | 1959-12-02T15:00:00.000Z
+;

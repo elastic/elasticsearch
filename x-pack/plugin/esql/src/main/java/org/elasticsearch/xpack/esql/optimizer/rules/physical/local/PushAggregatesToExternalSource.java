@@ -102,7 +102,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec;
         }
 
-        SplitStats stats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
+        var stats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
         if (stats == null) {
             // Planning-time pushdown is unavailable (e.g. multi-file glob where stats would
             // need to be read serially). Try runtime aggregate pushdown: if the reader
@@ -207,7 +207,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
 
     private boolean resolveAggregateValues(
         List<? extends NamedExpression> aggregates,
-        SplitStats stats,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
         List<Object> values,
         List<DataType> dataTypes
     ) {
@@ -239,9 +239,9 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
      * future fix can correct both call sites consistently using
      * {@code ColumnChunkMetaData.getValueCount() - getNumNulls()} for Parquet (and the
      * equivalent metadata field for other formats); this requires plumbing a {@code valueCount}
-     * field through {@link SplitStats} and {@link org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics}.
+     * field through {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats} and {@link org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics}.
      */
-    private Object resolveFromStats(Expression aggFunction, SplitStats stats) {
+    private Object resolveFromStats(Expression aggFunction, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (aggFunction instanceof Count count) {
             if (count.hasFilter()) {
                 return null;

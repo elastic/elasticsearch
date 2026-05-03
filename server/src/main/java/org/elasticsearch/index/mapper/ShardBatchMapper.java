@@ -240,7 +240,6 @@ public final class ShardBatchMapper {
         MappingParserContext mappingParserContext
     ) throws IOException {
         final BatchDocumentParserContext ctx = new BatchDocumentParserContext(mappingLookup, mappingParserContext, sourceToParse);
-        ctx.setParser(rowParser);
 
         for (MetadataFieldMapper metadataMapper : metadataMappers) {
             metadataMapper.preParse(ctx);
@@ -255,6 +254,7 @@ public final class ShardBatchMapper {
             ctx.setParser(rowParser);
             mapper.parse(ctx);
         }
+        ctx.setParser(null);
 
         for (MetadataFieldMapper metadataMapper : metadataMappers) {
             metadataMapper.postParse(ctx);

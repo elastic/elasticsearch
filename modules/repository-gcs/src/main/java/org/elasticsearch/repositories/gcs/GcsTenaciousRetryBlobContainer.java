@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 
@@ -33,12 +34,12 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
     }
 
     @Override
-    protected Map<String, Object> getMetricsAttributes(RetryMethod method) {
+    protected Map<String, Object> getMetricsAttributes(RetryMethod method, OperationPurpose purpose) {
         return Map.of(
             "repo_type",
             GoogleCloudStorageRepository.TYPE,
-            "blob_path",
-            blobPath,
+            "operation_purpose",
+            purpose.getKey(),
             "operation",
             lookUpOperationNameByMethod(method)
         );

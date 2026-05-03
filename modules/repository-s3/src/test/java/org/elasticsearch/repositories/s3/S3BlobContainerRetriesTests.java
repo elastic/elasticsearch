@@ -53,6 +53,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -1765,22 +1766,18 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         // No retries attempted for non INDICES purposes.
         expectThrows(
             IOException.class,
-            () -> testS3TenaciousRetryBlobContainer.listBlobs(
-                randomFrom(Arrays.stream(OperationPurpose.values()).filter(v -> v != OperationPurpose.INDICES).toList())
-            )
+            () -> testS3TenaciousRetryBlobContainer.listBlobs(randomFrom(BlobStoreTestUtil.randomFiniteRetryingPurpose()))
         );
         expectThrows(
             IOException.class,
             () -> testS3TenaciousRetryBlobContainer.listBlobsByPrefix(
-                randomFrom(Arrays.stream(OperationPurpose.values()).filter(v -> v != OperationPurpose.INDICES).toList()),
+                randomFrom(BlobStoreTestUtil.randomFiniteRetryingPurpose()),
                 randomIdentifier()
             )
         );
         expectThrows(
             IOException.class,
-            () -> testS3TenaciousRetryBlobContainer.children(
-                randomFrom(Arrays.stream(OperationPurpose.values()).filter(v -> v != OperationPurpose.INDICES).toList())
-            )
+            () -> testS3TenaciousRetryBlobContainer.children(randomFrom(BlobStoreTestUtil.randomFiniteRetryingPurpose()))
         );
 
         Map<String, BlobContainer> result = testS3TenaciousRetryBlobContainer.children(OperationPurpose.INDICES);
@@ -1793,6 +1790,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(getAttributes(tenaciousRecordingMeterRegistry).size(), equalTo(3));
         assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("repo_type"), equalTo("s3"));
         assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("operation"), equalTo("ListObjects"));
+        assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("operation_purpose"), equalTo(OperationPurpose.INDICES.getKey()));
+
     }
 
 }

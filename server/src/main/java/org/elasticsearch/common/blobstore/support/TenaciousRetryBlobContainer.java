@@ -39,7 +39,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
     private static final int INITIAL_ATTEMPT = 1;
     public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
     protected final BlobContainer delegate;
-    protected final String blobPath;
+    private final String blobPath;
 
     public enum RetryMethod {
         LIST_BLOBS("listBlobs"),
@@ -66,12 +66,12 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
 
     protected abstract boolean isExceptionRetryable(Exception e);
 
-    protected abstract Map<String, Object> getMetricsAttributes(RetryMethod method);
+    protected abstract Map<String, Object> getMetricsAttributes(RetryMethod method, OperationPurpose purpose);
 
     @Override
     public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
         if (shouldRetry(purpose)) {
-            return execute(() -> super.listBlobs(purpose), RetryMethod.LIST_BLOBS);
+            return execute(() -> super.listBlobs(purpose), RetryMethod.LIST_BLOBS, purpose);
         }
 
         return super.listBlobs(purpose);
@@ -80,7 +80,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
         if (shouldRetry(purpose)) {
-            return execute(() -> super.listBlobsByPrefix(purpose, blobNamePrefix), RetryMethod.LIST_BLOBS_BY_PREFIX);
+            return execute(() -> super.listBlobsByPrefix(purpose, blobNamePrefix), RetryMethod.LIST_BLOBS_BY_PREFIX, purpose);
         }
 
         return super.listBlobsByPrefix(purpose, blobNamePrefix);
@@ -89,14 +89,14 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
     @Override
     public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
         if (shouldRetry(purpose)) {
-            return execute(() -> super.children(purpose), RetryMethod.CHILDREN);
+            return execute(() -> super.children(purpose), RetryMethod.CHILDREN, purpose);
         }
 
         return super.children(purpose);
     }
 
     // Visible for testing
-    protected <T, E extends Exception> T execute(CheckedSupplier<T, E> operation, RetryMethod method) throws E {
+    protected <T, E extends Exception> T execute(CheckedSupplier<T, E> operation, RetryMethod method, OperationPurpose purpose) throws E {
         final List<Exception> failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
 
         int attempts = INITIAL_ATTEMPT;
@@ -104,7 +104,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
         while (true) {
             try {
                 T t = operation.get();
-                maybeLogSuccessfulRetry(method, attempts);
+                maybeLogSuccessfulRetry(method, attempts, purpose);
                 return t;
             } catch (Exception e) {
                 if (isExceptionRetryable(e)) {
@@ -112,7 +112,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
                     if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
                         failures.add(e);
                     }
-                    logRetryAttempt(method);
+                    logRetryAttempt(method, purpose, attempts);
                     try {
                         Thread.sleep(getRetryDelayInMillis(attempts));
                     } catch (InterruptedException exception) {
@@ -122,7 +122,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
                     for (Exception failure : failures) {
                         e.addSuppressed(failure);
                     }
-                    logRetryFailure(e, method, attempts);
+                    logRetryFailure(e, method, attempts, purpose);
                     throw e;
                 }
             }
@@ -133,31 +133,31 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
         return purpose == OperationPurpose.INDICES;
     }
 
-    private void maybeLogSuccessfulRetry(RetryMethod method, int attempts) {
+    private void maybeLogSuccessfulRetry(RetryMethod method, int attempts, OperationPurpose purpose) {
         if (attempts > INITIAL_ATTEMPT) {
-            repositoriesMetrics.allocationTransientErrorRetrySuccessCounter().incrementBy(1, getMetricsAttributes(method));
+            repositoriesMetrics.transientErrorRetrySuccessCounter().incrementBy(1, getMetricsAttributes(method, purpose));
             logger.info("""
                 Blobstore [{}] operation [{}] succeeded after [{}] attempts.
-                """, delegate.path().buildAsString(), method.name(), attempts);
+                """, blobPath, method.name(), attempts);
         }
     }
 
-    private void logRetryAttempt(RetryMethod method) {
-        repositoriesMetrics.allocationTransientErrorRetryCounter().incrementBy(1, getMetricsAttributes(method));
-    }
-
-    private void logRetryFailure(Exception ex, RetryMethod method, int attempts) {
+    private void logRetryAttempt(RetryMethod method, OperationPurpose purpose, int attempts) {
+        repositoriesMetrics.transientErrorRetryCounter().incrementBy(1, getMetricsAttributes(method, purpose));
         logger.log(
             Integer.bitCount(attempts) == 1 ? Level.INFO : Level.DEBUG,
-            () -> format(
-                "Blobstore [%s] operation [%s] failed after [%d] attempts.",
-                delegate.path().buildAsString(),
-                method.name(),
-                attempts
-            ),
-            ex
+            () -> format("Blobstore [%s] retry [%s] for the [%d] times.", blobPath, method, attempts)
         );
-        repositoriesMetrics.allocationTransientErrorRetryFailureCounter().incrementBy(1, getMetricsAttributes(method));
+    }
+
+    private void logRetryFailure(Exception ex, RetryMethod method, int attempts, OperationPurpose purpose) {
+        if (attempts == 1) {
+            logger.debug(() -> format("Blobstore [%s] operation [%s] failed with non-retryable exception.", blobPath, method.name()), ex);
+            return;
+        }
+
+        logger.warn(() -> format("Blobstore [%s] operation [%s] failed after [%d] attempts.", blobPath, method.name(), attempts), ex);
+        repositoriesMetrics.TransientErrorRetryFailureCounter().incrementBy(1, getMetricsAttributes(method, purpose));
     }
 
     protected long getRetryDelayInMillis(int attempt) {

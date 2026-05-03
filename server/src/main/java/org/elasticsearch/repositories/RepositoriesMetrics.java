@@ -34,9 +34,9 @@ public record RepositoriesMetrics(
     LongCounter inputStreamRetryStartedCounter,
     LongCounter inputStreamRetryCompletedCounter,
     LongHistogram inputStreamRetryHistogram,
-    LongCounter allocationTransientErrorRetryCounter,
-    LongCounter allocationTransientErrorRetrySuccessCounter,
-    LongCounter allocationTransientErrorRetryFailureCounter
+    LongCounter transientErrorRetryCounter,
+    LongCounter transientErrorRetrySuccessCounter,
+    LongCounter TransientErrorRetryFailureCounter
 ) {
 
     public static final RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);

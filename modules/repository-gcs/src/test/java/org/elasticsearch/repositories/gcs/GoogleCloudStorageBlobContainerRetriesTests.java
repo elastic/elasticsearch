@@ -109,13 +109,14 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @SuppressForbidden(reason = "use a http server")
 public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
 
     private final ClusterService clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
-    protected final Map<String, AtomicInteger> requestCounters = new ConcurrentHashMap<>();
-    protected String endpointUrlOverride;
+    private final Map<String, AtomicInteger> requestCounters = new ConcurrentHashMap<>();
+    private String endpointUrlOverride;
 
     private String httpServerUrl() {
         assertThat(httpServer, notNullValue());
@@ -828,5 +829,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         assertThat(getAttributes(recordingMeterRegistry).size(), equalTo(3));
         assertThat(getAttributes(recordingMeterRegistry).get("repo_type"), equalTo("gcs"));
         assertThat(getAttributes(recordingMeterRegistry).get("operation"), equalTo("ListObjects"));
+        assertThat(getAttributes(recordingMeterRegistry).get("operation_purpose"), equalTo(OperationPurpose.INDICES.getKey()));
+
     }
 }

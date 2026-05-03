@@ -13,6 +13,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 
@@ -48,8 +49,15 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
     }
 
     @Override
-    protected Map<String, Object> getMetricsAttributes(RetryMethod method) {
-        return Map.of("repo_type", S3Repository.TYPE, "blob_path", blobPath, "operation", lookUpOperationNameByMethod(method));
+    protected Map<String, Object> getMetricsAttributes(RetryMethod method, OperationPurpose purpose) {
+        return Map.of(
+            "repo_type",
+            S3Repository.TYPE,
+            "operation_purpose",
+            purpose.getKey(),
+            "operation",
+            lookUpOperationNameByMethod(method)
+        );
     }
 
     @Override

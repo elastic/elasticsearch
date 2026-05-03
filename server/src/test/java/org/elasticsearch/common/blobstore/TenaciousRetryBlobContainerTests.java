@@ -58,8 +58,8 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
             }
 
             @Override
-            protected Map<String, Object> getMetricsAttributes(RetryMethod method) {
-                return Map.of("repo_type", "test", "blobPath", "/tenacious/retries");
+            protected Map<String, Object> getMetricsAttributes(RetryMethod method, OperationPurpose operationPurpose) {
+                return Map.of("repo_type", "test", "operation_purpose", operationPurpose.getKey());
             }
 
             @Override
@@ -116,8 +116,8 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         assertThat(getAttributes(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL).size(), equalTo(2));
         assertThat(getAttributes(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL).get("repo_type"), equalTo("test"));
         assertThat(
-            getAttributes(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL).get("blobPath"),
-            equalTo("/tenacious/retries")
+            getAttributes(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL).get("operation_purpose"),
+            equalTo(OperationPurpose.INDICES.getKey())
         );
 
         // Key retryable method children()
@@ -151,8 +151,8 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         assertThat(getMeasurements(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_TOTAL), equalTo(1));
         assertThat(getAttributes(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_TOTAL).get("repo_type"), equalTo("test"));
         assertThat(
-            getAttributes(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_TOTAL).get("blobPath"),
-            equalTo("/tenacious/retries")
+            getAttributes(recordingMeterRegistry, METRIC_TRANSIENT_ERROR_RETRY_TOTAL).get("operation_purpose"),
+            equalTo(OperationPurpose.INDICES.getKey())
         );
     }
 

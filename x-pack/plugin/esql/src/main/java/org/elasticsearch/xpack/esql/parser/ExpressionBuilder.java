@@ -737,44 +737,43 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         return visitIdentifierOrParameter(ctx.identifierOrParameter());
     }
+    @Override
+    public MapExpression visitMapExpression(EsqlBaseParser.MapExpressionContext ctx) {
+        List<Expression> namedArgs = new ArrayList<>(ctx.entryExpression().size());
+        List<String> names = new ArrayList<>(ctx.entryExpression().size());
+        List<EsqlBaseParser.EntryExpressionContext> kvCtx = ctx.entryExpression();
 
- @Override
-public MapExpression visitMapExpression(EsqlBaseParser.MapExpressionContext ctx) {
-    List<Expression> namedArgs = new ArrayList<>(ctx.entryExpression().size());
-    List<String> names = new ArrayList<>(ctx.entryExpression().size());
-    List<EsqlBaseParser.EntryExpressionContext> kvCtx = ctx.entryExpression();
+        for (EsqlBaseParser.EntryExpressionContext entry : kvCtx) {
+            EsqlBaseParser.StringContext stringCtx = entry.string();
+            String key = unquote(stringCtx.QUOTED_STRING().getText()); // key is case-sensitive
 
-    for (EsqlBaseParser.EntryExpressionContext entry : kvCtx) {
-        EsqlBaseParser.StringContext stringCtx = entry.string();
-        String key = unquote(stringCtx.QUOTED_STRING().getText()); // key is case-sensitive
+            if (key.isBlank()) {
+                throw new ParsingException(source(ctx), "Invalid named parameter [{}], empty key is not supported", entry.getText());
+            }
+            if (names.contains(key)) {
+                throw new ParsingException(source(ctx), "Duplicated named parameters with the same name [{}] is not supported", key);
+            }
 
-        if (key.isBlank()) {
-            throw new ParsingException(source(ctx), "Invalid named parameter [{}], empty key is not supported", entry.getText());
+            // Support: literals, nested maps, and field references/expressions
+            Expression value;
+            if (entry.value.constant() != null) {
+                value = expression(entry.value.constant());
+            } else if (entry.value.mapExpression() != null) {
+                value = expression(entry.value.mapExpression());
+            } else if (entry.value.qualifiedName() != null) {
+                // NEW: Support field references like {"time_zone": timezone_field}
+                value = visitQualifiedName(entry.value.qualifiedName());
+            } else {
+                throw new ParsingException(source(entry), "Invalid map value in [{}]", entry.getText());
+            }
+
+            namedArgs.add(Literal.keyword(source(stringCtx), key));
+            namedArgs.add(value);
+            names.add(key);
         }
-        if (names.contains(key)) {
-            throw new ParsingException(source(ctx), "Duplicated named parameters with the same name [{}] is not supported", key);
-        }
 
-        // Support: literals, nested maps, and field references/expressions
-        Expression value;
-        if (entry.value.constant() != null) {
-            value = expression(entry.value.constant());
-        } else if (entry.value.mapExpression() != null) {
-            value = expression(entry.value.mapExpression());
-        } else if (entry.value.qualifiedName() != null) {
-            // NEW: Support field references like {"time_zone": timezone_field}
-            value = visitQualifiedName(entry.value.qualifiedName());
-        } else {
-            throw new ParsingException(source(entry), "Invalid map value in [{}]", entry.getText());
-        }
-
-        namedArgs.add(Literal.keyword(source(stringCtx), key));
-        namedArgs.add(value);
-        names.add(key);
+        return new MapExpression(source(ctx), namedArgs);
     }
-
-    return new MapExpression(source(ctx), namedArgs);
-}
 
     @Override
     public MapExpression visitCommandNamedParameters(EsqlBaseParser.CommandNamedParametersContext ctx) {

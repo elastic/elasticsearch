@@ -12,6 +12,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.CrossProjectSearchMetrics;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -345,6 +346,7 @@ public enum SearchResponseUtils {
         BytesReference searchContextId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
         SearchResponse.Clusters clusters = SearchResponse.Clusters.EMPTY;
+        CrossProjectSearchMetrics cpsMetrics = null;
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -365,7 +367,9 @@ public enum SearchResponseUtils {
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (SearchHits.Fields.HITS.equals(currentFieldName)) {
+                if (CrossProjectSearchMetrics.CPS_PROFILE_FIELD.equals(currentFieldName)) {
+                    cpsMetrics = parseCpsMetrics(parser);
+                } else if (SearchHits.Fields.HITS.equals(currentFieldName)) {
                     hits = parseSearchHits(parser);
                 } else if (InternalAggregations.AGGREGATIONS_FIELD.equals(currentFieldName)) {
                     aggs = parseInternalAggregations(parser);
@@ -426,8 +430,74 @@ public enum SearchResponseUtils {
             clusters,
             searchContextId,
             null,
-            null
+            null,
+            cpsMetrics
         );
+    }
+
+    private static CrossProjectSearchMetrics parseCpsMetrics(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        CrossProjectSearchMetrics metrics = new CrossProjectSearchMetrics();
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (CrossProjectSearchMetrics.PLANNING_PHASE_TOOK_TIME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    metrics.trackPlanningPhaseTookTime(parser.longValue());
+                } else if (CrossProjectSearchMetrics.MERGING_PHASE_TOOK_TIME_FIELD.match(
+                    currentFieldName,
+                    parser.getDeprecationHandler()
+                )) {
+                    metrics.trackMergingPhaseTookTime(parser.longValue());
+                } else {
+                    parser.skipChildren();
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (CrossProjectSearchMetrics.PROJECTS_ROUND_TRIP_TIME.equals(currentFieldName)) {
+                    parseCpsProjectsRoundTripTime(parser, metrics);
+                } else {
+                    parser.skipChildren();
+                }
+            } else {
+                parser.skipChildren();
+            }
+        }
+        return metrics;
+    }
+
+    private static void parseCpsProjectsRoundTripTime(XContentParser parser, CrossProjectSearchMetrics metrics) throws IOException {
+        XContentParser.Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (CrossProjectSearchMetrics.PROJECTS_NAME.equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            String projectKey = null;
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    projectKey = parser.currentName();
+                                } else if (token.isValue()) {
+                                    metrics.trackProjectRoundtripTime(projectKey, parser.longValue());
+                                } else {
+                                    parser.skipChildren();
+                                }
+                            }
+                        } else {
+                            parser.skipChildren();
+                        }
+                    }
+                } else {
+                    parser.skipChildren();
+                }
+            } else {
+                parser.skipChildren();
+            }
+        }
     }
 
     private static SearchResponse.Clusters parseClusters(XContentParser parser) throws IOException {

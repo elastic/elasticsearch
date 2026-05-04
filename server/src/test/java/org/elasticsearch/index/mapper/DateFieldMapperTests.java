@@ -219,6 +219,8 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testDisableDefaultIndex() throws IOException {
+        assumeTrue("feature under test must be present", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+
         var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
         var mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "date")));
         var documentMapper = mapperService.documentMapper();

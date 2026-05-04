@@ -456,12 +456,14 @@ public abstract class Terminal {
 
         @Override
         public SystemStreams wrapSystemStreams() {
-            SystemStreams originals = super.wrapSystemStreams();
             if (parseBoolean(System.getenv(ES_CLI_JSON_STREAMS), true)) {
+                SystemStreams originals = super.wrapSystemStreams();
                 System.setOut(new TerminalPrintStream(this, false));
                 System.setErr(new TerminalPrintStream(this, true));
+                return originals;
             }
-            return originals;
+            // if not installing the JSON wrappers, let the delegate install wrappers if necessary
+            return delegate.wrapSystemStreams();
         }
 
         @Override

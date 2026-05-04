@@ -451,3 +451,74 @@ date_range:date_range  | min_bound:date           | max_bound:date           | n
 2000-01-01..2010-01-01 | 2000-01-01T00:00:00.000Z | 2010-01-01T00:00:00.000Z | 2000-01-01..2010-01-01
 ;
 
+// Multi-valued ranges. Single-value positions return the bound; multi-value positions warn and yield null.
+rangeMinMultiValueWarns
+required_capability: date_range_field_type_v3
+
+FROM mv_decades
+| EVAL m = RANGE_MIN(date_range)
+| KEEP decade, m
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_MIN\(date_range\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | m:date
+1900           | 1900-01-01T00:00:00.000Z
+1950           | null
+2000           | null
+;
+
+rangeMaxMultiValueWarns
+required_capability: date_range_field_type_v3
+
+FROM mv_decades
+| EVAL m = RANGE_MAX(date_range)
+| KEEP decade, m
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_MAX\(date_range\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | m:date
+1900           | 1910-01-01T00:00:00.000Z
+1950           | null
+2000           | null
+;
+
+// (date, date_range): the right-hand range is multi-valued, so positions 1950 and 2000 warn.
+rangeWithinPointMultiValueWarns
+required_capability: date_range_field_type_v3
+
+FROM mv_decades
+| EVAL within = RANGE_WITHIN(TO_DATETIME("1955-01-01T00:00:00.000Z"), date_range)
+| KEEP decade, within
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_WITHIN\(TO_DATETIME\(.*\), date_range\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | within:boolean
+1900           | false
+1950           | null
+2000           | null
+;
+
+// (date_range, date_range): the left-hand range is multi-valued, so positions 1950 and 2000 warn.
+rangeWithinRangeMultiValueWarns
+required_capability: date_range_field_type_v3
+
+FROM mv_decades
+| EVAL within = RANGE_WITHIN(date_range, TO_DATE_RANGE("1800-01-01T00:00:00.000Z..2100-01-01T00:00:00.000Z"))
+| KEEP decade, within
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_WITHIN\(date_range, TO_DATE_RANGE\(.*\)\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | within:boolean
+1900           | true
+1950           | null
+2000           | null
+;
+

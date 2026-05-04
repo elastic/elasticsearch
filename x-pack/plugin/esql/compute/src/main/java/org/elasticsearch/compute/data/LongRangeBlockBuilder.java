@@ -92,10 +92,10 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         return this;
     }
 
-    public LongRange appendLongRange(long from, long to) {
+    public LongRangeBlockBuilder appendLongRange(long from, long to) {
         fromBuilder.appendLong(from);
         toBuilder.appendLong(to);
-        return new LongRange(from, to);
+        return this;
     }
 
     public LongRangeBlockBuilder appendLongRange(@Nullable LongRange lit) {

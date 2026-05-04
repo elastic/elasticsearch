@@ -258,6 +258,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     private final StorageBackend storageBackend;
     private final String format;
+    /**
+     * Per-test choice of Azure URI form, set once in {@link #doTest()} so that all template
+     * substitutions within a single test (including wildcard expansions returning multiple files)
+     * see a consistent form. Both forms are equivalent; randomising per test exercises both.
+     */
+    private boolean useAzureHadoopForm;
 
     protected AbstractExternalSourceSpecTestCase(
         String fileName,
@@ -294,6 +300,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             assumeTrue("CSV format does not support multi-file glob patterns", "csv".equals(format) == false);
 
         }
+
+        // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
+        useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
 
         // Transform templates like {{employees}} to actual paths
         query = transformTemplates(query);
@@ -385,7 +394,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 return "gs://" + GcsFixtureUtils.BUCKET + "/" + WAREHOUSE + "/" + relativePath;
 
             case AZURE:
-                // Azure path: wasbs://account.blob.core.windows.net/container/warehouse/standalone/employees.parquet
+                // Azure has two equivalent URI forms; the choice is made once per test in doTest().
+                // Path-style: wasbs://account.blob.core.windows.net/container/warehouse/.../employees.parquet
+                // Hadoop: wasbs://container@account.blob.core.windows.net/warehouse/.../employees.parquet
+                if (useAzureHadoopForm) {
+                    return "wasbs://" + CONTAINER + "@" + ACCOUNT + ".blob.core.windows.net/" + WAREHOUSE + "/" + relativePath;
+                }
                 return "wasbs://" + ACCOUNT + ".blob.core.windows.net/" + CONTAINER + "/" + WAREHOUSE + "/" + relativePath;
 
             default:

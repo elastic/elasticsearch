@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -45,6 +46,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -202,6 +205,45 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         assertNull(resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL));
+    }
+
+    /**
+     * When all files provide per-file row counts, multi-file FIRST_FILE_WINS resolution
+     * should aggregate statistics and NOT set STATS_PARTIAL.
+     */
+    public void testMultiFileFirstFileWinsAggregatesRowCountWhenStatsAvailable() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        schemasByPath.put("s3://bucket/data/c.parquet", schema);
+
+        Map<String, Long> rowCountsByPath = new HashMap<>();
+        rowCountsByPath.put("s3://bucket/data/a.parquet", 1000L);
+        rowCountsByPath.put("s3://bucket/data/b.parquet", 2000L);
+        rowCountsByPath.put("s3://bucket/data/c.parquet", 3000L);
+
+        ExternalSourceResolution resolution = resolveMultiFileWithStats(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            rowCountsByPath,
+            List.of(
+                entry("s3://bucket/data/a.parquet", 100),
+                entry("s3://bucket/data/b.parquet", 200),
+                entry("s3://bucket/data/c.parquet", 300)
+            )
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        Map<String, Object> meta = resolved.metadata().sourceMetadata();
+        // Aggregated row count should be the sum across all files.
+        assertEquals(6000L, meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        // No STATS_PARTIAL — stats cover all files.
+        assertNull(meta.get(SourceStatisticsSerializer.STATS_PARTIAL));
+        // File count should still be present.
+        assertEquals(3L, meta.get(SourceStatisticsSerializer.STATS_FILE_COUNT));
     }
 
     // ===== GenericFileList threading tests =====
@@ -774,6 +816,61 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return future.actionGet();
     }
 
+    /**
+     * Resolves a multi-file glob pattern using a StubFormatReader that returns per-file row counts
+     * as statistics. This enables testing the aggregated-stats path in resolveMultiFileSource.
+     */
+    private ExternalSourceResolution resolveMultiFileWithStats(
+        String globPattern,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, Long> rowCountsByPath,
+        List<StorageEntry> listing
+    ) throws Exception {
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        StoragePath sp = StoragePath.of(globPattern);
+        listingsByPrefix.put(sp.patternPrefix().toString(), listing);
+
+        StubFormatReaderWithStats formatReader = new StubFormatReaderWithStats(schemasByPath, rowCountsByPath);
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", s -> storageProvider);
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+
+        ExternalSourceResolver resolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(globPattern), Map.of(), future);
+        return future.actionGet();
+    }
+
     private ExternalSourceResolution resolveSingleFile(String path, Map<String, List<Attribute>> schemasByPath) throws Exception {
         ExternalSourceResolver resolver = createResolver(schemasByPath, Map.of());
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
@@ -937,6 +1034,87 @@ public class ExternalSourceResolverTests extends ESTestCase {
         public String location() {
             return location;
         }
+    }
+
+    /**
+     * A StubFormatReader that also returns per-file row counts as statistics.
+     * Used to test the aggregated stats path in multi-file resolution.
+     */
+    private static class StubFormatReaderWithStats implements FormatReader {
+        private final Map<String, List<Attribute>> schemasByPath;
+        private final Map<String, Long> rowCountsByPath;
+
+        StubFormatReaderWithStats(Map<String, List<Attribute>> schemasByPath, Map<String, Long> rowCountsByPath) {
+            this.schemasByPath = schemasByPath;
+            this.rowCountsByPath = rowCountsByPath;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            String path = object.path().toString();
+            List<Attribute> schema = schemasByPath.get(path);
+            if (schema == null) {
+                throw new IllegalArgumentException("No schema configured for path: " + path);
+            }
+            Long rowCount = rowCountsByPath.get(path);
+            return new SourceMetadata() {
+                @Override
+                public List<Attribute> schema() {
+                    return schema;
+                }
+
+                @Override
+                public String sourceType() {
+                    return "parquet";
+                }
+
+                @Override
+                public String location() {
+                    return path;
+                }
+
+                @Override
+                public Optional<SourceStatistics> statistics() {
+                    if (rowCount == null) {
+                        return Optional.empty();
+                    }
+                    return Optional.of(new SourceStatistics() {
+                        @Override
+                        public OptionalLong rowCount() {
+                            return OptionalLong.of(rowCount);
+                        }
+
+                        @Override
+                        public OptionalLong sizeInBytes() {
+                            return OptionalLong.empty();
+                        }
+
+                        @Override
+                        public Optional<Map<String, ColumnStatistics>> columnStatistics() {
+                            return Optional.empty();
+                        }
+                    });
+                }
+            };
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String formatName() {
+            return "parquet";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static class StubStorageProvider implements StorageProvider {

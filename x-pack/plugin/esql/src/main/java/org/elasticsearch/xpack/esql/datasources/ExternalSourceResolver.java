@@ -276,11 +276,21 @@ public class ExternalSourceResolver {
 
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
         if (listing.fileCount() > 1) {
-            // For multi-file FIRST_FILE_WINS, read all files' metadata in parallel to aggregate
-            // statistics across all files. This allows pushdown (COUNT/MIN/MAX) to use accurate
-            // global stats without needing split discovery (Phase 2).
-            // For the cacheable path we use the schema cache for every file (including the anchor)
-            // so that repeated resolves benefit from cached results.
+            // For multi-file FIRST_FILE_WINS, read all files' metadata in parallel during Phase 1
+            // to aggregate statistics across all files. This allows aggregate pushdown
+            // (COUNT/MIN/MAX) to use accurate global stats and to skip Phase 2 (split discovery)
+            // entirely for those queries.
+            //
+            // Tradeoff: this performs N footer reads up-front for *every* multi-file resolve,
+            // including queries that don't use the stats (e.g. SELECT *). For those queries,
+            // Phase 2 still runs, so the per-file footer is read twice (once here, once during
+            // split discovery). The cost is generally acceptable because:
+            // - the cacheable path consults the schema cache, so repeat resolves are free;
+            // - the non-cacheable path reads footers in parallel up to MAX_PARALLEL_METADATA_READS;
+            // - the aggregated stats unlock skipping Phase 2 entirely for pushable aggregates
+            // (see ComputeService#canSkipSplitDiscovery), which dominates the savings.
+            // We don't gate this on the query (which isn't known here) — see issue #148086 for the
+            // design notes.
             Map<String, Object> aggregatedStats = cacheable
                 ? readAndAggregateAllFileStatsWithCache(listing, config)
                 : readAndAggregateAllFileStats(listing, config);
@@ -499,8 +509,8 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Reads metadata from all files in {@code listing} in parallel (bounded concurrency),
-     * then aggregates statistics across all files.
+     * Reads metadata from all files in {@code listing} in parallel (bounded concurrency)
+     * via {@link BoundedParallelGather}, then aggregates statistics across all files.
      * Returns a merged flat stats map, or {@code null} if any file fails or lacks statistics.
      * Errors reading individual files are logged at DEBUG and cause the method to return {@code null}
      * (the caller will then mark stats as partial instead of using incomplete aggregations).
@@ -508,65 +518,22 @@ public class ExternalSourceResolver {
     @Nullable
     private Map<String, Object> readAndAggregateAllFileStats(FileList listing, Map<String, Object> config) {
         int fileCount = listing.fileCount();
-        Semaphore semaphore = new Semaphore(Math.min(fileCount, MAX_PARALLEL_METADATA_READS));
-        AtomicBoolean anyFailed = new AtomicBoolean(false);
-
-        @SuppressWarnings("unchecked")
-        CompletableFuture<SourceMetadata>[] futures = new CompletableFuture[fileCount];
-
+        List<StoragePath> paths = new ArrayList<>(fileCount);
         for (int i = 0; i < fileCount; i++) {
-            StoragePath filePath = listing.path(i);
-            futures[i] = CompletableFuture.supplyAsync(() -> {
-                if (anyFailed.get()) {
-                    return null;
-                }
-                try {
-                    semaphore.acquire();
-                    try {
-                        return resolveSingleSource(filePath.toString(), config);
-                    } finally {
-                        semaphore.release();
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    anyFailed.set(true);
-                    LOGGER.debug("Interrupted reading stats from [{}], will use partial stats", filePath);
-                    return null;
-                } catch (Exception e) {
-                    anyFailed.set(true);
-                    LOGGER.debug(() -> "Failed to read stats from [" + filePath + "], will use partial stats: " + e.getMessage());
-                    return null;
-                }
-            }, executor);
+            paths.add(listing.path(i));
         }
-
+        List<SourceMetadata> allMeta;
         try {
-            CompletableFuture.allOf(futures).join();
-        } catch (CompletionException e) {
-            LOGGER.debug("Error reading per-file stats in parallel, will use partial stats", e);
+            allMeta = BoundedParallelGather.gather(
+                paths,
+                filePath -> resolveSingleSource(filePath.toString(), config),
+                MAX_PARALLEL_METADATA_READS,
+                executor
+            );
+        } catch (Exception e) {
+            LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
             return null;
         }
-
-        if (anyFailed.get()) {
-            return null;
-        }
-
-        List<SourceMetadata> allMeta = new ArrayList<>(fileCount);
-        for (CompletableFuture<SourceMetadata> future : futures) {
-            try {
-                SourceMetadata meta = future.getNow(null);
-                if (meta != null) {
-                    allMeta.add(meta);
-                }
-            } catch (Exception e) {
-                return null;
-            }
-        }
-
-        if (allMeta.size() != fileCount) {
-            return null;
-        }
-
         return aggregateFileStatistics(allMeta);
     }
 

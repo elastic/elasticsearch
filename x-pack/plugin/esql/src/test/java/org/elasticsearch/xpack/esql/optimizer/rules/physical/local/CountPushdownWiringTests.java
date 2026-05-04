@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -180,7 +181,10 @@ public class CountPushdownWiringTests extends ESTestCase {
     public void testCanSkipSplitDiscoveryForCountStar() {
         Aggregate agg = countStarAggregate();
         FragmentExec fragment = new FragmentExec(agg);
-        assertTrue("should skip split discovery for COUNT(*) with complete stats", ComputeService.canSkipSplitDiscovery(fragment));
+        assertTrue(
+            "should skip split discovery for COUNT(*) with complete stats",
+            ComputeService.canSkipSplitDiscovery(fragment, buildParquetRegistry())
+        );
     }
 
     /**
@@ -198,7 +202,7 @@ public class CountPushdownWiringTests extends ESTestCase {
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
         FragmentExec fragment = new FragmentExec(agg);
 
-        assertFalse("should not skip with STATS_PARTIAL=true", ComputeService.canSkipSplitDiscovery(fragment));
+        assertFalse("should not skip with STATS_PARTIAL=true", ComputeService.canSkipSplitDiscovery(fragment, buildParquetRegistry()));
     }
 
     /**
@@ -206,14 +210,13 @@ public class CountPushdownWiringTests extends ESTestCase {
      */
     public void testCannotSkipSplitDiscoveryWhenNoRowCount() {
         List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER));
-        // sourceMetadata has no row count at all
         SourceMetadata metadata = stubMetadata(attrs, Map.of());
         ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
         FragmentExec fragment = new FragmentExec(agg);
 
-        assertFalse("should not skip with no row count", ComputeService.canSkipSplitDiscovery(fragment));
+        assertFalse("should not skip with no row count", ComputeService.canSkipSplitDiscovery(fragment, buildParquetRegistry()));
     }
 
     /**
@@ -227,11 +230,75 @@ public class CountPushdownWiringTests extends ESTestCase {
         SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
         ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
-        // Add a grouping on AGE
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(AGE), List.of(countAlias, AGE));
         FragmentExec fragment = new FragmentExec(agg);
 
-        assertFalse("should not skip with groupings", ComputeService.canSkipSplitDiscovery(fragment));
+        assertFalse("should not skip with groupings", ComputeService.canSkipSplitDiscovery(fragment, buildParquetRegistry()));
+    }
+
+    /**
+     * Ungrouped SUM over ExternalRelation must NOT skip split discovery: the format reader
+     * cannot push SUM from file metadata, so the optimizer leaves the AggregateExec in
+     * place and execution needs real splits to read data efficiently.
+     */
+    public void testCannotSkipSplitDiscoveryForNonPushableAggregate() {
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER), AGE);
+        Map<String, Object> sourceMetadata = new HashMap<>();
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
+
+        SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
+        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        Alias sumAlias = alias("s", new Sum(Source.EMPTY, AGE));
+        Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(sumAlias));
+        FragmentExec fragment = new FragmentExec(agg);
+
+        assertFalse(
+            "should not skip with non-pushable aggregate (SUM)",
+            ComputeService.canSkipSplitDiscovery(fragment, buildParquetRegistry())
+        );
+    }
+
+    /**
+     * Mixed pushable + non-pushable aggregates (e.g. {@code COUNT(*), SUM(x)}) must NOT skip
+     * split discovery: the optimizer can only push the whole tuple together.
+     */
+    public void testCannotSkipSplitDiscoveryForMixedAggregates() {
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER), AGE);
+        Map<String, Object> sourceMetadata = new HashMap<>();
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
+
+        SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
+        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
+        Alias sumAlias = alias("s", new Sum(Source.EMPTY, AGE));
+        Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias, sumAlias));
+        FragmentExec fragment = new FragmentExec(agg);
+
+        assertFalse(
+            "should not skip when any aggregate is non-pushable",
+            ComputeService.canSkipSplitDiscovery(fragment, buildParquetRegistry())
+        );
+    }
+
+    /**
+     * A null format reader registry must conservatively return false (cannot verify
+     * pushability without consulting the format reader).
+     */
+    public void testCannotSkipSplitDiscoveryWithoutRegistry() {
+        Aggregate agg = countStarAggregate();
+        FragmentExec fragment = new FragmentExec(agg);
+        assertFalse("should not skip without a registry", ComputeService.canSkipSplitDiscovery(fragment, null));
+    }
+
+    /**
+     * An unknown source type must conservatively return false: we can't determine
+     * whether the aggregates are pushable.
+     */
+    public void testCannotSkipSplitDiscoveryForUnknownSourceType() {
+        FormatReaderRegistry empty = new FormatReaderRegistry(null);
+        Aggregate agg = countStarAggregate();
+        FragmentExec fragment = new FragmentExec(agg);
+        assertFalse("should not skip for unknown source type", ComputeService.canSkipSplitDiscovery(fragment, empty));
     }
 
     /**

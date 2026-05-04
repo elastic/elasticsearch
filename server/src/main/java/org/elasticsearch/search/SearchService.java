@@ -2523,12 +2523,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return;
                 }
                 // notifyOnce guards against double-completion: both the task cancellation listener
-                // and the waitForSearchReady callback can complete the listener, but only the first wins
+                // and the waitForSearchReady callback can complete the listener, but only the first wins.
+                // The slot handle returned from waitForSearchReady is closed on cancellation so the gate's
+                // pending counter is decremented immediately, instead of remaining held until the gate
+                // eventually fires on shard ready or close, potentially much later for a slow-recovering shard.
                 var l = ActionListener.notifyOnce(delegate);
-                searchTask.addListener(
-                    () -> l.onFailure(new TaskCancelledException("task cancelled [" + searchTask.getReasonCancelled() + "]"))
+                @SuppressWarnings("resource")
+                Releasable slot = shard.waitForSearchReady(
+                    l.delegateFailureAndWrap((l2, v) -> shard.ensureShardSearchActive(b -> l2.onResponse(request)))
                 );
-                shard.waitForSearchReady(l.delegateFailureAndWrap((l2, v) -> shard.ensureShardSearchActive(b -> l2.onResponse(request))));
+                searchTask.addListener(() -> {
+                    slot.close();
+                    l.onFailure(new TaskCancelledException("task cancelled [" + searchTask.getReasonCancelled() + "]"));
+                });
             }) : listener.safeMap(r -> request)
         );
     }

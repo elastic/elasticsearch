@@ -4973,9 +4973,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * <p>
      * The number of concurrently parked listeners per shard is bounded by {@link SearchReadyGate}; once that limit is
      * reached, further callers fail fast with an {@link EsRejectedExecutionException}, signaling clients to retry.
+     * <p>
+     * Returns a {@link Releasable} representing the parked slot. Callers that complete the listener via an external
+     * path (e.g. task cancellation) must invoke {@link Releasable#close()} to free the slot promptly; otherwise it
+     * stays occupied until the gate finally fires on shard ready/close, which can starve later requests for a
+     * slow-recovering shard. Closing is idempotent and races safely with the eventual gate fire.
      */
-    public void waitForSearchReady(ActionListener<Void> listener) {
-        searchReadyGate.addListener(listener, threadPool.getThreadContext());
+    public Releasable waitForSearchReady(ActionListener<Void> listener) {
+        return searchReadyGate.addListener(listener, threadPool.getThreadContext());
     }
 
     /**
@@ -5056,16 +5061,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         /**
          * Registers {@code l} to be notified when {@link #onReady}/{@link #onClosed} fires. Fails fast with
-         * {@link EsRejectedExecutionException} when the current cap is exceeded. The pending counter is decremented
-         * on every completion path via {@link ActionListener#runAfter}.
+         * {@link EsRejectedExecutionException} when the current cap is exceeded.
+         * <p>
+         * Returns a {@link Releasable} for the parked slot. Closing it decrements {@code pending} and prevents the
+         * eventual gate fire from decrementing again. Callers that complete {@code l} via a side channel (e.g. task
+         * cancellation) must close the returned handle so the slot is freed promptly instead of being held until the
+         * gate finally fires. The released flag is shared with the {@code runAfter} hook installed on the gate
+         * listener, so the count moves down exactly once regardless of which path wins.
          */
-        void addListener(ActionListener<Void> l, ThreadContext threadContext) {
+        Releasable addListener(ActionListener<Void> l, ThreadContext threadContext) {
             if (pending.incrementAndGet() > maxPendingSupplier.getAsInt()) {
                 pending.decrementAndGet();
                 l.onFailure(new EsRejectedExecutionException("too many pending requests waiting for shard to become searchable", false));
-                return;
+                return () -> {};
             }
-            listener.addListener(ActionListener.runAfter(l, pending::decrementAndGet), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
+            AtomicBoolean released = new AtomicBoolean();
+            Releasable slot = () -> {
+                if (released.compareAndSet(false, true)) {
+                    pending.decrementAndGet();
+                }
+            };
+            listener.addListener(ActionListener.runAfter(l, slot::close), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
+            return slot;
         }
 
         void onReady() {

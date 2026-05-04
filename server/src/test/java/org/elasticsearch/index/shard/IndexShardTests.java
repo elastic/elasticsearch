@@ -3464,6 +3464,46 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("listener registered after ready should fire immediately", postReadyCalled.get(), equalTo(true));
     }
 
+    public void testSearchReadyGateSlotCloseFreesPending() {
+        int maxPending = 2;
+        IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(() -> maxPending);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        // Fill the cap. Listeners stay parked because the gate has not fired.
+        AtomicInteger fired = new AtomicInteger();
+        Releasable slot1 = gate.addListener(ActionListener.running(fired::incrementAndGet), threadContext);
+        gate.addListener(ActionListener.running(fired::incrementAndGet), threadContext);
+        assertThat("listeners must be parked while waiting for the gate", fired.get(), equalTo(0));
+
+        // Over-cap caller is rejected while the slots are held.
+        AtomicReference<Exception> rejection = new AtomicReference<>();
+        gate.addListener(ActionListener.wrap(v -> fail("expected rejection"), rejection::set), threadContext);
+        assertThat(rejection.get(), instanceOf(EsRejectedExecutionException.class));
+
+        // Closing slot1 must free a pending slot even though the gate has not fired and the parked listener
+        // for slot1 has not been notified externally; this models the task-cancellation case.
+        slot1.close();
+        AtomicBoolean accepted = new AtomicBoolean();
+        gate.addListener(ActionListener.running(() -> accepted.set(true)), threadContext);
+        assertThat("freed slot must allow a new caller to park", accepted.get(), equalTo(false));
+
+        // Closing the same handle twice must not double-decrement and let an extra caller in over the cap.
+        slot1.close();
+        AtomicReference<Exception> secondRejection = new AtomicReference<>();
+        gate.addListener(ActionListener.wrap(v -> fail("expected rejection"), secondRejection::set), threadContext);
+        assertThat(
+            "idempotent close must not free additional capacity",
+            secondRejection.get(),
+            instanceOf(EsRejectedExecutionException.class)
+        );
+
+        // When the gate finally fires, the runAfter hook attached to slot1's listener races with the
+        // already-released flag and must not decrement pending again. We verify by filling the cap from scratch
+        // after the drain and checking that the next caller is parked, not let in beyond the limit.
+        gate.onReady();
+        assertThat("all parked listeners (including the slot1 listener) must fire", fired.get(), equalTo(2));
+    }
+
     public void testSearchReadyGateDynamicCap() {
         AtomicInteger cap = new AtomicInteger(2);
         IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(cap::get);

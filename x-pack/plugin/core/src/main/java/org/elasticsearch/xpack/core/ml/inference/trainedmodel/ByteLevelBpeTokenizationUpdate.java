@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -39,6 +42,18 @@ public class ByteLevelBpeTokenizationUpdate extends AbstractTokenizationUpdate {
 
     public ByteLevelBpeTokenizationUpdate(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(ByteLevelBpeTokenization.ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED) == false) {
+            throw new ElasticsearchStatusException(
+                "Cannot send byte_level_bpe tokenization to an older node. "
+                    + "Please wait until all nodes are upgraded before using byte_level_bpe tokenization",
+                RestStatus.BAD_REQUEST
+            );
+        }
+        super.writeTo(out);
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -38,6 +39,11 @@ public class ByteLevelBpeTokenization extends Tokenization {
 
     /** Name used in inference configuration XContent and named writeables. */
     public static final String NAME = "byte_level_bpe";
+
+    /**
+     * {@link Tokenization} wire format for byte-level BPE; do not send to nodes that do not support this version.
+     */
+    public static final TransportVersion ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED = TransportVersion.fromName("ml_byte_level_bpe_tokenization");
 
     private static final ParseField ADD_PREFIX_SPACE = new ParseField("add_prefix_space");
     private static final ParseField UNK_TOKEN = new ParseField("unk_token");
@@ -210,6 +216,13 @@ public class ByteLevelBpeTokenization extends Tokenization {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED) == false) {
+            throw new ElasticsearchStatusException(
+                "Cannot send byte_level_bpe tokenization to an older node. "
+                    + "Please wait until all nodes are upgraded before using byte_level_bpe tokenization",
+                RestStatus.BAD_REQUEST
+            );
+        }
         super.writeTo(out);
         out.writeBoolean(addPrefixSpace);
         out.writeString(unkToken);

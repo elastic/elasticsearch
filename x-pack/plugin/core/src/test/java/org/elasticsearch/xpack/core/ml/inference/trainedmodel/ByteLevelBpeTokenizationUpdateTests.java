@@ -11,6 +11,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
+import java.io.IOException;
+import java.util.Collection;
+
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ByteLevelBpeTokenization.ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ByteLevelBpeTokenizationUpdateTests extends AbstractBWCWireSerializationTestCase<ByteLevelBpeTokenizationUpdate> {
@@ -93,6 +97,21 @@ public class ByteLevelBpeTokenizationUpdateTests extends AbstractBWCWireSerializ
             IllegalArgumentException.class,
             () -> new ByteLevelBpeTokenizationUpdate(Tokenization.Truncate.FIRST, null).apply(windowing)
         );
+    }
+
+    /**
+     * Versions before {@link ByteLevelBpeTokenization#ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED} reject serialization; filtering avoids
+     * spurious BWC failures. {@link #testByteLevelBpeTokenizationUpdateIsNotBackwardsCompatible} covers the explicit failure path.
+     */
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream().filter(version -> version.supports(ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED)).toList();
+    }
+
+    public void testByteLevelBpeTokenizationUpdateIsNotBackwardsCompatible() throws IOException {
+        testSerializationIsNotBackwardsCompatible(ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED, instance -> true, """
+            Cannot send byte_level_bpe tokenization to an older node. \
+            Please wait until all nodes are upgraded before using byte_level_bpe tokenization""");
     }
 
     @Override

@@ -14,6 +14,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collection;
+
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ByteLevelBpeTokenization.ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED;
 
 public class ByteLevelBpeTokenizationTests extends AbstractBWCSerializationTestCase<ByteLevelBpeTokenization> {
 
@@ -26,6 +29,21 @@ public class ByteLevelBpeTokenizationTests extends AbstractBWCSerializationTestC
     @Before
     public void chooseStrictOrLenient() {
         lenient = randomBoolean();
+    }
+
+    /**
+     * Versions before {@link ByteLevelBpeTokenization#ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED} reject serialization; filtering avoids
+     * spurious BWC failures. {@link #testByteLevelBpeTokenizationIsNotBackwardsCompatible} covers the explicit failure path.
+     */
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream().filter(version -> version.supports(ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED)).toList();
+    }
+
+    public void testByteLevelBpeTokenizationIsNotBackwardsCompatible() throws IOException {
+        testSerializationIsNotBackwardsCompatible(ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED, instance -> true, """
+            Cannot send byte_level_bpe tokenization to an older node. \
+            Please wait until all nodes are upgraded before using byte_level_bpe tokenization""");
     }
 
     @Override

@@ -139,6 +139,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         assertTrue(mapperService.documentMapper().routingFieldMapper().required());
+        assertTrue(mapperService.documentMapper().routingFieldMapper().docValues());
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -146,11 +147,77 @@ public class MapperServiceTests extends MapperServiceTestCase {
         );
         assertThat(e.getMessage(), containsString("must not configure [_routing] settings when [index.slice.enabled] is true"));
 
-        MapperService explicitRequired = createMapperService(
-            settings,
-            topMapping(b -> b.startObject("_routing").field("required", true).endObject())
+        IllegalArgumentException docValuesException = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_routing").field("doc_values", false).endObject()))
         );
-        assertTrue(explicitRequired.documentMapper().routingFieldMapper().required());
+        assertThat(
+            docValuesException.getMessage(),
+            containsString("must not configure [_routing] settings when [index.slice.enabled] is true")
+        );
+
+        IllegalArgumentException explicitRequiredException = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(
+                settings,
+                topMapping(b -> b.startObject("_routing").field("required", true).field("doc_values", true).endObject())
+            )
+        );
+        assertThat(
+            explicitRequiredException.getMessage(),
+            containsString("must not configure [_routing] settings when [index.slice.enabled] is true")
+        );
+    }
+
+    public void testSliceEnabledRejectsRoutingUpdateAfterIndexCreation() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent routingUpdate = new CompressedXContent("""
+            {
+              "_routing": {
+                "required": true,
+                "doc_values": true
+              }
+            }""");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapperService.merge("_doc", routingUpdate, MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(e.getMessage(), containsString("must not configure [_routing] settings when [index.slice.enabled] is true"));
+    }
+
+    public void testSliceEnabledAllowsRoutingMetadataDuringMappingRecovery() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent storedMapping = mapperService.documentMapper().mappingSource();
+        assertThat(storedMapping.string(), containsString("\"_routing\""));
+
+        MapperService recoveryMapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("existing_field").field("type", "keyword").endObject())
+        );
+        DocumentMapper recovered = recoveryMapperService.merge("_doc", storedMapping, MergeReason.MAPPING_RECOVERY);
+        assertTrue(recovered.routingFieldMapper().required());
+        assertTrue(recovered.routingFieldMapper().docValues());
+    }
+
+    public void testSliceEnabledDoesNotRejectRoutingKeyInsideMeta() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent metaUpdate = new CompressedXContent("""
+            {
+              "_meta": {
+                "_routing": "docs note"
+              }
+            }""");
+
+        DocumentMapper updated = mapperService.merge("_doc", metaUpdate, MergeReason.MAPPING_UPDATE);
+        assertThat(updated.mappingSource().string(), containsString("\"_meta\""));
+        assertThat(updated.mappingSource().string(), containsString("\"_routing\":\"docs note\""));
     }
 
     public void testIndexSortWithNestedFields() throws IOException {

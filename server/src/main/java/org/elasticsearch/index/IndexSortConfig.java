@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -301,6 +302,23 @@ public final class IndexSortConfig {
             }
         }
 
+        if (IndexSettings.SLICE_ENABLED.get(settings) && INDEX_SORT_FIELD_SETTING.exists(settings)) {
+            List<String> fields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
+            if (fields.contains(RoutingFieldMapper.NAME) || fields.contains(SliceIndexing.PARAM_NAME)) {
+                throw new IllegalArgumentException(
+                    "setting ["
+                        + INDEX_SORT_FIELD_SETTING.getKey()
+                        + "] must not contain ["
+                        + RoutingFieldMapper.NAME
+                        + "] or ["
+                        + SliceIndexing.PARAM_NAME
+                        + "] when ["
+                        + IndexSettings.SLICE_ENABLED.getKey()
+                        + "] is true"
+                );
+            }
+        }
+
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
 
         var order = INDEX_SORT_ORDER_SETTING.get(settings);
@@ -327,23 +345,44 @@ public final class IndexSortConfig {
 
         validateSortSettings(settings);
 
-        List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
+        List<String> fields = new ArrayList<>(INDEX_SORT_FIELD_SETTING.get(settings));
+        List<SortOrder> orders = new ArrayList<>(INDEX_SORT_ORDER_SETTING.get(settings));
+        List<MultiValueMode> modes = new ArrayList<>(INDEX_SORT_MODE_SETTING.get(settings));
+        List<String> missingValues = new ArrayList<>(INDEX_SORT_MISSING_SETTING.get(settings));
+        if (indexSettings.isSliceEnabled()) {
+            prependSliceRoutingSort(fields, orders, modes, missingValues);
+        }
         sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
-
-        List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].order = orders.get(i);
         }
-
-        List<MultiValueMode> modes = INDEX_SORT_MODE_SETTING.get(settings);
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].mode = modes.get(i);
         }
-
-        List<String> missingValues = INDEX_SORT_MISSING_SETTING.get(settings);
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].missingValue = missingValues.get(i);
         }
+    }
+
+    private static void prependSliceRoutingSort(
+        List<String> fields,
+        List<SortOrder> orders,
+        List<MultiValueMode> modes,
+        List<String> missingValues
+    ) {
+        for (int i = fields.size() - 1; i >= 0; i--) {
+            if (RoutingFieldMapper.NAME.equals(fields.get(i))) {
+                fields.remove(i);
+                orders.remove(i);
+                modes.remove(i);
+                missingValues.remove(i);
+            }
+        }
+
+        fields.add(0, RoutingFieldMapper.NAME);
+        orders.add(0, SortOrder.ASC);
+        modes.add(0, MultiValueMode.MIN);
+        missingValues.add(0, "_last");
     }
 
     /**

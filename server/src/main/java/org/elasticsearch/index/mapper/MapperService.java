@@ -340,6 +340,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             MetadataFieldMapper.Builder routingBuilder = metadataBuilders.get(RoutingFieldMapper.NAME);
             if (routingBuilder instanceof RoutingFieldMapper.Builder builder) {
                 builder.required.setValue(true);
+                builder.docValues.setValue(true);
             }
         }
         return metadataBuilders;
@@ -589,6 +590,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
         assert reason != MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
+        if (indexSettings.isSliceEnabled()
+            && reason != MergeReason.MAPPING_RECOVERY
+            && containsExplicitRoutingConfig(type, mappingSourceAsMap)) {
+            throw new IllegalArgumentException(
+                "mapping type ["
+                    + type
+                    + "] must not configure [_routing] settings when ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] is true for index ["
+                    + index().getName()
+                    + "]"
+            );
+        }
         MappingBuilder incomingBuilder;
         try {
             incomingBuilder = mappingParser.parseToBuilder(type, reason, mappingSourceAsMap);
@@ -608,6 +622,21 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private Mapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason) {
         return mergeBuilders(mappingParser, indexSettings, incomingBuilder, reason, this.mapper);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean containsExplicitRoutingConfig(String type, Map<String, Object> mappingSourceAsMap) {
+        Map<String, Object> mappingBody = mappingSourceAsMap;
+        Object typedBody = type == null ? null : mappingSourceAsMap.get(type);
+        if (typedBody instanceof Map<?, ?> typedMap) {
+            mappingBody = (Map<String, Object>) typedMap;
+        } else {
+            Object singleMappingBody = mappingSourceAsMap.get(SINGLE_MAPPING_NAME);
+            if (singleMappingBody instanceof Map<?, ?> singleTypeMap) {
+                mappingBody = (Map<String, Object>) singleTypeMap;
+            }
+        }
+        return mappingBody.containsKey(RoutingFieldMapper.NAME);
     }
 
     private static Mapping mergeBuilders(

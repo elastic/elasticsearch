@@ -64,7 +64,7 @@ public class HttpStatsTests extends ESTestCase {
         );
 
         assertThat(
-            Strings.toString(new HttpStats(1, 2, List.of(), Map.of("http/path", httpRouteStats)), false, true),
+            Strings.toTruncatedString(new HttpStats(1, 2, List.of(), Map.of("http/path", httpRouteStats)), false, true),
             equalTo(
                 Strings.format(
                     """

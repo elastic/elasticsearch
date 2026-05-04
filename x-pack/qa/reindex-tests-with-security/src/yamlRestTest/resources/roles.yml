@@ -88,6 +88,44 @@ minimal_with_reindex_list:
         - create_index
         - indices:admin/refresh
 
+# Same index privileges as minimal, plus the dedicated reindex rethrottle API (POST /_reindex/{task_id}/_rethrottle)
+minimal_with_reindex_rethrottle:
+  cluster:
+    - cluster:monitor/main
+    - cluster:admin/reindex/rethrottle
+  indices:
+    - names: source
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+    - names: dest
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
+# Same index privileges as minimal, plus the dedicated reindex cancel API (POST /_reindex/{task_id}/_cancel).
+minimal_with_reindex_cancel:
+  cluster:
+    - cluster:monitor/main
+    - cluster:admin/reindex/cancel
+  indices:
+    - names: source
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+    - names: dest
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
 # Read only operations on indices
 readonly:
   cluster:

@@ -21,11 +21,13 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
@@ -343,6 +345,39 @@ public abstract class SenderService<M extends Model> implements InferenceService
     }
 
     @Override
+    public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        try {
+            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
+            if (supportsMultimodalRerank() == false
+                && (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText))) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        Strings.format("The %s service does not support rerank with non-text inputs or queries", name()),
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+                return;
+            }
+
+            ValidationException validationException = new ValidationException();
+            validateRerankParameters(request.returnDocuments(), request.topN(), validationException);
+            validationException.throwIfValidationErrorsExist();
+
+            doRerankInfer(model, request, resolvedInferenceTimeout, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Override as necessary for services which support images in rerank inputs and queries
+     * @return true if the service supports images in rerank inputs and queries
+     */
+    protected boolean supportsMultimodalRerank() {
+        return false;
+    }
+
+    @Override
     public void chunkedInfer(
         Model model,
         @Nullable String query,
@@ -410,6 +445,10 @@ public abstract class SenderService<M extends Model> implements InferenceService
         ActionListener<InferenceServiceResults> listener
     ) {
         throwUnsupportedEmbeddingOperation(model.getConfigurations().getService());
+    }
+
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        throw new IllegalStateException(Strings.format("New rerank code path invoked for %s service that does not support it", name()));
     }
 
     protected abstract void doChunkedInfer(

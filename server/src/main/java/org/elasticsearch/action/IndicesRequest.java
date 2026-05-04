@@ -12,6 +12,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.crossproject.TargetProjects;
 
 import java.util.Collection;
 
@@ -78,6 +79,11 @@ public interface IndicesRequest {
          * Note: the field is transient and not serialized.
          */
         default void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {}
+
+        /**
+         * Records the result target projects into request
+         */
+        default void setTargetProjects(TargetProjects targetProjects) {}
 
         /**
          * Returns the results of index resolution, if recorded via

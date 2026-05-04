@@ -24,10 +24,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
 
 import java.io.IOException;
 
@@ -38,21 +37,14 @@ public class EsqlResolveLocalViewAction extends TransportLocalProjectMetadataAct
     public static final String NAME = "indices:data/read/esql/resolve_local_views";
     public static final ActionType<EsqlResolveLocalViewAction.Response> TYPE = new ActionType<>(NAME);
 
-    private final ProjectRoutingResolver projectRoutingResolver;
-    private final AuthorizedProjectsResolver authorizedProjectsResolver;
-
     @Inject
     public EsqlResolveLocalViewAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        ProjectResolver projectResolver,
-        ProjectRoutingResolver projectRoutingResolver,
-        AuthorizedProjectsResolver authorizedProjectsResolver
+        ProjectResolver projectResolver
     ) {
         super(NAME, actionFilters, transportService.getTaskManager(), clusterService, EsExecutors.DIRECT_EXECUTOR_SERVICE, projectResolver);
-        this.projectRoutingResolver = projectRoutingResolver;
-        this.authorizedProjectsResolver = authorizedProjectsResolver;
     }
 
     @Override
@@ -62,17 +54,15 @@ public class EsqlResolveLocalViewAction extends TransportLocalProjectMetadataAct
 
     @Override
     protected void localClusterStateOperation(Task task, Request request, ProjectState project, ActionListener<Response> listener) {
-        authorizedProjectsResolver.resolveAuthorizedProjects(listener.delegateFailureAndWrap((l, targetProjects) -> {
-            targetProjects = projectRoutingResolver.resolve(request.projectRouting(), project.metadata(), targetProjects);
-            l.onResponse(new Response(targetProjects.originProject() != null));
-        }));
+        listener.onResponse(new Response(request.getTargetProjects().originProject() != null));
     }
 
     public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
-        private static final String[] INDICES = new String[0];
+        private static final String[] INDICES = new String[] { "*", "-*" };
 
         private final String projectRouting;
+        private TargetProjects targetProjects;
 
         public Request(TimeValue masterTimeout, String projectRouting) {
             super(masterTimeout);
@@ -92,6 +82,15 @@ public class EsqlResolveLocalViewAction extends TransportLocalProjectMetadataAct
         @Override
         public IndicesOptions indicesOptions() {
             return IndicesOptions.DEFAULT;
+        }
+
+        @Override
+        public void setTargetProjects(TargetProjects targetProjects) {
+            this.targetProjects = targetProjects;
+        }
+
+        public TargetProjects getTargetProjects() {
+            return targetProjects;
         }
 
         public String projectRouting() {

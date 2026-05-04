@@ -70,6 +70,30 @@ b:boolean | a:boolean
 true       | false
 ;
 
+fillNullWithBooleanValue
+required_capability: fillnull
+
+ROW a = null, b = false
+| EVAL a = a::boolean
+| FILLNULL WITH true a
+;
+
+b:boolean | a:boolean
+false      | true
+;
+
+fillNullWithNullLiteral
+required_capability: fillnull
+
+ROW a = null, b = 1
+| EVAL a = a::keyword
+| FILLNULL WITH null a
+;
+
+b:integer | a:keyword
+1          | null
+;
+
 fillNullWithDoubleValue
 required_capability: fillnull
 

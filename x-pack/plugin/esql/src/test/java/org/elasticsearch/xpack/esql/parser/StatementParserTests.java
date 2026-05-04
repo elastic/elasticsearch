@@ -3516,6 +3516,75 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(fillNull.targetFields().get(1), equalToIgnoringIds(attribute("category")));
     }
 
+    public void testFillNullWithNullValue() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = processingCommand("fillnull WITH null a");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertNull(lit.value());
+        assertEquals(DataType.NULL, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithDecimalValue() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = processingCommand("fillnull WITH 1.5 a");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertEquals(1.5, lit.value());
+        assertEquals(DataType.DOUBLE, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithBooleanValue() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        for (boolean expected : new boolean[] { true, false }) {
+            LogicalPlan plan = processingCommand("fillnull WITH " + expected + " a");
+            assertEquals(FillNull.class, plan.getClass());
+            FillNull fillNull = (FillNull) plan;
+            assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+            Literal lit = (Literal) fillNull.fillValue();
+            assertEquals(expected, lit.value());
+            assertEquals(DataType.BOOLEAN, lit.dataType());
+            assertEquals(1, fillNull.targetFields().size());
+            assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+        }
+    }
+
+    public void testFillNullWithPositionalParameter() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query(
+            "row a = 1 | fillnull WITH ? a",
+            new QueryParams(List.of(paramAsConstant(null, "missing")))
+        );
+        FillNull fillNull = as(plan, FillNull.class);
+        Literal lit = as(fillNull.fillValue(), Literal.class);
+        assertEquals(BytesRefs.toBytesRef("missing"), lit.value());
+        assertEquals(KEYWORD, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithNamedParameter() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query(
+            "row a = 1 | fillnull WITH ?fill a",
+            new QueryParams(List.of(paramAsConstant("fill", 42)))
+        );
+        FillNull fillNull = as(plan, FillNull.class);
+        Literal lit = as(fillNull.fillValue(), Literal.class);
+        assertEquals(42, lit.value());
+        assertEquals(DataType.INTEGER, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
     public void testValidFork() {
         var plan = query("""
             FROM foo*

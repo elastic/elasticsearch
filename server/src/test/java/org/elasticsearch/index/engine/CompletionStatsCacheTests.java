@@ -147,7 +147,6 @@ public class CompletionStatsCacheTests extends ESTestCase {
             indexWriter.addDocument(document2);
             indexWriter.flush();
             completionStatsCache.afterRefresh(true);
-            completionStatsCache.get();
             final CompletionStats updatedStats = completionStatsCache.get();
             assertThat(updatedStats.getSizeInBytes(), greaterThan(totalSizeInBytes));
             openCloseCounter.assertCount(3);

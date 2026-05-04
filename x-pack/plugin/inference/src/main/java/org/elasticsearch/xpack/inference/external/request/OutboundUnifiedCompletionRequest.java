@@ -10,14 +10,7 @@ package org.elasticsearch.xpack.inference.external.request;
 import org.elasticsearch.inference.TaskType;
 
 /**
- * Implementation of {@link Request} for {@link TaskType#COMPLETION} requests
+ * Marker interface for requests that may be {@link TaskType#CHAT_COMPLETION} or {@link TaskType#COMPLETION}. Implementing classes should
+ * implement the {@link OutboundRequest#getTaskType()} method to return the appropriate task type.
  */
-public interface CompletionRequest extends Request {
-    /**
-     * Should not be overridden
-     */
-    @Override
-    default TaskType getTaskType() {
-        return TaskType.COMPLETION;
-    }
-}
+public interface OutboundUnifiedCompletionRequest extends OutboundRequest {}

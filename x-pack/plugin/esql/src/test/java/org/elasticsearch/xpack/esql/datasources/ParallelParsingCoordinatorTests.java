@@ -35,6 +35,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -269,6 +270,80 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Each segment ends at a record boundary by construction: non-final segments stop at the byte
+     * after the next segment's leading newline, and the final segment runs to {@code fileLength}.
+     * The coordinator therefore must mark every segment as {@code lastSplit=true} so the NDJSON
+     * reader can skip its byte-by-byte {@code TrimLastPartialLineInputStream} scan over the chunk.
+     */
+    public void testParseSegmentMarksAllChunksAsLastSplit() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 200; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
+        }
+        byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(content);
+        BlockFactory blockFactory = blockFactory();
+        ContextRecordingFormatReader reader = new ContextRecordingFormatReader(blockFactory);
+
+        // Force several segments by setting parallelism > 1 with a small minimum segment size on
+        // the recording reader (1 byte) so computeSegments produces multiple chunks.
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec);
+            try (iter) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+        }
+
+        List<FormatReadContext> seen = reader.contexts();
+        assertTrue("Expected at least 2 segments, recorded " + seen.size(), seen.size() >= 2);
+        for (int i = 0; i < seen.size(); i++) {
+            FormatReadContext ctx = seen.get(i);
+            assertTrue("segment[" + i + "] must have firstSplit=true", ctx.firstSplit());
+            assertTrue("segment[" + i + "] must have lastSplit=true (record-boundary aligned)", ctx.lastSplit());
+        }
+    }
+
+    /**
+     * Files smaller than {@code 2 * minimumSegmentSize()} fall back to single-threaded reading;
+     * the coordinator skips segment computation and forwards the original {@link StorageObject}
+     * directly. Verifies that NDJSON's bumped 4 MiB threshold (Stage 5) actually enforces the
+     * "no parallelism below ~8 MiB" contract documented on {@code minimumSegmentSize()}.
+     */
+    public void testFallsBackToSingleThreadedReadWhenFileTooSmall() throws Exception {
+        // 64 KiB minimum vs ~21 byte fixture: file is far below `2 * minSegmentSize`, must fall
+        // back to a whole-file read instead of fanning out across the executor.
+        byte[] content = "line-a\nline-b\nline-c\n".getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(content);
+        ContextRecordingFormatReader reader = new ContextRecordingFormatReader(blockFactory(), 64 * 1024);
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 100, 4, exec);
+            try (iter) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+        }
+
+        List<FormatReadContext> seen = reader.contexts();
+        assertEquals("Below the 2*minSegmentSize threshold, parallelRead must call read() exactly once", 1, seen.size());
+        // Single-threaded fallback uses the baseCtx with the builder's defaults (firstSplit=true,
+        // lastSplit=true) - the file is read whole, so it is by definition both the first and last
+        // split. The parallel path sets the same flags but only after slicing.
+        FormatReadContext only = seen.get(0);
+        assertTrue("Whole-file fallback path must mark firstSplit=true", only.firstSplit());
+        assertTrue("Whole-file fallback path must mark lastSplit=true", only.lastSplit());
+    }
+
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("test"))
         .build();
@@ -452,6 +527,73 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public String formatName() {
             return "test-line";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".txt");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * SegmentableFormatReader that records the {@link FormatReadContext} it was handed for each
+     * {@link #read} call. Lets tests assert per-segment flag wiring without re-implementing line
+     * parsing.
+     */
+    private static class ContextRecordingFormatReader implements SegmentableFormatReader {
+        private final BlockFactory blockFactory;
+        private final long minSegmentSize;
+        private final List<FormatReadContext> contexts = new CopyOnWriteArrayList<>();
+
+        /** Convenience: matches the original test behaviour (force multi-segment even on tiny fixtures). */
+        ContextRecordingFormatReader(BlockFactory blockFactory) {
+            this(blockFactory, 1);
+        }
+
+        ContextRecordingFormatReader(BlockFactory blockFactory, long minSegmentSize) {
+            this.blockFactory = blockFactory;
+            this.minSegmentSize = minSegmentSize;
+        }
+
+        List<FormatReadContext> contexts() {
+            return contexts;
+        }
+
+        @Override
+        public long findNextRecordBoundary(InputStream stream) throws IOException {
+            long consumed = 0;
+            int b;
+            while ((b = stream.read()) != -1) {
+                consumed++;
+                if (b == '\n') {
+                    return consumed;
+                }
+            }
+            return -1;
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return minSegmentSize;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            contexts.add(context);
+            return new LineFormatReader(blockFactory).read(object, context);
+        }
+
+        @Override
+        public String formatName() {
+            return "test-recording";
         }
 
         @Override

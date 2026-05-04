@@ -622,6 +622,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Before
     public final void before() {
         LeakTracker.setContextHint(getTestName());
+        if (enableLeakTrackerCheck()) {
+            LeakTracker.installTestLeakCollector();
+        } else {
+            // Do not inherit a collector from a nested/outer ESTestCase on the same thread; otherwise
+            // LeakTracker.wrap() in this test would register into the outer collector.
+            LeakTracker.clearTestLeakCollector();
+        }
         logger.info("{}before test", getTestParamsForLogging());
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
@@ -649,9 +656,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         var breakersToCheck = new ArrayList<>(breakers);
         // We clear it now to avoid keeping old breakers if the assertion fails
         breakers.clear();
+        if (enableBreakerMemoryReleasedCheck() == false) {
+            return;
+        }
         for (CircuitBreaker breaker : breakersToCheck) {
             assertThat(breaker.getUsed(), equalTo(0L));
         }
+    }
+
+    @After
+    public final void verifyNoOutstandingLeakTrackerLeaks() {
+        if (enableLeakTrackerCheck() == false) {
+            LeakTracker.clearTestLeakCollector();
+            return;
+        }
+        LeakTracker.verifyNoLeaksAndClear();
     }
 
     /**
@@ -659,6 +678,25 @@ public abstract class ESTestCase extends LuceneTestCase {
      * was used by the test and the test didn't assert on it using {@link #assertWarnings(String...)}.
      */
     protected boolean enableWarningsCheck() {
+        return true;
+    }
+
+    /**
+     * When false, {@link #allBreakersMemoryReleased()} is skipped. Override in tests that leave breakers in a non-zero
+     * state intentionally and document why.
+     */
+    protected boolean enableBreakerMemoryReleasedCheck() {
+        return true;
+    }
+
+    /**
+     * When false, per-test {@link LeakTracker} collection and {@link #verifyNoOutstandingLeakTrackerLeaks()} are skipped
+     * (for example when resources are closed asynchronously after the test method). {@link #before()} clears the
+     * per-thread collector so this test does not register leaks into an outer test's collector. If a test runs a
+     * nested opt-out block and then needs tracking again, call {@link LeakTracker#installTestLeakCollector()} (or
+     * rely on a fresh {@code @Before} for the next test method). Override and document why.
+     */
+    protected boolean enableLeakTrackerCheck() {
         return true;
     }
 

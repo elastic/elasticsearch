@@ -15,10 +15,9 @@ highlight:
 
     For example:
 
-    [source,esql]
-    ----
+    ```esql
     TS my_data_stream
     | TS_INFO
     | SORT metric_name, dimensions
-    ----
+    ```
 

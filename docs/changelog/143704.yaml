@@ -9,9 +9,8 @@ highlight:
   body: |-
     Time series aggregations in ES|QL are enhanced to support windows that are not an exact multiple of the time bucket.
 
-    [source,yaml]
-    ----
+    ```yaml
     TS metrics | STATS AVG(RATE(requests, 15m)) BY TBUCKET(10m), host
-    ----
+    ```
 
     Previously, only window values that were exact multiples of the time bucket were supported.

@@ -29,8 +29,9 @@ case "${1:-}" in
   *)       echo "Usage: $0 [--local]" >&2; exit 1 ;;
 esac
 
+# elasticsearch-dev is publicly readable.
 HOST=docker.elastic.co
-REPOSITORY=elasticsearch-infra/es-rust-cross-toolchain
+REPOSITORY=elasticsearch-dev/es-rust-cross-toolchain
 IMAGE=$HOST/$REPOSITORY:$VERSION
 if [ "$LOCAL" = true ]; then
   IMAGE=es-rust-cross-toolchain:local

@@ -9,9 +9,8 @@
 
 # Cross-compilation image using cargo-zigbuild.
 
-FROM docker.elastic.co/elasticsearch-infra/es-rust-cross-toolchain:1.95 AS toolchain
+FROM docker.elastic.co/elasticsearch-dev/es-rust-cross-toolchain:1.95 AS toolchain
 
 RUN apt-get update && apt-get install -y --no-install-recommends python3-pip && rm -rf /var/lib/apt/lists/*
 RUN pip3 install ziglang==0.16.0 --break-system-packages
 RUN cargo install --locked --version 0.22.3 cargo-zigbuild
-

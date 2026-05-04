@@ -19,7 +19,6 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -34,29 +33,29 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * An irate grouping aggregation definition for $type$.
- * This class is generated. Edit `X-IrateV2Aggregator.java.st` instead.
+ * An irate grouping aggregation definition for int.
+ * This class is generated. Edit `X-IrateAggregator.java.st` instead.
  */
 @GroupingAggregator(
     value = {
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
-        @IntermediateState(name = "values", type = "$TYPE$_BLOCK"),
-        @IntermediateState(name = "isCumulative", type = "BOOLEAN_BLOCK"),
-        @IntermediateState(name = "failed", type = "BOOLEAN_BLOCK") },
+        @IntermediateState(name = "values", type = "INT_BLOCK"),
+        @IntermediateState(name = "isCumulative", type = "BOOLEAN"),
+        @IntermediateState(name = "failed", type = "BOOLEAN") },
     processNulls = true,
     warnExceptions = InvalidTemporalityException.class
 )
-public class IrateV2$Type$Aggregator {
+public class IrateIntAggregator {
 
-    public static $Type$IrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos) {
+    public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos) {
         final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
-        return new $Type$IrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor);
+        return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor);
     }
 
     public static void combine(
-        $Type$IrateGroupingState current,
+        IntIrateGroupingState current,
         int groupId,
-        $type$ value,
+        int value,
         long timestamp,
         @Position int position,
         BytesRefBlock temporality
@@ -71,36 +70,36 @@ public class IrateV2$Type$Aggregator {
     }
 
     public static String describe() {
-        return "instant change of $type$s";
+        return "instant change of ints";
     }
 
     public static void combineIntermediate(
-        $Type$IrateGroupingState current,
+        IntIrateGroupingState current,
         int groupId,
         LongBlock timestamps,
-        $Type$Block values,
-        BooleanBlock isCumulative,
-        BooleanBlock failed,
+        IntBlock values,
+        boolean isCumulative,
+        boolean failed,
         int otherPosition
     ) {
         current.combine(groupId, timestamps, values, isCumulative, failed, otherPosition);
     }
 
-    public static Block evaluateFinal($Type$IrateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+    public static Block evaluateFinal(IntIrateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         return state.evaluateFinal(selected, evalContext);
     }
 
-    private static class $Type$IrateState {
-        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject($Type$IrateState.class);
+    private static class IntIrateState {
+        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(IntIrateState.class);
         long lastTimestamp;
         long secondLastTimestamp = -1;
-        $type$ lastValue;
-        $type$ secondLastValue;
+        int lastValue;
+        int secondLastValue;
         boolean hasSecond;
         final boolean isCumulative;
         boolean failed;
 
-        $Type$IrateState(long lastTimestamp, $type$ lastValue, boolean isCumulative) {
+        IntIrateState(long lastTimestamp, int lastValue, boolean isCumulative) {
             this.lastTimestamp = lastTimestamp;
             this.lastValue = lastValue;
             this.hasSecond = false;
@@ -112,15 +111,15 @@ public class IrateV2$Type$Aggregator {
         }
     }
 
-    public static final class $Type$IrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
+    public static final class IntIrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
         private TemporalityAccessor cachedTemporalityAccessor;
-        private ObjectArray<$Type$IrateState> states;
+        private ObjectArray<IntIrateState> states;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
         private final int dateFactor;
 
-        $Type$IrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor) {
+        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
@@ -136,7 +135,7 @@ public class IrateV2$Type$Aggregator {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                state = new $Type$IrateState(0, 0, true);
+                state = new IntIrateState(0, 0, true);
                 state.failed = true;
                 states.set(groupId, state);
                 adjustBreaker(state.bytesUsed());
@@ -155,10 +154,10 @@ public class IrateV2$Type$Aggregator {
             assert stateBytes >= 0 : stateBytes;
         }
 
-        void append(int groupId, long timestamp, $type$ value, boolean isCumulative) {
+        void append(int groupId, long timestamp, int value, boolean isCumulative) {
             var state = states.get(groupId);
             if (state == null) {
-                state = new $Type$IrateState(timestamp, value, isCumulative);
+                state = new IntIrateState(timestamp, value, isCumulative);
                 states.set(groupId, state);
                 adjustBreaker(state.bytesUsed());
             } else {
@@ -180,15 +179,8 @@ public class IrateV2$Type$Aggregator {
             }
         }
 
-        void combine(
-            int groupId,
-            LongBlock timestamps,
-            $Type$Block values,
-            BooleanBlock isCumulative,
-            BooleanBlock failed,
-            int otherPosition
-        ) {
-            if (failed.getBoolean(failed.getFirstValueIndex(otherPosition))) {
+        void combine(int groupId, LongBlock timestamps, IntBlock values, boolean isCumulative, boolean failed, int otherPosition) {
+            if (failed) {
                 setFailed(groupId);
                 return;
             }
@@ -198,12 +190,11 @@ public class IrateV2$Type$Aggregator {
             }
             final int firstTs = timestamps.getFirstValueIndex(otherPosition);
             final int firstIndex = values.getFirstValueIndex(otherPosition);
-            boolean cumulative = isCumulative.getBoolean(isCumulative.getFirstValueIndex(otherPosition));
             ensureCapacity(groupId);
-            append(groupId, timestamps.getLong(firstTs), values.get$Type$(firstIndex), cumulative);
+            append(groupId, timestamps.getLong(firstTs), values.getInt(firstIndex), isCumulative);
             if (valueCount > 1) {
                 ensureCapacity(groupId);
-                append(groupId, timestamps.getLong(firstTs + 1), values.get$Type$(firstIndex + 1), cumulative);
+                append(groupId, timestamps.getLong(firstTs + 1), values.getInt(firstIndex + 1), isCumulative);
             }
         }
 
@@ -223,9 +214,9 @@ public class IrateV2$Type$Aggregator {
             final int positionCount = selected.getPositionCount();
             try (
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
-                $Type$Block.Builder values = blockFactory.new$Type$BlockBuilder(positionCount * 2);
-                BooleanBlock.Builder isCumulative = blockFactory.newBooleanBlockBuilder(positionCount);
-                BooleanBlock.Builder failedBuilder = blockFactory.newBooleanBlockBuilder(positionCount);
+                IntBlock.Builder values = blockFactory.newIntBlockBuilder(positionCount * 2);
+                var isCumulative = blockFactory.newBooleanVectorFixedBuilder(positionCount);
+                var failedBuilder = blockFactory.newBooleanVectorFixedBuilder(positionCount);
             ) {
                 for (int i = 0; i < positionCount; i++) {
                     final var groupId = selected.getInt(i);
@@ -239,25 +230,25 @@ public class IrateV2$Type$Aggregator {
                         timestamps.endPositionEntry();
 
                         values.beginPositionEntry();
-                        values.append$Type$(state.lastValue);
+                        values.appendInt(state.lastValue);
                         if (state.hasSecond) {
-                            values.append$Type$(state.secondLastValue);
+                            values.appendInt(state.secondLastValue);
                         }
                         values.endPositionEntry();
 
-                        isCumulative.appendBoolean(state.isCumulative);
-                        failedBuilder.appendBoolean(state.failed);
+                        isCumulative.appendBoolean(i, state.isCumulative);
+                        failedBuilder.appendBoolean(i, state.failed);
                     } else {
                         timestamps.appendNull();
                         values.appendNull();
-                        isCumulative.appendNull();
-                        failedBuilder.appendBoolean(false);
+                        isCumulative.appendBoolean(i, true);
+                        failedBuilder.appendBoolean(i, false);
                     }
                 }
                 blocks[offset] = timestamps.build();
                 blocks[offset + 1] = values.build();
-                blocks[offset + 2] = isCumulative.build();
-                blocks[offset + 3] = failedBuilder.build();
+                blocks[offset + 2] = isCumulative.build().asBlock();
+                blocks[offset + 3] = failedBuilder.build().asBlock();
             }
         }
 

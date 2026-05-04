@@ -23,17 +23,17 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link IrateV2LongAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link IrateLongAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class IrateV2LongGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class IrateLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("timestamps", ElementType.LONG),
       new IntermediateStateDesc("values", ElementType.LONG),
       new IntermediateStateDesc("isCumulative", ElementType.BOOLEAN),
       new IntermediateStateDesc("failed", ElementType.BOOLEAN)  );
 
-  private final IrateV2LongAggregator.LongIrateGroupingState state;
+  private final IrateLongAggregator.LongIrateGroupingState state;
 
   private final Warnings warnings;
 
@@ -43,12 +43,12 @@ public final class IrateV2LongGroupingAggregatorFunction implements GroupingAggr
 
   private final boolean isDateNanos;
 
-  IrateV2LongGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
+  IrateLongGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
       DriverContext driverContext, boolean isDateNanos) {
     this.isDateNanos = isDateNanos;
     this.warnings = warnings;
     this.channels = channels;
-    this.state = IrateV2LongAggregator.initGrouping(driverContext, isDateNanos);
+    this.state = IrateLongAggregator.initGrouping(driverContext, isDateNanos);
     this.driverContext = driverContext;
   }
 
@@ -184,7 +184,7 @@ public final class IrateV2LongGroupingAggregatorFunction implements GroupingAggr
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
             try {
-              IrateV2LongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+              IrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
             } catch (InvalidTemporalityException e) {
               warnings.registerException(e);
               state.setFailed(groupId);
@@ -212,7 +212,7 @@ public final class IrateV2LongGroupingAggregatorFunction implements GroupingAggr
         long valueValue = valueVector.getLong(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
         try {
-          IrateV2LongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+          IrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
         } catch (InvalidTemporalityException e) {
           warnings.registerException(e);
           state.setFailed(groupId);
@@ -243,7 +243,7 @@ public final class IrateV2LongGroupingAggregatorFunction implements GroupingAggr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        IrateV2LongAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative, failed, valuesPosition);
+        IrateLongAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative.getBoolean(valuesPosition), failed.getBoolean(valuesPosition), valuesPosition);
       }
     }
   }
@@ -277,7 +277,7 @@ public final class IrateV2LongGroupingAggregatorFunction implements GroupingAggr
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
             try {
-              IrateV2LongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+              IrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
             } catch (InvalidTemporalityException e) {
               warnings.registerException(e);
               state.setFailed(groupId);
@@ -305,7 +305,7 @@ public final class IrateV2LongGroupingAggregatorFunction implements GroupingAggr
         long valueValue = valueVector.getLong(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
         try {
-          IrateV2LongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+          IrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
         } catch (InvalidTemporalityException e) {
           warnings.registerException(e);
           state.setFailed(groupId);
@@ -336,7 +336,7 @@ public final class IrateV2LongGroupingAggregatorFunction implements GroupingAggr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        IrateV2LongAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative, failed, valuesPosition);
+        IrateLongAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative.getBoolean(valuesPosition), failed.getBoolean(valuesPosition), valuesPosition);
       }
     }
   }
@@ -364,7 +364,7 @@ public final class IrateV2LongGroupingAggregatorFunction implements GroupingAggr
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           try {
-            IrateV2LongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+            IrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
           } catch (InvalidTemporalityException e) {
             warnings.registerException(e);
             state.setFailed(groupId);
@@ -385,7 +385,7 @@ public final class IrateV2LongGroupingAggregatorFunction implements GroupingAggr
       long valueValue = valueVector.getLong(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
       try {
-        IrateV2LongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+        IrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
       } catch (InvalidTemporalityException e) {
         warnings.registerException(e);
         state.setFailed(groupId);
@@ -409,7 +409,7 @@ public final class IrateV2LongGroupingAggregatorFunction implements GroupingAggr
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      IrateV2LongAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative, failed, valuesPosition);
+      IrateLongAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative.getBoolean(valuesPosition), failed.getBoolean(valuesPosition), valuesPosition);
     }
   }
 
@@ -464,7 +464,7 @@ public final class IrateV2LongGroupingAggregatorFunction implements GroupingAggr
 
   private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = IrateV2LongAggregator.evaluateFinal(state, selectedInPage, ctx);
+    blocks[offset] = IrateLongAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

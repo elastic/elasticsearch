@@ -13,15 +13,15 @@ import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link IrateV2LongAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link IrateDoubleAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class IrateV2LongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class IrateDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   WarningSourceLocation warningsSource;
 
   private final boolean isDateNanos;
 
-  public IrateV2LongAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
+  public IrateDoubleAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
       boolean isDateNanos) {
     this.warningsSource = warningsSource;
     this.isDateNanos = isDateNanos;
@@ -34,7 +34,7 @@ public final class IrateV2LongAggregatorFunctionSupplier implements AggregatorFu
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return IrateV2LongGroupingAggregatorFunction.intermediateStateDesc();
+    return IrateDoubleGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -43,14 +43,14 @@ public final class IrateV2LongAggregatorFunctionSupplier implements AggregatorFu
   }
 
   @Override
-  public IrateV2LongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public IrateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
     var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
-    return new IrateV2LongGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
+    return new IrateDoubleGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
   }
 
   @Override
   public String describe() {
-    return IrateV2LongAggregator.describe();
+    return IrateDoubleAggregator.describe();
   }
 }

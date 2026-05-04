@@ -13,15 +13,15 @@ import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link IrateV1LongAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link IrateLongAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class IrateV1LongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class IrateLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   WarningSourceLocation warningsSource;
 
   private final boolean isDateNanos;
 
-  public IrateV1LongAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
+  public IrateLongAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
       boolean isDateNanos) {
     this.warningsSource = warningsSource;
     this.isDateNanos = isDateNanos;
@@ -34,7 +34,7 @@ public final class IrateV1LongAggregatorFunctionSupplier implements AggregatorFu
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return IrateV1LongGroupingAggregatorFunction.intermediateStateDesc();
+    return IrateLongGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -43,14 +43,14 @@ public final class IrateV1LongAggregatorFunctionSupplier implements AggregatorFu
   }
 
   @Override
-  public IrateV1LongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public IrateLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
     var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
-    return new IrateV1LongGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
+    return new IrateLongGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
   }
 
   @Override
   public String describe() {
-    return IrateV1LongAggregator.describe();
+    return IrateLongAggregator.describe();
   }
 }

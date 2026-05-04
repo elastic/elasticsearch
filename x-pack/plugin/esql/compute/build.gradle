@@ -609,38 +609,38 @@ tasks.named('stringTemplates').configure {
   generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st"))
   generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-All2State.java.st"), true, true, "All")
 
-  File irateV1AggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-IrateV1Aggregator.java.st")
+  File legacyIrateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-LegacyIrateAggregator.java.st")
   template {
     it.properties = intProperties
-    it.inputFile = irateV1AggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/IrateV1IntAggregator.java"
+    it.inputFile = legacyIrateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LegacyIrateIntAggregator.java"
   }
   template {
     it.properties = longProperties
-    it.inputFile = irateV1AggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/IrateV1LongAggregator.java"
+    it.inputFile = legacyIrateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LegacyIrateLongAggregator.java"
   }
   template {
     it.properties = doubleProperties
-    it.inputFile = irateV1AggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/IrateV1DoubleAggregator.java"
+    it.inputFile = legacyIrateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LegacyIrateDoubleAggregator.java"
   }
 
-  File irateV2AggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-IrateV2Aggregator.java.st")
+  File irateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-IrateAggregator.java.st")
   template {
     it.properties = intProperties
-    it.inputFile = irateV2AggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/IrateV2IntAggregator.java"
+    it.inputFile = irateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IrateIntAggregator.java"
   }
   template {
     it.properties = longProperties
-    it.inputFile = irateV2AggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/IrateV2LongAggregator.java"
+    it.inputFile = irateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IrateLongAggregator.java"
   }
   template {
     it.properties = doubleProperties
-    it.inputFile = irateV2AggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/IrateV2DoubleAggregator.java"
+    it.inputFile = irateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IrateDoubleAggregator.java"
   }
 
   File ideltaAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-IdeltaAggregator.java.st")

@@ -19,7 +19,6 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -35,18 +34,18 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * An irate grouping aggregation definition for long.
- * This class is generated. Edit `X-IrateV2Aggregator.java.st` instead.
+ * This class is generated. Edit `X-IrateAggregator.java.st` instead.
  */
 @GroupingAggregator(
     value = {
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
         @IntermediateState(name = "values", type = "LONG_BLOCK"),
-        @IntermediateState(name = "isCumulative", type = "BOOLEAN_BLOCK"),
-        @IntermediateState(name = "failed", type = "BOOLEAN_BLOCK") },
+        @IntermediateState(name = "isCumulative", type = "BOOLEAN"),
+        @IntermediateState(name = "failed", type = "BOOLEAN") },
     processNulls = true,
     warnExceptions = InvalidTemporalityException.class
 )
-public class IrateV2LongAggregator {
+public class IrateLongAggregator {
 
     public static LongIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos) {
         final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
@@ -79,8 +78,8 @@ public class IrateV2LongAggregator {
         int groupId,
         LongBlock timestamps,
         LongBlock values,
-        BooleanBlock isCumulative,
-        BooleanBlock failed,
+        boolean isCumulative,
+        boolean failed,
         int otherPosition
     ) {
         current.combine(groupId, timestamps, values, isCumulative, failed, otherPosition);
@@ -180,15 +179,8 @@ public class IrateV2LongAggregator {
             }
         }
 
-        void combine(
-            int groupId,
-            LongBlock timestamps,
-            LongBlock values,
-            BooleanBlock isCumulative,
-            BooleanBlock failed,
-            int otherPosition
-        ) {
-            if (failed.getBoolean(failed.getFirstValueIndex(otherPosition))) {
+        void combine(int groupId, LongBlock timestamps, LongBlock values, boolean isCumulative, boolean failed, int otherPosition) {
+            if (failed) {
                 setFailed(groupId);
                 return;
             }
@@ -198,12 +190,11 @@ public class IrateV2LongAggregator {
             }
             final int firstTs = timestamps.getFirstValueIndex(otherPosition);
             final int firstIndex = values.getFirstValueIndex(otherPosition);
-            boolean cumulative = isCumulative.getBoolean(isCumulative.getFirstValueIndex(otherPosition));
             ensureCapacity(groupId);
-            append(groupId, timestamps.getLong(firstTs), values.getLong(firstIndex), cumulative);
+            append(groupId, timestamps.getLong(firstTs), values.getLong(firstIndex), isCumulative);
             if (valueCount > 1) {
                 ensureCapacity(groupId);
-                append(groupId, timestamps.getLong(firstTs + 1), values.getLong(firstIndex + 1), cumulative);
+                append(groupId, timestamps.getLong(firstTs + 1), values.getLong(firstIndex + 1), isCumulative);
             }
         }
 
@@ -224,8 +215,8 @@ public class IrateV2LongAggregator {
             try (
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
                 LongBlock.Builder values = blockFactory.newLongBlockBuilder(positionCount * 2);
-                BooleanBlock.Builder isCumulative = blockFactory.newBooleanBlockBuilder(positionCount);
-                BooleanBlock.Builder failedBuilder = blockFactory.newBooleanBlockBuilder(positionCount);
+                var isCumulative = blockFactory.newBooleanVectorFixedBuilder(positionCount);
+                var failedBuilder = blockFactory.newBooleanVectorFixedBuilder(positionCount);
             ) {
                 for (int i = 0; i < positionCount; i++) {
                     final var groupId = selected.getInt(i);
@@ -245,19 +236,19 @@ public class IrateV2LongAggregator {
                         }
                         values.endPositionEntry();
 
-                        isCumulative.appendBoolean(state.isCumulative);
-                        failedBuilder.appendBoolean(state.failed);
+                        isCumulative.appendBoolean(i, state.isCumulative);
+                        failedBuilder.appendBoolean(i, state.failed);
                     } else {
                         timestamps.appendNull();
                         values.appendNull();
-                        isCumulative.appendNull();
-                        failedBuilder.appendBoolean(false);
+                        isCumulative.appendBoolean(i, true);
+                        failedBuilder.appendBoolean(i, false);
                     }
                 }
                 blocks[offset] = timestamps.build();
                 blocks[offset + 1] = values.build();
-                blocks[offset + 2] = isCumulative.build();
-                blocks[offset + 3] = failedBuilder.build();
+                blocks[offset + 2] = isCumulative.build().asBlock();
+                blocks[offset + 3] = failedBuilder.build().asBlock();
             }
         }
 

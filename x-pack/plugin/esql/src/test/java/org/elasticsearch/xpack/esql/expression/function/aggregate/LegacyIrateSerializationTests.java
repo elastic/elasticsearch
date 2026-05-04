@@ -13,20 +13,20 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class IrateSerializationTests extends AbstractExpressionSerializationTests<Irate> {
+public class LegacyIrateSerializationTests extends AbstractExpressionSerializationTests<LegacyIrate> {
     @Override
-    protected Irate createTestInstance() {
+    protected LegacyIrate createTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression filter = randomChild();
         Expression window = randomChild();
         Expression timestamp = randomChild();
         Expression temporality = randomChild();
-        return new Irate(source, field, filter, window, timestamp, temporality);
+        return new LegacyIrate(source, field, filter, window, timestamp, temporality);
     }
 
     @Override
-    protected Irate mutateInstance(Irate instance) throws IOException {
+    protected LegacyIrate mutateInstance(LegacyIrate instance) throws IOException {
         Source source = randomSource();
         Expression field = instance.field();
         Expression filter = instance.filter();
@@ -40,6 +40,6 @@ public class IrateSerializationTests extends AbstractExpressionSerializationTest
             case 3 -> timestamp = randomValueOtherThan(timestamp, AbstractExpressionSerializationTests::randomChild);
             case 4 -> temporality = randomValueOtherThan(temporality, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Irate(source, field, filter, window, timestamp, temporality);
+        return new LegacyIrate(source, field, filter, window, timestamp, temporality);
     }
 }

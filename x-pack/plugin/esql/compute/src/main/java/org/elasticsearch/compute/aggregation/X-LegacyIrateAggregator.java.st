@@ -33,27 +33,27 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * An irate grouping aggregation definition for int.
- * This class is generated. Edit `X-IrateV1Aggregator.java.st` instead.
+ * An irate grouping aggregation definition for $type$.
+ * This class is generated. Edit `X-LegacyIrateAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "INT_BLOCK") },
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") },
     processNulls = true
 )
-public class IrateV1IntAggregator {
+public class LegacyIrate$Type$Aggregator {
 
     public static final String DELTA_UNSUPPORTED_WARNING = "Some nodes in your cluster don't support delta temporality for counters yet."
         + " The affected time series are excluded from irate calculations. Upgrade your cluster to fix this.";
 
-    public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos, Warnings warnings) {
+    public static $Type$IrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos, Warnings warnings) {
         final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
-        return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor, warnings);
+        return new $Type$IrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor, warnings);
     }
 
     public static void combine(
-        IntIrateGroupingState current,
+        $Type$IrateGroupingState current,
         int groupId,
-        int value,
+        $type$ value,
         long timestamp,
         @Position int position,
         BytesRefBlock temporality
@@ -77,32 +77,32 @@ public class IrateV1IntAggregator {
     }
 
     public static String describe() {
-        return "instant change of ints";
+        return "instant change of $type$s";
     }
 
     public static void combineIntermediate(
-        IntIrateGroupingState current,
+        $Type$IrateGroupingState current,
         int groupId,
         LongBlock timestamps,
-        IntBlock values,
+        $Type$Block values,
         int otherPosition
     ) {
         current.combine(groupId, timestamps, values, otherPosition);
     }
 
-    public static Block evaluateFinal(IntIrateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+    public static Block evaluateFinal($Type$IrateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         return state.evaluateFinal(selected, evalContext);
     }
 
-    private static class IntIrateState {
-        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(IntIrateState.class);
+    private static class $Type$IrateState {
+        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject($Type$IrateState.class);
         long lastTimestamp;
         long secondLastTimestamp = -1;
-        int lastValue;
-        int secondLastValue;
+        $type$ lastValue;
+        $type$ secondLastValue;
         boolean hasSecond;
 
-        IntIrateState(long lastTimestamp, int lastValue) {
+        $Type$IrateState(long lastTimestamp, $type$ lastValue) {
             this.lastTimestamp = lastTimestamp;
             this.lastValue = lastValue;
             this.hasSecond = false;
@@ -113,16 +113,16 @@ public class IrateV1IntAggregator {
         }
     }
 
-    public static final class IntIrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
+    public static final class $Type$IrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
         private TemporalityAccessor cachedTemporalityAccessor;
-        private ObjectArray<IntIrateState> states;
+        private ObjectArray<$Type$IrateState> states;
         private final Warnings warnings;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
         private final int dateFactor;
 
-        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor, Warnings warnings) {
+        $Type$IrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor, Warnings warnings) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
@@ -140,10 +140,10 @@ public class IrateV1IntAggregator {
             assert stateBytes >= 0 : stateBytes;
         }
 
-        void append(int groupId, long timestamp, int value) {
+        void append(int groupId, long timestamp, $type$ value) {
             var state = states.get(groupId);
             if (state == null) {
-                state = new IntIrateState(timestamp, value);
+                state = new $Type$IrateState(timestamp, value);
                 states.set(groupId, state);
                 adjustBreaker(state.bytesUsed());
             } else {
@@ -164,7 +164,7 @@ public class IrateV1IntAggregator {
             }
         }
 
-        void combine(int groupId, LongBlock timestamps, IntBlock values, int otherPosition) {
+        void combine(int groupId, LongBlock timestamps, $Type$Block values, int otherPosition) {
             final int valueCount = timestamps.getValueCount(otherPosition);
             if (valueCount == 0) {
                 return;
@@ -172,10 +172,10 @@ public class IrateV1IntAggregator {
             final int firstTs = timestamps.getFirstValueIndex(otherPosition);
             final int firstIndex = values.getFirstValueIndex(otherPosition);
             ensureCapacity(groupId);
-            append(groupId, timestamps.getLong(firstTs), values.getInt(firstIndex));
+            append(groupId, timestamps.getLong(firstTs), values.get$Type$(firstIndex));
             if (valueCount > 1) {
                 ensureCapacity(groupId);
-                append(groupId, timestamps.getLong(firstTs + 1), values.getInt(firstIndex + 1));
+                append(groupId, timestamps.getLong(firstTs + 1), values.get$Type$(firstIndex + 1));
             }
         }
 
@@ -195,7 +195,7 @@ public class IrateV1IntAggregator {
             final int positionCount = selected.getPositionCount();
             try (
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
-                IntBlock.Builder values = blockFactory.newIntBlockBuilder(positionCount * 2);
+                $Type$Block.Builder values = blockFactory.new$Type$BlockBuilder(positionCount * 2);
             ) {
                 for (int i = 0; i < positionCount; i++) {
                     final var groupId = selected.getInt(i);
@@ -209,9 +209,9 @@ public class IrateV1IntAggregator {
                         timestamps.endPositionEntry();
 
                         values.beginPositionEntry();
-                        values.appendInt(state.lastValue);
+                        values.append$Type$(state.lastValue);
                         if (state.hasSecond) {
-                            values.appendInt(state.secondLastValue);
+                            values.append$Type$(state.secondLastValue);
                         }
                         values.endPositionEntry();
                     } else {

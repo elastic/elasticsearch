@@ -13,15 +13,15 @@ import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link IrateV2DoubleAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link LegacyIrateLongAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class IrateV2DoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class LegacyIrateLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   WarningSourceLocation warningsSource;
 
   private final boolean isDateNanos;
 
-  public IrateV2DoubleAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
+  public LegacyIrateLongAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
       boolean isDateNanos) {
     this.warningsSource = warningsSource;
     this.isDateNanos = isDateNanos;
@@ -34,7 +34,7 @@ public final class IrateV2DoubleAggregatorFunctionSupplier implements Aggregator
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return IrateV2DoubleGroupingAggregatorFunction.intermediateStateDesc();
+    return LegacyIrateLongGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -43,14 +43,14 @@ public final class IrateV2DoubleAggregatorFunctionSupplier implements Aggregator
   }
 
   @Override
-  public IrateV2DoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public LegacyIrateLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
     var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
-    return new IrateV2DoubleGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
+    return new LegacyIrateLongGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
   }
 
   @Override
   public String describe() {
-    return IrateV2DoubleAggregator.describe();
+    return LegacyIrateLongAggregator.describe();
   }
 }

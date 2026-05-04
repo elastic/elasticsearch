@@ -13,15 +13,15 @@ import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link IrateV1DoubleAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link LegacyIrateIntAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class IrateV1DoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class LegacyIrateIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   WarningSourceLocation warningsSource;
 
   private final boolean isDateNanos;
 
-  public IrateV1DoubleAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
+  public LegacyIrateIntAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
       boolean isDateNanos) {
     this.warningsSource = warningsSource;
     this.isDateNanos = isDateNanos;
@@ -34,7 +34,7 @@ public final class IrateV1DoubleAggregatorFunctionSupplier implements Aggregator
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return IrateV1DoubleGroupingAggregatorFunction.intermediateStateDesc();
+    return LegacyIrateIntGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -43,14 +43,14 @@ public final class IrateV1DoubleAggregatorFunctionSupplier implements Aggregator
   }
 
   @Override
-  public IrateV1DoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public LegacyIrateIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
     var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
-    return new IrateV1DoubleGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
+    return new LegacyIrateIntGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
   }
 
   @Override
   public String describe() {
-    return IrateV1DoubleAggregator.describe();
+    return LegacyIrateIntAggregator.describe();
   }
 }

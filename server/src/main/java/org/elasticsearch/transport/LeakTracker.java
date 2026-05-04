@@ -64,8 +64,8 @@ public final class LeakTracker {
     }
 
     /**
-     * Removes the per-thread collector without asserting. For tests that opt out of leak verification after calling
-     * {@link #installTestLeakCollector()}.
+     * Removes the per-thread collector without asserting, whether or not one was installed.
+     * Use to opt out of leak verification or for defensive cleanup in teardown.
      */
     public static void clearTestLeakCollector() {
         testLeakCollector.remove();
@@ -87,6 +87,7 @@ public final class LeakTracker {
         }
         StringBuilder sb = new StringBuilder("Leaked resources (").append(leaks.size()).append("):\n");
         for (Leak leak : leaks) {
+            // leak is open (not yet closed), so toString() returns the full record chain, not "".
             sb.append(leak.toString()).append('\n');
         }
         throw new AssertionError(sb.toString());

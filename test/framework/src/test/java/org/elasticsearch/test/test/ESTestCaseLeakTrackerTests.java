@@ -53,6 +53,9 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
      * subsequent tracked phase on the same thread.
      */
     public void testPriorOptOutDoesNotBleedIntoNextTrackedCollector() throws Exception {
+        // LeakCheckOptOutFixture.before() clears the outer test's collector (enableLeakTrackerCheck==false),
+        // so its wrapped resource finds no collector and is not registered anywhere. After leakAndTeardown()
+        // returns, the ThreadLocal is null — we install a fresh collector and verify it is empty.
         new LeakCheckOptOutFixture().leakAndTeardown();
 
         LeakTracker.installTestLeakCollector();
@@ -123,6 +126,8 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
         }
     }
 
+    // Note: only SearchHit(int) and SearchHit(int, String, ...) reach LeakTracker.wrap() via refCounted==null.
+    // SearchHit.unpooled() passes ALWAYS_REFERENCED directly and is NOT tracked by this registry.
     private static final class UnclosedSearchHitFixture extends ESTestCase {
         void assertTeardownDetectsLeak() throws Exception {
             before();

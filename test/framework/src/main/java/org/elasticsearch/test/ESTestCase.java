@@ -656,14 +656,19 @@ public abstract class ESTestCase extends LuceneTestCase {
         var breakersToCheck = new ArrayList<>(breakers);
         // We clear it now to avoid keeping old breakers if the assertion fails
         breakers.clear();
-        if (enableBreakerMemoryReleasedCheck() == false) {
-            return;
-        }
         for (CircuitBreaker breaker : breakersToCheck) {
             assertThat(breaker.getUsed(), equalTo(0L));
         }
     }
 
+    /**
+     * Asserts that no {@link LeakTracker}-tracked resources remain open at end of test.
+     * Runs before {@link #after()} (reverse declaration order in JUnit 4).
+     * <p>
+     * If a subclass {@code @After} releases tracked resources, those run after this check (subclass before superclass),
+     * causing false positives. Override {@link #enableLeakTrackerCheck()} to return false and call
+     * {@link LeakTracker#verifyNoLeaksAndClear()} manually in the subclass {@code @After} after releasing resources.
+     */
     @After
     public final void verifyNoOutstandingLeakTrackerLeaks() {
         if (enableLeakTrackerCheck() == false) {
@@ -682,19 +687,21 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * When false, {@link #allBreakersMemoryReleased()} is skipped. Override in tests that leave breakers in a non-zero
-     * state intentionally and document why.
-     */
-    protected boolean enableBreakerMemoryReleasedCheck() {
-        return true;
-    }
-
-    /**
-     * When false, per-test {@link LeakTracker} collection and {@link #verifyNoOutstandingLeakTrackerLeaks()} are skipped
-     * (for example when resources are closed asynchronously after the test method). {@link #before()} clears the
-     * per-thread collector so this test does not register leaks into an outer test's collector. If a test runs a
-     * nested opt-out block and then needs tracking again, call {@link LeakTracker#installTestLeakCollector()} (or
-     * rely on a fresh {@code @Before} for the next test method). Override and document why.
+     * When false, per-test {@link LeakTracker} collection and {@link #verifyNoOutstandingLeakTrackerLeaks()} are skipped.
+     * Override (and document why) when either of the following applies:
+     * <ul>
+     *   <li><b>Async release:</b> {@link LeakTracker.Leak#close()} deregisters from the collector on whichever thread
+     *       calls it. If a resource is released on a thread other than the test thread, the deregistration is missed
+     *       and the test fails as a false positive. Await async work before {@code @After}, or disable this check and
+     *       rely on the {@link LeakTracker} Cleaner backstop.</li>
+     *   <li><b>Subclass {@code @After} ordering:</b> JUnit 4 runs subclass {@code @After} methods before superclass
+     *       ones. If a subclass {@code @After} releases tracked resources, {@link #verifyNoOutstandingLeakTrackerLeaks()}
+     *       fires first (false positive). Return false here and call {@link LeakTracker#verifyNoLeaksAndClear()} manually
+     *       after releasing resources in the subclass {@code @After}.</li>
+     * </ul>
+     * {@link #before()} clears any inherited per-thread collector when this returns false, so resources created in this
+     * test do not register into an outer test's collector. If a nested opt-out block runs and tracking is needed again,
+     * call {@link LeakTracker#installTestLeakCollector()} explicitly.
      */
     protected boolean enableLeakTrackerCheck() {
         return true;

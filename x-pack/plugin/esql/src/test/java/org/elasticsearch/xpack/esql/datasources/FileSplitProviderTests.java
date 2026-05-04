@@ -23,12 +23,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
-import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -727,15 +727,7 @@ public class FileSplitProviderTests extends ESTestCase {
             }
 
             @Override
-            public CloseableIterator<Page> readRange(
-                StorageObject object,
-                List<String> projectedColumns,
-                int batchSize,
-                long rangeStart,
-                long rangeEnd,
-                List<Attribute> resolvedAttributes,
-                ErrorPolicy errorPolicy
-            ) {
+            public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
                 throw new UnsupportedOperationException();
             }
 
@@ -808,15 +800,7 @@ public class FileSplitProviderTests extends ESTestCase {
             }
 
             @Override
-            public CloseableIterator<Page> readRange(
-                StorageObject object,
-                List<String> projectedColumns,
-                int batchSize,
-                long rangeStart,
-                long rangeEnd,
-                List<Attribute> resolvedAttributes,
-                ErrorPolicy errorPolicy
-            ) {
+            public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
                 throw new UnsupportedOperationException("not called during split discovery");
             }
 

@@ -35,15 +35,16 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Parses NDJSON into {@link Page}s for a single input stream.
@@ -66,6 +67,7 @@ public class NdJsonPageDecoder implements Closeable {
     // the number of positions that were added.
     private final BitSet blockTracker;
     private final ErrorPolicy errorPolicy;
+    private final SkipWarnings skipWarnings;
     private long totalRowCount;
     private long errorCount;
 
@@ -88,24 +90,48 @@ public class NdJsonPageDecoder implements Closeable {
         List<String> projectedColumns,
         int batchSize,
         BlockFactory blockFactory,
-        ErrorPolicy errorPolicy
+        ErrorPolicy errorPolicy,
+        String sourceLocation
     ) throws IOException {
         this.input = input;
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.errorPolicy = errorPolicy;
+        this.skipWarnings = SkipWarnings.of(
+            errorPolicy,
+            "NDJSON read from ["
+                + sourceLocation
+                + "] encountered parse errors handled per policy (policy: "
+                + errorPolicy.modeName()
+                + "); affected rows are listed below"
+        );
 
         List<Attribute> fullSchema = attributes;
-        var projectedAttributes = attributes;
-        if (projectedColumns != null && projectedColumns.isEmpty() == false) {
-            // Keep projected columns in order, adding NULL for missing columns
-            projectedAttributes = projectedColumns.stream()
-                .map(
-                    col -> attributes.stream()
-                        .filter(a -> a.name().equals(col))
-                        .findFirst()
-                        .orElseGet(() -> NdJsonSchemaInferrer.attribute(col, DataType.NULL, false))
-                )
-                .toList();
+        // Three projection cases:
+        // - null : caller has no projection info (e.g. metadata path); materialize every attribute.
+        // - empty : optimizer pruned every column (COUNT(*) and similar); produce row-count-only Pages.
+        // - other : project the listed columns in the requested order, with NULL for missing names.
+        List<Attribute> projectedAttributes;
+        if (projectedColumns == null) {
+            projectedAttributes = attributes;
+        } else if (projectedColumns.isEmpty()) {
+            projectedAttributes = List.of();
+        } else {
+            // Build the lookup map once: O(N) here vs. O(N*M) for a per-projection nested scan,
+            // which matters on wide schemas (the NYC taxis fixture has 100+ columns). putIfAbsent
+            // preserves the first-wins semantics of the prior findFirst() call so a schema with
+            // duplicated names (rare, but legal) keeps the same attribute the optimizer would have
+            // picked. We never iterate the map, so HashMap suffices (no LinkedHashMap overhead).
+            // Capacity 2*N keeps us safely above the 0.75 load factor for at most N entries.
+            Map<String, Attribute> byName = new HashMap<>(attributes.size() * 2);
+            for (Attribute a : attributes) {
+                byName.putIfAbsent(a.name(), a);
+            }
+            var resolved = new ArrayList<Attribute>(projectedColumns.size());
+            for (String col : projectedColumns) {
+                Attribute match = byName.get(col);
+                resolved.add(match != null ? match : NdJsonSchemaInferrer.attribute(col, DataType.NULL, false));
+            }
+            projectedAttributes = resolved;
         }
 
         this.decoder = prepareSchema(projectedAttributes, fullSchema);
@@ -131,7 +157,28 @@ public class NdJsonPageDecoder implements Closeable {
             throw new EsqlIllegalArgumentException(e, "Malformed NDJSON [{}]: {}", phaseLabel, e.getOriginalMessage());
         }
         errorCount++;
+        skipWarnings.add(
+            (e instanceof JsonEOFException ? "Truncated" : "Malformed")
+                + " NDJSON at logical row ["
+                + logicalRowIndex
+                + "] ("
+                + phaseLabel
+                + "): "
+                + e.getOriginalMessage()
+        );
         if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
+            // Surface the budget-exceeded condition as a warning so clients see exactly what tripped it.
+            skipWarnings.add(
+                "NDJSON error budget exceeded at row ["
+                    + totalRowCount
+                    + "]: ["
+                    + errorCount
+                    + "] errors, maximum ["
+                    + errorPolicy.maxErrors()
+                    + "] or ratio ["
+                    + errorPolicy.maxErrorRatio()
+                    + "]"
+            );
             throw new EsqlIllegalArgumentException(
                 "NDJSON error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
                 errorCount,
@@ -204,7 +251,10 @@ public class NdJsonPageDecoder implements Closeable {
      */
     private Page decodePageLenient(Block.Builder[] blockBuilders) throws IOException {
         ensureLenientScratchBuffers();
-        final Block.Builder[] rowScratch = Objects.requireNonNull(lenientScratchBuilders);
+        final Block.Builder[] rowScratch = lenientScratchBuilders;
+        if (rowScratch == null) {
+            throw new EsqlIllegalArgumentException("lenient scratch builders missing after ensureLenientScratchBuffers");
+        }
 
         int lineCount = 0;
         while (lineCount < batchSize) {
@@ -257,6 +307,11 @@ public class NdJsonPageDecoder implements Closeable {
         if (lineCount == 0) {
             return null;
         }
+        // Row-count-only Page (zero-column projection, e.g. COUNT(*)). new Page(Block[]) rejects an
+        // empty block array, so route through the explicit positionCount constructor.
+        if (blockBuilders.length == 0) {
+            return new Page(lineCount);
+        }
 
         var blocks = new Block[this.projectedAttributes.size()];
         var success = false;
@@ -280,7 +335,10 @@ public class NdJsonPageDecoder implements Closeable {
      */
     private void appendDecodedScratchRow(Block.Builder[] pageBuilders, Block.Builder[] scratchBuilders) {
         final int columns = scratchBuilders.length;
-        Block[] rowBlocks = Objects.requireNonNull(lenientScratchRowBlocks);
+        Block[] rowBlocks = lenientScratchRowBlocks;
+        if (rowBlocks == null) {
+            throw new EsqlIllegalArgumentException("lenient scratch row blocks missing after ensureLenientScratchBuffers");
+        }
         try {
             for (int i = 0; i < columns; i++) {
                 rowBlocks[i] = scratchBuilders[i].build();

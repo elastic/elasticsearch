@@ -1,0 +1,90 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.commits;
+
+import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.index.engine.ElasticsearchIndexDeletionPolicy;
+import org.elasticsearch.index.engine.SafeCommitInfo;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * Index deletion policy used in {@link HollowIndexEngine}.
+ * <p>
+ * This policy allows to retain Lucene commits across engine resets: it uses an instance of {@link ShardLocalCommitsRefs},
+ * created once when the index shard is created, to keep track of the acquired commits. When an {@link HollowIndexEngine} is created,
+ * its new {@link IndexEngineDeletionPolicy} receives the same {@link ShardLocalCommitsRefs} instance and therefore can know the commits
+ * that were previously acquired by a different engine instance.
+ * <p>
+ * This policy does not delete commits locally. A commit can be deleted in the future when the shard is recovered (when we search for
+ * unused commits) or the next time the shard is unhollowed.
+ * <p>
+
+ * Note: this policy is not intended to be used in an {@link org.apache.lucene.index.IndexWriter}, but it implements
+ * {@link ElasticsearchIndexDeletionPolicy} so that it can be used within an {@link HollowIndexEngine} in a similar way other engine
+ * implementations use index deletion policies.
+ */
+public class HollowIndexEngineDeletionPolicy extends ElasticsearchIndexDeletionPolicy {
+
+    private final ShardLocalCommitsRefs commitsRefs;
+
+    private IndexCommit commit;
+    private boolean initialized;
+    private SafeCommitInfo safeCommitInfo;
+
+    public HollowIndexEngineDeletionPolicy(ShardLocalCommitsRefs shardLocalCommitsRefs) {
+        this.commitsRefs = shardLocalCommitsRefs;
+    }
+
+    public synchronized void onInit(IndexCommit commit, SafeCommitInfo safeCommitInfo) throws IOException {
+        assert initialized == false;
+        this.commit = Objects.requireNonNull(commit);
+        this.safeCommitInfo = Objects.requireNonNull(safeCommitInfo);
+        this.initialized = true;
+    }
+
+    @Override
+    public synchronized void onInit(List<? extends IndexCommit> commits) {
+        assert false : "should never be called";
+    }
+
+    @Override
+    public synchronized void onCommit(List<? extends IndexCommit> commits) {
+        assert false : "should never be called";
+    }
+
+    @Override
+    public synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit) {
+        assert initialized;
+        return commitsRefs.incRef(this.commit);
+    }
+
+    @Override
+    public synchronized boolean releaseIndexCommit(IndexCommit acquiredIndexCommit) {
+        assert acquiredIndexCommit instanceof SoftDeleteIndexCommit;
+        return commitsRefs.decRef(acquiredIndexCommit);
+    }
+
+    @Override
+    public SafeCommitInfo getSafeCommitInfo() {
+        return safeCommitInfo;
+    }
+
+    @Override
+    public boolean hasAcquiredIndexCommitsForTesting() {
+        return commitsRefs.hasAcquiredIndexCommitsForTesting();
+    }
+
+    @Override
+    public boolean hasUnreferencedCommits() {
+        return false;
+    }
+}

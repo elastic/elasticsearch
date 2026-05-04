@@ -58,11 +58,6 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
 
     private static volatile List<GeneratedIndex> generatedIndices;
 
-    private static final Pattern CANNOT_LOAD_BLOCKS_WITHOUT_DOC_VALUES = Pattern.compile(
-        ".*Cannot load blocks without doc values.*",
-        Pattern.DOTALL
-    );
-
     // FORK converts UnsupportedAttribute to a plain ReferenceAttribute(UNSUPPORTED), stripping the
     // Unresolvable marker. Functions then reject the argument with a generic "type [unsupported]" error
     // instead of the proper "Cannot use field" message. https://github.com/elastic/elasticsearch/issues/147094
@@ -70,6 +65,11 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         ".*argument of \\[.*\\] must be \\[.*\\], found value \\[.*\\] type \\[unsupported\\].*",
         Pattern.DOTALL
     );
+
+    // Full-text functions (match, match_phrase, qstr) pushed down to Lucene can fail with
+    // "failed to create query" on random mappings where field types are incompatible (e.g., non-indexed
+    // fields, numeric fields receiving text input). https://github.com/elastic/elasticsearch/issues/147610
+    private static final Pattern FAILED_TO_CREATE_QUERY = Pattern.compile(".*failed to create query.*", Pattern.DOTALL);
 
     @Before
     public void setupRandomIndices() throws IOException {
@@ -221,37 +221,31 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
 
     private static boolean isAdditionalAllowedError(String errorMessage, String query) {
         if (errorMessage == null) return false;
-        // RangeFieldMapper throws "Cannot load blocks without doc values" for *_range fields
-        // with doc_values:false. https://github.com/elastic/elasticsearch/issues/146527
-        if (isAllowedError(errorMessage, CANNOT_LOAD_BLOCKS_WITHOUT_DOC_VALUES) && hasRangeFieldType()) {
-            return true;
-        }
         // FORK converts UnsupportedAttribute to ReferenceAttribute(UNSUPPORTED), causing functions
         // to reject the field with a generic "type [unsupported]" error.
         // https://github.com/elastic/elasticsearch/issues/147094
         if (query != null && isAllowedError(errorMessage, UNSUPPORTED_TYPE_IN_FUNCTION) && queryContainsFork(query)) {
             return true;
         }
-        return false;
-    }
-
-    private static boolean hasRangeFieldType() {
-        List<GeneratedIndex> indices = generatedIndices;
-        if (indices == null) {
-            return false;
-        }
-        for (GeneratedIndex idx : indices) {
-            for (RandomMappingGenerator.FieldDef field : idx.fields()) {
-                if (field.esType().endsWith("_range")) {
-                    return true;
-                }
-            }
+        // Full-text functions pushed to Lucene can throw QueryShardException("failed to create query: ...")
+        // when the target field has an incompatible type or is not indexed in the random mapping.
+        // https://github.com/elastic/elasticsearch/issues/147610
+        if (query != null && isAllowedError(errorMessage, FAILED_TO_CREATE_QUERY) && queryContainsFullTextFunction(query)) {
+            return true;
         }
         return false;
     }
 
     private static boolean queryContainsFork(String query) {
         return query != null && query.toUpperCase(Locale.ROOT).contains("FORK");
+    }
+
+    private static boolean queryContainsFullTextFunction(String query) {
+        if (query == null) {
+            return false;
+        }
+        String upper = query.toUpperCase(Locale.ROOT);
+        return upper.contains("MATCH(") || upper.contains("MATCH_PHRASE(") || upper.contains("QSTR(") || upper.contains("KQL(");
     }
 
     private static String formatReproductionContext(String query) {

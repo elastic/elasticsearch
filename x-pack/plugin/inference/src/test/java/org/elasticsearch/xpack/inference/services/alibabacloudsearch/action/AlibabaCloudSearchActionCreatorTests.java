@@ -324,6 +324,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
             AlibabaCloudSearchCompletionServiceSettingsTests.getServiceSettingsMap("rerank_test", "host", "default"),
             null,
             DefaultSecretSettingsTests.getSecretSettingsMap("secret"),
+            null,
             null
         );
         var actionCreator = new AlibabaCloudSearchActionCreator(sender, serviceComponents);

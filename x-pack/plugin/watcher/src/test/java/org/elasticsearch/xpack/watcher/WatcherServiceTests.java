@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -73,10 +74,12 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -84,6 +87,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -485,6 +489,152 @@ public class WatcherServiceTests extends ESTestCase {
         assertThat(service.pendingWatches(), is(anEmptyMap()));
     }
 
+    // --- addPendingWatches integration ---
+
+    public void testAddPendingWatchesSchedulesLocalActiveWatch() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+
+        // Use a 1-shard index so any watch id is "local"
+        final ClusterState state = singleShardLocalState();
+        triggerService.pauseExecution();
+        final Watch watch = createScheduleWatch(randomAlphaOfLength(10));
+        service.onWatchAdded(watch);
+        assertThat(service.pendingWatches(), hasKey(watch.id()));
+
+        triggerService.start(List.of());
+        service.addPendingWatches(state);
+
+        assertThat(engine.getWatches(), hasKey(watch.id()));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+    }
+
+    public void testAddPendingWatchesDropsInactiveWatch() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+
+        triggerService.pauseExecution();
+        final Watch inactive = createScheduleWatch(randomAlphaOfLength(10), false);
+        service.onWatchAdded(inactive);
+
+        triggerService.start(List.of());
+        service.addPendingWatches(singleShardLocalState());
+
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+    }
+
+    public void testAddPendingWatchesFiltersForeignWatch() {
+        // 2-shard index; only shard 0 is local — a watch hashing to shard 1 must be dropped
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+
+        final ClusterState state = twoShardStateLocalShardOnly(0);
+        final String localId = idHashingToShard(0, 2);
+        final String foreignId = idHashingToShard(1, 2);
+
+        triggerService.pauseExecution();
+        service.onWatchAdded(createScheduleWatch(localId));
+        service.onWatchAdded(createScheduleWatch(foreignId));
+
+        triggerService.start(List.of());
+        service.addPendingWatches(state);
+
+        assertThat(engine.getWatches(), hasKey(localId));
+        assertThat(engine.getWatches(), not(hasKey(foreignId)));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+    }
+
+    public void testAddPendingWatchesClearsPendingWhenIndexMissing() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+
+        triggerService.pauseExecution();
+        service.onWatchAdded(createScheduleWatch(randomAlphaOfLength(8)));
+        assertThat(service.pendingWatches(), aMapWithSize(1));
+
+        // cluster state with no .watches index
+        triggerService.start(List.of());
+        service.addPendingWatches(new ClusterState.Builder(new ClusterName("_name")).build());
+
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+    }
+
+    public void testAddPendingWatchesKeepsPendingWhenRoutingNotRecovered() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+
+        // cluster state has the .watches index metadata but no routing nodes (state not recovered)
+        final ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
+        metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings(IndexVersion.current(), 1, 0)));
+        csBuilder.putProjectMetadata(metadataBuilder);
+        final ClusterState noRoutingState = csBuilder.build();
+
+        triggerService.pauseExecution();
+        service.onWatchAdded(createScheduleWatch(randomAlphaOfLength(8)));
+        assertThat(service.pendingWatches(), aMapWithSize(1));
+
+        triggerService.start(List.of());
+        service.addPendingWatches(noRoutingState);
+
+        // watch must survive until the next reload when routing is available
+        assertThat(service.pendingWatches(), aMapWithSize(1));
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+    }
+
+    public void testFindShardConfigReturnsSingleShardForAnyId() {
+        // with numShards=1 every id must route to shard 0
+        final var index = new Index(Watch.INDEX, "uuid");
+        final var shard0 = new ShardId(index, 0);
+        final ShardAllocationConfiguration config = new ShardAllocationConfiguration(0, 1, List.of("a"));
+        final Map<ShardId, ShardAllocationConfiguration> shardConfigs = Map.of(shard0, config);
+
+        for (int i = 0; i < 20; i++) {
+            final var id = randomAlphaOfLengthBetween(1, 20);
+            assertThat(WatcherService.findShardConfig(shardConfigs, id, 1), is(config));
+        }
+    }
+
+    public void testFindShardConfigReturnsNullWhenShardIsNotLocal() {
+        // two-shard index; only shard 0 is local — ids that hash to shard 1 must return null
+        final var index = new Index(Watch.INDEX, "uuid");
+        final var shard0 = new ShardId(index, 0);
+        final ShardAllocationConfiguration config0 = new ShardAllocationConfiguration(0, 2, List.of("a"));
+        final Map<ShardId, ShardAllocationConfiguration> shardConfigs = Map.of(shard0, config0);
+
+        // find an id that routes to shard 1 (not local)
+        final String foreignId = idHashingToShard(1, 2);
+        assertThat(WatcherService.findShardConfig(shardConfigs, foreignId, 2), is(nullValue()));
+    }
+
+    public void testFindShardConfigPicksCorrectShardAmongMultiple() {
+        // three-shard index; all three shards are local with distinct configs
+        final var index = new Index(Watch.INDEX, "uuid");
+        final var config0 = new ShardAllocationConfiguration(0, 3, List.of("a"));
+        final var config1 = new ShardAllocationConfiguration(1, 3, List.of("a", "b"));
+        final var config2 = new ShardAllocationConfiguration(2, 3, List.of("a", "b", "c"));
+        final Map<ShardId, ShardAllocationConfiguration> shardConfigs = Map.of(
+            new ShardId(index, 0), config0,
+            new ShardId(index, 1), config1,
+            new ShardId(index, 2), config2
+        );
+
+        assertThat(WatcherService.findShardConfig(shardConfigs, idHashingToShard(0, 3), 3), is(config0));
+        assertThat(WatcherService.findShardConfig(shardConfigs, idHashingToShard(1, 3), 3), is(config1));
+        assertThat(WatcherService.findShardConfig(shardConfigs, idHashingToShard(2, 3), 3), is(config2));
+    }
+
+    public void testFindShardConfigReturnsNullForEmptyConfigs() {
+        assertThat(WatcherService.findShardConfig(Map.of(), "any-id", 1), is(nullValue()));
+    }
+
     private WatcherService createWatcherService(TriggerService triggerService) {
         return new WatcherService(
             Settings.EMPTY,
@@ -504,8 +654,42 @@ public class WatcherServiceTests extends ESTestCase {
         return new ScheduleTriggerEngineMock(new ScheduleRegistry(Collections.emptySet()), Clock.systemUTC());
     }
 
+    private ClusterState singleShardLocalState() {
+        return buildLocalShardState(1, 0);
+    }
+
+    private ClusterState twoShardStateLocalShardOnly(int localShardNum) {
+        return buildLocalShardState(2, localShardNum);
+    }
+
+    private ClusterState buildLocalShardState(int numShards, int localShardNum) {
+        final ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
+        metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings(IndexVersion.current(), numShards, 0)));
+        csBuilder.putProjectMetadata(metadataBuilder);
+        final Index watchIndex = new Index(Watch.INDEX, "uuid");
+        final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(watchIndex);
+        for (int i = 0; i < numShards; i++) {
+            final ShardId shardId = new ShardId(watchIndex, i);
+            // local shard is on "node"; remote shards are on "other-node"
+            final String nodeId = (i == localShardNum) ? "node" : "other-node";
+            routingBuilder.addIndexShard(
+                IndexShardRoutingTable.builder(shardId)
+                    .addShard(TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED))
+            );
+        }
+        csBuilder.putRoutingTable(projectId, RoutingTable.builder().add(routingBuilder).build());
+        csBuilder.nodes(new DiscoveryNodes.Builder().masterNodeId("node").localNodeId("node").add(newNode()));
+        return csBuilder.build();
+    }
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static Watch createScheduleWatch(String id) {
+        return createScheduleWatch(id, true);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static Watch createScheduleWatch(String id, boolean active) {
         final Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn(id);
         // TriggerService.addToStats reads trigger().getSchedule().type() for schedule-typed watches
@@ -524,10 +708,20 @@ public class WatcherServiceTests extends ESTestCase {
         when(watch.actions()).thenReturn(Collections.emptyList());
 
         final WatchStatus status = mock(WatchStatus.class);
-        final WatchStatus.State state = new WatchStatus.State(true, ZonedDateTime.now(ZoneOffset.UTC));
+        final WatchStatus.State state = new WatchStatus.State(active, ZonedDateTime.now(ZoneOffset.UTC));
         when(status.state()).thenReturn(state);
         when(watch.status()).thenReturn(status);
         return watch;
+    }
+
+    /** Brute-forces an id whose Murmur3 hash maps to {@code targetShard} out of {@code numShards}. */
+    private static String idHashingToShard(int targetShard, int numShards) {
+        for (int i = 0; ; i++) {
+            String id = "watch-" + i;
+            if (Math.floorMod(Murmur3HashFunction.hash(id), numShards) == targetShard) {
+                return id;
+            }
+        }
     }
 
     private static DiscoveryNode newNode() {

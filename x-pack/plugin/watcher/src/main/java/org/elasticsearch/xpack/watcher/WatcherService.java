@@ -425,7 +425,8 @@ public class WatcherService implements WatcherIndexingEventConsumer {
      * {@link #loadWatches} where, unlike search hits, we don't know the shard up front and have to derive it from the
      * standard {@code _id}-based routing (Murmur3 hash mod number of shards).
      */
-    private static ShardAllocationConfiguration findShardConfig(
+    // visible for testing
+    static ShardAllocationConfiguration findShardConfig(
         Map<ShardId, ShardAllocationConfiguration> shardConfigs,
         String id,
         int numShards

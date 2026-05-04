@@ -55,12 +55,16 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
         return METHODS_TO_OPERATIONS.get(method).key();
     }
 
-    EnumMap<RetryMethod, StorageOperation> METHODS_TO_OPERATIONS = new EnumMap<>(
-        Map.ofEntries(
-            Map.entry(RetryMethod.LIST_BLOBS, StorageOperation.LIST),
-            Map.entry(RetryMethod.LIST_BLOBS_BY_PREFIX, StorageOperation.LIST),
-            Map.entry(RetryMethod.CHILDREN, StorageOperation.LIST)
-        )
-    );
+    private static final EnumMap<RetryMethod, StorageOperation> METHODS_TO_OPERATIONS;
+    static {
+        METHODS_TO_OPERATIONS = new EnumMap<>(
+            Map.ofEntries(
+                Map.entry(RetryMethod.LIST_BLOBS, StorageOperation.LIST),
+                Map.entry(RetryMethod.LIST_BLOBS_BY_PREFIX, StorageOperation.LIST),
+                Map.entry(RetryMethod.CHILDREN, StorageOperation.LIST)
+            )
+        );
+        assert METHODS_TO_OPERATIONS.keySet().containsAll(EnumSet.allOf(RetryMethod.class));
+    }
 
 }

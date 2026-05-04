@@ -396,7 +396,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             case AZURE:
                 // Azure has two equivalent URI forms; the choice is made once per test in doTest().
                 // Path-style: wasbs://account.blob.core.windows.net/container/warehouse/.../employees.parquet
-                // Hadoop:     wasbs://container@account.blob.core.windows.net/warehouse/.../employees.parquet
+                // Hadoop: wasbs://container@account.blob.core.windows.net/warehouse/.../employees.parquet
                 if (useAzureHadoopForm) {
                     return "wasbs://" + CONTAINER + "@" + ACCOUNT + ".blob.core.windows.net/" + WAREHOUSE + "/" + relativePath;
                 }

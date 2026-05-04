@@ -1049,13 +1049,11 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     @Override
     protected boolean isConfigurable() {
-        return true;
+        return false;
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerConflictCheck("mode", b -> b.field("mode", "columnar"));
-    }
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testSourceDescriptionWithRoutingPath() throws IOException {
         IndexVersion minimalVersion = useSyntheticId ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94 : IndexVersions.TIME_SERIES_ID_HASHING;
@@ -1180,6 +1178,11 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
                     + "]"
             )
         );
+    }
+
+    @Override
+    protected Settings getIndexSettings() {
+        return indexSettings(IndexVersion.current(), true, false);
     }
 
     private void verifyIdFromBlockLoader(String expectedId) throws IOException {

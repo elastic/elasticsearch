@@ -46,13 +46,23 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         COLUMNAR
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
-        IdFieldMapper existing = c.idFieldMapper();
-        if (existing instanceof ProvidedIdFieldMapper provided) {
-            return new ProvidedIdFieldMapper.Builder(provided.fieldDataEnabled());
+    public static final TypeParser PARSER = new TypeParser() {
+        @Override
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
+            IdFieldMapper existing = parserContext.idFieldMapper();
+            if (existing instanceof ProvidedIdFieldMapper provided) {
+                var builder = new ProvidedIdFieldMapper.Builder(provided.fieldDataEnabled());
+                builder.parseMetadataField(name, parserContext, node);
+                return builder;
+            }
+            throw new MapperParsingException(name + " is not configurable");
         }
-        return new MetadataFieldMapper.ConstantBuilder(existing);
-    });
+
+        @Override
+        public Builder getDefaultBuilder(MappingParserContext parserContext) {
+            return (Builder) parserContext.idFieldMapper().getMergeBuilder();
+        }
+    };
 
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 

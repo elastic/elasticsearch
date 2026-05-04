@@ -338,7 +338,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
-    public void testDisableIndex() throws Exception {
+    @Override
+    public void testDisableIndex() throws IOException {
         assumeTrue("feature under test must be present", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {

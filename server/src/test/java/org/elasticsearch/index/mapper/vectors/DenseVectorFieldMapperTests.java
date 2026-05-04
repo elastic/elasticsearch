@@ -623,6 +623,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     @Override
+    public void testDisableIndex() {
+        throw new AssumptionViolatedException("mapper must support the 'index' parameter");
+    }
+
+    @Override
+    public void testDisableDefaultIndex() {
+        throw new AssumptionViolatedException("mapper must support the 'index' parameter");
+    }
+
+    @Override
     protected boolean supportsStoredFields() {
         return false;
     }

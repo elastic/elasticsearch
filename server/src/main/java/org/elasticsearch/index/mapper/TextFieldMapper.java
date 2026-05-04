@@ -1630,7 +1630,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.index = builder.index.getValue();
         this.store = builder.store.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
-        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, this.indexCreatedVersion);
+        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, indexSettings.getIndexVersionCreated());
         this.similarity = builder.similarity.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.norms = builder.norms.getValue();
@@ -1681,7 +1681,7 @@ public final class TextFieldMapper extends FieldMapper {
             && multiFields().iterator().hasNext() == false
             && prefixFieldInfo == null
             && phraseFieldInfo == null
-            && fieldType().needsFallbackStorageForSyntheticSource(indexCreatedVersion) == false;
+            && fieldType().needsFallbackStorageForSyntheticSource(indexSettings.getIndexVersionCreated()) == false;
     }
 
     @Override
@@ -1968,7 +1968,7 @@ public final class TextFieldMapper extends FieldMapper {
         // layer for loading from a fallback field created during indexing by this text field mapper
         final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
         if (usesBinaryDocValuesForFallbackFields) {
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName, indexCreatedVersion));
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName, indexSettings.getIndexVersionCreated()));
         } else {
             // for bwc - fallback fields were originally stored in StoredFields
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fallbackFieldName) {
@@ -1992,7 +1992,7 @@ public final class TextFieldMapper extends FieldMapper {
     private CompositeSyntheticFieldLoader syntheticFieldLoaderFromDocValues() {
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
         if (fieldType().usesBinaryDocValues()) {
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexCreatedVersion));
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexSettings.getIndexVersionCreated()));
         } else {
             layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
                 @Override
@@ -2019,7 +2019,12 @@ public final class TextFieldMapper extends FieldMapper {
             });
 
             // also load from fallback field for values that exceeded MAX_TERM_LENGTH
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().syntheticSourceFallbackFieldName(), indexCreatedVersion));
+            layers.add(
+                new BinaryDocValuesSyntheticFieldLoaderLayer(
+                    fieldType().syntheticSourceFallbackFieldName(),
+                    indexSettings.getIndexVersionCreated()
+                )
+            );
         }
         return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
     }

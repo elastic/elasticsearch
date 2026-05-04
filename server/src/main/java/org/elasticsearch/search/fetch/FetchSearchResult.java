@@ -18,6 +18,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.search.DirectoryMetricsCarrier;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -30,9 +31,21 @@ import java.io.IOException;
 
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 
-public final class FetchSearchResult extends SearchPhaseResult {
+public final class FetchSearchResult extends SearchPhaseResult implements DirectoryMetricsCarrier {
 
     private SearchHits hits;
+
+    private volatile DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
+
+    @Override
+    public DirectoryMetrics getDirectoryMetrics() {
+        return directoryMetrics;
+    }
+
+    @Override
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
+        this.directoryMetrics = directoryMetrics;
+    }
 
     private long searchHitsSizeBytes = 0L;
 

@@ -23,6 +23,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.search.DirectoryMetricsCarrier;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchHits;
@@ -46,7 +47,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
-public final class QuerySearchResult extends SearchPhaseResult {
+public final class QuerySearchResult extends SearchPhaseResult implements DirectoryMetricsCarrier {
     private static final TransportVersion TIMESTAMP_RANGE_TELEMETRY = TransportVersion.fromName("timestamp_range_telemetry");
     private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.fromName("batched_query_phase_version");
 
@@ -85,6 +86,18 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Nullable
     private Long timeRangeFilterFromMillis;
+
+    private volatile DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
+
+    @Override
+    public DirectoryMetrics getDirectoryMetrics() {
+        return directoryMetrics;
+    }
+
+    @Override
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
+        this.directoryMetrics = directoryMetrics;
+    }
 
     /**
      * SearchHits from top_hits that must be released when this result is released. Eagerly allocated so

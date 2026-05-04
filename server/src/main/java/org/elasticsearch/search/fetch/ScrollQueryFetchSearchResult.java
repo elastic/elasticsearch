@@ -12,13 +12,14 @@ package org.elasticsearch.search.fetch;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.search.DirectoryMetricsCarrier;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 
-public final class ScrollQueryFetchSearchResult extends SearchPhaseResult {
+public final class ScrollQueryFetchSearchResult extends SearchPhaseResult implements DirectoryMetricsCarrier {
 
     private final QueryFetchSearchResult result;
 
@@ -61,7 +62,6 @@ public final class ScrollQueryFetchSearchResult extends SearchPhaseResult {
 
     @Override
     public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
-        super.setDirectoryMetrics(directoryMetrics);
         result.setDirectoryMetrics(directoryMetrics);
     }
 

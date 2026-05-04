@@ -1071,7 +1071,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     });
                 }
                 context.addFetchResult();
-                SearchPhaseResult result = executeFetchPhase(readerContext, context, afterQueryTime);
+                QueryFetchSearchResult result = executeFetchPhase(readerContext, context, afterQueryTime);
                 result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, context.searcher()));
                 return result;
             } else {

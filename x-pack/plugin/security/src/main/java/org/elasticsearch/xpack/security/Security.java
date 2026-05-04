@@ -350,6 +350,7 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.crypto.AesGcmEncryptionService;
+import org.elasticsearch.xpack.security.crypto.KeyRotationCoordinator;
 import org.elasticsearch.xpack.security.crypto.PrimaryEncryptionKeyService;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
@@ -1284,6 +1285,7 @@ public class Security extends Plugin
             PrimaryEncryptionKeyService pekService = PrimaryEncryptionKeyService.create(clusterService, projectResolver, featureService);
             components.add(new PluginComponentBinding<>(EncryptionService.class, new AesGcmEncryptionService(pekService)));
             components.add(pekService);
+            components.add(KeyRotationCoordinator.create(clusterService, threadPool, pekService, settings));
         }
 
         setClosableAndReloadableComponents(components);
@@ -1687,6 +1689,11 @@ public class Security extends Plugin
 
         // hide settings
         settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));
+
+        if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
+            settingsList.add(PrimaryEncryptionKeyService.ROTATION_INTERVAL_SETTING);
+            settingsList.add(PrimaryEncryptionKeyService.CHECK_INTERVAL_SETTING);
+        }
         return settingsList;
     }
 

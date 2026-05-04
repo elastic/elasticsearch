@@ -19,26 +19,37 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.xpack.core.crypto.KeyRotationHandler;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
+import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.RotationState;
 
 import java.security.SecureRandom;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.crypto.SecretKey;
 
 /**
- * Generates and distributes the primary encryption key via cluster state.
+ * Generates and distributes the primary encryption key via cluster state. Owns the key material in project metadata and publishes the
+ * cluster-state transitions that install, rotate, and retire it.
  *
- * <p>On master election, if no primary encryption key exists in the project metadata,
- * this service generates a new AES-256 key and publishes it to cluster state.
+ * <p>On master election, generates an AES-256 key if none exists. Subsequent rotation cycles, driven by {@link KeyRotationCoordinator},
+ * flow through the same {@link MasterServiceTaskQueue}: {@link BeginRotationTask} adds a new active key, {@link RetireKeysTask} removes
+ * the old keys once registered {@link KeyRotationHandler}s have re-encrypted their data. Old keys stay available for decryption
+ * throughout the {@link RotationState#ROTATING} window.
  */
 public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyProvider {
 
@@ -52,13 +63,35 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
     // orphaning any data encrypted with the original key.
     public static final NodeFeature PRIMARY_ENCRYPTION_KEY_FEATURE = new NodeFeature("security.primary_encryption_key");
 
-    private final MasterServiceTaskQueue<InstallKeyTask> taskQueue;
+    /**
+     * How frequently the primary encryption key is rotated. {@link TimeValue#ZERO} disables rotation.
+     */
+    public static final Setting<TimeValue> ROTATION_INTERVAL_SETTING = Setting.timeSetting(
+        "xpack.security.encryption.key_rotation.interval",
+        TimeValue.timeValueDays(30),
+        TimeValue.ZERO,
+        Property.NodeScope
+    );
+
+    /**
+     * How often the master polls to drive rotation forward (begin a new rotation if due, resume
+     * an in-progress rotation, or retire old keys when handlers have all completed).
+     */
+    public static final Setting<TimeValue> CHECK_INTERVAL_SETTING = Setting.timeSetting(
+        "xpack.security.encryption.key_rotation.check_interval",
+        TimeValue.timeValueHours(1),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
+
+    private final MasterServiceTaskQueue<KeyRotationTask> taskQueue;
     private final ProjectResolver projectResolver;
     private final FeatureService featureService;
+    private final Map<String, KeyRotationHandler> rotationHandlers = new ConcurrentHashMap<>();
     private volatile KeyCache cache = KeyCache.EMPTY;
 
     private PrimaryEncryptionKeyService(
-        MasterServiceTaskQueue<InstallKeyTask> taskQueue,
+        MasterServiceTaskQueue<KeyRotationTask> taskQueue,
         ProjectResolver projectResolver,
         FeatureService featureService
     ) {
@@ -73,7 +106,7 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
         FeatureService featureService
     ) {
         PrimaryEncryptionKeyService service = new PrimaryEncryptionKeyService(
-            clusterService.createTaskQueue("primary-encryption-key", Priority.NORMAL, new InstallKeyExecutor(projectResolver)),
+            clusterService.createTaskQueue("primary-encryption-key", Priority.NORMAL, new KeyRotationExecutor(projectResolver)),
             projectResolver,
             featureService
         );
@@ -128,13 +161,61 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
         if (snapshot.activeKeyId() == null) {
             return null;
         }
-        return new AesGcmEncryptionService.ActiveKey(snapshot.activeKeyId(), snapshot.keysByKeyId().get(snapshot.activeKeyId()));
+        return new AesGcmEncryptionService.ActiveKey(snapshot.activeKeyId(), snapshot.activeKey());
     }
 
     @Override
     @Nullable
     public SecretKey getKey(String keyId) {
         return cache.keysByKeyId().get(keyId);
+    }
+
+    /**
+     * Registers a {@link KeyRotationHandler}. Throws if a handler with the same {@link KeyRotationHandler#name()} is already registered.
+     */
+    public void registerKeyRotationHandler(KeyRotationHandler handler) {
+        KeyRotationHandler previous = rotationHandlers.putIfAbsent(handler.name(), handler);
+        if (previous != null) {
+            throw new IllegalStateException("rotation handler with name [" + handler.name() + "] is already registered");
+        }
+        logger.debug("registered key rotation handler [{}]", handler.name());
+    }
+
+    /**
+     * Returns the currently registered rotation handlers. The returned collection is a snapshot.
+     */
+    public Collection<KeyRotationHandler> getRegisteredHandlers() {
+        return List.copyOf(rotationHandlers.values());
+    }
+
+    /**
+     * Returns the names of currently registered rotation handlers as a snapshot set.
+     */
+    public Set<String> getRegisteredHandlerNames() {
+        return Set.copyOf(rotationHandlers.keySet());
+    }
+
+    /**
+     * Reads the current {@link PrimaryEncryptionKeyMetadata} from cluster state, or {@code null} if no key has been installed yet.
+     */
+    @Nullable
+    public PrimaryEncryptionKeyMetadata getCurrentMetadata(ClusterState state) {
+        ProjectState projectState = projectResolver.getProjectState(state);
+        return projectState.metadata().custom(PrimaryEncryptionKeyMetadata.TYPE);
+    }
+
+    /**
+     * Submits a {@link BeginRotationTask}. Idempotent: a no-op if a rotation is already in progress.
+     */
+    public void submitBeginRotation() {
+        taskQueue.submitTask("begin-primary-encryption-key-rotation", new BeginRotationTask(), null);
+    }
+
+    /**
+     * Submits a {@link RetireKeysTask} that removes non-active keys and transitions to {@link RotationState#STABLE}.
+     */
+    public void submitRetireKeys() {
+        taskQueue.submitTask("retire-primary-encryption-keys", new RetireKeysTask(), null);
     }
 
     private record KeyCache(String activeKeyId, Map<String, SecretKey> keysByKeyId) {
@@ -150,55 +231,159 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
         }
     }
 
-    private static class InstallKeyTask implements ClusterStateTaskListener {
+    /**
+     * Hierarchy of cluster-state tasks that flow through the PEK task queue. {@link KeyRotationExecutor} dispatches on the concrete type.
+     */
+    sealed interface KeyRotationTask extends ClusterStateTaskListener permits InstallKeyTask, BeginRotationTask, RetireKeysTask {
+
+        String description();
+
         @Override
-        public void onFailure(@Nullable Exception e) {
-            logger.log(
-                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.ERROR,
-                () -> "failure during primary encryption key installation",
-                e
-            );
+        default void onFailure(@Nullable Exception e) {
+            logger.log(MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.ERROR, () -> "failure during " + description(), e);
         }
     }
 
-    private static class InstallKeyExecutor extends SimpleBatchedExecutor<InstallKeyTask, Void> {
+    static final class InstallKeyTask implements KeyRotationTask {
+        @Override
+        public String description() {
+            return "primary encryption key initial install";
+        }
+    }
+
+    static final class BeginRotationTask implements KeyRotationTask {
+        @Override
+        public String description() {
+            return "primary encryption key rotation begin";
+        }
+    }
+
+    static final class RetireKeysTask implements KeyRotationTask {
+        @Override
+        public String description() {
+            return "primary encryption key retire";
+        }
+    }
+
+    static class KeyRotationExecutor extends SimpleBatchedExecutor<KeyRotationTask, Void> {
+        private static final SecureRandom RANDOM = new SecureRandom();
+
         private final ProjectResolver projectResolver;
 
-        InstallKeyExecutor(ProjectResolver projectResolver) {
+        KeyRotationExecutor(ProjectResolver projectResolver) {
             this.projectResolver = projectResolver;
         }
 
         @Override
-        public Tuple<ClusterState, Void> executeTask(InstallKeyTask task, ClusterState clusterState) {
+        public Tuple<ClusterState, Void> executeTask(KeyRotationTask task, ClusterState clusterState) {
             ProjectState projectState = projectResolver.getProjectState(clusterState);
             PrimaryEncryptionKeyMetadata existing = projectState.metadata().custom(PrimaryEncryptionKeyMetadata.TYPE);
 
+            return switch (task) {
+                case InstallKeyTask ignored -> executeInstallInitial(clusterState, projectState, existing);
+                case BeginRotationTask ignored -> executeBeginRotation(clusterState, projectState, existing);
+                case RetireKeysTask ignored -> executeRetireKeys(clusterState, projectState, existing);
+            };
+        }
+
+        private Tuple<ClusterState, Void> executeInstallInitial(
+            ClusterState clusterState,
+            ProjectState projectState,
+            PrimaryEncryptionKeyMetadata existing
+        ) {
             if (existing != null) {
-                // Key rotation not yet supported - do nothing if a key has already been set
+                // Initial install is idempotent: if metadata already exists, leave it alone.
                 return Tuple.tuple(clusterState, null);
             }
 
-            byte[] keyBytes = new byte[32];
-            new SecureRandom().nextBytes(keyBytes);
+            byte[] keyBytes = randomKey();
             String keyId = PrimaryEncryptionKeyMetadata.generateKeyId();
-            PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(Map.of(keyId, keyBytes), keyId);
+            PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
+                Map.of(keyId, keyBytes),
+                keyId,
+                System.currentTimeMillis(),
+                RotationState.STABLE
+            );
             logger.info("installing primary encryption key [{}]", keyId);
+            return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
+        }
 
-            ClusterState newState = clusterState.copyAndUpdateProject(
+        private Tuple<ClusterState, Void> executeBeginRotation(
+            ClusterState clusterState,
+            ProjectState projectState,
+            PrimaryEncryptionKeyMetadata existing
+        ) {
+            if (existing == null) {
+                logger.warn("ignoring begin-rotation task because no primary encryption key is installed");
+                return Tuple.tuple(clusterState, null);
+            }
+            if (existing.getRotationState() == RotationState.ROTATING) {
+                // Already rotating; nothing to do.
+                return Tuple.tuple(clusterState, null);
+            }
+
+            byte[] keyBytes = randomKey();
+            String newKeyId = PrimaryEncryptionKeyMetadata.generateKeyId();
+            Map<String, byte[]> newKeys = new HashMap<>(existing.getKeys());
+            newKeys.put(newKeyId, keyBytes);
+            PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
+                newKeys,
+                newKeyId,
+                existing.getLastRotatedMillis(),
+                RotationState.ROTATING
+            );
+            logger.info("beginning primary encryption key rotation: new active key [{}]", newKeyId);
+            return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
+        }
+
+        private Tuple<ClusterState, Void> executeRetireKeys(
+            ClusterState clusterState,
+            ProjectState projectState,
+            PrimaryEncryptionKeyMetadata existing
+        ) {
+            if (existing == null || existing.getRotationState() != RotationState.ROTATING) {
+                return Tuple.tuple(clusterState, null);
+            }
+            Map<String, byte[]> retained = Map.of(existing.getActiveKeyId(), existing.getKeys().get(existing.getActiveKeyId()));
+            PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
+                retained,
+                existing.getActiveKeyId(),
+                System.currentTimeMillis(),
+                RotationState.STABLE
+            );
+            logger.info(
+                "primary encryption key rotation complete: retained active key [{}], retired [{}] old key(s)",
+                existing.getActiveKeyId(),
+                existing.getKeys().size() - 1
+            );
+            return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
+        }
+
+        private static ClusterState putMetadata(
+            ClusterState clusterState,
+            ProjectState projectState,
+            PrimaryEncryptionKeyMetadata metadata
+        ) {
+            return clusterState.copyAndUpdateProject(
                 projectState.projectId(),
                 b -> b.putCustom(PrimaryEncryptionKeyMetadata.TYPE, metadata)
             );
-            return Tuple.tuple(newState, null);
+        }
+
+        private static byte[] randomKey() {
+            byte[] keyBytes = new byte[32];
+            RANDOM.nextBytes(keyBytes);
+            return keyBytes;
         }
 
         @Override
-        public void taskSucceeded(InstallKeyTask task, Void unused) {
-            logger.debug("primary encryption key installed successfully");
+        public void taskSucceeded(KeyRotationTask task, Void unused) {
+            logger.debug("[{}] succeeded", task.description());
         }
 
         @Override
-        public String describeTasks(List<InstallKeyTask> tasks) {
-            return "install primary encryption key [" + tasks.size() + " pending]";
+        public String describeTasks(List<KeyRotationTask> tasks) {
+            return "primary encryption key tasks [" + tasks.size() + " pending]";
         }
     }
 }

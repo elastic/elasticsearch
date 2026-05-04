@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.RotationState;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -37,7 +38,9 @@ public class PrimaryEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
     private static PrimaryEncryptionKeyMetadata randomPekMetadata() {
         Map<String, byte[]> keys = randomKeys(randomIntBetween(1, 5));
         String activeKeyId = randomFrom(keys.keySet());
-        return new PrimaryEncryptionKeyMetadata(keys, activeKeyId);
+        long lastRotatedMillis = randomBoolean() ? 0L : randomNonNegativeLong();
+        RotationState rotationState = randomFrom(RotationState.values());
+        return new PrimaryEncryptionKeyMetadata(keys, activeKeyId, lastRotatedMillis, rotationState);
     }
 
     @Override
@@ -48,18 +51,23 @@ public class PrimaryEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
     @Override
     protected Metadata.ProjectCustom mutateInstance(Metadata.ProjectCustom instance) {
         PrimaryEncryptionKeyMetadata pek = (PrimaryEncryptionKeyMetadata) instance;
-        Map<String, byte[]> newKeys = new HashMap<>(pek.getKeys());
-        if (randomBoolean() && newKeys.size() > 1) {
-            String keyToRemove = randomValueOtherThan(pek.getActiveKeyId(), () -> randomFrom(newKeys.keySet()));
-            newKeys.remove(keyToRemove);
-            return new PrimaryEncryptionKeyMetadata(newKeys, pek.getActiveKeyId());
-        } else {
-            byte[] newKeyBytes = new byte[32];
-            random().nextBytes(newKeyBytes);
-            String newKeyId = PrimaryEncryptionKeyMetadata.generateKeyId();
-            newKeys.put(newKeyId, newKeyBytes);
-            return new PrimaryEncryptionKeyMetadata(newKeys, newKeyId);
+        Map<String, byte[]> keys = pek.getKeys();
+        String activeKeyId = pek.getActiveKeyId();
+        long lastRotatedMillis = pek.getLastRotatedMillis();
+        RotationState rotationState = pek.getRotationState();
+        switch (between(0, 2)) {
+            case 0 -> {
+                Map<String, byte[]> updated = new HashMap<>(keys);
+                byte[] newKeyBytes = new byte[32];
+                random().nextBytes(newKeyBytes);
+                activeKeyId = PrimaryEncryptionKeyMetadata.generateKeyId();
+                updated.put(activeKeyId, newKeyBytes);
+                keys = updated;
+            }
+            case 1 -> lastRotatedMillis = randomValueOtherThan(lastRotatedMillis, () -> randomLongBetween(0L, Long.MAX_VALUE));
+            case 2 -> rotationState = rotationState == RotationState.STABLE ? RotationState.ROTATING : RotationState.STABLE;
         }
+        return new PrimaryEncryptionKeyMetadata(keys, activeKeyId, lastRotatedMillis, rotationState);
     }
 
     @Override
@@ -170,4 +178,5 @@ public class PrimaryEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
             expectThrows(IllegalArgumentException.class, () -> PrimaryEncryptionKeyMetadata.fromXContent(parser));
         }
     }
+
 }

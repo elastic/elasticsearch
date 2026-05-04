@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.crypto;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,10 +24,12 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.crypto.KeyRotationHandler;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -197,6 +200,51 @@ public class PrimaryEncryptionKeyServiceTests extends ESTestCase {
         listener.clusterChanged(new ClusterChangedEvent("test", newState, prevState));
 
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
+    }
+
+    public void testRegisterKeyRotationHandler() {
+        MasterServiceTaskQueue<ClusterStateTaskListener> taskQueue = mockTaskQueue();
+        ClusterService clusterService = mockClusterService(taskQueue);
+        PrimaryEncryptionKeyService service = PrimaryEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            mock(FeatureService.class)
+        );
+        KeyRotationHandler handlerA = handler("neil");
+        KeyRotationHandler handlerB = handler("geddy");
+
+        service.registerKeyRotationHandler(handlerA);
+        service.registerKeyRotationHandler(handlerB);
+
+        assertEquals(Set.of("neil", "geddy"), service.getRegisteredHandlerNames());
+        assertEquals(2, service.getRegisteredHandlers().size());
+    }
+
+    public void testRegisterKeyRotationHandlerDuplicateNameThrows() {
+        MasterServiceTaskQueue<ClusterStateTaskListener> taskQueue = mockTaskQueue();
+        ClusterService clusterService = mockClusterService(taskQueue);
+        PrimaryEncryptionKeyService service = PrimaryEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            mock(FeatureService.class)
+        );
+        service.registerKeyRotationHandler(handler("alex"));
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> service.registerKeyRotationHandler(handler("alex")));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("already registered"));
+    }
+
+    private static KeyRotationHandler handler(String name) {
+        return new KeyRotationHandler() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public void reEncrypt(String activeKeyId, ActionListener<Void> listener) {
+                listener.onResponse(null);
+            }
+        };
     }
 
     public void testMasterDoesNotSubmitTaskWhenKeyAlreadyCached() {

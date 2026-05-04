@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionKeyNotYetAvailableException;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
+import org.elasticsearch.xpack.core.crypto.KeyRotationHandler;
 
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
@@ -45,7 +46,8 @@ public class AesGcmEncryptionService implements EncryptionService {
     }
 
     /**
-     * Provides encryption keys to {@link AesGcmEncryptionService}.
+     * Provides encryption keys to {@link AesGcmEncryptionService}, and accepts rotation handler
+     * registrations on behalf of the encryption service.
      */
     public interface KeyProvider {
         @Nullable
@@ -53,6 +55,8 @@ public class AesGcmEncryptionService implements EncryptionService {
 
         @Nullable
         SecretKey getKey(String keyId);
+
+        void registerKeyRotationHandler(KeyRotationHandler handler);
     }
 
     private static final byte SERIALIZATION_FORMAT_VERSION = 1;
@@ -125,5 +129,10 @@ public class AesGcmEncryptionService implements EncryptionService {
         } catch (GeneralSecurityException e) {
             throw new ElasticsearchException("decryption failed for key [" + keyId + "]", e);
         }
+    }
+
+    @Override
+    public void registerKeyRotationHandler(KeyRotationHandler handler) {
+        keyProvider.registerKeyRotationHandler(handler);
     }
 }

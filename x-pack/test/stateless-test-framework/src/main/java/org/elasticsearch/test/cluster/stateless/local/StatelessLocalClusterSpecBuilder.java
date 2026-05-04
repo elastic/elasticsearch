@@ -13,16 +13,17 @@ import org.elasticsearch.test.cluster.local.distribution.LocalDistributionResolv
 import org.elasticsearch.test.cluster.local.distribution.ReleasedDistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.SnapshotDistributionResolver;
 import org.elasticsearch.test.cluster.stateless.StatelessElasticsearchCluster;
+import org.elasticsearch.test.cluster.stateless.distribution.StatelessDistributionResolver;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
 public class StatelessLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuilder<StatelessElasticsearchCluster> {
 
     @SuppressWarnings("this-escape")
-    public StatelessLocalClusterSpecBuilder() {
+    public StatelessLocalClusterSpecBuilder(boolean addDefaultNodes) {
         this.settings(new DefaultStatelessSettingsProvider());
         this.systemProperties(new DefaultStatelessSystemPropertiesProvider());
         this.environment(new DefaultEnvironmentProvider());
-        this.apply(new DefaultStatelessLocalConfigProvider());
+        this.apply(new DefaultStatelessLocalConfigProvider(addDefaultNodes));
         this.rolesFile(Resource.fromClasspath("default_test_roles.yml"));
     }
 
@@ -31,7 +32,9 @@ public class StatelessLocalClusterSpecBuilder extends AbstractLocalClusterSpecBu
         return new DefaultLocalStatelessElasticsearchCluster(
             this::buildClusterSpec,
             new StatelessLocalClusterFactory(
-                new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
+                new StatelessDistributionResolver(
+                    new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
+                )
             )
         );
     }

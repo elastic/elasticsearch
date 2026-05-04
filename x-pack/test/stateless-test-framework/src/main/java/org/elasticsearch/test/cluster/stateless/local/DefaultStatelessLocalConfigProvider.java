@@ -19,6 +19,11 @@ import java.util.function.Consumer;
  * Default configuration applied to all stateless clusters.
  */
 public class DefaultStatelessLocalConfigProvider implements LocalClusterConfigProvider {
+    private final boolean addDefaultNodes;
+
+    public DefaultStatelessLocalConfigProvider(boolean addDefaultNodes) {
+        this.addDefaultNodes = addDefaultNodes;
+    }
 
     @Override
     public void apply(LocalClusterSpecBuilder<?> builder) {
@@ -34,9 +39,12 @@ public class DefaultStatelessLocalConfigProvider implements LocalClusterConfigPr
             .setting("stateless.object_store.type", "fs")
             .setting("stateless.object_store.bucket", "stateless")
             .setting("stateless.object_store.base_path", "base_path")
-            .feature(FeatureFlag.TIME_SERIES_MODE)
-            .withNode(node("index", "[master,remote_cluster_client,ingest,index]"))
-            .withNode(node("search", "[remote_cluster_client,search]"));
+            .feature(FeatureFlag.TIME_SERIES_MODE);
+
+        if (addDefaultNodes) {
+            builder.withNode(node("index", "[master,remote_cluster_client,ingest,index]"))
+                .withNode(node("search", "[remote_cluster_client,search]"));
+        }
     }
 
     public static Consumer<? super LocalNodeSpecBuilder> node(String name, String nodeRoles) {

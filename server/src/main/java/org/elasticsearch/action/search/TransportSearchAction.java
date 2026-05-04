@@ -308,6 +308,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return aliasFilterMap;
     }
 
+    // This is called when resolving index boosts.
+    // On MRT=true, it will be called on both coordinator and remote sides, and the clusterAlias will show which side it is.
+    // In this case, the resolution should ignore qualified indices that belong to another cluster. remoteShardIterators is empty in this
+    // case.
+    // On MRT=false, it will be called only on the coordinator side. remoteShardIterators will provide the list of remote shards, from which
+    // we can extract remote indices that can be used to resolve index boosts.
     private IndexBoosts resolveIndexBoosts(
         SearchRequest searchRequest,
         ClusterState clusterState,
@@ -322,6 +328,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return IndexBoosts.EMPTY;
         }
 
+        // Map index name -> list of indices per remote cluster alias.
         final Map<String, Map<String, String>> remoteIndices;
         if (remoteShardIterators.isEmpty()) {
             remoteIndices = Collections.emptyMap();
@@ -343,48 +350,60 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             assert remoteShardIterators.isEmpty() : "Unexpected: trying to resolve remote indices on remote cluster [" + clusterAlias + "]";
         }
         Map<String, Float> concreteIndexBoosts = new HashMap<>();
+        // Always set ignore_unavailable for the options
+        IndicesOptions options = IndicesOptions.builder(searchRequest.indicesOptions())
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+            .build();
         for (SearchSourceBuilder.IndexBoost ib : source.indexBoosts()) {
-            final String indexExpression;
             String[] split = RemoteClusterAware.splitIndexName(ib.getIndex());
-            if (split[0] != null) {
+            final String indexClusterAlias = split[0];
+            final String indexName = split[1];
+            if (indexClusterAlias != null) {
                 // We have the qualified index name. For _origin we still go to the local branch, otherwise we look up for the remote index.
-                if (remoteIndices.isEmpty() == false && split[0].equals(ProjectRoutingResolver.ORIGIN) == false) {
-                    var rmap = remoteIndices.get(split[1]);
-                    if (rmap == null || rmap.containsKey(split[0]) == false) {
+                if (remoteIndices.isEmpty() == false && indexClusterAlias.equals(ProjectRoutingResolver.ORIGIN) == false) {
+                    var remotesOfIndex = remoteIndices.get(indexName); // remote instances of this index name
+                    if (remotesOfIndex == null || remotesOfIndex.containsKey(indexClusterAlias) == false) {
                         // For now, we're just ignoring boosts that do not match anything.
                         continue;
                     }
-                    concreteIndexBoosts.putIfAbsent(rmap.get(split[0]), ib.getBoost());
-                    continue;
+                    // This is a remote index, which has been already resolved for us, so we just add it
+                    concreteIndexBoosts.putIfAbsent(remotesOfIndex.get(indexClusterAlias), ib.getBoost());
                 } else {
-                    if (split[0].equals(clusterAlias)) {
-                        indexExpression = split[1];
-                    } else {
-                        continue;
+                    // This is an index on a different cluster, so we just ignore it
+                    if (indexClusterAlias.equals(clusterAlias)) {
+                        resolveLocalBoost(options, clusterState, ib.getBoost(), indexName, concreteIndexBoosts);
                     }
                 }
             } else {
-                // unqualified index
+                // unqualified index - if we have remote indices with this name, we add them
                 if (remoteIndices.isEmpty() == false) {
                     // Add UUIDs from remote iterators with this index name directly
-                    remoteIndices.getOrDefault(split[1], Collections.emptyMap()).forEach((index, uuid) -> {
+                    remoteIndices.getOrDefault(indexName, Collections.emptyMap()).forEach((index, uuid) -> {
                         concreteIndexBoosts.putIfAbsent(uuid, ib.getBoost());
                     });
                 }
-                indexExpression = split[1];
-            }
-            // Always set ignore_unavailable for the options
-            var options = IndicesOptions.builder(searchRequest.indicesOptions())
-                .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-                .build();
-
-            Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, options, indexExpression);
-
-            for (Index concreteIndex : concreteIndices) {
-                concreteIndexBoosts.putIfAbsent(concreteIndex.getUUID(), ib.getBoost());
+                // then add local index
+                resolveLocalBoost(options, clusterState, ib.getBoost(), indexName, concreteIndexBoosts);
             }
         }
-        return new IndexBoosts(concreteIndexBoosts.isEmpty() ? Map.of() : Collections.unmodifiableMap(concreteIndexBoosts));
+        return concreteIndexBoosts.isEmpty() ? IndexBoosts.EMPTY : new IndexBoosts(Collections.unmodifiableMap(concreteIndexBoosts));
+    }
+
+    /**
+     * Resolve index boost for local indices.
+     */
+    private void resolveLocalBoost(
+        IndicesOptions options,
+        ClusterState clusterState,
+        float boost,
+        String indexExpression,
+        Map<String, Float> concreteIndexBoosts
+    ) {
+        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, options, indexExpression);
+
+        for (Index concreteIndex : concreteIndices) {
+            concreteIndexBoosts.putIfAbsent(concreteIndex.getUUID(), boost);
+        }
     }
 
     /**

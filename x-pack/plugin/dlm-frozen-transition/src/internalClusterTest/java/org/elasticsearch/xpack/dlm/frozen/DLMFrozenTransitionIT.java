@@ -120,6 +120,10 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         return builder.build();
     }
 
+    /**
+     * Start a frozen-only node with a small shared blob cache to ensure the frozen transition can
+     * run in the test (since it relies on snapshotting).
+     */
     private void startFrozenOnlyNode() {
         Settings nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_frozen", "ingest"))
@@ -177,8 +181,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
 
         // --- Setup: start nodes, register repo, configure default repo ---
         internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
         startFrozenOnlyNode();
 
         assertAcked(

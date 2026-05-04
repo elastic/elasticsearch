@@ -74,7 +74,7 @@ csvToParquetFixtures.each { baseName ->
     dependsOn testFixturesProject.tasks.named('processResources')
     classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
     mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
-    inputs.file(csvFile).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(csvInput).withPathSensitivity(PathSensitivity.RELATIVE)
     args = [csvInput.path, parquetFile.path]
     outputs.file(parquetFile)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'

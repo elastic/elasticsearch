@@ -4215,9 +4215,6 @@ public class VerifierTests extends ESTestCase {
             """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
     }
 
-    // InSubquery rejection tests moved to PreAnalysisVerifierTests — that check now runs
-    // before pre-analysis so it never reaches the analyzer-time Verifier.
-
     private static TestAnalyzer defaultAnalyzer() {
         return analyzer().addDefaultIndex().stripErrorPrefix(true);
     }

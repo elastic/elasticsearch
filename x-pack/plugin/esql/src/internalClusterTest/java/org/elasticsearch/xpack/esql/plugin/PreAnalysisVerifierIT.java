@@ -17,7 +17,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * End-to-end coverage for IN-subquery rejection at the pre-analysis phase.
+ * End-to-end coverage for the PreAnalalysisVerifier
  *
  * <p>Unit tests in {@code PreAnalysisVerifierTests} cover the verifier in isolation,
  * but they call {@code PreAnalysisVerifier.verify} directly — they don't exercise
@@ -29,15 +29,10 @@ import static org.hamcrest.Matchers.containsString;
  * here turn into success assertions. Until then, this class doubles as a guard against
  * accidentally exposing a half-built feature to clients.
  */
-public class InSubqueryIT extends AbstractEsqlIntegTestCase {
+public class PreAnalysisVerifierIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setUpIndices() {
-        // Skip the whole class on non-snapshot builds. Doing this in @Before (rather than
-        // per-test assumeTrue) means we don't pay the index-create cost when the feature
-        // is gated off. Test-specific assumptions (e.g. INLINE STATS) stay in their tests.
-        assumeTrue("IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
-
         // Two indices that actually exist, to make it obvious the rejection happens
         // regardless of whether the subquery references a resolvable index.
         assertAcked(client().admin().indices().prepareCreate("main_index"));
@@ -46,7 +41,9 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         indexRandom(true, "sub_index", 1);
     }
 
+    // TODO: Remove once WHERE IN subquery is fully in snapshot
     public void testWhereInSubqueryRejectedAtRuntime() {
+        assumeTrue("IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
         expectThrows(
             VerificationException.class,
             containsString("IN (subquery) is not yet supported"),
@@ -55,6 +52,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testInSubqueryOutsideWhereRejectedAtRuntime() {
+        assumeTrue("IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
         expectThrows(
             VerificationException.class,
             containsString("IN (subquery) can only be used in a top level WHERE clause"),
@@ -69,6 +67,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * user isn't left wondering why their WHERE-looking clause doesn't count.
      */
     public void testInSubqueryInStatsWhereRejectedAtRuntime() {
+        assumeTrue("IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
         expectThrows(
             VerificationException.class,
             containsString("IN (subquery) is not allowed in STATS or INLINE STATS aggregation filter"),
@@ -82,7 +81,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * STATS — both per-aggregation filters share the same "not allowed" branch.
      */
     public void testInSubqueryInInlineStatsWhereRejectedAtRuntime() {
-        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        assumeTrue("IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
 
         expectThrows(
             VerificationException.class,

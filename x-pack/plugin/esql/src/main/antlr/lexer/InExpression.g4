@@ -8,7 +8,7 @@ lexer grammar InExpression;
 
 fragment IN_EXPRESSION_INIT : [a-z];
 
-// Entered IN_SUBQUERY preemptively after the IN keyword
+// Entered IN_MODE preemptively after the IN keyword
 //
 // If we find a source command (FROM, SHOW, TS, etc) after the IN, we are indeed in a
 // subquery and we can enter DEFAULT MODE to parse that subquery

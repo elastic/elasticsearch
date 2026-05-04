@@ -26,12 +26,6 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * we only see the parsed plan, so checks here must be expressible without resolved
  * attributes, types, or indices.
  *
- * <p>Today the only check is for {@link InSubquery}; this class exists primarily so the
- * future {@code InSubqueryResolver} (which will land between view resolution and
- * pre-analysis as part of the IN-subquery feature work) has a natural sibling to live
- * next to. As more "structural" checks are identified that don't require analysis, they
- * can move here from {@link Verifier}.
- *
  * <h2>{@link InSubquery} rules</h2>
  *
  * <ol>

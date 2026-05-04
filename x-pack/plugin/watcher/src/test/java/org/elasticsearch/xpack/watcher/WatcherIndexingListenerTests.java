@@ -94,7 +94,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         clock.freeze();
         // Wire onWatchActive/onWatchInactive directly to triggerService so the existing verify(triggerService)
         // assertions still observe what the listener decides to do.
-        listener = new WatcherIndexingListener(parser, clock, () -> WatcherState.STARTED, indexingEventConsumer);
+        listener = new WatcherIndexingListener(parser, clock, indexingEventConsumer, () -> WatcherState.STARTED);
 
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
@@ -146,7 +146,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     public void testPostIndexWhenStopped() throws Exception {
-        listener = new WatcherIndexingListener(parser, clock, () -> WatcherState.STOPPED, indexingEventConsumer);
+        listener = new WatcherIndexingListener(parser, clock, indexingEventConsumer, () -> WatcherState.STOPPED);
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
         listener.setConfiguration(new Configuration(Watch.INDEX, map));

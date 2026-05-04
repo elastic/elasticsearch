@@ -73,8 +73,8 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     WatcherIndexingListener(
         WatchParser parser,
         Clock clock,
-        Supplier<WatcherState> watcherState,
-        WatcherIndexingEventConsumer indexingEventConsumer
+        WatcherIndexingEventConsumer indexingEventConsumer,
+        Supplier<WatcherState> watcherState
     ) {
         this.parser = parser;
         this.clock = clock;

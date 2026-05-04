@@ -57,6 +57,30 @@ final class WordMask {
     }
 
     /**
+     * Sets all bits in the half-open range {@code [from, to)} using word-level operations.
+     * This is significantly faster than calling {@link #set(int)} in a loop for long runs,
+     * which is the common case when bulk-decoding RLE def-level streams of all-null rows.
+     */
+    void setRange(int from, int to) {
+        if (from >= to) {
+            return;
+        }
+        int firstWord = from >>> 6;
+        int lastWord = (to - 1) >>> 6;
+        long firstMask = ~0L << from;
+        long lastMask = ~0L >>> -to;
+        if (firstWord == lastWord) {
+            words[firstWord] |= firstMask & lastMask;
+        } else {
+            words[firstWord] |= firstMask;
+            for (int i = firstWord + 1; i < lastWord; i++) {
+                words[i] = ~0L;
+            }
+            words[lastWord] |= lastMask;
+        }
+    }
+
+    /**
      * Resets the mask to the given size and sets all {@code numBits} bits to 1.
      * Trailing bits in the last word beyond {@code numBits} are left as 0.
      */

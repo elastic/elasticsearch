@@ -55,6 +55,103 @@ public class WordMaskTests extends ESTestCase {
         assertThat(full.popCount(), equalTo(256));
     }
 
+    public void testSetRangeWithinSingleWord() {
+        WordMask mask = new WordMask();
+        mask.reset(128);
+        mask.setRange(3, 17);
+        for (int i = 0; i < 128; i++) {
+            assertEquals("bit " + i, i >= 3 && i < 17, mask.get(i));
+        }
+        assertThat(mask.popCount(), equalTo(14));
+    }
+
+    public void testSetRangeAcrossMultipleWords() {
+        WordMask mask = new WordMask();
+        mask.reset(256);
+        // [40, 200) spans words 0, 1, 2 with misaligned ends
+        mask.setRange(40, 200);
+        for (int i = 0; i < 256; i++) {
+            assertEquals("bit " + i, i >= 40 && i < 200, mask.get(i));
+        }
+        assertThat(mask.popCount(), equalTo(160));
+    }
+
+    public void testSetRangeAlignedToWordBoundaries() {
+        WordMask mask = new WordMask();
+        mask.reset(256);
+        mask.setRange(64, 192);
+        for (int i = 0; i < 256; i++) {
+            assertEquals("bit " + i, i >= 64 && i < 192, mask.get(i));
+        }
+        assertThat(mask.popCount(), equalTo(128));
+    }
+
+    public void testSetRangeFromZero() {
+        WordMask mask = new WordMask();
+        mask.reset(128);
+        mask.setRange(0, 64);
+        for (int i = 0; i < 128; i++) {
+            assertEquals("bit " + i, i < 64, mask.get(i));
+        }
+    }
+
+    public void testSetRangeToEnd() {
+        WordMask mask = new WordMask();
+        mask.reset(128);
+        mask.setRange(70, 128);
+        for (int i = 0; i < 128; i++) {
+            assertEquals("bit " + i, i >= 70, mask.get(i));
+        }
+        assertThat(mask.popCount(), equalTo(58));
+    }
+
+    public void testSetRangeFullMask() {
+        WordMask mask = new WordMask();
+        mask.reset(200);
+        mask.setRange(0, 200);
+        for (int i = 0; i < 200; i++) {
+            assertTrue("bit " + i, mask.get(i));
+        }
+        assertThat(mask.popCount(), equalTo(200));
+    }
+
+    public void testSetRangeEmpty() {
+        WordMask mask = new WordMask();
+        mask.reset(128);
+        mask.set(50);
+        mask.setRange(10, 10);
+        // empty range is a no-op; only the pre-set bit should be set
+        assertThat(mask.popCount(), equalTo(1));
+        assertTrue(mask.get(50));
+    }
+
+    public void testSetRangeIsIdempotentWithExistingBits() {
+        WordMask mask = new WordMask();
+        mask.reset(128);
+        mask.set(20);
+        mask.set(80);
+        mask.setRange(10, 100);
+        for (int i = 0; i < 128; i++) {
+            assertEquals("bit " + i, i >= 10 && i < 100, mask.get(i));
+        }
+        assertThat(mask.popCount(), equalTo(90));
+    }
+
+    public void testSetRangeRandomized() {
+        for (int trial = 0; trial < 50; trial++) {
+            int numBits = randomIntBetween(1, 1024);
+            int from = randomIntBetween(0, numBits);
+            int to = randomIntBetween(from, numBits);
+            WordMask mask = new WordMask();
+            mask.reset(numBits);
+            mask.setRange(from, to);
+            for (int i = 0; i < numBits; i++) {
+                assertEquals("trial=" + trial + " bit=" + i + " range=[" + from + "," + to + ")", i >= from && i < to, mask.get(i));
+            }
+            assertThat(mask.popCount(), equalTo(to - from));
+        }
+    }
+
     public void testIsAll() {
         WordMask mask = new WordMask();
         mask.setAll(128);

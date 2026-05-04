@@ -186,7 +186,7 @@ public class FixtureUtils {
     public static String injectWithEntries(String externalPart, String entries) {
         int withBrace = findOpenBraceOfTrailingWith(externalPart);
         if (withBrace < 0) {
-            return externalPart + " WITH { " + entries + " }";
+            return entries.isEmpty() ? externalPart + " WITH { }" : externalPart + " WITH { " + entries + " }";
         }
         if (entries.isEmpty()) {
             return externalPart;

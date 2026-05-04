@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class S3ConfigurationTests extends ESTestCase {
 
@@ -49,35 +52,26 @@ public class S3ConfigurationTests extends ESTestCase {
     }
 
     public void testUnsupportedAuthValueThrows() {
-        org.elasticsearch.common.ValidationException e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
+        ValidationException e = expectThrows(
+            ValidationException.class,
             () -> S3Configuration.fromFields(null, null, "http://e", null, "unsupported")
         );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Unsupported auth value"));
+        assertThat(e.getMessage(), containsString("Unsupported auth value"));
     }
 
     public void testAuthNoneConflictsWithAccessKey() {
-        org.elasticsearch.common.ValidationException e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> S3Configuration.fromFields("ak", null, null, null, "none")
-        );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with explicit credentials"));
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromFields("ak", null, null, null, "none"));
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testAuthNoneConflictsWithSecretKey() {
-        org.elasticsearch.common.ValidationException e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> S3Configuration.fromFields(null, "sk", null, null, "none")
-        );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with explicit credentials"));
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromFields(null, "sk", null, null, "none"));
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testAuthNoneConflictsWithBothKeys() {
-        org.elasticsearch.common.ValidationException e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> S3Configuration.fromFields("ak", "sk", null, null, "none")
-        );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with explicit credentials"));
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromFields("ak", "sk", null, null, "none"));
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testAuthNoneAllowsEndpointAndRegion() {
@@ -111,11 +105,8 @@ public class S3ConfigurationTests extends ESTestCase {
         Map<String, Object> raw = new HashMap<>();
         raw.put("access_key", "ak");
         raw.put("header_row", false);
-        org.elasticsearch.common.ValidationException e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> S3Configuration.fromMap(raw)
-        );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("unknown setting [header_row]"));
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromMap(raw));
+        assertThat(e.getMessage(), containsString("unknown setting [header_row]"));
     }
 
     public void testFromQueryConfigDropsUnknownKeys() {
@@ -140,11 +131,8 @@ public class S3ConfigurationTests extends ESTestCase {
         raw.put("auth", "none");
         raw.put("access_key", "ak");
         raw.put("header_row", false);
-        org.elasticsearch.common.ValidationException e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> S3Configuration.fromQueryConfig(raw)
-        );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with explicit credentials"));
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromQueryConfig(raw));
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testFromQueryConfigWithOnlyUnknownKeysReturnsNull() {

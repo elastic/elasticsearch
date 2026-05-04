@@ -444,7 +444,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * breaker.
      */
     static List<Attribute> inferSyntheticSchema(List<String[]> sampleRows, String prefix) {
-        assert sampleRows.isEmpty() == false : "caller must ensure non-empty sample";
+        if (sampleRows.isEmpty()) {
+            throw new IllegalArgumentException("sampleRows must be non-empty for synthetic schema inference");
+        }
         int columnCount = 0;
         for (String[] row : sampleRows) {
             if (row.length > columnCount) {

@@ -24,6 +24,9 @@ public record SchemaCacheKey(
     String endpoint,
     String region
 ) {
+    // Keep this set in sync with every option keyed off the WITH map by a FormatReader's
+    // parseOptionsFromConfig / withConfig: any option that changes the inferred schema must
+    // appear here, or two queries with different formatting will collide on the same cache entry.
     private static final Set<String> FORMAT_AFFECTING_PARAMS = Set.of(
         "delimiter",
         "quote",

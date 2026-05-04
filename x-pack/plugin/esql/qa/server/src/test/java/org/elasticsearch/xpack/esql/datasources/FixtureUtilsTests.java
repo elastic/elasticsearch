@@ -48,7 +48,7 @@ public class FixtureUtilsTests extends ESTestCase {
 
     public void testInjectWithEntriesEmptyEntriesNoExistingWith() {
         String result = FixtureUtils.injectWithEntries("EXTERNAL \"s3://b/f.csv\"", "");
-        assertEquals("EXTERNAL \"s3://b/f.csv\" WITH {  }", result);
+        assertEquals("EXTERNAL \"s3://b/f.csv\" WITH { }", result);
     }
 
     public void testInjectWithEntriesEmptyEntriesWithExistingWith() {

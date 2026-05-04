@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Unit tests for GcsConfiguration.
@@ -76,7 +79,7 @@ public class GcsConfigurationTests extends ESTestCase {
     }
 
     public void testFromMapWithUnknownParamsThrows() {
-        expectThrows(org.elasticsearch.common.ValidationException.class, () -> GcsConfiguration.fromMap(Map.of("other_param", "value")));
+        expectThrows(ValidationException.class, () -> GcsConfiguration.fromMap(Map.of("other_param", "value")));
     }
 
     public void testFromMapWithStringValues() {
@@ -189,7 +192,7 @@ public class GcsConfigurationTests extends ESTestCase {
 
     public void testAuthNoneConflictsWithCredentials() {
         expectThrows(
-            org.elasticsearch.common.ValidationException.class,
+            ValidationException.class,
             () -> GcsConfiguration.fromFields("{\"type\":\"service_account\"}", null, null, null, "none")
         );
     }
@@ -201,21 +204,15 @@ public class GcsConfigurationTests extends ESTestCase {
     }
 
     public void testUnsupportedAuthValueThrows() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> GcsConfiguration.fromFields(null, null, "http://ep", null, "unsupported")
-        );
+        expectThrows(ValidationException.class, () -> GcsConfiguration.fromFields(null, null, "http://ep", null, "unsupported"));
     }
 
     public void testFromMapRejectsUnknownKeys() {
         Map<String, Object> raw = new HashMap<>();
         raw.put("credentials", "{\"type\":\"service_account\"}");
         raw.put("header_row", false);
-        org.elasticsearch.common.ValidationException e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> GcsConfiguration.fromMap(raw)
-        );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("unknown setting [header_row]"));
+        ValidationException e = expectThrows(ValidationException.class, () -> GcsConfiguration.fromMap(raw));
+        assertThat(e.getMessage(), containsString("unknown setting [header_row]"));
     }
 
     public void testFromQueryConfigDropsUnknownKeys() {
@@ -238,11 +235,8 @@ public class GcsConfigurationTests extends ESTestCase {
         raw.put("auth", "none");
         raw.put("credentials", "{\"type\":\"service_account\"}");
         raw.put("header_row", false);
-        org.elasticsearch.common.ValidationException e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> GcsConfiguration.fromQueryConfig(raw)
-        );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with explicit credentials"));
+        ValidationException e = expectThrows(ValidationException.class, () -> GcsConfiguration.fromQueryConfig(raw));
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testFromQueryConfigWithOnlyUnknownKeysReturnsNull() {

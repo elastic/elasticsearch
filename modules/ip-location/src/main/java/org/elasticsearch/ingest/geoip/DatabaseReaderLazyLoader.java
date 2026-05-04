@@ -148,6 +148,10 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
         return md5;
     }
 
+    public Path getDatabasePath() {
+        return databasePath;
+    }
+
     public void shutdown(boolean shouldDeleteDatabaseFileOnShutdown) throws IOException {
         this.deleteDatabaseFileOnShutdown = shouldDeleteDatabaseFileOnShutdown;
         shutdown();

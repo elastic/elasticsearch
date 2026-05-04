@@ -25,9 +25,11 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
@@ -64,6 +66,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -74,6 +77,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
@@ -104,6 +108,11 @@ import static org.elasticsearch.ingest.geoip.GeoIpTaskState.getGeoIpTaskState;
 public final class DatabaseNodeService implements IpLocationService, IpDatabaseProvider {
 
     private static final Logger logger = LogManager.getLogger(DatabaseNodeService.class);
+
+    /**
+     * Matches the 6-char install-token segment immediately preceding {@code .mmdb}.
+     */
+    static final Pattern INSTALL_TOKEN_INFIX = Pattern.compile("\\.[0-9a-f]{6}\\.mmdb$");
 
     private final Client client;
     private final GeoIpCache cache;
@@ -260,6 +269,13 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         return inner == null ? null : inner.get(key);
     }
 
+    /**
+     * Plugin / node shutdown drain. Deliberately synchronous and inline (i.e. does <em>not</em> route through
+     * {@link #shutdownAsync}): the generic pool may already be draining or rejecting tasks at this point, and
+     * we want all readers closed before the JVM exits to avoid leaked mmap segments. Note also that this path
+     * uses {@link DatabaseReaderLazyLoader#shutdown()} (no-arg, no file delete) by design — files in the per-node
+     * tmp directory are wiped on next startup by {@link #initialize}.
+     */
     public void shutdown() throws IOException {
         // this is a little 'fun' looking, but it's just adapting IOUtils.close() into something
         // that can call a bunch of shutdown methods (rather than close methods)
@@ -339,17 +355,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             }
             return null;
         });
-        shutdownLoaders(projectId, toShutdown);
-    }
-
-    private void shutdownLoaders(ProjectId projectId, List<DatabaseReaderLazyLoader> loaders) {
-        for (DatabaseReaderLazyLoader loader : loaders) {
-            try {
-                loader.shutdown(true);
-            } catch (Exception e) {
-                logger.warn(() -> Strings.format("failed to shut down loader for project [%s]", projectId), e);
-            }
-        }
+        toShutdown.forEach(loader -> shutdownAsync(projectId, loader));
     }
 
     void checkDatabases(ProjectState projectState) {
@@ -456,7 +462,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             });
             return inner;
         });
-        shutdownLoaders(projectId, toShutdown);
+        toShutdown.forEach(loader -> shutdownAsync(projectId, loader));
     }
 
     void retrieveAndUpdateDatabase(ProjectId projectId, String databaseName, GeoIpTaskState.Metadata metadata) throws IOException {
@@ -498,7 +504,9 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             metadata,
             bytes -> Files.write(retrievedFile, bytes, StandardOpenOption.APPEND),
             () -> {
-                final Path databaseFile = databaseTmpDirectory.resolve(databaseName);
+                // Per-loader unique path (see computeLoaderPath); the install-token infix gives this loader sole
+                // ownership of its on-disk file, decoupling its lifecycle from any concurrent install or retire.
+                final Path databaseFile = computeLoaderPath(projectId, databaseName);
 
                 boolean isTarGz = MMDBUtil.isGzip(retrievedFile);
                 if (isTarGz) {
@@ -568,7 +576,14 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             });
             DatabaseReaderLazyLoader existing = previous.get();
             if (existing != null) {
-                existing.shutdown();
+                // shutdownAsync(...) calls existing.shutdown(true), i.e. it deletes the previous loader's
+                // database file on disk. This is required under the per-loader unique-path scheme
+                // (computeLoaderPath) because `existing` and `loader` live at different paths, so the
+                // freshly-installed file would NOT be implicitly replaced the way it was under the
+                // historical canonical path (Files.move(... ATOMIC_MOVE, REPLACE_EXISTING) over D.mmdb).
+                // If anyone ever reverts the install path to a canonical/shared layout, this flag must
+                // be revisited — otherwise the queued delete will clobber the freshly-installed file.
+                shutdownAsync(projectId, existing);
             } else {
                 // Loaded a database for the first time, notify listeners so they can reload
                 // pipelines for which a database was not available:
@@ -679,9 +694,21 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
 
     public record ConfigDatabaseDetail(String name, @Nullable String md5, @Nullable Long buildDateInMillis, @Nullable String type) {}
 
+    /**
+     * Returns the names of files in the per-project geoip tmp directory, with any per-loader install-token
+     * infix collapsed back to the logical {@code <basename>.mmdb} form. This preserves the user-visible
+     * shape of {@link org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction.NodeResponse#getFilesInTemp()}
+     * across the unique-path change: the install token is purely an internal disambiguator and operators /
+     * monitoring tooling that match against these names should not be exposed to it. Side files
+     * ({@code <dbName>_LICENSE.txt} etc.) and {@code .tmp} / {@code .tmp.retrieved} files do not end in
+     * {@code .mmdb} and pass through unchanged.
+     */
     public Set<String> getFilesInTemp(ProjectId projectId) {
         try (Stream<Path> files = Files.list(getDatabaseTmpDirectory(projectId))) {
-            return files.map(Path::getFileName).map(Path::toString).collect(Collectors.toSet());
+            return files.map(Path::getFileName)
+                .map(Path::toString)
+                .map(DatabaseNodeService::stripInstallTokenInfix)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -817,6 +844,98 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
     private DatabaseReaderLazyLoader getProjectLazyLoader(ProjectId projectId, String databaseName) {
         ConcurrentMap<String, DatabaseReaderLazyLoader> inner = databases.get(projectId);
         return inner == null ? null : inner.get(databaseName);
+    }
+
+    /**
+     * Mints a fresh per-loader path of the form {@code <projectTmpDir>/<basename>.<installToken>.mmdb}, where
+     * {@code basename} is the database file name with the trailing {@code .mmdb} stripped and
+     * {@code installToken} is 24 random bits rendered as 6 lowercase hex chars.
+     * <p>
+     * The token is intentionally <em>not</em> derived from the database content (e.g. md5): independent install
+     * tokens give every {@link DatabaseReaderLazyLoader} instance a private file even when two loaders for the
+     * same database carry identical content (e.g. project drop + re-add with the same md5, brief role flip).
+     * That ownership invariant is what allows {@link #shutdownAsync} to safely fork {@link
+     * DatabaseReaderLazyLoader#shutdown(boolean) shutdown(true)} onto the generic pool without coordinating
+     * with concurrent installs — each loader's queued delete touches only its own file.
+     * <p>
+     * Birthday-collision probability across the small "live + retired-but-not-yet-deleted" window is ~2^-24;
+     * on the rare collision we degrade gracefully to shared-path semantics (today's behavior), not to data
+     * corruption.
+     */
+    // package-private for tests that exercise the per-loader path invariant; see DatabaseLifecycleConcurrencyTests
+    Path computeLoaderPath(ProjectId projectId, String databaseName) {
+        String basename = databaseName.endsWith(".mmdb")
+            ? databaseName.substring(0, databaseName.length() - ".mmdb".length())
+            : databaseName;
+        // Randomness.get() returns a test-reproducible Random under the test framework (seeded from tests.seed)
+        // and a ThreadLocalRandom in production; this keeps install-token generation deterministic in tests
+        // without giving up the lock-free per-thread RNG in production.
+        String installToken = String.format(Locale.ROOT, "%06x", Randomness.get().nextInt(0x1000000));
+        return getDatabaseTmpDirectory(projectId).resolve(basename + "." + installToken + ".mmdb");
+    }
+
+    /**
+     * Forks the I/O-heavy parts of retiring {@code loader} ({@link DatabaseReaderLazyLoader#shutdown(boolean)
+     * shutdown(true)}: {@code Reader.close()} + {@code Files.delete(databasePath)}) to the generic thread pool,
+     * so the cluster state applier thread is never blocked on disk I/O.
+     * <p>
+     * This is safe to fork unconditionally because per-loader unique paths (see {@link #computeLoaderPath})
+     * make {@code loader.databasePath} owned by exactly this loader: no concurrent install can land at the
+     * same path, so the queued {@code Files.delete} cannot clobber a freshly-installed file.
+     * <p>
+     * If the executor rejects the task (typically only at node shutdown when the generic pool is draining),
+     * we fall back to inline shutdown so we don't leak the open Reader or orphan the file.
+     */
+    private void shutdownAsync(ProjectId projectId, DatabaseReaderLazyLoader loader) {
+        if (loader == null) {
+            return;
+        }
+        try {
+            genericExecutor.accept(() -> {
+                try {
+                    loader.shutdown(true);
+                } catch (IOException e) {
+                    logger.warn(
+                        () -> Strings.format(
+                            "failed to shut down database loader for project [%s] at [%s]",
+                            projectId,
+                            loader.getDatabasePath()
+                        ),
+                        e
+                    );
+                }
+            });
+        } catch (EsRejectedExecutionException e) {
+            try {
+                loader.shutdown(true);
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                logger.warn(
+                    () -> Strings.format("failed to shut down database loader inline after executor rejection for project [%s]", projectId),
+                    inner
+                );
+            }
+        }
+    }
+
+    /**
+     * Strips the unique file install token from a database's file name.
+     * Side files ({@code <dbName>_LICENSE.txt} etc.) and {@code .tmp} / {@code .tmp.retrieved} files don't end in {@code .mmdb} and pass
+     * through unchanged.
+     * @param name the file name
+     * @return the stripped database file name
+     */
+    /**
+     * Collapses any per-loader install-token infix in {@code name} back to the logical {@code <basename>.mmdb}
+     * form. Names without an install-token infix (including non-mmdb side files such as
+     * {@code <dbName>_LICENSE.txt} and {@code .tmp} / {@code .tmp.retrieved} files) pass through unchanged,
+     * so this is safe to apply to every entry in the per-project tmp directory listing.
+     * <p>
+     * Package-private so internal-cluster tests can identify per-loader files by checking whether
+     * {@code stripInstallTokenInfix(name).equals(name)} is false.
+     */
+    static String stripInstallTokenInfix(String name) {
+        return INSTALL_TOKEN_INFIX.matcher(name).replaceFirst(".mmdb");
     }
 
     private Path getDatabaseTmpDirectory(ProjectId projectId) {

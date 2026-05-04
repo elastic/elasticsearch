@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
@@ -45,7 +44,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -59,14 +57,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
+import static org.elasticsearch.ingest.geoip.DatabaseNodeService.stripInstallTokenInfix;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -125,13 +122,48 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             for (Path geoIpTmpDir : geoIpTmpDirs) {
                 try (Stream<Path> files = Files.list(geoIpTmpDir)) {
                     Set<String> names = files.map(f -> f.getFileName().toString()).collect(Collectors.toSet());
-                    assertThat(names, not(hasItem("GeoLite2-ASN.mmdb")));
-                    assertThat(names, not(hasItem("GeoLite2-City.mmdb")));
-                    assertThat(names, not(hasItem("GeoLite2-Country.mmdb")));
-                    assertThat(names, not(hasItem("MyCustomGeoLite2-City.mmdb")));
+                    assertNoMatchingMmdb(names, "GeoLite2-ASN");
+                    assertNoMatchingMmdb(names, "GeoLite2-City");
+                    assertNoMatchingMmdb(names, "GeoLite2-Country");
+                    assertNoMatchingMmdb(names, "MyCustomGeoLite2-City");
                 }
             }
         });
+    }
+
+    /**
+     * Asserts that {@code names} contains no per-loader mmdb file for the database named {@code basename}.
+     * Per-loader paths land at {@code <basename>.<6-hex-token>.mmdb}, which collapses to {@code <basename>.mmdb}
+     * via {@link DatabaseNodeService#stripInstallTokenInfix}; we additionally reject a plain
+     * {@code <basename>.mmdb} entry so this matcher remains correct should anyone reintroduce a canonical layout.
+     */
+    private static void assertNoMatchingMmdb(Set<String> names, String basename) {
+        String expected = basename + ".mmdb";
+        for (String name : names) {
+            assertThat(
+                "expected no mmdb file for [" + basename + "] but found [" + name + "] in " + names,
+                stripInstallTokenInfix(name),
+                not(equalTo(expected))
+            );
+        }
+    }
+
+    /**
+     * Asserts that {@code names} contains exactly one per-loader mmdb file for {@code basename}, of the form
+     * {@code <basename>.<6-hex-token>.mmdb}. Multiple matches are rejected so this catches leaked retired
+     * loaders as well as missing installs. A plain {@code <basename>.mmdb} (without the install-token infix)
+     * is not counted, so the assertion fails loud if anyone bypasses {@link DatabaseNodeService#computeLoaderPath}.
+     */
+    private static void assertExactlyOneMatchingMmdb(Iterable<String> names, String basename) {
+        String expected = basename + ".mmdb";
+        int count = 0;
+        for (String name : names) {
+            // stripInstallTokenInfix(name) only differs from name when the per-loader infix is present.
+            if (name.equals(stripInstallTokenInfix(name)) == false && expected.equals(stripInstallTokenInfix(name))) {
+                count++;
+            }
+        }
+        assertThat("expected exactly one per-loader mmdb file for [" + basename + "] in " + names, count, equalTo(1));
     }
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")
@@ -161,15 +193,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             for (Path geoIpTmpDir : geoIpTmpDirs) {
                 try (Stream<Path> files = Files.list(geoIpTmpDir)) {
                     Set<String> names = files.map(f -> f.getFileName().toString()).collect(Collectors.toSet());
-                    assertThat(
-                        names,
-                        allOf(
-                            not(hasItem("GeoLite2-ASN.mmdb")),
-                            not(hasItem("GeoLite2-City.mmdb")),
-                            not(hasItem("GeoLite2-Country.mmdb")),
-                            not(hasItem("MyCustomGeoLite2-City.mmdb"))
-                        )
-                    );
+                    assertNoMatchingMmdb(names, "GeoLite2-ASN");
+                    assertNoMatchingMmdb(names, "GeoLite2-City");
+                    assertNoMatchingMmdb(names, "GeoLite2-Country");
+                    assertNoMatchingMmdb(names, "MyCustomGeoLite2-City");
                 }
             }
         });
@@ -190,7 +217,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92888")
     public void testUpdatedTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         testGeoIpDatabasesDownload();
@@ -202,8 +228,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         testGeoIpDatabasesDownload();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92888")
     public void testGeoIpDatabasesDownload() throws Exception {
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         IpLocationTestHelper.requestDownloads(internalCluster(), ProjectId.DEFAULT.id());
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
@@ -253,9 +279,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                                     }
                                 }
 
-                                Path tempFile = createTempFile();
-                                Files.copy(stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
-                                parseDatabase(tempFile);
+                                parseDatabase(stream);
                             } catch (Exception e) {
                                 fail(e);
                             }
@@ -313,20 +337,23 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
                     List<String> files = list.map(Path::getFileName).map(Path::toString).toList();
+                    // Each mmdb is installed at a per-loader unique path: <basename>.<6-hex-token>.mmdb.
+                    // Side files (LICENSE / COPYRIGHT / README) keep their canonical names.
+                    assertExactlyOneMatchingMmdb(files, "GeoLite2-ASN");
+                    assertExactlyOneMatchingMmdb(files, "GeoLite2-City");
+                    assertExactlyOneMatchingMmdb(files, "GeoLite2-Country");
+                    assertExactlyOneMatchingMmdb(files, "MyCustomGeoLite2-City");
+                    Set<String> sideFiles = files.stream().filter(f -> f.endsWith(".mmdb") == false).collect(Collectors.toSet());
                     assertThat(
-                        files,
+                        sideFiles,
                         containsInAnyOrder(
-                            "GeoLite2-ASN.mmdb",
                             "GeoLite2-ASN.mmdb_COPYRIGHT.txt",
                             "GeoLite2-ASN.mmdb_LICENSE.txt",
-                            "GeoLite2-City.mmdb",
                             "GeoLite2-City.mmdb_COPYRIGHT.txt",
                             "GeoLite2-City.mmdb_LICENSE.txt",
                             "GeoLite2-City.mmdb_README.txt",
-                            "GeoLite2-Country.mmdb",
                             "GeoLite2-Country.mmdb_COPYRIGHT.txt",
                             "GeoLite2-Country.mmdb_LICENSE.txt",
-                            "MyCustomGeoLite2-City.mmdb",
                             "MyCustomGeoLite2-City.mmdb_COPYRIGHT.txt",
                             "MyCustomGeoLite2-City.mmdb_LICENSE.txt"
                         )
@@ -529,9 +556,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         return geoipTmpDirs;
     }
 
-    @SuppressForbidden(reason = "Maxmind API requires java.io.File")
-    private void parseDatabase(Path tempFile) throws IOException {
-        try (Reader reader = new Reader(tempFile.toFile())) {
+    private void parseDatabase(InputStream stream) throws IOException {
+        try (Reader reader = new Reader(stream)) {
             assertNotNull(reader.getMetadata());
         }
     }

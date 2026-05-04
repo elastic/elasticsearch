@@ -879,9 +879,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      * to parse time so the relation node carries plain {@code Object} values instead of
      * {@link Literal}-wrapped configuration.
      *
-     * <p>Non-literal entries (e.g. unbound parameter references) are dropped — same behavior as the
-     * prior unwrap path. {@link BytesRef} values are normalized to {@link String} so the carrier shape
-     * matches what data-source plugins receive on the dataset path.
+     * <p>After parameter substitution at parse time, every option value is expected to be a
+     * {@link Literal}. A non-literal entry would mean an unfolded parameter reference or a parser
+     * state bug; either way, silently dropping it would let the query proceed with the wrong settings.
+     * Throw a {@link ParsingException} at the offending entry's source so the user sees the failure
+     * at the right spot in their query rather than discovering it as a wrong-result later.
+     *
+     * <p>{@link BytesRef} values are normalized to {@link String} so the carrier shape matches what
+     * data-source plugins receive on the dataset path.
      */
     private static Map<String, Object> foldOptionLiterals(Map<String, Expression> entries) {
         if (entries.isEmpty()) {
@@ -889,13 +894,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         Map<String, Object> folded = new LinkedHashMap<>(entries.size());
         for (Map.Entry<String, Expression> entry : entries.entrySet()) {
-            if (entry.getValue() instanceof Literal literal) {
-                Object value = literal.value();
-                if (value instanceof BytesRef bytesRef) {
+            Expression value = entry.getValue();
+            if (value instanceof Literal literal) {
+                Object literalValue = literal.value();
+                if (literalValue instanceof BytesRef bytesRef) {
                     folded.put(entry.getKey(), BytesRefs.toString(bytesRef));
-                } else if (value != null) {
-                    folded.put(entry.getKey(), value);
+                } else if (literalValue != null) {
+                    folded.put(entry.getKey(), literalValue);
                 }
+            } else {
+                throw new ParsingException(
+                    value.source(),
+                    "EXTERNAL options must be literal values; option [{}] has expression [{}]",
+                    entry.getKey(),
+                    value.sourceText()
+                );
             }
         }
         return folded;

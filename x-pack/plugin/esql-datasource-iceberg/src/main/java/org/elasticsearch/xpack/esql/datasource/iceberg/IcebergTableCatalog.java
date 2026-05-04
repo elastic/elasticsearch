@@ -99,18 +99,28 @@ public class IcebergTableCatalog implements TableCatalog {
 
     /**
      * Extract S3 configuration from the config map.
+     *
+     * <p>Secret values ({@code access_key}, {@code secret_key}) arrive as
+     * {@link org.elasticsearch.common.settings.SecureString} when produced by the dataset path —
+     * see {@code DatasetRewriter.mergeSettings} — so we materialize via {@code toString()} rather
+     * than casting to {@link String}, which would throw a {@link ClassCastException}. Inline
+     * {@code EXTERNAL} queries still produce plain strings and are unaffected.
      */
     private S3Configuration extractS3Config(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return null;
         }
 
-        String accessKey = (String) config.get("access_key");
-        String secretKey = (String) config.get("secret_key");
-        String endpoint = (String) config.get("endpoint");
-        String region = (String) config.get("region");
+        String accessKey = stringOrNull(config.get("access_key"));
+        String secretKey = stringOrNull(config.get("secret_key"));
+        String endpoint = stringOrNull(config.get("endpoint"));
+        String region = stringOrNull(config.get("region"));
 
         return S3Configuration.fromFields(accessKey, secretKey, endpoint, region);
+    }
+
+    private static String stringOrNull(Object value) {
+        return value == null ? null : value.toString();
     }
 
     /**

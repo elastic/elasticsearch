@@ -184,7 +184,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM some_real_index, employees | LIMIT 1"), TIMEOUT));
         Throwable cause = ex;
-        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("mixing indices and datasets") == false) {
+        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("mixing datasets and non-datasets") == false) {
             cause = cause.getCause();
         }
         assertThat("error chain should contain Phase-1 mix-rejection", cause, org.hamcrest.Matchers.notNullValue());
@@ -439,7 +439,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_* | LIMIT 1"), TIMEOUT));
         Throwable cause = ex;
-        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("mixing indices and datasets") == false) {
+        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("mixing datasets and non-datasets") == false) {
             cause = cause.getCause();
         }
         assertThat("error chain should contain wildcard-mix rejection", cause, org.hamcrest.Matchers.notNullValue());

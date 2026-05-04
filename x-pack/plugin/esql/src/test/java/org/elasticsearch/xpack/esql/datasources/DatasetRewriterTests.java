@@ -106,8 +106,10 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
     }
 
-    public void testMixedIndicesAndDatasetsRejected() {
+    public void testMixedDatasetsAndNonDatasetsRejected() {
         // Register a real index alongside the dataset so the resolver actually sees both abstractions.
+        // The error reports counts only — listing matched names would exfiltrate index/alias/data-stream
+        // names the caller may not have read access to.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs", dataset), Set.of("some_idx"));
@@ -116,9 +118,11 @@ public class DatasetRewriterTests extends ESTestCase {
             VerificationException.class,
             () -> DatasetRewriter.rewrite(relationOf("some_idx,logs"), project, RESOLVER)
         );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing indices and datasets"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("some_idx"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing datasets and non-datasets"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("1 non-dataset(s)"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("1 dataset(s)"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("some_idx")));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("[logs]")));
     }
 
     public void testIndexModeNonStandardRejected() {
@@ -170,16 +174,15 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("unknown data source [missing_parent]"));
     }
 
-    public void testSecretSettingUnwrappedToPlaintext() {
-        DataSource parent = dataSource(
-            "s3_parent",
-            Map.of("access_key", new DataSourceSetting("AKIAEXAMPLE", true), "region", new DataSourceSetting("us-east-1", false))
-        );
+    public void testNonSecretSettingsArriveAsTheirOriginalValue() {
+        // Non-secret settings are placed in the carrier as their underlying Object (String, Integer,
+        // Boolean...). Asserts that mergeSettings does not transform them.
+        DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
-        assertThat(paramValue((UnresolvedExternalRelation) rewritten, "access_key"), equalTo("AKIAEXAMPLE"));
+        assertThat(paramValue((UnresolvedExternalRelation) rewritten, "region"), equalTo("us-east-1"));
     }
 
     // ---- Pattern expansion (parity with FROM <index> patterns via IndexNameExpressionResolver) ----
@@ -213,7 +216,8 @@ public class DatasetRewriterTests extends ESTestCase {
 
     public void testWildcardSpanningIndicesAndDatasetsRejected() {
         // `FROM logs_*` matching both real indices and datasets is mixed-FROM territory — same as a
-        // literal mix.
+        // literal mix. The error surfaces counts only — listing matched names would exfiltrate
+        // index/alias/data-stream names the caller may not have read access to.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("logs_index"));
@@ -222,9 +226,70 @@ public class DatasetRewriterTests extends ESTestCase {
             VerificationException.class,
             () -> DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER)
         );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing indices and datasets"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs_index"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs_dataset"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing datasets and non-datasets"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("1 non-dataset(s)"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("1 dataset(s)"));
+        // The caller may not have access to the matched index name — must not be exfiltrated.
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("logs_index")));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("logs_dataset")));
+    }
+
+    public void testNonStringSettingsArePreservedThroughCarrier() {
+        // Non-secret DataSourceSetting values can be Integer/Long/Boolean — the carrier (Map<String,
+        // Object>) should preserve their type. Plugins that read these don't need to parse strings.
+        DataSource parent = dataSource(
+            "s3_parent",
+            Map.of(
+                "max_connections",
+                new DataSourceSetting(50, false),
+                "request_timeout_ms",
+                new DataSourceSetting(30000L, false),
+                "use_compression",
+                new DataSourceSetting(Boolean.TRUE, false)
+            )
+        );
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of("format", "parquet"));
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
+
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        assertThat(out.config().get("max_connections"), equalTo((Object) 50));
+        assertThat(out.config().get("request_timeout_ms"), equalTo((Object) 30000L));
+        assertThat(out.config().get("use_compression"), equalTo((Object) Boolean.TRUE));
+        assertThat(out.config().get("format"), equalTo((Object) "parquet"));
+    }
+
+    public void testSecretSettingsArrivedAsSecureStringNotPlaintext() {
+        // Secret values must not be materialized as plaintext String in the carrier — the heap
+        // would hold the secret as an immutable string until GC. They arrive as SecureString so
+        // consumers can close() after use. Plugins call .toString() at point of use.
+        // (DataSourceSetting requires the underlying value to be a String for secret settings;
+        // secretValue() then constructs a SecureString around it on every call.)
+        DataSource parent = dataSource("s3_parent", Map.of("access_key", new DataSourceSetting("AKIAEXAMPLE_SECRET_VALUE", true)));
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
+
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        Object accessKey = out.config().get("access_key");
+        assertThat(accessKey, instanceOf(org.elasticsearch.common.settings.SecureString.class));
+        // .toString() at the consumer surfaces the plaintext.
+        assertThat(accessKey.toString(), equalTo("AKIAEXAMPLE_SECRET_VALUE"));
+    }
+
+    public void testFastPathSkipsResolverWhenNoPatternCouldMatchDataset() {
+        // A pattern that doesn't match any registered dataset name (literal or wildcard) skips the
+        // full resolver expansion. The relation is returned unchanged for the analyzer to handle
+        // as today. Verified by `assertSame` — the relation reference is the same instance.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        UnresolvedRelation relation = relationOf("metrics_unrelated");
+        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
     }
 
     public void testWildcardWithExclusion() {

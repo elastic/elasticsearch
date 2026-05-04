@@ -18,7 +18,10 @@ import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -28,9 +31,11 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Rewrites {@code FROM <dataset>} (and patterns that match datasets) into the same
@@ -43,6 +48,8 @@ import java.util.Map;
  * parallel resolution path. Phase 1 rejects patterns that resolve to a mix of indices and datasets.
  */
 public final class DatasetRewriter {
+
+    private static final Logger logger = LogManager.getLogger(DatasetRewriter.class);
 
     /**
      * Permissive options for the rewriter's pattern-expansion step. We ask the resolver for
@@ -89,10 +96,18 @@ public final class DatasetRewriter {
         DataSourceMetadata dataSources,
         IndexAbstractionResolver resolver
     ) {
+        // Fast path: the resolver expansion below is O(indices) regardless of dataset count, which
+        // costs every query on a cluster with many indices. Skip it when no positive part of the pattern
+        // can possibly match a registered dataset name. Conservative: false negatives only proceed
+        // through the slow path, never miss a dataset.
+        List<String> patterns = Arrays.asList(Strings.splitStringByCommaToArray(relation.indexPattern().indexPattern()));
+        if (anyPatternCouldMatchDataset(patterns, datasets.datasets().keySet()) == false) {
+            return relation;
+        }
+
         Map<String, IndexAbstraction> indicesLookup = projectMetadata.getIndicesLookup();
         // Expand the pattern through the same machinery FROM <index> uses; the resolver handles
         // wildcards, exclusions, date math, and hidden flags identically for indices and datasets.
-        List<String> patterns = List.of(Strings.splitStringByCommaToArray(relation.indexPattern().indexPattern()));
         var resolved = resolver.resolveIndexAbstractions(
             patterns,
             REWRITER_OPTIONS,
@@ -103,13 +118,20 @@ public final class DatasetRewriter {
         );
 
         List<String> datasetNames = new ArrayList<>();
-        List<String> nonDatasetNames = new ArrayList<>();
+        int nonDatasetCount = 0;
         for (String name : resolved.getLocalIndicesList()) {
             IndexAbstraction abs = indicesLookup.get(name);
-            if (abs != null && abs.getType() == IndexAbstraction.Type.DATASET) {
+            if (abs == null) {
+                // Race window: the resolver returned a name that is no longer in the lookup. Cluster
+                // state can change between the resolver call and the lookup. Treat as transient miss
+                // and skip; downstream analyzer will produce the right error if the name is required.
+                logger.debug("DatasetRewriter: resolved name [{}] not found in indices lookup; skipping", name);
+                continue;
+            }
+            if (abs.getType() == IndexAbstraction.Type.DATASET) {
                 datasetNames.add(name);
-            } else if (abs != null) {
-                nonDatasetNames.add(name);
+            } else {
+                nonDatasetCount++;
             }
         }
 
@@ -129,12 +151,15 @@ public final class DatasetRewriter {
             };
             throw new VerificationException(message);
         }
-        if (nonDatasetNames.isEmpty() == false) {
+        if (nonDatasetCount > 0) {
+            // Surface counts only — listing matched names would exfiltrate index/alias/data-stream
+            // names the caller may not have read access to.
             throw new VerificationException(
-                "FROM mixing indices and datasets is not supported; requested mix: indices="
-                    + nonDatasetNames
-                    + ", datasets="
-                    + datasetNames
+                "FROM mixing datasets and non-datasets is not supported; requested mix: "
+                    + nonDatasetCount
+                    + " non-dataset(s) and "
+                    + datasetNames.size()
+                    + " dataset(s)"
             );
         }
         List<LogicalPlan> children = new ArrayList<>(datasetNames.size());
@@ -159,10 +184,10 @@ public final class DatasetRewriter {
         }
         // Wrap the platform's UnionAll/Fork branch cap with a user-facing message. Without this, the
         // caller hits Fork's constructor with "FORK supports up to 8 branches" — but FORK is an
-        // internal plan-node name; the user's query said FROM <pattern>. Tracked as the long-term
+        // internal plan-node name; the user's query said FROM <pattern>. Tracked as the
         // fix at esql-planning#614 (raise the cap or coalesce siblings); meanwhile fail with framing
         // the user can act on.
-        if (children.size() > Fork.MAX_BRANCHES) {
+        if (Fork.exceedsMaxBranches(children.size())) {
             throw new VerificationException(
                 "FROM ["
                     + relation.indexPattern().indexPattern()
@@ -177,16 +202,51 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Parent data source settings (secrets unwrapped to plaintext) overlaid by the dataset's settings.
-     * Returns plain {@code Map<String, Object>} — no {@code Literal} wrapping. Plaintext-secret
-     * hardening (typed {@code SecretLiteral} or redaction infrastructure) is tracked separately;
-     * dropping the {@code Literal} carrier already removes the plan-tree {@code toString()}/{@code writeTo}
-     * leak path that was the immediate concern.
+     * Conservative fast-path predicate: returns {@code true} if any positive part of {@code patterns}
+     * could match a registered dataset name (literal or wildcard). False positives lead to the slow
+     * path running uselessly; false negatives would miss datasets, so wildcard semantics here must be
+     * at least as permissive as the full resolver's.
+     */
+    private static boolean anyPatternCouldMatchDataset(List<String> patterns, Set<String> datasetNames) {
+        if (datasetNames.isEmpty()) {
+            return false;
+        }
+        for (String pattern : patterns) {
+            if (pattern.isEmpty() || pattern.charAt(0) == '-') {
+                // Exclusion, or empty token from a malformed pattern; can't pull a dataset into the result.
+                continue;
+            }
+            // Strip a cluster qualifier (`cluster:name`) — datasets are local-only today, so a qualified
+            // pattern can't match a local dataset name. Conservative: still check the local part.
+            int colon = pattern.indexOf(':');
+            String local = colon >= 0 ? pattern.substring(colon + 1) : pattern;
+            for (String dataset : datasetNames) {
+                if (Regex.simpleMatch(local, dataset)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Parent data source settings overlaid by the dataset's settings. Returns plain
+     * {@code Map<String, Object>} — no {@code Literal} wrapping.
+     *
+     * <p><b>Secret values are kept as {@link org.elasticsearch.common.settings.SecureString} in the
+     * map.</b> Consumers (data-source plugin code that reads credentials) should call
+     * {@link Object#toString()} at the point of use to materialize the plaintext, and ideally
+     * {@code close()} the SecureString afterward to clear the heap-resident chars. Calling
+     * {@code (String) config.get("secret_key")} will fail with a ClassCastException — use
+     * {@code Objects.toString(config.get("secret_key"), null)} or equivalent.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
         for (Map.Entry<String, DataSourceSetting> e : parent.settings().entrySet()) {
-            merged.put(e.getKey(), e.getValue().secret() ? e.getValue().secretValue().toString() : e.getValue().nonSecretValue());
+            // For secret values, keep the SecureString rather than calling .toString() — that produces
+            // a heap-resident immutable String for the plaintext that lives until GC. SecureString
+            // can be close()'d by the consumer to zero its backing char[] right after auth.
+            merged.put(e.getKey(), e.getValue().secret() ? e.getValue().secretValue() : e.getValue().nonSecretValue());
         }
         merged.putAll(dataset.settings());
         return merged;

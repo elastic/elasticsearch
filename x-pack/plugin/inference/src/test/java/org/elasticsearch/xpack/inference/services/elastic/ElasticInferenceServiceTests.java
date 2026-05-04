@@ -96,7 +96,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
-import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -119,7 +119,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -568,7 +567,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -627,7 +625,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -1492,7 +1489,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             var inputs = List.of(
                 new InferenceStringGroup("first_input"),
-                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_IMAGE_DATA_URI))
+                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_DATA_URI))
             );
 
             var inputType = randomFrom(InputType.INGEST, InputType.SEARCH);
@@ -1919,17 +1916,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ENTITY_ID,
-                        ElasticInferenceService.NAME,
-                        ElasticInferenceService.NAME,
-                        TaskType.ANY
-                    )
-                )
+                is(Strings.format("The [%s] service does not support task type [%s]", ElasticInferenceService.NAME, TaskType.ANY))
 
             );
         }

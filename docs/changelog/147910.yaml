@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 147910
+summary: Share the same doc values producer for `IdBloomFilterSupplier` and TSDBSyntheticIdFieldsProducer
+type: bug

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -380,6 +381,37 @@ public class PropagateNullableTests extends ESTestCase {
 
         var and = new And(EMPTY, greaterThanOf(fa, ONE), isNotNull);
 
+        assertEquals(and, propagateNullable(and));
+    }
+
+    // a IS NULL AND b > 1 => unchanged (b is a different field, unrelated to a)
+    // The IsNull constraint must not alter expressions that do not reference the null field.
+    public void testIsNullDoesNotModifyUnrelatedComparison() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        var isNull = new IsNull(EMPTY, fa);
+
+        var and = new And(EMPTY, isNull, greaterThanOf(fb, ONE));
+
+        assertEquals(and, propagateNullable(and));
+    }
+
+    // a IS NULL AND SampleProbabilityPlaceHolder > 1 => unchanged
+    public void testIsNullDoesNotNullifyPlaceholder() {
+        FieldAttribute fa = getFieldAttribute();
+        var isNull = new IsNull(EMPTY, fa);
+        var placeholder = new ApproximationPlan.SampleProbabilityPlaceHolder(EMPTY);
+        var and = new And(EMPTY, isNull, greaterThanOf(placeholder, ONE));
+        assertEquals(and, propagateNullable(and));
+    }
+
+    // a IS NOT NULL AND SampleProbabilityPlaceHolder > 1 => unchanged
+    // IS NOT NULL on 'a' must not alter expressions that do not reference 'a'.
+    public void testIsNotNullDoesNotNullifyPlaceholder() {
+        FieldAttribute fa = getFieldAttribute();
+        var isNotNull = new IsNotNull(EMPTY, fa);
+        var placeholder = new ApproximationPlan.SampleProbabilityPlaceHolder(EMPTY);
+        var and = new And(EMPTY, isNotNull, greaterThanOf(placeholder, ONE));
         assertEquals(and, propagateNullable(and));
     }
 

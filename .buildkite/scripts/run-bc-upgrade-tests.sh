@@ -11,6 +11,11 @@
 
 set -euo pipefail
 
+if [[ "${SKIP_BC_UPGRADE_TESTS:-}" == "true" ]]; then
+  echo "SKIP_BC_UPGRADE_TESTS is set. Skipping BC upgrade tests."
+  exit 0
+fi
+
 echo "Selecting the most recent build from branch [$BUILDKITE_BRANCH]."
 
 # Select the most recent build from the current branch.

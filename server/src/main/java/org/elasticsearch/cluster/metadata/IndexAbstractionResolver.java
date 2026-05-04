@@ -310,6 +310,9 @@ public class IndexAbstractionResolver {
         if (indexAbstraction.getType() == IndexAbstraction.Type.VIEW) {
             return indicesOptions.indexAbstractionOptions().resolveViews();
         }
+        if (indexAbstraction.getType() == IndexAbstraction.Type.DATASET) {
+            return indicesOptions.indexAbstractionOptions().resolveDatasets();
+        }
         final boolean isHidden = indexAbstraction.isHidden();
         boolean isVisible = isWildcardExpression == false
             || isHidden == false

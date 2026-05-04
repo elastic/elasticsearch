@@ -32,6 +32,10 @@ public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
      */
     private Float requestsPerSecond;
 
+    /// Transient (not serialized) — chain-following runs entirely on the coordinator in
+    /// {@link TransportRethrottleAction#doExecute}. Fan-out sub-requests and UBQ/DBQ never set this.
+    private boolean followRelocations = false;
+
     public RethrottleRequest() {}
 
     public RethrottleRequest(StreamInput in) throws IOException {
@@ -64,6 +68,15 @@ public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
             );
         }
         this.requestsPerSecond = requestsPerSecond;
+        return this;
+    }
+
+    public boolean followRelocations() {
+        return followRelocations;
+    }
+
+    public RethrottleRequest setFollowRelocations(boolean followRelocations) {
+        this.followRelocations = followRelocations;
         return this;
     }
 

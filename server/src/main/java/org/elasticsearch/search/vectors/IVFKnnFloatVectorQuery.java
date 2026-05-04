@@ -11,7 +11,6 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
@@ -129,14 +128,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio
     ) throws IOException {
         LeafReader reader = context.reader();
-        FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
-        if (floatVectorValues == null) {
-            FloatVectorValues.checkField(reader, field);
-            return NO_RESULTS;
-        }
-        if (floatVectorValues.size() == 0) {
-            return NO_RESULTS;
-        }
         IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
@@ -144,7 +135,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         }
         strategy.setCollector(knnCollector);
         reader.searchNearestVectors(field, query, knnCollector, acceptDocs);
-        TopDocs results = knnCollector.topDocs();
+        TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
+            ? bulkKnnCollector.unsortedTopK()
+            : knnCollector.topDocs();
         return results != null ? results : NO_RESULTS;
     }
 }

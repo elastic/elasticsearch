@@ -77,7 +77,8 @@ public class StBuffer extends SpatialDocValuesFunction {
         description = "Computes a buffer area around the input geometry at the specified distance. "
             + "The distance is in the units of the input spatial reference system. "
             + "Positive distances expand the geometry, negative distances shrink it. "
-            + "Points and lines become polygons when buffered.",
+            + "A distance of zero will return the input geometry unchanged. "
+            + "Points and lines become polygons when buffered, unless a zero distance is provided.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         examples = @Example(file = "spatial-jts", tag = "st_buffer"),

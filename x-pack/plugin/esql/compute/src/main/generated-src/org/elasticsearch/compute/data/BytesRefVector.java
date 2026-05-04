@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -23,7 +24,34 @@ import java.io.IOException;
  */
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
     OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector {
+    /**
+     * Build a contiguous array of bytes for the value stored at the
+     * given position. The underlying data is generally stored in pages
+     * that look like {@code byte[][]} with some data spanning more than
+     * one of the inner {@code byte[]} arrays. In that case, this builds
+     * a {@code byte[]} in the {@link BytesRef}, copies the bytes, and
+     * returns it. Otherwise, this returns a zero-copy snapshot of the
+     * underlying data. Except arrow. Arrow always copies.
+     * <p>
+     *    If possible, use {@link #get} because it only needs to copy
+     *    in the arrow implementation.
+     * </p>
+     * @param position the position index
+     * @param dest the destination
+     * @return the data value (as a BytesRef)
+     */
     BytesRef getBytesRef(int position, BytesRef dest);
+
+    /**
+     * Retrieves the bytes value stored at the given value index using a
+     * {@link PagedBytesCursor} for zero-copy access to the underlying paged
+     * byte storage. Except arrow. Arrow always copies.
+     *
+     * @param position the position index
+     * @param scratch the cursor to initialize and return
+     * @return the initialized cursor pointing to the value's bytes
+     */
+    PagedBytesCursor get(int position, PagedBytesCursor scratch);
 
     @Override
     BytesRefBlock asBlock();
@@ -170,6 +198,11 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
          * Appends a BytesRef to the current entry.
          */
         Builder appendBytesRef(BytesRef value);
+
+        /**
+         * Appends a BytesRef to the current entry using a {@link PagedBytesCursor}.
+         */
+        Builder append(PagedBytesCursor value);
 
         @Override
         BytesRefVector build();

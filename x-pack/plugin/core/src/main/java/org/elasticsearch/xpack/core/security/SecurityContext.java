@@ -196,6 +196,19 @@ public class SecurityContext {
     }
 
     /**
+     * Runs the consumer in a new context as the secondary authenticated user, restoring any transient headers
+     * captured during secondary authentication into the new context. When this method returns, the original context is restored.
+     */
+    public <T> T executeWithSecondaryAuthentication(SecondaryAuthentication secondaryAuth, Function<StoredContext, T> consumer) {
+        final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            setAuthentication(secondaryAuth.getAuthentication());
+            secondaryAuth.getTransientHeaders().forEach(threadContext::putTransient);
+            return consumer.apply(original);
+        }
+    }
+
+    /**
      * Runs the consumer in a new context after setting a new version of the authentication that is compatible with the version provided.
      * The original context is provided to the consumer. When this method returns, the original context is restored.
      */

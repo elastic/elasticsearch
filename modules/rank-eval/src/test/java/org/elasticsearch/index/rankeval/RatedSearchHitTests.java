@@ -55,44 +55,78 @@ public class RatedSearchHitTests extends ESTestCase {
 
     public static RatedSearchHit randomRatedSearchHit() {
         OptionalInt rating = randomBoolean() ? OptionalInt.empty() : OptionalInt.of(randomIntBetween(0, 5));
-        SearchHit searchHit = SearchHit.unpooled(randomIntBetween(0, 10), randomAlphaOfLength(10));
-        RatedSearchHit ratedSearchHit = new RatedSearchHit(searchHit, rating);
-        return ratedSearchHit;
+        SearchHit searchHit = new SearchHit(randomIntBetween(0, 10), randomAlphaOfLength(10));
+        return new RatedSearchHit(searchHit, rating);
     }
 
     private static RatedSearchHit mutateTestItem(RatedSearchHit original) {
         OptionalInt rating = original.getRating();
         SearchHit hit = original.getSearchHit();
+        boolean newHit = false;
         switch (randomIntBetween(0, 1)) {
             case 0 -> rating = rating.isPresent() ? OptionalInt.of(rating.getAsInt() + 1) : OptionalInt.of(randomInt(5));
-            case 1 -> hit = SearchHit.unpooled(hit.docId(), hit.getId() + randomAlphaOfLength(10));
+            case 1 -> {
+                hit = new SearchHit(hit.docId(), hit.getId() + randomAlphaOfLength(10));
+                newHit = true;
+            }
             default -> throw new IllegalStateException("The test should only allow two parameters mutated");
         }
-        return new RatedSearchHit(hit, rating);
+        RatedSearchHit result = new RatedSearchHit(hit, rating);
+        if (newHit) {
+            hit.decRef();
+        }
+        return result;
     }
 
     public void testSerialization() throws IOException {
         RatedSearchHit original = randomRatedSearchHit();
-        RatedSearchHit deserialized = copy(original);
-        assertEquals(deserialized, original);
-        assertEquals(deserialized.hashCode(), original.hashCode());
-        assertNotSame(deserialized, original);
+        try {
+            RatedSearchHit deserialized = copy(original);
+            assertEquals(deserialized, original);
+            assertEquals(deserialized.hashCode(), original.hashCode());
+            assertNotSame(deserialized, original);
+        } finally {
+            releasePooledSearchHitCompletely(original.getSearchHit());
+        }
     }
 
     public void testXContentRoundtrip() throws IOException {
         RatedSearchHit testItem = randomRatedSearchHit();
-        XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            RatedSearchHit parsedItem = parseInstance(parser);
-            assertNotSame(testItem, parsedItem);
-            assertEquals(testItem, parsedItem);
-            assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        try {
+            XContentType xContentType = randomFrom(XContentType.values());
+            BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                RatedSearchHit parsedItem = parseInstance(parser);
+                assertNotSame(testItem, parsedItem);
+                assertEquals(testItem, parsedItem);
+                assertEquals(testItem.hashCode(), parsedItem.hashCode());
+            }
+        } finally {
+            releasePooledSearchHitCompletely(testItem.getSearchHit());
         }
     }
 
     public void testEqualsAndHash() throws IOException {
-        checkEqualsAndHashCode(randomRatedSearchHit(), RatedSearchHitTests::copy, RatedSearchHitTests::mutateTestItem);
+        RatedSearchHit original = randomRatedSearchHit();
+        try {
+            checkEqualsAndHashCode(
+                original,
+                RatedSearchHitTests::copy,
+                RatedSearchHitTests::mutateTestItem,
+                RatedSearchHitTests::disposeOneRatedSearchHitRef
+            );
+        } finally {
+            releasePooledSearchHitCompletely(original.getSearchHit());
+        }
+    }
+
+    private static void releasePooledSearchHitCompletely(SearchHit hit) {
+        hit.decRef();
+        hit.decRef();
+    }
+
+    private static void disposeOneRatedSearchHitRef(RatedSearchHit ratedSearchHit) {
+        ratedSearchHit.getSearchHit().decRef();
     }
 
     private static RatedSearchHit copy(RatedSearchHit original) throws IOException {

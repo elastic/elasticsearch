@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.compressing.CompressionMode;
 import org.apache.lucene.codecs.compressing.Compressor;
 import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
@@ -81,12 +82,7 @@ public class ZstdCompressionMode extends CompressionMode {
                 CloseableByteBuffer src = nativeAccess.newConfinedBuffer(srcLen);
                 CloseableByteBuffer dest = nativeAccess.newConfinedBuffer(compressBound)
             ) {
-
-                while (buffersInput.position() < buffersInput.length()) {
-                    final int numBytes = Math.min(copyBuffer.length, (int) (buffersInput.length() - buffersInput.position()));
-                    buffersInput.readBytes(copyBuffer, 0, numBytes);
-                    src.buffer().put(copyBuffer, 0, numBytes);
-                }
+                buffersInput.readBytes(src.buffer(), srcLen);
                 src.buffer().flip();
 
                 final int compressedLen = zstd.compress(dest, src, level);
@@ -135,11 +131,19 @@ public class ZstdCompressionMode extends CompressionMode {
                 if (in instanceof IndexInput indexIn && in instanceof DirectAccessInput directIn) {
                     final long startOffset = indexIn.getFilePointer();
                     final int[] resultHolder = { -1 };
-                    final boolean directSuccess = directIn.withByteBufferSlice(
-                        startOffset,
-                        compressedLength,
-                        srcBuf -> resultHolder[0] = zstd.decompress(dest, srcBuf)
-                    );
+                    boolean directSuccess;
+                    try {
+                        directSuccess = directIn.withByteBufferSlice(
+                            startOffset,
+                            compressedLength,
+                            srcBuf -> resultHolder[0] = zstd.decompress(dest, srcBuf)
+                        );
+                    } catch (AlreadyClosedException e) {
+                        // The blob cache region was evicted or the cache was closed while we were reading;
+                        // fall back to the copy-based path which reads directly from the underlying store.
+                        directSuccess = false;
+                        dest.buffer().clear();
+                    }
                     if (directSuccess) {
                         indexIn.seek(startOffset + compressedLength);
                         decompressedLen = resultHolder[0];

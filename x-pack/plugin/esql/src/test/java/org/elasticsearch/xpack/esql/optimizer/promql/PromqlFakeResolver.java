@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -125,6 +126,15 @@ public class PromqlFakeResolver extends Rule<LogicalPlan, LogicalPlan> {
                     collectLabelsAndMetrics(within.child(), labels, counters, counters);
                 }
                 case AcrossSeriesAggregate across -> across.groupings().stream().map(Expression::sourceText).forEach(labels::add);
+                case UnresolvedPromqlFunction u when COUNTER_FUNCTIONS.contains(u.functionName()) -> {
+                    skipBranch.set(Boolean.TRUE);
+                    if (u.rawParams().isEmpty() == false) {
+                        collectLabelsAndMetrics(u.rawParams().getFirst(), labels, counters, counters);
+                    }
+                }
+                case UnresolvedPromqlFunction u when u.grouping() != null -> {
+                    u.groupingKeys().stream().map(Expression::sourceText).forEach(labels::add);
+                }
                 default -> {
                 }
             }

@@ -127,6 +127,28 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         runGoldenTest(query, STAGES, unindexedStats());
     }
 
+    public void testNullifiedFieldWithLateMaterialization() throws Exception {
+        String query = """
+            SET unmapped_fields="nullify";
+            FROM employees
+            | KEEP hire_date, salary, emp_no, does_not_exist
+            | SORT hire_date
+            | LIMIT 20
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    public void testNullifiedFieldAsSort() throws Exception {
+        String query = """
+            SET unmapped_fields="nullify";
+            FROM employees
+            | KEEP hire_date, salary, does_not_exist
+            | SORT does_not_exist
+            | LIMIT 20
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
     public void testMvExpandBeforeTopN() throws Exception {
         String query = """
             FROM employees

@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 /**
  * Integration tests for DataSourceModule verifying SPI discovery and registration.
@@ -298,7 +299,6 @@ public class DataSourceModuleTests extends ESTestCase {
         assertNotNull(module.storageProviderRegistry());
         assertNotNull(module.formatReaderRegistry());
         assertNotNull(module.sourceFactories());
-        assertNotNull(module.filterPushdownRegistry());
 
         // No providers should be registered
         assertFalse("No file provider should be registered", module.storageProviderRegistry().hasProvider("file"));
@@ -318,6 +318,22 @@ public class DataSourceModuleTests extends ESTestCase {
         // Create OperatorFactoryRegistry with a simple executor
         OperatorFactoryRegistry operatorRegistry = module.createOperatorFactoryRegistry(Runnable::run);
         assertNotNull("OperatorFactoryRegistry should be created", operatorRegistry);
+    }
+
+    /**
+     * {@link DataSourceModule#createOperatorFactoryRegistry(Executor, Executor)} must preserve both
+     * executors: compute coordination ({@link OperatorFactoryRegistry#executor()}, e.g. {@code esql_worker} in
+     * {@link org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction}) and
+     * {@link OperatorFactoryRegistry#fileReadExecutor()} (e.g. {@code generic} for file background reads).
+     */
+    public void testOperatorFactoryRegistryUsesDistinctExecutors() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        Executor main = Runnable::run;
+        Executor fileRead = Runnable::run;
+        OperatorFactoryRegistry registry = module.createOperatorFactoryRegistry(main, fileRead);
+        assertSame(main, registry.executor());
+        assertSame(fileRead, registry.fileReadExecutor());
     }
 
     /**

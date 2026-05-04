@@ -3,11 +3,15 @@
   "branches" : [
     {
       "branch" : "main",
+      "version" : "9.5.0"
+    },
+    {
+      "branch" : "9.4",
       "version" : "9.4.0"
     },
     {
       "branch" : "9.3",
-      "version" : "9.3.4"
+      "version" : "9.3.5"
     },
     {
       "branch" : "9.2",
@@ -15,7 +19,7 @@
     },
     {
       "branch" : "8.19",
-      "version" : "8.19.15"
+      "version" : "8.19.16"
     }
   ]
 }

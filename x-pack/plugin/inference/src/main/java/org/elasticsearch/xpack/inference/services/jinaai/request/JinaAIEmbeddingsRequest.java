@@ -15,7 +15,8 @@ import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
 
@@ -24,7 +25,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class JinaAIEmbeddingsRequest extends JinaAIRequest {
+import static org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIRequestUtils.decorateWithAuthHeader;
+
+public class JinaAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
     private final List<InferenceStringGroup> input;
     private final InputType inputType;
@@ -61,7 +64,7 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 
@@ -70,11 +73,12 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
         return null;
     }
 
-    public JinaAIEmbeddingType getEmbeddingType() {
-        return model.getServiceSettings().getEmbeddingType();
-    }
-
+    @Override
     public TaskType getTaskType() {
         return model.getTaskType();
+    }
+
+    public JinaAIEmbeddingType getEmbeddingType() {
+        return model.getServiceSettings().getEmbeddingType();
     }
 }

@@ -303,7 +303,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             harness.indexName
         ).setShard(0).setPrimary(true);
         var allocationExplainResponse = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, allocationExplainRequest));
-        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplainResponse.getExplanation(), true, true));
+        logger.info(
+            "---> Allocation explain response: {}",
+            Strings.toTruncatedString(allocationExplainResponse.getExplanation(), true, true)
+        );
 
         var decision = allocationExplainResponse.getExplanation().getShardAllocationDecision().getMoveDecision();
         assertThat("Rebalancing should be disabled", decision.canRebalanceCluster(), equalTo(false));
@@ -570,7 +573,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             harness.indexName
         ).setShard(0).setPrimary(true);
         var allocationExplainResponse = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, allocationExplainRequest));
-        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplainResponse.getExplanation(), true, true));
+        logger.info(
+            "---> Allocation explain response: {}",
+            Strings.toTruncatedString(allocationExplainResponse.getExplanation(), true, true)
+        );
 
         var decision = allocationExplainResponse.getExplanation().getShardAllocationDecision().getMoveDecision();
         assertThat("Rebalancing should be enabled", decision.canRebalanceCluster(), equalTo(true));
@@ -661,6 +667,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .put(onlyRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE)))
             .build();
         final var dataNodes = internalCluster().startNodes(3, settings);
+        ensureStableCluster(3);
 
         // Refresh cluster info (should trigger polling)
         refreshClusterInfo();

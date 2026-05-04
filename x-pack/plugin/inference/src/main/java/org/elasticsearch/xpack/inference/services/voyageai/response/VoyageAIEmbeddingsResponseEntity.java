@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequest;
 
@@ -158,9 +158,9 @@ public class VoyageAIEmbeddingsResponseEntity {
      * </code>
      * </pre>
      */
-    public static InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
+    public static InferenceServiceResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        VoyageAIEmbeddingType embeddingType = ((VoyageAIEmbeddingsRequest) request).getServiceSettings().getEmbeddingType();
+        VoyageAIEmbeddingType embeddingType = ((VoyageAIEmbeddingsRequest) outboundRequest).getServiceSettings().getEmbeddingType();
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             if (embeddingType == null || embeddingType == VoyageAIEmbeddingType.FLOAT) {

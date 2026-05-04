@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -27,6 +29,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -110,6 +113,7 @@ public class IndexResolver {
             false,
             false,
             false,
+            false,
             DO_NOT_GROUP,
             listener.map(Versioned::inner)
         );
@@ -145,6 +149,7 @@ public class IndexResolver {
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
+        boolean trackUnmappedFieldIndices,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
@@ -156,6 +161,7 @@ public class IndexResolver {
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
             hasTimeSeriesAggregation,
+            trackUnmappedFieldIndices,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
                 indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
                 v -> List.of(v.indices())
@@ -182,6 +188,7 @@ public class IndexResolver {
         // Same as above
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
+        boolean trackUnmappedFieldIndices,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
@@ -192,11 +199,15 @@ public class IndexResolver {
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
             hasTimeSeriesAggregation,
+            trackUnmappedFieldIndices,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
             ),
-            listener
+            listener.delegateResponse((l, e) -> {
+                var infe = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
+                l.onFailure(infe != null ? new VerificationException("Unknown index [" + infe.getIndex().getName() + "]") : e);
+            })
         );
     }
 
@@ -208,6 +219,7 @@ public class IndexResolver {
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
+        boolean trackUnmappedFieldIndices,
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
@@ -237,7 +249,10 @@ public class IndexResolver {
             );
 
             l.onResponse(
-                new Versioned<>(mergedMappings(indexPattern, allowEmpty, info, originalIndexExtractor), info.minTransportVersion())
+                new Versioned<>(
+                    mergedMappings(indexPattern, allowEmpty, info, trackUnmappedFieldIndices, originalIndexExtractor),
+                    info.minTransportVersion()
+                )
             );
         }));
     }
@@ -296,6 +311,7 @@ public class IndexResolver {
         String indexPattern,
         boolean allowEmpty,
         FieldsInfo fieldsInfo,
+        boolean trackUnmappedFieldIndices,
         OriginalIndexExtractor originalIndexExtractor
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
@@ -306,18 +322,23 @@ public class IndexResolver {
         }
 
         // For each field name, store a list of the field caps responses from each index
-        var collectedFieldCaps = collectFieldCaps(fieldsInfo.caps);
+        var collectedFieldCaps = collectFieldCaps(fieldsInfo.caps, trackUnmappedFieldIndices);
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
-        Map<String, Integer> indexMappingHashDuplicates = collectedFieldCaps.indexMappingHashDuplicates;
-        Map<String, Set<String>> fieldToMappedIndices = collectedFieldCaps.fieldToMappedIndices;
-        Set<String> allIndexNames = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).collect(Collectors.toSet());
 
         // Build hierarchical fields - it's easier to do it in sorted order so the object fields come first.
         // TODO flattened is simpler - could we get away with that?
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
         Map<String, EsField> rootFields = new HashMap<>();
-        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
+        Map<String, Set<String>> fieldToUnmappedIndices;
+        Set<String> allIndexNames;
+        if (trackUnmappedFieldIndices) {
+            fieldToUnmappedIndices = new HashMap<>();
+            allIndexNames = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).collect(Collectors.toSet());
+        } else {
+            fieldToUnmappedIndices = Map.of();
+            allIndexNames = null;
+        }
         for (String name : names) {
             Map<String, EsField> fields = rootFields;
             String fullName = name;
@@ -354,10 +375,12 @@ public class IndexResolver {
                     new HashMap<>()
                 );
             fields.put(name, field);
-            Set<String> unmappedIndices = new TreeSet<>(allIndexNames);
-            unmappedIndices.removeAll(fieldToMappedIndices.getOrDefault(fullName, Set.of()));
-            if (unmappedIndices.isEmpty() == false) {
-                fieldToUnmappedIndices.put(fullName, unmappedIndices);
+            if (trackUnmappedFieldIndices) {
+                Set<String> unmappedIndices = new TreeSet<>(allIndexNames);
+                unmappedIndices.removeAll(collectedFieldCaps.fieldToMappedIndices.getOrDefault(fullName, Set.of()));
+                if (unmappedIndices.isEmpty() == false) {
+                    fieldToUnmappedIndices.put(fullName, unmappedIndices);
+                }
             }
         }
 
@@ -402,10 +425,10 @@ public class IndexResolver {
         Map<String, Set<String>> fieldToMappedIndices
     ) {}
 
-    private static CollectedFieldCaps collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
+    private static CollectedFieldCaps collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse, boolean trackUnmappedFieldIndices) {
         Map<String, Integer> indexMappingHashToDuplicateCount = new HashMap<>();
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = new HashMap<>();
-        Map<String, Set<String>> fieldToMappedIndices = new HashMap<>();
+        Map<String, Set<String>> fieldToMappedIndices = trackUnmappedFieldIndices ? new HashMap<>() : null;
 
         for (FieldCapabilitiesIndexResponse response : fieldCapsResponse.getIndexResponses()) {
             boolean isNew = indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) <= 1;
@@ -422,7 +445,9 @@ public class IndexResolver {
                     ).fieldCapabilities;
                     all.add(fc);
                 }
-                fieldToMappedIndices.computeIfAbsent(fc.name(), k -> new HashSet<>()).add(indexName);
+                if (trackUnmappedFieldIndices) {
+                    fieldToMappedIndices.computeIfAbsent(fc.name(), k -> new HashSet<>()).add(indexName);
+                }
             }
         }
 

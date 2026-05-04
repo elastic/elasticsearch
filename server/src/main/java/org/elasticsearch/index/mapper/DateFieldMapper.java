@@ -684,15 +684,16 @@ public final class DateFieldMapper extends FieldMapper {
                 resolution,
                 name(),
                 (l, u) -> {
+                    boolean useTimeSeriesFormat = context.getIndexSettings().useTimeSeriesDocValuesFormat();
                     Query query;
                     if (indexType.hasPoints()) {
                         query = LongPoint.newRangeQuery(name(), l, u);
                         if (hasDocValues()) {
-                            Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
+                            Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u, useTimeSeriesFormat);
                             query = new IndexOrDocValuesQuery(query, dvQuery);
                         }
                     } else {
-                        query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
+                        query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u, useTimeSeriesFormat);
                     }
                     if (hasDocValues() && context.indexSortedOnField(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
@@ -801,15 +802,16 @@ public final class DateFieldMapper extends FieldMapper {
             } else {
                 u = (includeUpper == false) ? upperTerm - 1 : upperTerm;
             }
+            boolean useTimeSeriesFormat = context.getIndexSettings().useTimeSeriesDocValuesFormat();
             Query query;
             if (indexType.hasPoints()) {
                 query = LongPoint.newRangeQuery(name(), l, u);
                 if (hasDocValues()) {
-                    Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
+                    Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u, useTimeSeriesFormat);
                     query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
             } else {
-                query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
+                query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u, useTimeSeriesFormat);
             }
             if (hasDocValues() && context.indexSortedOnField(name())) {
                 query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);

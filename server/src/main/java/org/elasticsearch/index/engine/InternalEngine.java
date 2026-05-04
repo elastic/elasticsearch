@@ -88,6 +88,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -236,6 +237,7 @@ public class InternalEngine extends Engine {
     private final ByteSizeValue totalDiskSpace;
 
     private final boolean useTsdbSyntheticId;
+    private final boolean useColumnarId;
 
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
@@ -255,6 +257,11 @@ public class InternalEngine extends Engine {
         } else {
             useTsdbSyntheticId = false;
         }
+        ProvidedIdFieldMapper idMapper = engineConfig.getMapperService()
+            .mappingLookup()
+            .getMapping()
+            .getMetadataMapperByClass(ProvidedIdFieldMapper.class);
+        useColumnarId = idMapper != null && idMapper.isColumnarMode();
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
         this.liveVersionMapArchive = createLiveVersionMapArchive();
@@ -2152,6 +2159,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getIndexSettings().seqNoIndexOptions(),
                 engineConfig.getIndexSettings().useDocValuesSkipper(),
                 useTsdbSyntheticId,
+                useColumnarId,
                 delete.id(),
                 delete.uid()
             );

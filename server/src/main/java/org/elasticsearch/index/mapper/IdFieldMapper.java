@@ -33,7 +33,26 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_id";
 
-    public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
+    /**
+     * Controls how the {@code _id} field is stored and retrieved.
+     * <ul>
+     *   <li>{@link #DEFAULT} – current behaviour: stored as a stored field with an inverted index.</li>
+     *   <li>{@link #COLUMNAR} – columnar behaviour: stored as sorted doc values with an inverted index,
+     *       no stored field. Intended for use with the columnar index mode.</li>
+     * </ul>
+     */
+    public enum Mode {
+        DEFAULT,
+        COLUMNAR
+    }
+
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
+        IdFieldMapper existing = c.idFieldMapper();
+        if (existing instanceof ProvidedIdFieldMapper provided) {
+            return new ProvidedIdFieldMapper.Builder(provided.fieldDataEnabled());
+        }
+        return new MetadataFieldMapper.ConstantBuilder(existing);
+    });
 
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
@@ -71,6 +90,13 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     public abstract String reindexId(String id);
 
     /**
+     * Returns {@code true} when the {@code _id} is stored as sorted doc values rather than a stored field.
+     */
+    public boolean isColumnarMode() {
+        return false;
+    }
+
+    /**
      * Create an indexed and stored {@link Field} for the provided {@code _id}.
      */
     public static Field standardIdField(String id) {
@@ -104,7 +130,11 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     protected abstract static class AbstractIdFieldType extends TermBasedFieldType {
 
         public AbstractIdFieldType() {
-            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            this(false);
+        }
+
+        public AbstractIdFieldType(boolean hasDocValues) {
+            super(NAME, IndexType.terms(true, hasDocValues), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.NumericDvSingletonOrSorted;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.SortedDvSingletonOrSet;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
@@ -39,9 +41,10 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * Responsible for loading the _id from stored fields or for TSDB synthesizing the _id from the routing, _tsid and @timestamp fields.
+ * Responsible for loading the _id from stored fields, doc values, or for TSDB synthesizing the _id from the routing, _tsid and
+ * @timestamp fields.
  */
-public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader {
+public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader, IdLoader.DocValuesIdLoader {
 
     /**
      * @return returns an {@link IdLoader} instance to load the value of the _id field.
@@ -69,9 +72,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 }
             }
             return createTsIdLoader(indexRouting, routingPaths, indexSettings.useTimeSeriesSyntheticId());
-        } else {
-            return fromLeafStoredFieldLoader();
         }
+        ProvidedIdFieldMapper idFieldMapper = mappingLookup.getMapping().getMetadataMapperByClass(ProvidedIdFieldMapper.class);
+        if (idFieldMapper != null && idFieldMapper.isColumnarMode()) {
+            return fromDocValues();
+        }
+        return fromLeafStoredFieldLoader();
     }
 
     /**
@@ -79,6 +85,13 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
      */
     static IdLoader fromLeafStoredFieldLoader() {
         return new StoredIdLoader();
+    }
+
+    /**
+     * @return returns an {@link IdLoader} instance that loads the _id from sorted doc values (columnar mode).
+     */
+    static IdLoader fromDocValues() {
+        return new DocValuesIdLoader();
     }
 
     /**
@@ -99,7 +112,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * Returns a leaf instance for a leaf reader that returns the _id for segment level doc ids.
      */
-    sealed interface Leaf permits StoredLeaf, TsIdLeaf {
+    sealed interface Leaf permits StoredLeaf, TsIdLeaf, DocValuesLeaf {
 
         /**
          * @param subDocId The segment level doc id for which the return the _id
@@ -416,6 +429,110 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         @Override
         public String getId(int subDocId) {
             return loader.id();
+        }
+    }
+
+    /**
+     * Loads the {@code _id} from sorted doc values. Used when the index is in columnar mode.
+     */
+    final class DocValuesIdLoader implements IdLoader {
+
+        @Override
+        public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            BinaryDocValues binaryDocValues = DocValues.getBinary(reader, IdFieldMapper.NAME);
+            String[] ids = new String[docIdsInLeaf.length];
+            for (int i = 0; i < docIdsInLeaf.length; i++) {
+                int docId = docIdsInLeaf[i];
+                boolean found = binaryDocValues.advanceExact(docId);
+                assert found : "_id doc value missing for docId " + docId;
+                BytesRef encoded = binaryDocValues.binaryValue();
+                ids[i] = Uid.decodeId(encoded.bytes, encoded.offset, encoded.length);
+            }
+            return new DocValuesLeaf(docIdsInLeaf, ids);
+        }
+
+        @Override
+        public BlockLoader blockLoader(ByteSizeValue ordinalsByteSize) {
+            return new BlockDocValuesReader.DocValuesBlockLoader() {
+                @Override
+                public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+                    return new IdDocValuesReader(breaker, context);
+                }
+
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.bytesRefs(expectedCount);
+                }
+            };
+        }
+
+        private static class IdDocValuesReader extends BlockDocValuesReader {
+
+            private final TrackingBinaryDocValues dvs;
+
+            IdDocValuesReader(CircuitBreaker breaker, LeafReaderContext ctx) throws IOException {
+                super(null);
+                dvs = TrackingBinaryDocValues.get(breaker, ctx, IdFieldMapper.NAME);
+            }
+
+            @Override
+            protected int docId() {
+                return dvs.docValues().docID();
+            }
+
+            @Override
+            public String toString() {
+                return "IdDocValuesReader";
+            }
+
+            @Override
+            public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+                throws IOException {
+                try (var builder = factory.bytesRefs(docs.count() - offset)) {
+                    for (int i = offset; i < docs.count(); i++) {
+                        read(docs.get(i), (BlockLoader.BytesRefBuilder) builder);
+                    }
+                    return builder.build();
+                }
+            }
+
+            private void read(int docId, BlockLoader.BytesRefBuilder builder) throws IOException {
+                if (dvs.docValues().advanceExact(docId) == false) {
+                    builder.appendNull();
+                    return;
+                }
+                BytesRef encoded = dvs.docValues().binaryValue();
+                builder.appendBytesRef(new BytesRef(Uid.decodeId(encoded.bytes, encoded.offset, encoded.length)));
+            }
+
+            @Override
+            public void close() {
+                dvs.close();
+            }
+        }
+    }
+
+    final class DocValuesLeaf implements Leaf {
+
+        private final String[] ids;
+        private final int[] docIdsInLeaf;
+
+        private int idx = -1;
+
+        DocValuesLeaf(int[] docIdsInLeaf, String[] ids) {
+            this.ids = ids;
+            this.docIdsInLeaf = docIdsInLeaf;
+        }
+
+        @Override
+        public String getId(int subDocId) {
+            idx++;
+            if (docIdsInLeaf[idx] != subDocId) {
+                throw new IllegalArgumentException(
+                    "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + subDocId + " instead"
+                );
+            }
+            return ids[idx];
         }
     }
 

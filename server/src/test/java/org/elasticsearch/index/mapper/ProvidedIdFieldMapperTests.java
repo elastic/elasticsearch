@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -26,6 +28,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -106,5 +109,61 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         String id = randomAlphaOfLength(4);
         ParsedDocument document = mapper.parse(source(id, b -> {}, null));
         assertThat(ProvidedIdFieldMapper.NO_FIELD_DATA.documentDescription(document), equalTo("[" + id + "]"));
+    }
+
+    public void testColumnarModeStoresBinaryDocValues() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject()));
+        String id = randomAlphaOfLength(12);
+        ParsedDocument document = mapper.parse(source(id, b -> {}, null));
+
+        List<IndexableField> idFields = document.rootDoc().getFields(IdFieldMapper.NAME);
+        assertEquals(2, idFields.size());
+
+        IndexableField invertedIndexField = idFields.stream()
+            .filter(f -> f.fieldType().docValuesType() == DocValuesType.NONE)
+            .findFirst()
+            .orElseThrow();
+        assertEquals(IndexOptions.DOCS, invertedIndexField.fieldType().indexOptions());
+        assertFalse("_id should not be stored in columnar mode", invertedIndexField.fieldType().stored());
+
+        IndexableField docValuesField = idFields.stream()
+            .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
+            .findFirst()
+            .orElseThrow();
+        assertThat(docValuesField, instanceOf(BinaryDocValuesField.class));
+        assertEquals(Uid.encodeId(id), docValuesField.binaryValue());
+    }
+
+    public void testColumnarModeMappingSerialization() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject()));
+        String mapping = mapperService.documentMapper().mapping().toString();
+        assertThat(mapping, containsString("\"mode\":\"columnar\""));
+    }
+
+    public void testDefaultModeNotSerialized() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        String mapping = mapperService.documentMapper().mapping().toString();
+        assertFalse("default mode should not be serialized", mapping.contains("\"mode\""));
+    }
+
+    public void testColumnarModeNotUpdateable() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("Cannot update parameter [mode]"));
+    }
+
+    public void testColumnarModeIdLoaderUsesDocValues() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject()));
+        IdLoader idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
+        assertThat(idLoader, instanceOf(IdLoader.DocValuesIdLoader.class));
+    }
+
+    public void testDefaultModeIdLoaderUsesStoredFields() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        IdLoader idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
+        assertThat(idLoader, instanceOf(IdLoader.StoredIdLoader.class));
     }
 }

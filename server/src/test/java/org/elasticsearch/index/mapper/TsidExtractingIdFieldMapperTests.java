@@ -1049,11 +1049,13 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     @Override
     protected boolean isConfigurable() {
-        return false;
+        return true;
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {}
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("mode", b -> b.field("mode", "columnar"));
+    }
 
     public void testSourceDescriptionWithRoutingPath() throws IOException {
         IndexVersion minimalVersion = useSyntheticId ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94 : IndexVersions.TIME_SERIES_ID_HASHING;

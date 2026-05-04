@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -77,7 +78,7 @@ public class ParsedDocument {
      */
     // used by tests
     public static ParsedDocument deleteTombstone(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions, String id) {
-        return deleteTombstone(seqNoIndexOptions, false /* ignored */, false, id, null /* ignored */);
+        return deleteTombstone(seqNoIndexOptions, false /* ignored */, false, false, id, null /* ignored */);
     }
 
     /**
@@ -90,6 +91,7 @@ public class ParsedDocument {
         SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions,
         boolean useDocValuesSkipper,
         boolean useSyntheticId,
+        boolean useColumnarId,
         String id,
         BytesRef uid
     ) {
@@ -122,6 +124,10 @@ public class ParsedDocument {
             );
             document.add(field);
 
+        } else if (useColumnarId) {
+            BytesRef encoded = Uid.encodeId(id);
+            document.add(IdFieldMapper.standardIdField(encoded, Field.Store.NO));
+            document.add(new BinaryDocValuesField(IdFieldMapper.NAME, encoded));
         } else {
             // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
             document.add(IdFieldMapper.standardIdField(id));

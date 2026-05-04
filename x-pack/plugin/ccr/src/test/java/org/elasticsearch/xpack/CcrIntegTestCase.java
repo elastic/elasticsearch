@@ -50,6 +50,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -559,6 +560,13 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     protected boolean sourceEnabled;
 
+    protected boolean columnarId;
+
+    @Before
+    public void setupColumnarId() {
+        columnarId = ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomBoolean();
+    }
+
     protected String getIndexSettings(final int numberOfShards, final int numberOfReplicas) throws IOException {
         return getIndexSettings(numberOfShards, numberOfReplicas, Collections.emptyMap());
     }
@@ -599,6 +607,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                         if (sourceEnabled == false) {
                             builder.startObject("_source");
                             builder.field("enabled", false);
+                            builder.endObject();
+                        }
+                        if (columnarId) {
+                            builder.startObject("_id");
+                            builder.field("mode", "columnar");
                             builder.endObject();
                         }
                     }

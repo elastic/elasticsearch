@@ -52,11 +52,12 @@ import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -81,8 +82,9 @@ public class WatcherService implements WatcherIndexingEventConsumer {
     private final Client client;
     private final TimeValue defaultSearchTimeout;
     private final AtomicLong processedClusterStateVersion = new AtomicLong(0);
+    private final AtomicBoolean inReload = new AtomicBoolean(false);
     private final ExecutorService executor;
-    private final Map<String, Watch> pendingWatches = new ConcurrentHashMap<>();
+    private final Map<String, Watch> pendingWatches = new HashMap<>();
 
     WatcherService(
         Settings settings,
@@ -258,43 +260,47 @@ public class WatcherService implements WatcherIndexingEventConsumer {
      * @param loadTriggeredWatches  should triggered watches be loaded in this run, not needed for reloading, only for starting
      * @return                      true if no other loading of a newer cluster state happened in parallel, false otherwise
      */
-    private synchronized boolean reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
-        // exit early if another thread has come in between
-        if (processedClusterStateVersion.get() != state.getVersion()) {
-            logger.debug(
-                "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
-                state.getVersion(),
-                processedClusterStateVersion.get()
-            );
-            return false;
-        }
-
-        Collection<Watch> watches = loadWatches(state);
-        Collection<TriggeredWatch> triggeredWatches = Collections.emptyList();
-        if (loadTriggeredWatches) {
-            triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, state);
-        }
-
-        // if we had another state coming in the meantime, we will not start the trigger engines with these watches, but wait
-        // until the others are loaded
-        // also this is the place where we pause the trigger service execution and clear the current execution service, so that we make sure
-        // that existing executions finish, but no new ones are executed
-        if (processedClusterStateVersion.get() == state.getVersion()) {
-            executionService.unPause();
-            triggerService.start(watches);
-            addPendingWatches(state);
-            if (triggeredWatches.isEmpty() == false) {
-                executionService.executeTriggeredWatches(triggeredWatches);
+    private boolean reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
+        assert inReload.compareAndSet(false, true) : "reloadInner is not expected to run concurrently";
+        try {
+            // exit early if another thread has come in between
+            if (processedClusterStateVersion.get() != state.getVersion()) {
+                logger.debug(
+                    "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
+                    state.getVersion(),
+                    processedClusterStateVersion.get()
+                );
+                return false;
             }
-            logger.debug("watch service has been reloaded, reason [{}]", reason);
-            return true;
-        } else {
-            logger.debug(
-                "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
-                state.getVersion(),
-                processedClusterStateVersion.get()
-            );
-            return false;
+
+            Collection<Watch> watches = loadWatches(state);
+            Collection<TriggeredWatch> triggeredWatches = Collections.emptyList();
+            if (loadTriggeredWatches) {
+                triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, state);
+            }
+
+            // if we had another state coming in the meantime, we will not start the trigger engines with these watches, but wait
+            // until the others are loaded also this is the place where we pause the trigger service execution and clear the current
+            // execution service, so that we make sure that existing executions finish, but no new ones are executed
+            if (processedClusterStateVersion.get() == state.getVersion()) {
+                executionService.unPause();
+                triggerService.start(watches);
+                addPendingWatches(state);
+                if (triggeredWatches.isEmpty() == false) {
+                    executionService.executeTriggeredWatches(triggeredWatches);
+                }
+                logger.debug("watch service has been reloaded, reason [{}]", reason);
+                return true;
+            } else {
+                logger.debug(
+                    "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
+                    state.getVersion(),
+                    processedClusterStateVersion.get()
+                );
+                return false;
+            }
+        } finally {
+            assert inReload.compareAndSet(true, false);
         }
     }
 

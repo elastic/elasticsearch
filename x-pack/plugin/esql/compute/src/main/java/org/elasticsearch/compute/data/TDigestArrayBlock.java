@@ -67,6 +67,13 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
     }
 
     @Override
+    public int valueMaxByteSize() {
+        // Three dense-double sub-blocks (min, max, sum) plus one dense-long sub-block (valueCount)
+        // plus the variable-length encoded digest bytes.
+        return 3 * Double.BYTES + Long.BYTES + encodedDigests.valueMaxByteSize();
+    }
+
+    @Override
     protected List<Block> getSubBlocks() {
         return List.of(encodedDigests, minima, maxima, sums, valueCounts);
     }

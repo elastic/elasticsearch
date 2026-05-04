@@ -70,6 +70,12 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCom
     }
 
     @Override
+    public int valueMaxByteSize() {
+        // Three dense-double sub-blocks (min, max, sum) plus one dense-int sub-block (count).
+        return 3 * Double.BYTES + Integer.BYTES;
+    }
+
+    @Override
     public Vector asVector() {
         return null;
     }

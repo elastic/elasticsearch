@@ -121,7 +121,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
                 MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
@@ -146,7 +146,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
                 MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
@@ -175,7 +175,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
                 MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
@@ -204,7 +204,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
                 MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), equalTo(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
                 MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
@@ -346,7 +346,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -375,7 +375,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
@@ -404,7 +404,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
@@ -463,7 +463,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -494,7 +494,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -523,7 +523,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -553,7 +553,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -584,7 +584,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -611,7 +611,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -640,7 +640,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
@@ -668,7 +668,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
@@ -723,7 +723,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -751,7 +751,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -781,7 +781,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -811,7 +811,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }

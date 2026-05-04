@@ -129,8 +129,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         BigArrays bigArrays,
         int bufferSize,
         BackoffPolicy casBackoffPolicy,
-        GcsRepositoryStatsCollector statsCollector,
-        boolean tenaciousRetriesEnabled
+        GcsRepositoryStatsCollector statsCollector
     ) {
         this.projectId = projectId;
         this.bucketName = bucketName;
@@ -141,7 +140,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.statsCollector = statsCollector;
         this.bufferSize = bufferSize;
         this.casBackoffPolicy = casBackoffPolicy;
-        this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
+        this.tenaciousRetriesEnabled = storageService.clientSettings(projectId, clientName).getTenaciousRetriesEnabled();
     }
 
     /**

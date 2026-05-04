@@ -155,8 +155,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             bigArrays,
             bufferSize,
             BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
-            statsCollector,
-            tenaciousRetriesEnabled
+            statsCollector
         );
     }
 

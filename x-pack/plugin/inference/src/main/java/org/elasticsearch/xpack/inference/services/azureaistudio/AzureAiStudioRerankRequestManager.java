@@ -47,8 +47,8 @@ public class AzureAiStudioRerankRequestManager extends AzureAiStudioRequestManag
         var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
         AzureAiStudioRerankRequest request = new AzureAiStudioRerankRequest(
             model,
-            rerankInput.getQuery(),
-            rerankInput.getChunks(),
+            rerankInput.getQueryAsString(),
+            rerankInput.getDocsAsStrings(),
             rerankInput.getReturnDocuments(),
             rerankInput.getTopN()
         );

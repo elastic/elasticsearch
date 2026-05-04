@@ -13,6 +13,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -246,7 +249,15 @@ public class CustomRequestTests extends ESTestCase {
             new CustomSecretSettings(Map.of("api_key", new SecureString("my-secret-key".toCharArray())))
         );
 
-        var request = new CustomRequest(RerankParameters.of(new QueryAndDocsInputs("query string", List.of("abc", "123"))), model);
+        var request = new CustomRequest(
+            RerankParameters.of(
+                new QueryAndDocsInputs(
+                    new InferenceString(DataType.TEXT, DataFormat.TEXT, "query string"),
+                    List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList()
+                )
+            ),
+            model
+        );
         var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
@@ -292,7 +303,15 @@ public class CustomRequestTests extends ESTestCase {
         );
 
         var request = new CustomRequest(
-            RerankParameters.of(new QueryAndDocsInputs("query string", List.of("abc", "123"), false, 2, false)),
+            RerankParameters.of(
+                new QueryAndDocsInputs(
+                    new InferenceString(DataType.TEXT, DataFormat.TEXT, "query string"),
+                    List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
+                    false,
+                    2,
+                    false
+                )
+            ),
             model
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
@@ -338,7 +357,15 @@ public class CustomRequestTests extends ESTestCase {
             new CustomSecretSettings(Map.of("api_key", new SecureString("my-secret-key".toCharArray())))
         );
 
-        var request = new CustomRequest(RerankParameters.of(new QueryAndDocsInputs("query string", List.of("abc", "123"))), model);
+        var request = new CustomRequest(
+            RerankParameters.of(
+                new QueryAndDocsInputs(
+                    new InferenceString(DataType.TEXT, DataFormat.TEXT, "query string"),
+                    List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList()
+                )
+            ),
+            model
+        );
         var exception = expectThrows(IllegalStateException.class, () -> RequestTests.getHttpRequestSync(request));
         assertThat(
             exception.getMessage(),
@@ -377,7 +404,15 @@ public class CustomRequestTests extends ESTestCase {
 
         var exception = expectThrows(
             IllegalStateException.class,
-            () -> new CustomRequest(RerankParameters.of(new QueryAndDocsInputs("query string", List.of("abc", "123"))), model)
+            () -> new CustomRequest(
+                RerankParameters.of(
+                    new QueryAndDocsInputs(
+                        new InferenceString(DataType.TEXT, DataFormat.TEXT, "query string"),
+                        List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList()
+                    )
+                ),
+                model
+            )
         );
         assertThat(exception.getMessage(), startsWith("Failed to build URI, error: Illegal character in path"));
     }

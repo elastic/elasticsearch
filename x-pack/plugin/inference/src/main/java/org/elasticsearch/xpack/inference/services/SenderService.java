@@ -18,6 +18,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -251,7 +253,13 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 }
 
                 validationException.throwIfValidationErrorsExist();
-                yield new QueryAndDocsInputs(query, input, returnDocuments, topN, stream);
+                yield new QueryAndDocsInputs(
+                    new InferenceString(DataType.TEXT, DataFormat.TEXT, query),
+                    input.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
+                    returnDocuments,
+                    topN,
+                    stream
+                );
             }
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();

@@ -60,7 +60,7 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
             new ExecutableInferenceRequest(
                 requestSender,
                 logger,
-                getRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model),
+                getRerankRequest(rerankInput.getQueryAsString(), rerankInput.getDocsAsStrings(), model),
                 HANDLER,
                 hasRequestCompletedFunction,
                 listener

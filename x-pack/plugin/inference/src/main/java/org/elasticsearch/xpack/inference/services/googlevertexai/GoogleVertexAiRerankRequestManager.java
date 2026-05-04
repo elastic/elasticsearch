@@ -65,8 +65,8 @@ public class GoogleVertexAiRerankRequestManager extends GoogleVertexAiRequestMan
     ) {
         var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
         GoogleVertexAiRerankRequest request = new GoogleVertexAiRerankRequest(
-            rerankInput.getQuery(),
-            rerankInput.getChunks(),
+            rerankInput.getQueryAsString(),
+            rerankInput.getDocsAsStrings(),
             rerankInput.getReturnDocuments(),
             rerankInput.getTopN(),
             model

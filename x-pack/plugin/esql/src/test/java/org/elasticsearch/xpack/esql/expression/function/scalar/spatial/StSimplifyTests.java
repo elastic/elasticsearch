@@ -123,8 +123,7 @@ public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
             simplifiedDiagram(
                 "france_coarse",
                 "Simplifying a coastline at coarse tolerance",
-                "France's coastline simplified at tolerance `0.5` (roughly 50 km). Only the "
-                    + "high-level shape of the country remains.",
+                "France's coastline simplified at tolerance `0.5` (roughly 50 km). Only the " + "high-level shape of the country remains.",
                 loadResourceWkt("France.wkt.gz"),
                 0.5,
                 480,

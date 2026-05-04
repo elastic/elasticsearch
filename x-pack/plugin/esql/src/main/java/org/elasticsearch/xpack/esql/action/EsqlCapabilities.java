@@ -1648,6 +1648,11 @@ public class EsqlCapabilities {
         TSTEP_EXPLICIT_BOUNDS(TSTEP.isEnabled()),
 
         /**
+         * Support for tstep bucket count variant: TSTEP(count, from, to)
+         */
+        TSTEP_BUCKET_COUNT(TSTEP.isEnabled()),
+
+        /**
          * Allow qualifiers in attribute names.
          */
         NAME_QUALIFIERS(Build.current().isSnapshot()),
@@ -1805,8 +1810,9 @@ public class EsqlCapabilities {
 
         /**
          * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
+         * V3: DATE_RANGE fields with {@code doc_values: false} now return null instead of throwing an exception.
          */
-        DATE_RANGE_FIELD_TYPE_V2(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V3(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -1989,6 +1995,16 @@ public class EsqlCapabilities {
          * Supporting grouping window in time-series where the window is smaller than the time bucket
          */
         TIME_SERIES_WINDOW_SMALLER_THAN_BUCKET,
+
+        /**
+         * TS window functions use backward window semantics only.
+         */
+        FIX_TIME_SERIES_WINDOW_BACKWARD(Build.current().isSnapshot()),
+
+        /**
+         * PromQL uses TSTEP instead of TBUCKET.
+         */
+        FIX_PROMQL_TIME_BUCKET(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
 
         /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
@@ -2491,7 +2507,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V2(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V4(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command
@@ -2653,6 +2669,12 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/145873">ES|QL: wrong line/column number #145873</a>
          */
         FIX_SET_WRONG_LINE_COLUMN,
+
+        /**
+         * Fix for {@code _index LIKE} not supporting the {@code ?} wildcard character.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/146364">ES|QL: _index LIKE with ? #146364</a>
+         */
+        FIX_INDEX_LIKE_QUESTION_MARK_WILDCARD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

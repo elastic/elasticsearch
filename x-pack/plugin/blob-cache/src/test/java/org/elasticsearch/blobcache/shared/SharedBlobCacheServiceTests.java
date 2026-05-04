@@ -48,6 +48,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -2041,7 +2042,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             assertThat(future1.isDone(), is(false));
             assertThat(taskQueue.hasRunnableTasks(), is(true));
-            assertFalse(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
+            assertTrue(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
 
             // start populating the second region
             entry = cacheService.get(cacheKey, blobLength, 1);
@@ -2059,11 +2060,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 future2
             );
 
-            assertFalse(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
+            assertTrue(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
 
-            taskQueue.runAllRunnableTasks();
-
-            // start populating again the first region; populate completes directly
+            // start populating again the first region; async notified
             entry = cacheService.get(cacheKey, blobLength, 0);
             final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
             entry.populate(
@@ -2079,16 +2078,80 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 future3
             );
 
-            assertThat(future3.isDone(), is(true));
-            var written = future3.get(10L, TimeUnit.SECONDS);
-            assertThat(written, is(false));
-
-            written = future1.get(10L, TimeUnit.SECONDS);
+            assertThat(future3.isDone(), is(false));
+            taskQueue.runAllRunnableTasks();
             assertThat(future1.isDone(), is(true));
-            assertThat(written, is(true));
-            written = future2.get(10L, TimeUnit.SECONDS);
+            assertThat(future3.isDone(), is(true));
+
+            var written1 = future1.get(10L, TimeUnit.SECONDS);
+            var written3 = future3.get(10L, TimeUnit.SECONDS);
+            // one and only one wrote it
+            assertThat(written1 ^ written3, is(true));
+
+            var written = future2.get(10L, TimeUnit.SECONDS);
             assertThat(future2.isDone(), is(true));
             assertThat(written, is(true));
+        }
+    }
+
+    /**
+     * Two populate calls for the same range before the executor runs both queue a task. waitForRange registers
+     * listeners immediately (before any executor task runs), so both callers see unclaimed gaps and queue work.
+     * claim() is called inside each executor task, and only the first caller to claim gets the gaps to fill.
+     */
+    public void testPopulateConcurrentSameRange() throws Exception {
+        final long regionSize = size(1L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var blobLength = size(12L);
+            final var entry = cacheService.get(cacheKey, blobLength, 0);
+            final AtomicLong bytesWritten = new AtomicLong(0L);
+            final RangeMissingHandler writer = (
+                channel,
+                channelPos,
+                streamFactory,
+                relativePos,
+                length,
+                progressUpdater,
+                completionListener) -> completeWith(completionListener, () -> {
+                    bytesWritten.addAndGet(length);
+                    progressUpdater.accept(length);
+                });
+
+            // Two populate calls for the same range before the executor runs
+            final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
+            entry.populate(ByteRange.of(0, regionSize - 1), writer, taskQueue.getThreadPool().generic(), future1);
+            final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
+            entry.populate(ByteRange.of(0, regionSize - 1), writer, taskQueue.getThreadPool().generic(), future2);
+
+            // Both calls registered listeners immediately; neither future is done yet
+            assertThat(future1.isDone(), is(false));
+            assertThat(future2.isDone(), is(false));
+
+            taskQueue.runAllRunnableTasks();
+
+            // Exactly one caller claimed the gaps and wrote the data; the other got an empty claim
+            assertThat(future1.get(10L, TimeUnit.SECONDS) || future2.get(10L, TimeUnit.SECONDS), is(true));
+            assertThat(future1.get(10L, TimeUnit.SECONDS) && future2.get(10L, TimeUnit.SECONDS), is(false));
+            assertThat(bytesWritten.get(), equalTo(regionSize - 1));
         }
     }
 
@@ -3003,6 +3066,121 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             synchronized (cacheService) {
                 assertTrue("region should be evictable after refs released by finally block", tryEvict(region));
+            }
+        }
+    }
+
+    public void testGetIfPresentDoesNotAllocateRegionWhenAbsent() throws Exception {
+        final long regionSize = size(10);
+        final long fileLength = size(randomIntBetween(5, 19));
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), randomBoolean())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheFile = cacheService.getCacheFile(generateCacheKey(), fileLength, SharedBlobCacheService.CacheMissHandler.NOOP);
+            final int initialFreeRegions = cacheService.freeRegionCount();
+
+            assertFalse(cacheFile.tryRead(ByteBuffer.allocate(100), 0));
+            assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
+
+            assertFalse(cacheFile.tryPrefetch(0, fileLength));
+            assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
+
+            assertFalse(cacheFile.withByteBufferSlice(0, 100, slice -> fail("should not be invoked")));
+            assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
+
+            assertFalse(cacheFile.withByteBufferSlices(new long[] { 0L }, 100, 1, slices -> fail("should not be invoked")));
+            assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
+        }
+    }
+
+    public void testGetIfPresentFindsPopulatedEntry() throws Exception {
+        final long regionSize = size(10);
+        final long fileLength = size(randomIntBetween(5, 19));
+        final boolean mmapEnabled = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), mmapEnabled)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var cacheFile = cacheService.getCacheFile(cacheKey, fileLength, SharedBlobCacheService.CacheMissHandler.NOOP);
+
+            final byte[] testData = randomByteArrayOfLength((int) fileLength);
+            final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            final int singleRegionBound = (int) Math.min(regionSize, fileLength);
+            final int readOffset = randomIntBetween(0, singleRegionBound / 2);
+            final int readLength = randomIntBetween(1, singleRegionBound - readOffset);
+            final byte[] expected = Arrays.copyOfRange(testData, readOffset, readOffset + readLength);
+            final byte[] actual = new byte[readLength];
+
+            assertTrue(cacheFile.tryRead(ByteBuffer.wrap(actual), readOffset));
+            assertArrayEquals(expected, actual);
+
+            if (mmapEnabled) {
+                Arrays.fill(actual, (byte) 0);
+                final boolean sliceAvailable = cacheFile.withByteBufferSlice(readOffset, readLength, slice -> {
+                    assertTrue(slice.isReadOnly());
+                    slice.get(actual);
+                });
+                assertTrue(sliceAvailable);
+                assertArrayEquals(expected, actual);
+
+                Arrays.fill(actual, (byte) 0);
+                final boolean slicesAvailable = cacheFile.withByteBufferSlices(new long[] { readOffset }, readLength, 1, slices -> {
+                    assertThat(slices.length, equalTo(1));
+                    assertThat(slices[0], notNullValue());
+                    assertTrue(slices[0].isReadOnly());
+                    slices[0].get(actual);
+                });
+                assertTrue(slicesAvailable);
+                assertArrayEquals(expected, actual);
             }
         }
     }

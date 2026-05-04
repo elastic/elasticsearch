@@ -94,6 +94,12 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     BytesRefVector slice(int beginInclusive, int endExclusive);
 
     /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Scans all positions to find the maximum.
+     */
+    int valueMaxByteSize();
+
+    /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
      * given object is a BytesRefVector, and both vectors are {@link #equals(BytesRefVector, BytesRefVector) equal}.
      */

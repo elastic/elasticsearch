@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.StringJoiner;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
 
 /**
  * This class is responsible for working out if APM telemetry is configured and if so, preparing
@@ -148,6 +149,7 @@ class APMJvmOptions {
     static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir, String installDir)
         throws UserException, IOException {
         boolean agentMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false;
+        boolean agentTracesEnabled = Booleans.parseBoolean(System.getProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY, "false")) == false;
 
         final Path agentJar = findAgentJar(installDir);
 
@@ -161,6 +163,12 @@ class APMJvmOptions {
             propertiesMap.put("metrics_interval", "0s");
             propertiesMap.put("disable_metrics", "*");
             disableMetricInstrumentation(propertiesMap);
+        }
+
+        if (agentTracesEnabled == false) {
+            // Sample rate 0 ensures any span that does reach the agent (e.g. via a dependency
+            // calling GlobalOpenTelemetry.get()) is dropped.
+            propertiesMap.put("transaction_sample_rate", "0");
         }
 
         // Configures a log file to write to. Don't disable writing to a log file,

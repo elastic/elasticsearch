@@ -195,7 +195,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     @Override
     protected void closeInternal() {
         if (firstValueIndexes != null) {
-            blockFactory().adjustBreaker(-RamUsageEstimator.sizeOf(firstValueIndexes));
+            blockFactory().preAdjustBreakerForInt(-firstValueIndexes.length);
         }
         Releasables.close(getSubBlocks());
     }

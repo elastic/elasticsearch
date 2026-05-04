@@ -179,7 +179,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
     }
 
     private DLMConvertToFrozen createConverter() {
-        return new DLMConvertToFrozen(indexName, projectId, createMockClient(), clusterService, licenseState, clock);
+        return new DLMConvertToFrozen(indexName, projectId, createMockClient(), clusterService, () -> licenseState, clock);
     }
 
     private CreateSnapshotResponse createSuccessfulSnapshotResponse() {

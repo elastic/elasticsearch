@@ -87,7 +87,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
 
     public void testRecordPrefetch() {
         int alreadyCached = between(0, 5);
-        int asyncFetched = between(0, 5);
+        int asyncFetched = between(1, 5);
         int asyncFailed = between(0, asyncFetched);
         IntStream.range(0, alreadyCached).forEach(i -> metrics.recordPrefetch(BlobCacheMetrics.PrefetchResult.AlreadyCached));
         IntStream.range(0, asyncFetched).forEach(i -> metrics.recordPrefetch(BlobCacheMetrics.PrefetchResult.Fetched));

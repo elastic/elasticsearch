@@ -340,7 +340,7 @@ public class WatcherService implements WatcherIndexingEventConsumer {
 
             while (response.getHits().getHits().length != 0) {
                 for (SearchHit hit : response.getHits()) {
-                    ShardAllocationConfiguration shardConfig = shardConfigs.get(hit.getShard().getShardId());
+                    final ShardAllocationConfiguration shardConfig = shardConfigs.get(hit.getShard().getShardId());
                     if (shardConfig == null || shardConfig.shouldBeTriggered(hit.getId()) == false) {
                         continue;
                     }

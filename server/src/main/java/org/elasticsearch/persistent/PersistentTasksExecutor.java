@@ -98,7 +98,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     }
 
     /**
-     * Finds the least loaded node from amongs the candidate node collection
+     * Finds the least loaded node from amongst the candidate node collection
      * that satisfies the selector criteria
      */
     protected DiscoveryNode selectLeastLoadedNode(
@@ -116,6 +116,10 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
                     return node;
                 }
                 long numberOfTasks = allPersistentTasks.stream().mapToLong(p -> p.getNumberOfTasksOnNode(node.getId(), taskName)).sum();
+                // If we find a node with no running tasks, we chose this one directly.
+                if (numberOfTasks == 0) {
+                    return node;
+                }
                 if (minLoad > numberOfTasks) {
                     minLoad = numberOfTasks;
                     minLoadedNode = node;

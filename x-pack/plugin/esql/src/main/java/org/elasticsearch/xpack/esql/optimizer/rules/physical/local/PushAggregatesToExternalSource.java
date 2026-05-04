@@ -239,7 +239,8 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
      * future fix can correct both call sites consistently using
      * {@code ColumnChunkMetaData.getValueCount() - getNumNulls()} for Parquet (and the
      * equivalent metadata field for other formats); this requires plumbing a {@code valueCount}
-     * field through {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats} and {@link org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics}.
+     * field through {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats}
+     * and {@link org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics}.
      */
     private Object resolveFromStats(Expression aggFunction, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (aggFunction instanceof Count count) {

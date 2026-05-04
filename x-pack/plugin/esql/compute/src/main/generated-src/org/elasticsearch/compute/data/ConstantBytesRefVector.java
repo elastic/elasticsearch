@@ -59,6 +59,11 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return getPositionCount() == 0 ? 0 : value.length;
+    }
+
+    @Override
     public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantBytesRefVector(value, positions.length);
     }

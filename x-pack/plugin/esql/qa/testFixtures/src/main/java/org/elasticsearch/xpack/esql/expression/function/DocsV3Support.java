@@ -1722,7 +1722,12 @@ public abstract class DocsV3Support {
                     builder.field("description", cleanedParamDesc);
                     if (arg.hint != null) {
                         builder.startObject("hint");
-                        builder.field("entityType", arg.hint.entityType());
+                        if (arg.hint.entityType() != null) {
+                            builder.field("entityType", arg.hint.entityType());
+                        }
+                        if (arg.hint.kind() != null) {
+                            builder.field("kind", arg.hint.kind());
+                        }
                         if (arg.hint.constraints() != null && arg.hint.constraints().size() > 0) {
                             builder.startObject("constraints");
                             for (Map.Entry<String, String> constraint : arg.hint.constraints().entrySet()) {

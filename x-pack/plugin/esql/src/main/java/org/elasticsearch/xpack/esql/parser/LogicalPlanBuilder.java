@@ -15,6 +15,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -116,18 +117,21 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.BUCKETS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_BUCKETS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.END;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.INDEX;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.PROMQL_ALLOWED_PARAMS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.SCRAPE_INTERVAL;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.START;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.STEP;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.TIME;
 
 /**
  * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
  * which change the grammar will need to make changes here as well.
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
-
-    private static final String TIME = "time", START = "start", END = "end", STEP = "step", BUCKETS = "buckets", SCRAPE_INTERVAL =
-        "scrape_interval", INDEX = "index";
-    private static final int DEFAULT_PROMQL_BUCKETS = 100;
-    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
-
     /**
      * Maximum number of commands allowed per query
      */
@@ -1250,6 +1254,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             rerank = applyInferenceId(rerank, inferenceId);
         }
 
+        Expression timeoutExpr = optionsMap.remove(Rerank.TIMEOUT_OPTION_NAME);
+        if (timeoutExpr != null) {
+            rerank = rerank.withTimeout(parseTimeoutOption(timeoutExpr, Rerank.TIMEOUT_OPTION_NAME, "RERANK"));
+        }
+
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
@@ -1315,6 +1324,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             completion = completion.withTaskSettings((MapExpression) taskSettings);
         }
 
+        Expression timeoutExpr = optionsMap.remove(Completion.TIMEOUT_OPTION_NAME);
+        if (timeoutExpr != null) {
+            completion = completion.withTimeout(parseTimeoutOption(timeoutExpr, Completion.TIMEOUT_OPTION_NAME, "COMPLETION"));
+        }
+
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
@@ -1325,6 +1339,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return completion;
+    }
+
+    private TimeValue parseTimeoutOption(Expression timeoutExpr, String optionName, String commandName) {
+        if (timeoutExpr instanceof Literal == false || DataType.isString(timeoutExpr.dataType()) == false) {
+            throw new ParsingException(
+                timeoutExpr.source(),
+                "Option [{}] in {} must be a string literal (e.g. \"30s\"), found [{}]",
+                optionName,
+                commandName,
+                timeoutExpr.source().text()
+            );
+        }
+        String timeoutStr = BytesRefs.toString(((Literal) timeoutExpr).value());
+        try {
+            return TimeValue.parseTimeValue(timeoutStr, optionName);
+        } catch (IllegalArgumentException e) {
+            throw new ParsingException(
+                timeoutExpr.source(),
+                "Invalid timeout value [{}] for option [{}] in {}: [{}]",
+                timeoutStr,
+                optionName,
+                commandName,
+                e.getMessage()
+            );
+        }
     }
 
     private <InferencePlanType extends InferencePlan<InferencePlanType>> InferencePlanType applyInferenceId(

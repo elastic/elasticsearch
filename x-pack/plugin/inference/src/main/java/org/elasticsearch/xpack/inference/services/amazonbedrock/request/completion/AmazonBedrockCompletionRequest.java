@@ -13,7 +13,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamReques
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.inference.external.request.CompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
@@ -25,7 +25,7 @@ import java.util.concurrent.Flow;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.getConverseMessageList;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.inferenceConfig;
 
-public class AmazonBedrockCompletionRequest extends AmazonBedrockRequest implements CompletionRequest {
+public class AmazonBedrockCompletionRequest extends AmazonBedrockRequest implements OutboundCompletionRequest {
     private final AmazonBedrockCompletionRequestEntity requestEntity;
     private AmazonBedrockChatCompletionResponseListener listener;
     private final boolean stream;

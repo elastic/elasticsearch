@@ -82,6 +82,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
+        // Full-text functions and `:` operator are not allowed after FORK
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
         "sub-plan execution results too large",  // INLINE STATS limitations
         // this comes from mapping-all-types.json and it gets occasionally picked up by full text functions
         "Inference endpoint not found \\[foo_inference_id\\]",
@@ -116,9 +118,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // https://github.com/elastic/elasticsearch/issues/145570
         "function cannot operate on \\[.*\\], which is not a field from an index mapping",
         "\\[:\\] operator cannot operate on \\[.*\\], which is not a field from an index mapping",
-        "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
-        // https://github.com/elastic/elasticsearch/issues/141827
-        "JOIN left field \\[.*\\] of type \\[.*\\] is incompatible with right field \\[.*\\] of type \\[NULL\\]",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -148,6 +147,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // resolution (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION) rejects
         // them outright. The generator has no cheap way to predict these cross-branch collisions.
         "has conflicting data types in subqueries"
+    );
+
+    /**
+     * FORK converts UnsupportedAttribute to a plain ReferenceAttribute(UNSUPPORTED), stripping the
+     * Unresolvable marker. Functions then reject the argument with a generic "type [unsupported]" error
+     * instead of the proper "Cannot use field [X] with unsupported type [Y]" message.
+     * <a href="https://github.com/elastic/elasticsearch/issues/147603">github issue</a>
+     */
+    private static final Pattern UNSUPPORTED_TYPE_AFTER_FORK_PATTERN = Pattern.compile(
+        ".*argument of \\[.*] must be \\[.*], found value \\[.*] type \\[unsupported].*",
+        Pattern.DOTALL
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -377,7 +387,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
@@ -778,6 +789,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         }
         String trimmed = query.trim().toUpperCase(Locale.ROOT);
         return trimmed.startsWith("TS ");
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/147603
+    static boolean isUnsupportedTypeAfterForkError(String errorMessage, String query) {
+        if (query == null || UNSUPPORTED_TYPE_AFTER_FORK_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return query.toUpperCase(Locale.ROOT).contains("FORK");
     }
 
     @Override

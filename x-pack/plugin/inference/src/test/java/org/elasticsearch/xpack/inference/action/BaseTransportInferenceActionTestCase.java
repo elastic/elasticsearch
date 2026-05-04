@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -67,7 +66,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     protected InferenceServiceRegistry serviceRegistry;
     protected InferenceStats inferenceStats;
     protected TransportService transportService;
-    protected NodeClient nodeClient;
 
     public BaseTransportInferenceActionTestCase(TaskType taskType) {
         this.taskType = taskType;
@@ -78,7 +76,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         super.setUp();
         ActionFilters actionFilters = mock();
         threadPool = mock();
-        nodeClient = mock();
         transportService = mock();
         licenseState = mock();
         inferenceEndpointRegistry = mock();
@@ -94,7 +91,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
-            nodeClient,
             threadPool
         );
 
@@ -109,7 +105,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        NodeClient nodeClient,
         ThreadPool threadPool
     );
 
@@ -404,7 +399,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(9));
             return null;
-        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;
@@ -413,6 +408,10 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             listenerAction.accept(ans.getArgument(3));
             return null;
         }).when(service).embeddingInfer(any(), any(), any(), any());
+        doAnswer(ans -> {
+            listenerAction.accept(ans.getArgument(3));
+            return null;
+        }).when(service).rerankInfer(any(), any(), any(), any());
         mockInferenceEndpointRegistry(taskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(service));
     }

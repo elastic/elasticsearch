@@ -50,13 +50,13 @@ public record SageMakerServiceSettings(
 ) implements ServiceSettings {
 
     static final String NAME = "sage_maker_service_settings";
-    private static final String API = "api";
-    private static final String ENDPOINT_NAME = "endpoint_name";
-    private static final String REGION = "region";
-    private static final String TARGET_MODEL = "target_model";
-    private static final String TARGET_CONTAINER_HOSTNAME = "target_container_hostname";
-    private static final String INFERENCE_COMPONENT_NAME = "inference_component_name";
-    private static final String BATCH_SIZE = "batch_size";
+    static final String API = "api";
+    static final String ENDPOINT_NAME = "endpoint_name";
+    static final String REGION = "region";
+    static final String TARGET_MODEL = "target_model";
+    static final String TARGET_CONTAINER_HOSTNAME = "target_container_hostname";
+    static final String INFERENCE_COMPONENT_NAME = "inference_component_name";
+    static final String BATCH_SIZE = "batch_size";
     private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
 
     public SageMakerServiceSettings {
@@ -160,7 +160,7 @@ public record SageMakerServiceSettings(
     }
 
     static SageMakerServiceSettings fromMap(SageMakerSchemas schemas, TaskType taskType, Map<String, Object> serviceSettingsMap) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
         var endpointName = extractRequiredString(
             serviceSettingsMap,
@@ -211,6 +211,32 @@ public record SageMakerServiceSettings(
             inferenceComponentName,
             batchSize,
             apiServiceSettings
+        );
+    }
+
+    @Override
+    public SageMakerServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedBatchSize = extractOptionalPositiveInteger(
+            serviceSettings,
+            BATCH_SIZE,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        var updatedApiServiceSettings = this.apiServiceSettings().updateServiceSettings(serviceSettings);
+
+        validationException.throwIfValidationErrorsExist();
+        return new SageMakerServiceSettings(
+            this.endpointName(),
+            this.region(),
+            this.api(),
+            this.targetModel(),
+            this.targetContainerHostname(),
+            this.inferenceComponentName(),
+            extractedBatchSize != null ? extractedBatchSize : this.batchSize(),
+            updatedApiServiceSettings
         );
     }
 

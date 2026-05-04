@@ -333,9 +333,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
   method: testEvaluateBlockWithNulls
   issue: https://github.com/elastic/elasticsearch/issues/147773
-- class: org.elasticsearch.cluster.routing.IndexRoutingTests
-  method: testRequiredRoutingUsesSliceMessageWhenSliceEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/147777
 
 # Examples:
 #
@@ -545,3 +542,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148190
+- class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsIntegTests
+  method: testCreateAndRestoreSearchableSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/148217
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
+  method: testRandomActivitiesStatelessSnapshotDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/148219

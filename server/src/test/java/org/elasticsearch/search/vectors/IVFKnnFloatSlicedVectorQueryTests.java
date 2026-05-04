@@ -29,6 +29,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -115,6 +116,37 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
         }
     }
 
+    /**
+     * Unlike {@link AbstractIVFKnnVectorQueryTestCase#testBitSetQuery()}, sliced search intersects the
+     * filter iterator with the slice doc-id range before materializing accept bits, so it never calls
+     * {@link org.apache.lucene.util.BitSetIterator#getBitSet()} and supports filters that do not allow
+     * bitset reuse.
+     */
+    @Override
+    public void testBitSetQuery() throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        decorateIWC(iwc);
+        try (Directory dir = newDirectoryForTest(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            final int numDocs = 100;
+            final int dim = 30;
+            for (int i = 0; i < numDocs; ++i) {
+                Document d = getDocumentToIndex();
+                d.add(getKnnVectorField("vector", randomVector(dim)));
+                w.addDocument(d);
+            }
+            w.commit();
+
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                // Same fixture as AbstractIVFKnnVectorQueryTestCase#testBitSetQuery(): an empty FixedBitSet
+                // (all bits clear) behind a BitSetIterator; non-sliced search fails fatally in getBitSet().
+                Query filter = new ThrowingBitSetQuery(new FixedBitSet(numDocs));
+                TopDocs topDocs = searcher.search(getKnnVectorQuery("vector", randomVector(dim), 10, filter), numDocs);
+                assertEquals(0, topDocs.scoreDocs.length);
+            }
+        }
+    }
+
     @Override
     protected Document getDocumentToIndex() {
         Document doc = new Document();
@@ -159,6 +191,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
     private void doTestSlices(BooleanSupplier supplier, boolean applyFilter) throws IOException {
         int dimensions = random().nextInt(12, 500);
         int numDocs = random().nextInt(100, 10_000);
+        int numSlices = random().nextInt(1, numDocs);
         int[] docsPerSlice = new int[numSlices];
         int[] docsPerSliceFiltered = new int[numSlices];
         int[] docSlices = new int[numDocs];
@@ -220,7 +253,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
             }
             float[] vector = randomVector(dimensions);
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = new IndexSearcher(reader);
                 searcher.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
                 Query filterQuery = null;
                 if (applyFilter) {
@@ -242,7 +275,6 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
                             new BytesRef("" + slice)
                         );
                         TopDocs topDocs = searcher.search(kvq, k);
-                        searcher.search(kvq, k);
                         assertEquals(expectedDocs, topDocs.scoreDocs.length);
                         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                             Document document = reader.storedFields().document(topDocs.scoreDocs[i].doc);

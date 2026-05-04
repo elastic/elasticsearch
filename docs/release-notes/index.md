@@ -354,7 +354,7 @@ ES|QL:
 * ES|QL Improve LOOKUP JOIN on single keyword [#144704](https://github.com/elastic/elasticsearch/pull/144704)
 * ES|QL Top Snippets multi-valued field support [#142117](https://github.com/elastic/elasticsearch/pull/142117)
 * ES|QL Views support [#134995](https://github.com/elastic/elasticsearch/pull/134995)
-* ES|QL [TEXT_EMBEDDING function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-text_embedding) is GA [#140555](https://github.com/elastic/elasticsearch/pull/140555)
+* ES|QL [TEXT_EMBEDDING function](/reference/query-languages/esql/functions-operators/dense-vector-functions/text_embedding.md) is GA [#140555](https://github.com/elastic/elasticsearch/pull/140555)
 * ES|QL [dense vector functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md) are GA [#140545](https://github.com/elastic/elasticsearch/pull/140545)
 * ES|QL approximate analytical queries [#131828](https://github.com/elastic/elasticsearch/pull/131828)
 * ES|QL command RERANK is GA [#141508](https://github.com/elastic/elasticsearch/pull/141508)
@@ -843,17 +843,65 @@ Watcher:
 
 
 ## 9.3.4 [elasticsearch-9.3.4-release-notes]
-```{applies_to}
-stack: ga 9.3.4
-```
+
+### Features and enhancements [elasticsearch-9.3.4-features-enhancements]
+
+Aggregations:
+* Bump heap usage limits for INLINE STATS [#144679](https://github.com/elastic/elasticsearch/pull/144679)
+
+ES|QL:
+* Skip time series field type merge for non-TS agg queries [#143262](https://github.com/elastic/elasticsearch/pull/143262)
+
 
 ### Fixes [elasticsearch-9.3.4-fixes]
 
+EQL:
+* Fix propagation of filters on join keys for missing events [#145813](https://github.com/elastic/elasticsearch/pull/145813) (issue: [#145402](https://github.com/elastic/elasticsearch/issues/145402))
+
 ES|QL:
 * Do not discard disjunction conditions when is null/is not null might invalidate them [#145941](https://github.com/elastic/elasticsearch/pull/145941)
+* Don't use a Literal for `constant_keyword` fields when used inside full-text functions [#145632](https://github.com/elastic/elasticsearch/pull/145632) (issue: [#145570](https://github.com/elastic/elasticsearch/issues/145570))
+* ESQL - Fix performance loading source when vectors are excluded [#146223](https://github.com/elastic/elasticsearch/pull/146223) (issue: [#145799](https://github.com/elastic/elasticsearch/issues/145799))
+* Fix handling of values on the time bucket boundaries for ES|QL increase [#145794](https://github.com/elastic/elasticsearch/pull/145794)
+* Fix nested fields loading under NULLIFY [#145741](https://github.com/elastic/elasticsearch/pull/145741) (issue: [#142616](https://github.com/elastic/elasticsearch/issues/142616))
+* Fix rate/increase single-value bucket handling for delta temporality [#146518](https://github.com/elastic/elasticsearch/pull/146518)
+* Fix starts_with/ends_with with special chars [#146348](https://github.com/elastic/elasticsearch/pull/146348) (issue: [#130851](https://github.com/elastic/elasticsearch/issues/130851))
+* Keywords mv count fix [#145390](https://github.com/elastic/elasticsearch/pull/145390)
 
 Infra/Core:
 * Throw a 400 error for malformed parsing input when missing element end [#145777](https://github.com/elastic/elasticsearch/pull/145777)
+
+Ingest Node:
+* Fix pipeline resolution cache for bulk requests [#144648](https://github.com/elastic/elasticsearch/pull/144648)
+* Fix waiting for enrich policy execution for users without the `monitor` privilege [#145751](https://github.com/elastic/elasticsearch/pull/145751)
+
+Machine Learning:
+* Omit uncomputed model stats [#146186](https://github.com/elastic/elasticsearch/pull/146186)
+
+Mapping:
+* Fix match only text decoding surrogate pairs [#146567](https://github.com/elastic/elasticsearch/pull/146567) (issue: [#146538](https://github.com/elastic/elasticsearch/issues/146538))
+
+Reindex:
+* Restore initial thread context during reindex etc [#146134](https://github.com/elastic/elasticsearch/pull/146134)
+
+Search:
+* Add cancellation support to `IndicesRequestCache` [#141708](https://github.com/elastic/elasticsearch/pull/141708)
+* Collapse pathological regex quantifier stacking to prevent NFA construction OOM [#145452](https://github.com/elastic/elasticsearch/pull/145452)
+* Fix `terminate_after` not honored for aggs when size=0 [#146199](https://github.com/elastic/elasticsearch/pull/146199) (issue: [#126665](https://github.com/elastic/elasticsearch/issues/126665))
+* Fix bug parsing "request" parameter in clear cache API, it should clear the request cache only [#145726](https://github.com/elastic/elasticsearch/pull/145726)
+* Use query circuit breaker for wildcard/regexp determinization [#145427](https://github.com/elastic/elasticsearch/pull/145427) (issue: [#145128](https://github.com/elastic/elasticsearch/issues/145128))
+
+Snapshot/Restore:
+* Use `IllegalArgumentException` over `RepositoryException` for readonly-repository checks [#140200](https://github.com/elastic/elasticsearch/pull/140200)
+
+TSDB:
+* Replace `IllegalStateException` with `IllegalArgumentException` for conflicting time series metadata [#142370](https://github.com/elastic/elasticsearch/pull/142370)
+
+Vector Search:
+* Fix NPE in GPU resource pool when CuVSResources creation fails [#146632](https://github.com/elastic/elasticsearch/pull/146632)
+* Fix NPE when having double nested field with knn query [#146933](https://github.com/elastic/elasticsearch/pull/146933) (issue: [#141830](https://github.com/elastic/elasticsearch/issues/141830))
+* [DiskBBQ] Fix `offHeap` size for empty indices [#146347](https://github.com/elastic/elasticsearch/pull/146347)
+* [DiskBBQ] Wait for queue saturation in `MaxScoreTopKnnCollector` [#145341](https://github.com/elastic/elasticsearch/pull/145341)
 
 
 

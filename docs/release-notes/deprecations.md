@@ -27,6 +27,8 @@ Data streams:
 Mapping:
 * Deprecate the `default_metric` parameter in the `aggregate_metric_double` mapping configuration. [#141877](https://github.com/elastic/elasticsearch/pull/141877) (issue: [#128356](https://github.com/elastic/elasticsearch/issues/128356))
 
+
+
 ## 9.3.4 [elasticsearch-9.3.4-deprecations]
 
 There are no deprecations associated with this release.

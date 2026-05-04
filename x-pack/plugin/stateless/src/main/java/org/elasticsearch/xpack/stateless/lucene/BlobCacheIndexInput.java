@@ -109,6 +109,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
         );
     }
 
+    // Called by Lucene's compound file reader to open sub-files within a .cfs blob.
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length, IOContext sliceContext) {
         BlobCacheUtils.ensureSlice(sliceDescription, offset, length, this);
@@ -120,13 +121,17 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     }
 
     IndexInput doSlice(String sliceDescription, long offset, long length, IOContext sliceContext) {
+        // Passes the sub-file's absolute offset and length so that CacheFileReader can
+        // compute which cache regions are exclusively this sub-file's data (safe for
+        // MADV_RANDOM) versus boundary regions shared with adjacent sub-files (MADV_NORMAL).
+        long subFileOffset = this.offset + offset;
         return new BlobCacheIndexInput(
             "(" + sliceDescription + ") " + super.toString(),
             sliceContext,
-            cacheFileReader.copyWithContext(sliceContext),
+            cacheFileReader.copyWithContext(sliceContext, subFileOffset, length),
             null,
             length,
-            this.offset + offset,
+            subFileOffset,
             sliceDescription
         );
     }

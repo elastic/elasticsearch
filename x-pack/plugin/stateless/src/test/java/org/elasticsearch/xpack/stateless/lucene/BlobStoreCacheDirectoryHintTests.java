@@ -21,6 +21,7 @@ import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -36,12 +37,16 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
 
-    // Verify that opening a .vec file automatically injects DataAccessHint.RANDOM into the IOContext.
+    private static final int REGION_SIZE = 16 * 1024 * 1024; // 16MB
+
+    // --- BlobStoreCacheDirectory hint injection tests ---
+
     public void testVecFileGetsRandomAccessHint() throws IOException {
         var capturedContext = new AtomicReference<IOContext>();
         var dir = createCapturingDirectory(capturedContext);
@@ -52,7 +57,6 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         assertTrue(capturedContext.get().hints().contains(DataAccessHint.RANDOM));
     }
 
-    // Verify that opening a non-.vec file does not inject DataAccessHint.RANDOM.
     public void testNonVecFileDoesNotGetHint() throws IOException {
         var capturedContext = new AtomicReference<IOContext>();
         var dir = createCapturingDirectory(capturedContext);
@@ -63,117 +67,399 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         assertFalse(capturedContext.get().hints().contains(DataAccessHint.RANDOM));
     }
 
-    // Verify that an already-present DataAccessHint.RANDOM is preserved and not duplicated.
     public void testExplicitHintIsPreserved() throws IOException {
         var capturedContext = new AtomicReference<IOContext>();
         var dir = createCapturingDirectory(capturedContext);
         dir.updateMetadata(Map.of("_0.vec", createBlobFileRanges(1L, 0L, 0, 1024)), 1024L);
 
-        IOContext ctxWithHint = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM);
-        dir.openInput("_0.vec", ctxWithHint);
+        dir.openInput("_0.vec", IOContext.DEFAULT.withHints(DataAccessHint.RANDOM));
 
         assertTrue(capturedContext.get().hints().contains(DataAccessHint.RANDOM));
     }
 
-    // Verify that CacheFileReader constructed with RANDOM hint preserves advice through copy().
+    // --- contextToAdvice tests ---
+
+    public void testContextToAdviceWithRandomHint() {
+        IOContext randomCtx = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM);
+        int advice = CacheFileReaderTestUtils.contextToAdvice(randomCtx);
+
+        if (CacheFileReaderTestUtils.isMadviseRandomEnabled()) {
+            assertEquals(SharedBytes.MADV_RANDOM, advice);
+        } else {
+            assertEquals(SharedBytes.MADV_NORMAL, advice);
+        }
+    }
+
+    public void testContextToAdviceWithoutRandomHint() {
+        assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.contextToAdvice(IOContext.DEFAULT));
+    }
+
+    // --- Top-level file (exclusive blob) tests ---
+
+    // Top-level CacheFileReader has exclusiveRange covering the entire blob.
     @SuppressWarnings("unchecked")
-    public void testCacheFileReaderCopyPreservesAdvice() {
+    public void testTopLevelFileHasFullExclusiveRange() {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
+        var reader = new CacheFileReader(
+            cacheFile,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 1024),
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis,
+            REGION_SIZE,
+            IOContext.DEFAULT.withHints(DataAccessHint.RANDOM)
+        );
+
+        assertEquals(0, CacheFileReaderTestUtils.getExclusiveStart(reader));
+        assertEquals(Long.MAX_VALUE, CacheFileReaderTestUtils.getExclusiveEnd(reader));
+    }
+
+    // copy() preserves the desired advice and exclusive range.
+    @SuppressWarnings("unchecked")
+    public void testCopyPreservesAdviceAndExclusiveRange() {
         var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
-        var cacheBlobReader = mock(CacheBlobReader.class);
-        var blobFileRanges = createBlobFileRanges(1L, 0L, 0, 1024);
 
         var original = new CacheFileReader(
             cacheFile,
-            cacheBlobReader,
-            blobFileRanges,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
+            REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM)
         );
         var copy = original.copy();
 
         assertNotSame(original, copy);
-        assertEquals(SharedBytes.MADV_RANDOM, CacheFileReaderTestUtils.getRegionAdvice(copy));
+        assertEquals(CacheFileReaderTestUtils.getDesiredAdvice(original), CacheFileReaderTestUtils.getDesiredAdvice(copy));
+        assertEquals(CacheFileReaderTestUtils.getExclusiveStart(original), CacheFileReaderTestUtils.getExclusiveStart(copy));
+        assertEquals(CacheFileReaderTestUtils.getExclusiveEnd(original), CacheFileReaderTestUtils.getExclusiveEnd(copy));
     }
 
-    // Verify that copyWithContext derives MADV_RANDOM or MADV_NORMAL from IOContext hints.
+    // --- Compound file exclusive region tests ---
+
+    // A large .vec sub-file spanning many regions has interior exclusive regions.
     @SuppressWarnings("unchecked")
-    public void testCacheFileReaderCopyWithContext() {
+    public void testCompoundSliceLargeVecHasExclusiveInterior() {
         var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
-        var cacheBlobReader = mock(CacheBlobReader.class);
-        var blobFileRanges = createBlobFileRanges(1L, 0L, 0, 1024);
 
-        var original = new CacheFileReader(cacheFile, cacheBlobReader, blobFileRanges, BlobCacheMetrics.NOOP, System::currentTimeMillis);
+        var original = new CacheFileReader(
+            cacheFile,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis,
+            REGION_SIZE,
+            IOContext.DEFAULT
+        );
 
-        var withRandom = original.copyWithContext(IOContext.DEFAULT.withHints(DataAccessHint.RANDOM));
-        assertNotSame(original, withRandom);
-        assertEquals(SharedBytes.MADV_RANDOM, CacheFileReaderTestUtils.getRegionAdvice(withRandom));
+        // .vec at offset 10MB, length 500MB - 20MB = 480MB within the compound blob
+        long subFileOffset = 10 * 1024 * 1024L;
+        long subFileLength = 480 * 1024 * 1024L;
+        var slice = original.copyWithContext(IOContext.DEFAULT.withHints(DataAccessHint.RANDOM), subFileOffset, subFileLength);
 
-        var withNormal = withRandom.copyWithContext(IOContext.DEFAULT);
-        assertNotSame(withRandom, withNormal);
-        assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.getRegionAdvice(withNormal));
+        if (CacheFileReaderTestUtils.isMadviseRandomEnabled()) {
+            assertEquals(SharedBytes.MADV_RANDOM, CacheFileReaderTestUtils.getDesiredAdvice(slice));
+            // exclusiveStart = ceil(10MB / 16MB) * 16MB = 16MB
+            assertEquals(REGION_SIZE, CacheFileReaderTestUtils.getExclusiveStart(slice));
+            // exclusiveEnd = floor((10MB + 480MB) / 16MB) * 16MB = floor(490MB / 16MB) * 16MB
+            long expectedEnd = ((subFileOffset + subFileLength) / REGION_SIZE) * REGION_SIZE;
+            assertEquals(expectedEnd, CacheFileReaderTestUtils.getExclusiveEnd(slice));
+            assertTrue(CacheFileReaderTestUtils.getExclusiveStart(slice) < CacheFileReaderTestUtils.getExclusiveEnd(slice));
+        } else {
+            assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.getDesiredAdvice(slice));
+        }
     }
 
-    // Verify that slice(String, long, long, IOContext) with DataAccessHint.RANDOM sets MADV_RANDOM
-    // on the resulting BlobCacheIndexInput's CacheFileReader.
+    // A small sub-file that fits within a single region has no exclusive regions.
     @SuppressWarnings("unchecked")
-    public void testSliceWithRandomHintSetsMadvRandom() {
+    public void testCompoundSliceSmallFileNoExclusiveRegions() {
         var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
-        var cacheBlobReader = mock(CacheBlobReader.class);
-        var blobFileRanges = createBlobFileRanges(1L, 0L, 0, 1024);
 
-        var reader = new CacheFileReader(cacheFile, cacheBlobReader, blobFileRanges, BlobCacheMetrics.NOOP, System::currentTimeMillis);
-        var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 1024, 0);
+        var original = new CacheFileReader(
+            cacheFile,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 100 * 1024 * 1024),
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis,
+            REGION_SIZE,
+            IOContext.DEFAULT
+        );
 
-        IOContext randomCtx = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM);
-        var slice = (BlobCacheIndexInput) indexInput.slice("_0.vec", 0, 512, randomCtx);
+        // .vec at offset 5MB, length 8MB — fits within one region boundary, no exclusive regions
+        long subFileOffset = 5 * 1024 * 1024L;
+        long subFileLength = 8 * 1024 * 1024L;
+        var slice = original.copyWithContext(IOContext.DEFAULT.withHints(DataAccessHint.RANDOM), subFileOffset, subFileLength);
 
-        assertEquals(SharedBytes.MADV_RANDOM, BlobStoreCacheDirectoryTestUtils.getRegionAdvice(slice));
+        if (CacheFileReaderTestUtils.isMadviseRandomEnabled()) {
+            assertEquals(SharedBytes.MADV_RANDOM, CacheFileReaderTestUtils.getDesiredAdvice(slice));
+            // exclusiveStart = ceil(5MB / 16MB) * 16MB = 16MB
+            // exclusiveEnd = floor(13MB / 16MB) * 16MB = 0
+            // exclusiveStart > exclusiveEnd → no exclusive regions
+            assertTrue(CacheFileReaderTestUtils.getExclusiveStart(slice) >= CacheFileReaderTestUtils.getExclusiveEnd(slice));
+        }
     }
 
-    // Verify that slice(String, long, long, IOContext) without DataAccessHint.RANDOM sets MADV_NORMAL.
+    // A sub-file perfectly aligned to region boundaries is fully exclusive.
     @SuppressWarnings("unchecked")
-    public void testSliceWithoutRandomHintSetsMadvNormal() {
+    public void testCompoundSliceAlignedFileFullyExclusive() {
         var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
-        var cacheBlobReader = mock(CacheBlobReader.class);
-        var blobFileRanges = createBlobFileRanges(1L, 0L, 0, 1024);
+
+        var original = new CacheFileReader(
+            cacheFile,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 100 * 1024 * 1024),
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis,
+            REGION_SIZE,
+            IOContext.DEFAULT
+        );
+
+        // .vec at region boundary, length = 3 regions
+        long subFileOffset = 2L * REGION_SIZE;
+        long subFileLength = 3L * REGION_SIZE;
+        var slice = original.copyWithContext(IOContext.DEFAULT.withHints(DataAccessHint.RANDOM), subFileOffset, subFileLength);
+
+        if (CacheFileReaderTestUtils.isMadviseRandomEnabled()) {
+            assertEquals(subFileOffset, CacheFileReaderTestUtils.getExclusiveStart(slice));
+            assertEquals(subFileOffset + subFileLength, CacheFileReaderTestUtils.getExclusiveEnd(slice));
+        }
+    }
+
+    // --- adviceForRange tests ---
+
+    @SuppressWarnings("unchecked")
+    public void testAdviceForRangeInsideExclusiveRegion() {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+
+        var original = new CacheFileReader(
+            cacheFile,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis,
+            REGION_SIZE,
+            IOContext.DEFAULT
+        );
+
+        // .vec starts at 10MB, 480MB long → exclusive range [16MB, 480MB)
+        long subFileOffset = 10 * 1024 * 1024L;
+        long subFileLength = 480 * 1024 * 1024L;
+        var slice = original.copyWithContext(IOContext.DEFAULT.withHints(DataAccessHint.RANDOM), subFileOffset, subFileLength);
+
+        if (CacheFileReaderTestUtils.isMadviseRandomEnabled()) {
+            // Range fully inside exclusive region → MADV_RANDOM
+            ByteRange insideRange = ByteRange.of(REGION_SIZE, 2L * REGION_SIZE);
+            assertEquals(SharedBytes.MADV_RANDOM, CacheFileReaderTestUtils.adviceForRange(slice, insideRange));
+
+            // Range at the boundary start (before exclusive region) → MADV_NORMAL
+            ByteRange boundaryRange = ByteRange.of(0, REGION_SIZE);
+            assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.adviceForRange(slice, boundaryRange));
+
+            // Range spanning the exclusive start boundary → MADV_NORMAL
+            ByteRange straddleRange = ByteRange.of(REGION_SIZE / 2, REGION_SIZE + REGION_SIZE / 2);
+            assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.adviceForRange(slice, straddleRange));
+        }
+    }
+
+    // For a top-level file, adviceForRange returns MADV_RANDOM for any range.
+    @SuppressWarnings("unchecked")
+    public void testAdviceForRangeTopLevelFile() {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
 
         var reader = new CacheFileReader(
             cacheFile,
-            cacheBlobReader,
-            blobFileRanges,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
+            REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM)
         );
-        var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 1024, 0);
 
-        var slice = (BlobCacheIndexInput) indexInput.slice("_0.doc", 0, 512, IOContext.DEFAULT);
-
-        assertEquals(SharedBytes.MADV_NORMAL, BlobStoreCacheDirectoryTestUtils.getRegionAdvice(slice));
+        if (CacheFileReaderTestUtils.isMadviseRandomEnabled()) {
+            assertEquals(SharedBytes.MADV_RANDOM, CacheFileReaderTestUtils.adviceForRange(reader, ByteRange.of(0, REGION_SIZE)));
+            assertEquals(
+                SharedBytes.MADV_RANDOM,
+                CacheFileReaderTestUtils.adviceForRange(reader, ByteRange.of(100L * REGION_SIZE, 101L * REGION_SIZE))
+            );
+        }
     }
 
-    // Verify that a .vec file opened directly (not through compound) gets MADV_RANDOM from openInput,
-    // and then a 4-arg slice from a compound file also correctly propagates MADV_RANDOM.
+    // adviceForRange returns MADV_NORMAL for a range straddling the exclusive end boundary.
     @SuppressWarnings("unchecked")
-    public void testSliceWithRandomHintPreservesOffset() {
+    public void testAdviceForRangeAtExclusiveEndBoundary() {
         var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
-        var cacheBlobReader = mock(CacheBlobReader.class);
-        var blobFileRanges = createBlobFileRanges(1L, 0L, 0, 2048);
 
-        var reader = new CacheFileReader(cacheFile, cacheBlobReader, blobFileRanges, BlobCacheMetrics.NOOP, System::currentTimeMillis);
-        var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 2048, 100);
+        var original = new CacheFileReader(
+            cacheFile,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis,
+            REGION_SIZE,
+            IOContext.DEFAULT
+        );
 
+        long subFileOffset = 10 * 1024 * 1024L;
+        long subFileLength = 480 * 1024 * 1024L;
+        var slice = original.copyWithContext(IOContext.DEFAULT.withHints(DataAccessHint.RANDOM), subFileOffset, subFileLength);
+
+        if (CacheFileReaderTestUtils.isMadviseRandomEnabled()) {
+            long exclEnd = CacheFileReaderTestUtils.getExclusiveEnd(slice);
+            // Range that straddles the exclusive end boundary → MADV_NORMAL
+            ByteRange tailStraddle = ByteRange.of(exclEnd - REGION_SIZE / 2, exclEnd + REGION_SIZE / 2);
+            assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.adviceForRange(slice, tailStraddle));
+
+            // Range just inside the exclusive end → MADV_RANDOM
+            ByteRange justInside = ByteRange.of(exclEnd - REGION_SIZE, exclEnd);
+            assertEquals(SharedBytes.MADV_RANDOM, CacheFileReaderTestUtils.adviceForRange(slice, justInside));
+
+            // Range just outside the exclusive end → MADV_NORMAL
+            ByteRange justOutside = ByteRange.of(exclEnd, exclEnd + REGION_SIZE);
+            assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.adviceForRange(slice, justOutside));
+        }
+    }
+
+    // adviceForRange always returns MADV_NORMAL when the desired advice is MADV_NORMAL.
+    @SuppressWarnings("unchecked")
+    public void testAdviceForRangeWithNormalDesiredAdvice() {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+
+        var original = new CacheFileReader(
+            cacheFile,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis,
+            REGION_SIZE,
+            IOContext.DEFAULT
+        );
+        var slice = original.copyWithContext(IOContext.DEFAULT, 0, 500 * 1024 * 1024L);
+        assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.adviceForRange(slice, ByteRange.of(0, REGION_SIZE)));
+    }
+
+    // --- BlobCacheIndexInput slice tests ---
+
+    // 4-arg slice computes exclusive range for the sub-file.
+    @SuppressWarnings("unchecked")
+    public void testFourArgSliceComputesExclusiveRange() {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+
+        var reader = new CacheFileReader(
+            cacheFile,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis,
+            REGION_SIZE,
+            IOContext.DEFAULT
+        );
+        var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 500 * 1024 * 1024, 0);
         IOContext randomCtx = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM);
-        var slice = (BlobCacheIndexInput) indexInput.slice("_0.vec", 200, 512, randomCtx);
+        // .vec at offset 10MB, length 100MB
+        long sliceOffset = 10 * 1024 * 1024L;
+        long sliceLength = 100 * 1024 * 1024L;
+        var slice = (BlobCacheIndexInput) indexInput.slice("_0.vec", sliceOffset, sliceLength, randomCtx);
 
-        assertEquals(SharedBytes.MADV_RANDOM, BlobStoreCacheDirectoryTestUtils.getRegionAdvice(slice));
-        assertEquals(512, slice.length());
+        if (CacheFileReaderTestUtils.isMadviseRandomEnabled()) {
+            assertEquals(SharedBytes.MADV_RANDOM, BlobStoreCacheDirectoryTestUtils.getDesiredAdvice(slice));
+            assertEquals(REGION_SIZE, BlobStoreCacheDirectoryTestUtils.getExclusiveStart(slice));
+            long expectedEnd = ((sliceOffset + sliceLength) / REGION_SIZE) * REGION_SIZE;
+            assertEquals(expectedEnd, BlobStoreCacheDirectoryTestUtils.getExclusiveEnd(slice));
+        } else {
+            assertEquals(SharedBytes.MADV_NORMAL, BlobStoreCacheDirectoryTestUtils.getDesiredAdvice(slice));
+        }
+    }
+
+    // 4-arg slice correctly accumulates offset.
+    @SuppressWarnings("unchecked")
+    public void testSlicePreservesOffset() {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+
+        var reader = new CacheFileReader(
+            cacheFile,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 2048),
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis,
+            REGION_SIZE,
+            IOContext.DEFAULT
+        );
+        long parentOffset = 100;
+        var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 2048, parentOffset);
+        long sliceOffset = 200;
+        long sliceLength = 512;
+        var slice = (BlobCacheIndexInput) indexInput.slice("_0.vec", sliceOffset, sliceLength, IOContext.DEFAULT);
+        assertEquals(sliceLength, slice.length());
+        assertEquals(0, slice.getFilePointer());
+        assertEquals("_0.vec", slice.getSliceDescription());
+        assertThat(slice.toString(), containsString("offset=" + (parentOffset + sliceOffset)));
+    }
+
+    // 3-arg slice preserves parent's advice and exclusive range.
+    @SuppressWarnings("unchecked")
+    public void testThreeArgSlicePreservesParentState() {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+
+        var reader = new CacheFileReader(
+            cacheFile,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 1024),
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis,
+            REGION_SIZE,
+            IOContext.DEFAULT.withHints(DataAccessHint.RANDOM)
+        );
+        var indexInput = new BlobCacheIndexInput("test.vec", IOContext.DEFAULT, reader, null, 1024, 0);
+        var slice = (BlobCacheIndexInput) indexInput.doSlice("sub", 0, 512);
+        assertEquals(CacheFileReaderTestUtils.getDesiredAdvice(reader), BlobStoreCacheDirectoryTestUtils.getDesiredAdvice(slice));
+        assertEquals(CacheFileReaderTestUtils.getExclusiveStart(reader), BlobStoreCacheDirectoryTestUtils.getExclusiveStart(slice));
+        assertEquals(CacheFileReaderTestUtils.getExclusiveEnd(reader), BlobStoreCacheDirectoryTestUtils.getExclusiveEnd(slice));
+    }
+
+    // 3-arg slice on a MADV_NORMAL parent stays MADV_NORMAL.
+    @SuppressWarnings("unchecked")
+    public void testThreeArgSlicePreservesNormalAdvice() {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+
+        var reader = new CacheFileReader(
+            cacheFile,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 1024),
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis
+        );
+        var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 1024, 0);
+        var slice = (BlobCacheIndexInput) indexInput.doSlice("_0.doc", 0, 512);
+        assertEquals(SharedBytes.MADV_NORMAL, BlobStoreCacheDirectoryTestUtils.getDesiredAdvice(slice));
+    }
+
+    // --- Rounding utility tests ---
+
+    public void testRoundUpToRegion() {
+        assertEquals(0, CacheFileReaderTestUtils.roundUpToRegion(0, REGION_SIZE));
+        assertEquals(REGION_SIZE, CacheFileReaderTestUtils.roundUpToRegion(1, REGION_SIZE));
+        assertEquals(REGION_SIZE, CacheFileReaderTestUtils.roundUpToRegion(REGION_SIZE, REGION_SIZE));
+        assertEquals(2L * REGION_SIZE, CacheFileReaderTestUtils.roundUpToRegion(REGION_SIZE + 1, REGION_SIZE));
+    }
+
+    public void testRoundDownToRegion() {
+        assertEquals(0, CacheFileReaderTestUtils.roundDownToRegion(0, REGION_SIZE));
+        assertEquals(0, CacheFileReaderTestUtils.roundDownToRegion(REGION_SIZE - 1, REGION_SIZE));
+        assertEquals(REGION_SIZE, CacheFileReaderTestUtils.roundDownToRegion(REGION_SIZE, REGION_SIZE));
+        assertEquals(REGION_SIZE, CacheFileReaderTestUtils.roundDownToRegion(2L * REGION_SIZE - 1, REGION_SIZE));
     }
 
     private static BlobStoreCacheDirectory createCapturingDirectory(AtomicReference<IOContext> capturedContext) {

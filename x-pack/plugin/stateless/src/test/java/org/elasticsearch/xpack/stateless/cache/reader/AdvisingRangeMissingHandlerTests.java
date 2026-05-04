@@ -59,4 +59,15 @@ public class AdvisingRangeMissingHandlerTests extends ESTestCase {
         assertNull(result);
         verify(delegate).sharedInputStreamFactory(gaps);
     }
+
+    // Verify that AdvisingRangeMissingHandler stores the advice it was constructed with.
+    public void testAdvisingHandlerPreservesAdvice() {
+        var delegate = mock(SharedBlobCacheService.RangeMissingHandler.class);
+
+        var randomHandler = new CacheFileReader.AdvisingRangeMissingHandler(delegate, SharedBytes.MADV_RANDOM);
+        assertEquals(SharedBytes.MADV_RANDOM, randomHandler.advice());
+
+        var normalHandler = new CacheFileReader.AdvisingRangeMissingHandler(delegate, SharedBytes.MADV_NORMAL);
+        assertEquals(SharedBytes.MADV_NORMAL, normalHandler.advice());
+    }
 }

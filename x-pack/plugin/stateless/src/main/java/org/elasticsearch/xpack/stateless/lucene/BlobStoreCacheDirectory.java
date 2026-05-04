@@ -267,10 +267,6 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         if (blobFileRanges == null) {
             throw new FileNotFoundException(name);
         }
-        // TODO: remove. don't need this. It's already set. Check who sets it, and remove this
-        if (name.endsWith(".vec") && context.hints().contains(DataAccessHint.RANDOM) == false) {
-            context = context.withHints(DataAccessHint.RANDOM);
-        }
         return doOpenInput(name, context, blobFileRanges);
     }
 
@@ -305,6 +301,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             blobFileRanges,
             blobCacheMetrics,
             cacheService.getThreadPool().relativeTimeInMillisSupplier(),
+            cacheService.getRegionSize(),
             context
         );
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());

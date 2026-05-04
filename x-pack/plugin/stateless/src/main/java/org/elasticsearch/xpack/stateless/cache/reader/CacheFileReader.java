@@ -20,6 +20,7 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -47,6 +48,10 @@ import static org.elasticsearch.xpack.stateless.StatelessPlugin.GET_VIRTUAL_BATC
 /**
  * Used by {@link BlobCacheIndexInput} to read data from the cache using a given {@link StatelessSharedBlobCacheService.CacheFile} instance.
  * When bytes are not cached, the reader uses the provided {@link CacheBlobReader} to fetch data from different sources.
+ *
+ * <p> Supports applying {@code madvise(MADV_RANDOM)} to cache regions that exclusively contain a data from a single file,
+ * e.g. vector data, to disable wasteful kernel read-ahead. For compound files, only interior regions fully within a
+ * sub-file's byte range receive {@code MADV_RANDOM}; boundary regions shared with adjacent files fall back to {@code MADV_NORMAL}.
  */
 public class CacheFileReader {
 
@@ -60,12 +65,30 @@ public class CacheFileReader {
         CachePopulationSource.BlobStore.name()
     );
 
+    // On post-6.4 Linux kernels, MADV_RANDOM causes pages to not be marked as accessed,
+    // leading to aggressive eviction under MGLRU even without memory pressure.
+    // Enabled on snapshot builds for benchmarking; disabled in production.
+    // Override with -Des.blob_cache_madvise_random_feature_flag_enabled=true|false.
+    static final FeatureFlag MADVISE_RANDOM_FEATURE_FLAG = new FeatureFlag("blob_cache_madvise_random");
+
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
     private final CacheBlobReader cacheBlobReader;
     private final BlobFileRanges blobFileRanges;
     private final BlobCacheMetrics blobCacheMetrics;
     private final LongSupplier relativeTimeInMillisSupplier;
-    private final int regionAdvice;
+    private final int regionSize;
+
+    // The madvise advice this file would like applied (MADV_RANDOM or MADV_NORMAL).
+    // Actual advice may differ per read — see adviceForRange().
+    private final int desiredMAdvice;
+
+    // The byte range [exclusiveStart, exclusiveEnd) within the blob where cache regions
+    // are guaranteed to contain only this file's data. Reads within this range receive
+    // desiredAdvice; reads outside it fall back to MADV_NORMAL.
+    // For top-level files: [0, Long.MAX_VALUE). For compound sub-files: the interior
+    // region-aligned range, excluding boundary regions shared with adjacent files.
+    private final long exclusiveStart;
+    private final long exclusiveEnd;
 
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
@@ -74,18 +97,35 @@ public class CacheFileReader {
         BlobCacheMetrics blobCacheMetrics,
         LongSupplier relativeTimeInMillisSupplier
     ) {
-        this(cacheFile, cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier, SharedBytes.MADV_NORMAL);
+        this(cacheFile, cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier, 0, SharedBytes.MADV_NORMAL, 0, 0);
     }
 
+    /**
+     * Creates a reader for a top-level file opened via {@code BlobStoreCacheDirectory.openInput}.
+     * Top-level files exclusively own their blob, so all cache regions contain only this file's data.
+     * If the IOContext contains {@link DataAccessHint#RANDOM} and the feature flag is enabled,
+     * {@code MADV_RANDOM} will be applied to all regions.
+     */
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
         CacheBlobReader cacheBlobReader,
         BlobFileRanges blobFileRanges,
         BlobCacheMetrics blobCacheMetrics,
         LongSupplier relativeTimeInMillisSupplier,
+        int regionSize,
         IOContext context
     ) {
-        this(cacheFile, cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier, contextToAdvice(context));
+        this(
+            cacheFile,
+            cacheBlobReader,
+            blobFileRanges,
+            blobCacheMetrics,
+            relativeTimeInMillisSupplier,
+            regionSize,
+            contextToAdvice(context),
+            0,
+            Long.MAX_VALUE
+        );
     }
 
     private CacheFileReader(
@@ -94,18 +134,24 @@ public class CacheFileReader {
         BlobFileRanges blobFileRanges,
         BlobCacheMetrics blobCacheMetrics,
         LongSupplier relativeTimeInMillisSupplier,
-        int regionAdvice
+        int regionSize,
+        int desiredAdvice,
+        long exclusiveStart,
+        long exclusiveEnd
     ) {
         this.cacheFile = Objects.requireNonNull(cacheFile);
         this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
         this.blobFileRanges = Objects.requireNonNull(blobFileRanges);
         this.blobCacheMetrics = blobCacheMetrics;
         this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
-        this.regionAdvice = regionAdvice;
+        this.regionSize = regionSize;
+        this.desiredMAdvice = desiredAdvice;
+        this.exclusiveStart = exclusiveStart;
+        this.exclusiveEnd = exclusiveEnd;
     }
 
     /**
-     * @return a new instance that is a copy of the current instance
+     * @return a new instance that is a copy of the current instance, preserving the advice and exclusive range
      */
     public CacheFileReader copy() {
         return new CacheFileReader(
@@ -114,33 +160,96 @@ public class CacheFileReader {
             blobFileRanges,
             blobCacheMetrics,
             relativeTimeInMillisSupplier,
-            regionAdvice
+            regionSize,
+            desiredMAdvice,
+            exclusiveStart,
+            exclusiveEnd
         );
     }
 
     /**
-     * @return a new instance that is a copy of the current instance but with region advice
-     *         derived from the given {@link IOContext} hints
+     * Returns a copy of this reader for a sub-file within a compound ({@code .cfs}) blob.
+     * Computes the range of cache regions that are exclusively occupied by the sub-file:
+     * only those interior regions will receive {@code MADV_RANDOM}. Boundary regions that
+     * contain data from adjacent sub-files fall back to {@code MADV_NORMAL}.
+     *
+     * @param context the IOContext for the sub-file (may contain {@link DataAccessHint#RANDOM})
+     * @param subFileOffset the sub-file's absolute byte offset within the blob
+     * @param subFileLength the sub-file's length in bytes
      */
-    public CacheFileReader copyWithContext(IOContext context) {
+    public CacheFileReader copyWithContext(IOContext context, long subFileOffset, long subFileLength) {
+        int advice = contextToAdvice(context);
+        long exclStart;
+        long exclEnd;
+        if (advice == SharedBytes.MADV_RANDOM && regionSize > 0) {
+            exclStart = roundUpToRegion(subFileOffset, regionSize);
+            exclEnd = roundDownToRegion(subFileOffset + subFileLength, regionSize);
+        } else {
+            exclStart = 0;
+            exclEnd = 0;
+        }
         return new CacheFileReader(
             cacheFile.copy(),
             cacheBlobReader,
             blobFileRanges,
             blobCacheMetrics,
             relativeTimeInMillisSupplier,
-            contextToAdvice(context)
+            regionSize,
+            advice,
+            exclStart,
+            exclEnd
         );
     }
 
-    // Maps Lucene's DataAccessHint to the corresponding madvise advice for cache region population.
+    /**
+     * Maps Lucene's {@link DataAccessHint} to the corresponding {@code madvise} advice.
+     * Returns {@code MADV_RANDOM} only when the feature flag is enabled and the context
+     * contains {@link DataAccessHint#RANDOM}. The caller is responsible for ensuring the
+     * advice is only applied to regions that exclusively contain the target file's data.
+     */
     static int contextToAdvice(IOContext context) {
-        return context.hints().contains(DataAccessHint.RANDOM) ? SharedBytes.MADV_RANDOM : SharedBytes.MADV_NORMAL;
+        if (MADVISE_RANDOM_FEATURE_FLAG.isEnabled() && context.hints().contains(DataAccessHint.RANDOM)) {
+            return SharedBytes.MADV_RANDOM;
+        }
+        return SharedBytes.MADV_NORMAL;
+    }
+
+    /**
+     * Returns the effective advice for a read that will populate the given byte range in the blob.
+     * Returns {@link SharedBytes#MADV_RANDOM} only if the entire range falls within the exclusive
+     * region of this file (i.e. regions not shared with other files in a compound blob).
+     */
+    int adviceForRange(ByteRange rangeToWrite) {
+        if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
+            return SharedBytes.MADV_NORMAL;
+        }
+        if (rangeToWrite.start() >= exclusiveStart && rangeToWrite.end() <= exclusiveEnd) {
+            return SharedBytes.MADV_RANDOM;
+        }
+        return SharedBytes.MADV_NORMAL;
     }
 
     // visible for testing
-    int getRegionAdvice() {
-        return regionAdvice;
+    int getDesiredMAdvice() {
+        return desiredMAdvice;
+    }
+
+    // visible for testing
+    long getExclusiveStart() {
+        return exclusiveStart;
+    }
+
+    // visible for testing
+    long getExclusiveEnd() {
+        return exclusiveEnd;
+    }
+
+    static long roundUpToRegion(long offset, int regionSize) {
+        return ((offset + regionSize - 1) / regionSize) * regionSize;
+    }
+
+    static long roundDownToRegion(long offset, int regionSize) {
+        return (offset / regionSize) * regionSize;
     }
 
     /**
@@ -262,7 +371,10 @@ public class CacheFileReader {
                     StatelessPlugin.SHARD_READ_THREAD_POOL,
                     StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                 );
-                rangeMissingHandler = new AdvisingRangeMissingHandler(rangeMissingHandler, regionAdvice);
+                // Determine madvise advice for this read. For compound sub-files, only ranges
+                // that fall entirely within the exclusive interior get MADV_RANDOM; boundary
+                // ranges that may share a region with adjacent files get MADV_NORMAL.
+                rangeMissingHandler = new AdvisingRangeMissingHandler(rangeMissingHandler, adviceForRange(rangeToWrite));
                 bytesRead = cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
                     logger.trace(
                         "{}: reading cached [{}][{}-{}]",
@@ -330,6 +442,11 @@ public class CacheFileReader {
         AdvisingRangeMissingHandler(SharedBlobCacheService.RangeMissingHandler delegate, int advice) {
             this.delegate = delegate;
             this.advice = advice;
+        }
+
+        // visible for testing
+        int advice() {
+            return advice;
         }
 
         @Override

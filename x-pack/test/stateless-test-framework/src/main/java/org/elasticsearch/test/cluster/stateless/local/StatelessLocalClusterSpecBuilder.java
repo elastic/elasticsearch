@@ -13,7 +13,6 @@ import org.elasticsearch.test.cluster.local.distribution.LocalDistributionResolv
 import org.elasticsearch.test.cluster.local.distribution.ReleasedDistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.SnapshotDistributionResolver;
 import org.elasticsearch.test.cluster.stateless.StatelessElasticsearchCluster;
-import org.elasticsearch.test.cluster.stateless.distribution.StatelessDistributionResolver;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
 public class StatelessLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuilder<StatelessElasticsearchCluster> {
@@ -32,9 +31,7 @@ public class StatelessLocalClusterSpecBuilder extends AbstractLocalClusterSpecBu
         return new DefaultLocalStatelessElasticsearchCluster(
             this::buildClusterSpec,
             new StatelessLocalClusterFactory(
-                new StatelessDistributionResolver(
-                    new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
-                )
+                new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
             )
         );
     }

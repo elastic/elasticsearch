@@ -21,6 +21,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMA
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FIX_SUM_AGG_LONG_OVERFLOW;
 import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.CERTIFIED_COLUMN_PREFIX;
 import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests for query approximation generated from existing CSV tests.
@@ -74,7 +75,11 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
                 expected.columnNames().add(columnName);
                 expected.columnTypes().add(expected.columnTypes().get(originalColumnIndex));
                 String certifiedColumnName = columnName.replace(CONFIDENCE_INTERVAL_COLUMN_PREFIX, CERTIFIED_COLUMN_PREFIX);
-                assert actualColumns.get(col + 1).get("name").equals(certifiedColumnName);
+                assertThat(
+                    "approximation confidence interval column should be followed by a corresponding certified column",
+                    actualColumns.get(col + 1).get("name"),
+                    equalTo(certifiedColumnName)
+                );
                 expected.columnNames().add(certifiedColumnName);
                 expected.columnTypes().add(CsvTestUtils.Type.BOOLEAN);
 

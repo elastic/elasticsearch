@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
+package org.elasticsearch.xpack.esql.optimizer.rules.physical;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;

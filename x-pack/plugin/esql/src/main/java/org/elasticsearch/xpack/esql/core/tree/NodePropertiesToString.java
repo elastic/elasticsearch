@@ -20,6 +20,13 @@ import java.util.regex.Pattern;
  * Renders the properties of a {@link Node} as a string.
  */
 class NodePropertiesToString {
+
+    private static final Pattern APPROXIMATION_BUCKET_COLUMN_NAME_PATTERN = Pattern.compile(
+        Pattern.quote(
+            Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR + ApproximationPlan.BUCKET_NAME_PART + Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR
+        ) + "(\\d+)"
+    );
+
     private final Node.NodeStringFormat format;
     private final Node<?> node;
     private final boolean skipIfChild;
@@ -126,9 +133,7 @@ class NodePropertiesToString {
      * is containing only a single bucket. Returns null if no or multiple buckets.
      */
     private Integer getQueryApproximationBucketId(Object prop) {
-        String bucketPrefix = Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR + ApproximationPlan.BUCKET_NAME_PART
-            + Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR;
-        Matcher matcher = Pattern.compile(Pattern.quote(bucketPrefix) + "(\\d+)").matcher(propertyToString(prop));
+        Matcher matcher = APPROXIMATION_BUCKET_COLUMN_NAME_PATTERN.matcher(propertyToString(prop));
         Set<Integer> bucketIds = new HashSet<>();
         while (matcher.find()) {
             bucketIds.add(Integer.parseInt(matcher.group(1)));

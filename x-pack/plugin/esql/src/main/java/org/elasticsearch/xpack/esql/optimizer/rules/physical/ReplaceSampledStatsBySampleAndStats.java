@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
+package org.elasticsearch.xpack.esql.optimizer.rules.physical;
 
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
@@ -162,7 +162,7 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
 
                 if (aggFnNeedsCorrection && desc.type() != ElementType.BOOLEAN) {
                     // Create a new alias for the uncorrected value, and reuse the existing attribute for the corrected value.
-                    Alias uncorrectedAlias = new Alias(Source.EMPTY, attr.name(), attr);
+                    Alias uncorrectedAlias = new Alias(Source.EMPTY, Attribute.rawTemporaryName(attr.name(), "uncorrected"), attr);
                     intermediateAttributes.add(uncorrectedAlias.toAttribute());
                     Expression corrected = new Div(
                         Source.EMPTY,
@@ -206,7 +206,7 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
 
             if (aggFnNeedsCorrection) {
                 // Create a new alias for the uncorrected value, and reuse the existing attribute for the corrected value.
-                Alias uncorrectedAlias = new Alias(Source.EMPTY, attr.name(), aggFn);
+                Alias uncorrectedAlias = new Alias(Source.EMPTY, Attribute.rawTemporaryName(attr.name(), "uncorrected"), aggFn);
                 aggregates.add(uncorrectedAlias);
                 Expression corrected = new Div(
                     Source.EMPTY,

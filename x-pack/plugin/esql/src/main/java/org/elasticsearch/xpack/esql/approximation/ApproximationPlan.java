@@ -786,14 +786,10 @@ public class ApproximationPlan {
                 // set result of the CONFIDENCE_INTERVAL function to NULL. Otherwise, set it to
                 // [single_value, single_value, 1.0], which represents the zero-width confidence
                 // interval around single_value, with certified=true.
-                Expression value = new Case(
-                    Source.EMPTY,
-                    new Equals(Source.EMPTY, new MvCount(Source.EMPTY, ci.arguments().getFirst()), Literal.integer(Source.EMPTY, 1)),
-                    List.of(ci.arguments().getFirst(), Literal.NULL)
-                );
+                Expression value = ci.arguments().getFirst();
                 return new Case(
                     Source.EMPTY,
-                    new IsNotNull(Source.EMPTY, value),
+                    new Equals(Source.EMPTY, new MvCount(Source.EMPTY, value), Literal.integer(Source.EMPTY, 1)),
                     List.of(
                         new MvAppend(Source.EMPTY, new MvAppend(Source.EMPTY, value, value), Literal.fromDouble(Source.EMPTY, 1.0)),
                         Literal.NULL

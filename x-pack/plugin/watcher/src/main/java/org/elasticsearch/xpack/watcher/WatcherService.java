@@ -426,11 +426,7 @@ public class WatcherService implements WatcherIndexingEventConsumer {
      * standard {@code _id}-based routing (Murmur3 hash mod number of shards).
      */
     // visible for testing
-    static ShardAllocationConfiguration findShardConfig(
-        Map<ShardId, ShardAllocationConfiguration> shardConfigs,
-        String id,
-        int numShards
-    ) {
+    static ShardAllocationConfiguration findShardConfig(Map<ShardId, ShardAllocationConfiguration> shardConfigs, String id, int numShards) {
         final int shardIdNum = Math.floorMod(Murmur3HashFunction.hash(id), numShards);
         for (Map.Entry<ShardId, ShardAllocationConfiguration> entry : shardConfigs.entrySet()) {
             if (entry.getKey().getId() == shardIdNum) {

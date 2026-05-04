@@ -621,9 +621,12 @@ public class WatcherServiceTests extends ESTestCase {
         final var config1 = new ShardAllocationConfiguration(1, 3, List.of("a", "b"));
         final var config2 = new ShardAllocationConfiguration(2, 3, List.of("a", "b", "c"));
         final Map<ShardId, ShardAllocationConfiguration> shardConfigs = Map.of(
-            new ShardId(index, 0), config0,
-            new ShardId(index, 1), config1,
-            new ShardId(index, 2), config2
+            new ShardId(index, 0),
+            config0,
+            new ShardId(index, 1),
+            config1,
+            new ShardId(index, 2),
+            config2
         );
 
         assertThat(WatcherService.findShardConfig(shardConfigs, idHashingToShard(0, 3), 3), is(config0));
@@ -716,7 +719,7 @@ public class WatcherServiceTests extends ESTestCase {
 
     /** Brute-forces an id whose Murmur3 hash maps to {@code targetShard} out of {@code numShards}. */
     private static String idHashingToShard(int targetShard, int numShards) {
-        for (int i = 0; ; i++) {
+        for (int i = 0;; i++) {
             String id = "watch-" + i;
             if (Math.floorMod(Murmur3HashFunction.hash(id), numShards) == targetShard) {
                 return id;

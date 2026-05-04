@@ -59,7 +59,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
             .setScheduleDelay(interval.millis(), TimeUnit.MILLISECONDS)
             .build();
 
-        this.tracerProvider = SdkTracerProvider.builder().setResource(OtelSdkResource.get()).addSpanProcessor(processor).build();
+        this.tracerProvider = SdkTracerProvider.builder().setResource(OtelSdkResource.get(settings)).addSpanProcessor(processor).build();
 
         this.openTelemetrySdk = OpenTelemetrySdk.builder()
             .setTracerProvider(tracerProvider)

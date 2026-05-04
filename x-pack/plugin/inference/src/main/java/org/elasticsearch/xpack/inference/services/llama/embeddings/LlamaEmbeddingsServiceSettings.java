@@ -64,9 +64,9 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
      * @throws ValidationException if any required fields are missing or invalid
      */
     public static LlamaEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        var model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var uri = extractUri(map, URL, validationException);
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -80,7 +80,37 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
 
         validationException.throwIfValidationErrorsExist();
 
-        return new LlamaEmbeddingsServiceSettings(model, uri, dimensions, similarity, maxInputTokens, rateLimitSettings);
+        return new LlamaEmbeddingsServiceSettings(modelId, uri, dimensions, similarity, maxInputTokens, rateLimitSettings);
+    }
+
+    @Override
+    public LlamaEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            LlamaService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new LlamaEmbeddingsServiceSettings(
+            this.modelId,
+            this.uri,
+            this.dimensions,
+            this.similarity,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedRateLimitSettings
+        );
     }
 
     /**

@@ -376,6 +376,103 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
+    /**
+     * Scalar MV_MAX pushdown on a keyword field cast to ip — verifies that
+     * the block loader respects the type conversion (single index, no union types).
+     */
+    public void testMvMaxEvalKeywordCastToIp() throws IOException {
+        deleteIndexIfExists("test_kw");
+
+        createSingleShardIndex("test_kw", Map.of("val", "keyword"));
+
+        bulkIndex("test_kw", List.of(Map.of("val", List.of("192.168.0.1", "192.168.3.1"))));
+
+        Map<String, Object> result = runEsql(requestObjectBuilder().query("""
+            FROM test_kw
+            | EVAL ip_val = MV_MAX(val::ip)
+            | KEEP ip_val
+            """), new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) result.get("values");
+        assertEquals(1, values.size());
+        assertEquals("192.168.3.1", values.get(0).get(0));
+    }
+
+    /**
+     * Scalar MV_MAX pushdown across union types (ip + keyword) — verifies
+     * that the existing scalar block loader path handles the type mismatch.
+     */
+    public void testMvMaxEvalUnionIpAndKeyword() throws IOException {
+        deleteIndexIfExists("test_ip");
+        deleteIndexIfExists("test_kw");
+
+        createSingleShardIndex("test_ip", Map.of("val", "ip"));
+        createSingleShardIndex("test_kw", Map.of("val", "keyword"));
+
+        bulkIndex("test_ip", List.of(Map.of("val", List.of("192.168.0.1", "192.168.3.1"))));
+        bulkIndex("test_kw", List.of(Map.of("val", "192.168.2.1")));
+
+        Map<String, Object> result = runEsql(requestObjectBuilder().query("""
+            FROM test_ip, test_kw
+            | EVAL ip_val = MV_MAX(val::ip)
+            | KEEP ip_val
+            | SORT ip_val DESC
+            | LIMIT 1
+            """), new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) result.get("values");
+        assertEquals(1, values.size());
+        assertEquals("192.168.3.1", values.get(0).get(0));
+    }
+
+    private void deleteIndexIfExists(String name) throws IOException {
+        try {
+            client().performRequest(new Request("DELETE", name));
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
+    }
+
+    private void createSingleShardIndex(String name, Map<String, String> fieldTypes) throws IOException {
+        Request createIndex = new Request("PUT", name);
+        try (XContentBuilder config = JsonXContent.contentBuilder()) {
+            config.startObject();
+            config.startObject("settings");
+            config.startObject("index").field("number_of_shards", 1).endObject();
+            config.endObject();
+            config.startObject("mappings");
+            config.startObject("properties");
+            for (var entry : fieldTypes.entrySet()) {
+                config.startObject(entry.getKey()).field("type", entry.getValue()).endObject();
+            }
+            config.endObject();
+            config.endObject();
+            createIndex.setJsonEntity(Strings.toString(config.endObject()));
+        }
+        Response createResponse = client().performRequest(createIndex);
+        assertThat(
+            entityToMap(createResponse.getEntity(), XContentType.JSON),
+            matchesMap().entry("shards_acknowledged", true).entry("index", name).entry("acknowledged", true)
+        );
+    }
+
+    private void bulkIndex(String indexName, List<Map<String, Object>> docs) throws IOException {
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "");
+        StringBuilder body = new StringBuilder();
+        for (Map<String, Object> doc : docs) {
+            body.append("{\"create\":{\"_index\":\"").append(indexName).append("\"}}\n");
+            body.append(Strings.toString(JsonXContent.contentBuilder().map(doc))).append("\n");
+        }
+        bulk.setJsonEntity(body.toString());
+        Response bulkResponse = client().performRequest(bulk);
+        assertThat(entityToMap(bulkResponse.getEntity(), XContentType.JSON), matchesMap().entry("errors", false).extraOk());
+    }
+
     public void testVCosine() throws IOException {
         test(
             justType("dense_vector"),
@@ -605,6 +702,49 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .item("ExchangeSinkOperator")
             );
         });
+    }
+
+    /**
+     * Tests that {@code LENGTH} on a field from the original index is pushed to field loading
+     * even when a {@code LOOKUP JOIN} follows. The EVAL precedes the join, so the expression
+     * falls below the join boundary and the {@code Primaries} check still sees exactly one source.
+     */
+    public void testLengthPushedBeyondLookupJoin() throws IOException {
+        initLookupIndex();
+        String value = "v".repeat(between(0, 256));
+        test(b -> {
+            b.startObject("test").field("type", "keyword").endObject();
+            b.startObject("main_matching").field("type", "keyword").endObject();
+        },
+            b -> b.field("test", value).field("main_matching", "lookup"),
+            """
+                FROM test
+                | EVAL length = LENGTH(test)
+                | DROP test
+                | LOOKUP JOIN lookup ON matching == main_matching
+                | STATS test = VALUES(CONCAT(test, length::KEYWORD))
+                """,
+            matchesList().item("a" + value.length()),
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            Map.of(
+                "data",
+                List.of(
+                    matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+                    matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
+                )
+            ),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item(lookupOperatorName())
+                    .item("EvalOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
     }
 
     /**

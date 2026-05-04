@@ -97,14 +97,15 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         assertThat(outputRows.size(), equalTo(6));
 
         outputRows.sort(Comparator.comparing(OutputRow::tsid).thenComparingLong(OutputRow::bucket));
-        // TSID "a": each point has value 1
-        assertThat(outputRows.get(0).value(), equalTo(7L));  // [0,7m) → 7 points
-        assertThat(outputRows.get(1).value(), equalTo(7L));  // [5m,12m) → 7 points
-        assertThat(outputRows.get(2).value(), equalTo(5L));  // [10m,17m) → 5 points
-        // TSID "b": each point has value 10
-        assertThat(outputRows.get(3).value(), equalTo(70L));
-        assertThat(outputRows.get(4).value(), equalTo(70L));
-        assertThat(outputRows.get(5).value(), equalTo(50L));
+        // TSID "a": each point has value 1.
+        // With no leading trim, early buckets contain partial windows.
+        assertThat(outputRows.get(0).value(), equalTo(1L));  // [0,1m) -> 1 point
+        assertThat(outputRows.get(1).value(), equalTo(6L));  // [0,6m) -> 6 points
+        assertThat(outputRows.get(2).value(), equalTo(7L));  // [4m,11m) -> 7 points
+        // TSID "b": each point has value 10.
+        assertThat(outputRows.get(3).value(), equalTo(10L));
+        assertThat(outputRows.get(4).value(), equalTo(60L));
+        assertThat(outputRows.get(5).value(), equalTo(70L));
     }
 
     /**
@@ -149,7 +150,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         long baseTime = oneMinBucket.round(startTime);
 
         List<List<Object>> rows = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 20; i++) {
             long ts = baseTime + TimeValue.timeValueMinutes(i).millis();
             rows.add(List.of("tsid1", ts, 5));
         }
@@ -220,9 +221,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
 
     /**
      * Sparse data where output-aligned sub-buckets have no direct data points.
-     * With 7m window, 5m output bucket, 1m internal bucket, and data only at minutes 2 and 8:
-     * - Output group at 00:00 is an expanded group (no direct data) — VALUES must still resolve
-     * - Output group at 05:00 is an expanded group (no direct data) — VALUES must still resolve
+     * With a backward 7m window, 5m output bucket, 1m internal bucket, and sparse data:
+     * - Output group at 10m is an expanded group (no direct data) and must keep VALUES output
      * This exercises the path where expandWindowBuckets creates groups that become output-aligned,
      * and selectedForValuesAggregator must remap them to the original group that has dimension data.
      */
@@ -303,13 +303,11 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 outputRows.add(new OutputRow(tsids.getBytesRef(p, scratch).utf8ToString(), bucket, sums.getLong(p)));
             }
         }
-        // Output-aligned groups: 00:00 and 05:00
-        assertThat(outputRows.size(), equalTo(2));
+        // With no leading trim and range-guarding to [2m,8m], only 05:00 remains output-aligned.
+        assertThat(outputRows.size(), equalTo(1));
         outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
-        // Window [00:00, 07:00) contains minute 2 (val=5)
+        // Window [−1m,6m) intersects available data at minute 2 only.
         assertThat(outputRows.get(0).value(), equalTo(5L));
-        // Window [05:00, 12:00) contains minute 8 (val=10)
-        assertThat(outputRows.get(1).value(), equalTo(10L));
     }
 
     /**
@@ -331,7 +329,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             rows.add(List.of("z", ts, 2));
         }
 
-        // 4m window, 3m output bucket, 1m internal bucket → GCD = 1m sub-buckets, output every 3m
+        // 4m backward window, 3m output bucket, 1m internal bucket.
         List<Page> results = runPipeline(oneMinBucket, threeMinBucket, windowDuration, rows);
 
         List<OutputRow> outputRows = extractRows(results);
@@ -340,12 +338,12 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             assertThat(threeMinBucket.round(row.bucket()), equalTo(row.bucket()));
         }
         outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
-        // [0,4m) → minutes 0..3 → 4 points × 2 = 8
-        assertThat(outputRows.get(0).value(), equalTo(8L));
-        // [3m,7m) → minutes 3..6 → 4 points × 2 = 8
+        // [0,1m) -> minute 0 -> 1 point × 2 = 2
+        assertThat(outputRows.get(0).value(), equalTo(2L));
+        // [0,4m) -> minutes 0..3 -> 4 points × 2 = 8
         assertThat(outputRows.get(1).value(), equalTo(8L));
-        // [6m,10m) → minutes 6..8 → 3 points × 2 = 6
-        assertThat(outputRows.get(2).value(), equalTo(6L));
+        // [3m,7m) -> minutes 3..6 -> 4 points × 2 = 8
+        assertThat(outputRows.get(2).value(), equalTo(8L));
     }
 
     // --- helpers ---
@@ -411,4 +409,5 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         }
         return outputRows;
     }
+
 }

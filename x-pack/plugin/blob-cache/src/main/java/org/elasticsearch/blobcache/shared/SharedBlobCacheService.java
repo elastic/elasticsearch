@@ -324,6 +324,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     private interface Cache<K, T> extends Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
+        /// Returns the entry for the provided `cacheKey` and `region` if it exists and is fully initialized
+        /// (i.e. its IO slot has been assigned), or `null` otherwise.
+        ///
+        /// Unlike [#get], this method will not allocate a new region slot if the entry does not exist.
+        @Nullable
+        CacheEntry<T> getIfPresent(K cacheKey, int region);
+
         int forceEvict(Predicate<K> cacheKeyPredicate);
 
         void forceEvictAsync(Predicate<K> cacheKey);
@@ -1090,20 +1097,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         /**
          * Populates a range in cache if the range is not available nor pending to be available in cache.
-         * <p>
-         * {@link SparseFileTracker#waitForRange} and gap filling are run as a single task on {@code executor} so callers can route the
-         * full populate operation (coordination and I/O initiation) to a pool sized for their resource limits (e.g. object-store fetches).
-         * If the range is already present or entirely covered by pending fills, {@link SparseFileTracker#waitForRangeIfPending} handles
-         * coordination without queueing on {@code executor}.
-         * </p>
          *
          * @param rangeToWrite the range of bytes to populate
          * @param writer a writer that handles writing of newly downloaded data to the shared cache
-         * @param executor the executor used to coordinate cache filling; also used to run gap-filling work in-thread on that pool
+         * @param executor the executor used to download and to write new data
          * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of the
          *                 range, in which case the listener is completed once writing is done. The listener is completed with {@code false}
          *                 if the range to write is already available in cache or if another thread will download and write the range, in
-         *                 which cases the listener is completed when determined on {@code executor}.
+         *                 which cases the listener is completed immediately.
          */
         void populate(
             final ByteRange rangeToWrite,
@@ -1111,80 +1112,64 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final Executor executor,
             final ActionListener<Boolean> listener
         ) {
-            if (rangeToWrite.isEmpty()) {
-                listener.onResponse(false);
-                return;
-            }
             try {
-                try {
-                    incRefEnsureOpen();
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                    return;
-                }
-                // If the range is already present, or entirely covered by pending fills, coordinate without queueing on executor.
-                try {
-                    final ActionListener<Void> waitIfPendingListener = ActionListener.releaseAfter(
-                        listener.map(unused -> false),
-                        this::decRef
+                incRefEnsureOpen();
+                try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
+                    final var gapsOpt = tracker.waitForRange(
+                        rangeToWrite,
+                        rangeToWrite,
+                        Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
+                            assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
+                        }), refs.acquire()) : refs.acquireListener()
                     );
-                    if (tracker.waitForRangeIfPending(rangeToWrite, waitIfPendingListener)) {
+                    if (gapsOpt.isEmpty()) {
+                        listener.onResponse(false);
                         return;
                     }
-                } catch (Exception e) {
-                    decRef();
-                    listener.onFailure(e);
-                    return;
-                }
-                executor.execute(new AbstractRunnable() {
-                    @Override
-                    protected void doRun() {
-                        try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
-                            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                                rangeToWrite,
-                                rangeToWrite,
-                                Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
-                                    assert blobCacheService.regionOwners.get(nonVolatileIO()) == CacheFileRegion.this;
-                                }), refs.acquire()) : refs.acquireListener()
-                            );
-                            if (gaps.isEmpty()) {
-                                listener.onResponse(false);
-                                return;
-                            }
-                            final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
-                            logger.trace(
-                                () -> Strings.format(
-                                    "fill gaps %s %s shared input stream factory",
-                                    gaps,
-                                    streamFactory == null ? "without" : "with"
-                                )
-                            );
-                            final ActionListener<Void> gapsDoneListener = streamFactory != null
-                                ? ActionListener.releaseBefore(streamFactory, listener.map(unused -> true))
-                                : listener.map(unused -> true);
-                            try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
-                                // Use current thread to fill the gaps in order
-                                for (SparseFileTracker.Gap gap : gaps) {
-                                    fillGapRunnable(
-                                        gap,
-                                        writer,
-                                        streamFactory,
-                                        ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire())
-                                    ).run();
+                    executor.execute(new AbstractRunnable() {
+                        private final Releasable dispatchRef = refs.acquire();
+
+                        @Override
+                        protected void doRun() {
+                            try (dispatchRef) {
+                                final List<SparseFileTracker.Gap> gaps = gapsOpt.get().claim();
+                                if (gaps.isEmpty()) {
+                                    listener.onResponse(false);
+                                    return;
+                                }
+                                final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                                logger.trace(
+                                    () -> Strings.format(
+                                        "fill gaps %s %s shared input stream factory",
+                                        gaps,
+                                        streamFactory == null ? "without" : "with"
+                                    )
+                                );
+                                final ActionListener<Void> gapsDoneListener = streamFactory != null
+                                    ? ActionListener.releaseBefore(streamFactory, listener.map(unused -> true))
+                                    : listener.map(unused -> true);
+                                try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
+                                    // Use current thread to fill the gaps in order
+                                    for (SparseFileTracker.Gap gap : gaps) {
+                                        fillGapRunnable(
+                                            gap,
+                                            writer,
+                                            streamFactory,
+                                            ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire())
+                                        ).run();
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        decRef();
-                        listener.onFailure(e);
-                    }
-                });
+                        @Override
+                        public void onFailure(Exception e) {
+                            dispatchRef.close();
+                            listener.onFailure(e);
+                        }
+                    });
+                }
             } catch (Exception e) {
-                assert false;
-                decRef();
                 listener.onFailure(e);
             }
         }
@@ -1219,7 +1204,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                             blobCacheService.blobCacheMetrics.recordRead();
                             l.onResponse(read);
                         })
-                    );
+                    ).map(SparseFileTracker.Gaps::claim).orElse(List.of());
 
                     if (gaps.isEmpty() == false) {
                         final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
@@ -1357,11 +1342,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     // nothing to read, skip
                     continue;
                 }
-                var fileRegion = lastAccessedRegion;
-                try {
-                    fileRegion = cache.get(cacheKey, this.length, region);
-                } catch (AlreadyClosedException exc) {
-                    // consider missing
+                final CacheEntry<CacheFileRegion<KeyType>> fileRegion = cache.getIfPresent(cacheKey, region);
+                if (fileRegion == null) {
                     continue;
                 }
                 final var chunk = fileRegion.chunk;
@@ -1388,9 +1370,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
                 // existing item, check if we need to promote item
                 fileRegion.touch();
-
             } else {
-                fileRegion = cache.get(cacheKey, length, startRegion);
+                fileRegion = cache.getIfPresent(cacheKey, startRegion);
+                if (fileRegion == null) {
+                    return false;
+                }
                 incrementReads = true;
             }
             final var region = fileRegion.chunk;
@@ -1419,11 +1403,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (startRegion != endRegion) {
                 return false;
             }
-            var fileRegion = lastAccessedRegion;
+            CacheEntry<CacheFileRegion<KeyType>> fileRegion = lastAccessedRegion;
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
                 fileRegion.touch();
             } else {
-                fileRegion = cache.get(cacheKey, this.length, startRegion);
+                fileRegion = cache.getIfPresent(cacheKey, startRegion);
+                if (fileRegion == null) {
+                    return false;
+                }
             }
             final var region = fileRegion.chunk;
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
@@ -1459,7 +1446,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         return false;
                     }
 
-                    final var entry = cache.get(cacheKey, this.length, regionIdx);
+                    final var entry = cache.getIfPresent(cacheKey, regionIdx);
+                    if (entry == null) {
+                        return false;
+                    }
                     final var region = entry.chunk;
 
                     final long regionEnd = offset + length - getRegionStart(regionIdx);
@@ -1963,7 +1953,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         @Override
         public LFUCacheEntry get(KeyType cacheKey, long fileLength, int region) {
-            final RegionKey<KeyType> regionKey = new RegionKey<>(cacheKey, region);
+            final var regionKey = new RegionKey<>(cacheKey, region);
             final long now = epoch.get();
             // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path
             // if we did not find an entry
@@ -1986,7 +1976,31 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
             assert assertChunkActiveOrEvicted(entry);
 
-            // existing item, check if we need to promote item
+            // existing item, check if we need to promote it
+            if (now > entry.lastAccessedEpoch) {
+                maybePromote(now, entry);
+            }
+
+            return entry;
+        }
+
+        @Override
+        @Nullable
+        public LFUCacheEntry getIfPresent(KeyType cacheKey, int region) {
+            final var regionKey = new RegionKey<>(cacheKey, region);
+            final long now = epoch.get();
+            var entry = keyMapping.get(cacheKey.shardId(), regionKey);
+            if (entry == null) {
+                return null;
+            }
+            // If the IO slot has not been assigned yet, the entry is still being initialized.
+            // Treat it as absent.
+            if (entry.chunk.volatileIO() == null) {
+                return null;
+            }
+            assert assertChunkActiveOrEvicted(entry);
+
+            // existing item, check if we need to promote it
             if (now > entry.lastAccessedEpoch) {
                 maybePromote(now, entry);
             }

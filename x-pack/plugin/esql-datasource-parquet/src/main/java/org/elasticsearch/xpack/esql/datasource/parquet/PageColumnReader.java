@@ -121,6 +121,53 @@ final class PageColumnReader {
         };
     }
 
+    /**
+     * Filters a block to retain only the positions specified by {@code positions}.
+     * Takes ownership of {@code source}: the source block is closed after filtering
+     * and the caller owns the returned block.
+     *
+     * @param source        the block to filter; ownership is transferred to this method
+     * @param positions     the positions to retain (ascending, no duplicates)
+     * @param survivorCount the number of valid entries in {@code positions}
+     * @param blockFactory  the factory used to create replacement blocks
+     * @return a new block containing only the selected positions
+     */
+    static Block filterBlock(Block source, int[] positions, int survivorCount, BlockFactory blockFactory) {
+        if (survivorCount == source.getPositionCount()) {
+            return source;
+        }
+        if (survivorCount == 0) {
+            source.close();
+            return blockFactory.newConstantNullBlock(0);
+        }
+        Block filtered = source.filter(false, Arrays.copyOf(positions, survivorCount));
+        source.close();
+        return filtered;
+    }
+
+    /**
+     * Reads a batch and filters it to retain only the surviving positions.
+     * When all rows survive, delegates directly to {@link #readBatch}. When none
+     * survive, skips the rows and returns an empty constant null block.
+     *
+     * @param maxRows           the total number of rows in the batch
+     * @param blockFactory      the factory used to create blocks
+     * @param survivorPositions the positions that survived filtering (ascending, no duplicates)
+     * @param survivorCount     the number of valid entries in {@code survivorPositions}
+     * @return a block containing only the surviving rows
+     */
+    Block readBatchFiltered(int maxRows, BlockFactory blockFactory, int[] survivorPositions, int survivorCount) {
+        if (survivorCount == maxRows) {
+            return readBatch(maxRows, blockFactory);
+        }
+        if (survivorCount == 0) {
+            skipRows(maxRows);
+            return blockFactory.newConstantNullBlock(0);
+        }
+        Block full = readBatch(maxRows, blockFactory);
+        return filterBlock(full, survivorPositions, survivorCount, blockFactory);
+    }
+
     private void loadDictionaryIfNeeded() {
         if (dictionaryLoaded) {
             return;

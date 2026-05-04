@@ -29,6 +29,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -2416,6 +2417,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final Number nullValue;
     private final FieldValues<Number> scriptValues;
     private final boolean dimension;
+    private final boolean writeDimensionRouting;
     private final ScriptCompiler scriptCompiler;
     private final Script script;
     private final MetricType metricType;
@@ -2448,6 +2450,9 @@ public class NumberFieldMapper extends FieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.scriptValues = builder.scriptValues();
         this.dimension = builder.dimension.getValue();
+        this.writeDimensionRouting = this.dimension
+            && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
+            && efs.extractDimensionsWhileMapping();
         this.scriptCompiler = builder.scriptCompiler;
         this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
@@ -2593,7 +2598,7 @@ public class NumberFieldMapper extends FieldMapper {
         final String name = fieldType.name();
         final LuceneDocument doc = context.doc();
 
-        if (dimension) {
+        if (writeDimensionRouting) {
             context.getRoutingFields().addLong(name, numericValue.longValue());
         }
 

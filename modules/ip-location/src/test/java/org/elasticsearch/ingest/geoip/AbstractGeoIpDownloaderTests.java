@@ -253,12 +253,16 @@ public class AbstractGeoIpDownloaderTests extends ESTestCase {
      */
     public void testExceptionRecoversForFutureRuns() throws Exception {
         TestableDownloader downloader = new TestableDownloader(threadPool);
+        CountDownLatch firstCallRecorded = new CountDownLatch(1);
         CountDownLatch secondCallEntered = new CountDownLatch(1);
         AtomicBoolean keepRunningOnFirstCall = new AtomicBoolean();
         AtomicBoolean keepRunningOnSecondCall = new AtomicBoolean();
         downloader.onEnter = () -> {
             if (downloader.runDownloaderCalls.get() == 1) {
                 keepRunningOnFirstCall.set(downloader.checkShouldKeepRunning());
+                // Signal AFTER the write, so the test thread synchronizes on the hook output, not on
+                // runDownloaderCalls (which the fixture increments before invoking the hook).
+                firstCallRecorded.countDown();
                 throw new RuntimeException("synthetic failure on first run");
             }
             keepRunningOnSecondCall.set(downloader.checkShouldKeepRunning());
@@ -266,8 +270,7 @@ public class AbstractGeoIpDownloaderTests extends ESTestCase {
         };
 
         downloader.requestRunOnDemand();
-        // Wait for the failed first run to finish unwinding before issuing the second request.
-        assertBusy(() -> assertThat(downloader.runDownloaderCalls.get(), equalTo(1)));
+        safeAwait(firstCallRecorded);
         assertTrue("shouldKeepRunning must have been true while the throwing run executed", keepRunningOnFirstCall.get());
         assertBusy(
             () -> assertFalse(

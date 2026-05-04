@@ -1,0 +1,38 @@
+// CSV-only spec: exercises options that are specific to the CSV format reader.
+//
+// employees.csv has a typed header line ("birth_date:date,emp_no:integer,first_name:keyword,...").
+// With header_row=false, that line becomes data row 0, so synthesized columns are 0-based:
+//   col0 = birth_date column (row 0 cell = "birth_date:date")
+//   col1 = emp_no column     (row 0 cell = "emp_no:integer", row 1 cell = "10001", ...)
+// The schema widens to KEYWORD because col1 mixes the literal string "emp_no:integer" with
+// integer-looking values like "10001".
+
+headerRowFalse
+required_capability: external_command
+required_capability: external_csv_header_row_option
+required_capability: datasource_file_readers_no_text_type
+
+EXTERNAL "{{employees}}" WITH {"header_row": false}
+| KEEP col1
+| LIMIT 2
+;
+
+col1:keyword
+"emp_no:integer"
+"10001"
+;
+
+headerRowFalseWithCustomPrefix
+required_capability: external_command
+required_capability: external_csv_header_row_option
+required_capability: datasource_file_readers_no_text_type
+
+EXTERNAL "{{employees}}" WITH {"header_row": false, "column_prefix": "f"}
+| KEEP f1
+| LIMIT 2
+;
+
+f1:keyword
+"emp_no:integer"
+"10001"
+;

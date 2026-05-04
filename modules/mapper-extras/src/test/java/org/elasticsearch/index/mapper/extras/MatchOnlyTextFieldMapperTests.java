@@ -119,6 +119,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
             checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
         }
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
     @Override
@@ -155,6 +156,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDisableDefaultIndex() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+
         var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
         var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
         var documentMapper = mapperService.documentMapper();

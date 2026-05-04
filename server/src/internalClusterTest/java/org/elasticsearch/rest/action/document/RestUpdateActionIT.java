@@ -109,7 +109,10 @@ public class RestUpdateActionIT extends ESIntegTestCase {
                 "field": "updated"
               }
             }""");
-        ResponseException routingProvidedException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(routingProvided));
+        ResponseException routingProvidedException = expectThrows(
+            ResponseException.class,
+            () -> getRestClient().performRequest(routingProvided)
+        );
         String routingProvidedBody = Streams.copyToString(
             new InputStreamReader(routingProvidedException.getResponse().getEntity().getContent(), UTF_8)
         );

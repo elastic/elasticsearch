@@ -112,7 +112,13 @@ public class UpdateHelper {
      * Prepare the request for upsert, executing the upsert script if present, and returning a {@code Result} containing a new
      * {@code IndexRequest} to be executed on the primary and replicas.
      */
-    Result prepareUpsert(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis, boolean routingFromSlice) {
+    Result prepareUpsert(
+        ShardId shardId,
+        UpdateRequest request,
+        final GetResult getResult,
+        LongSupplier nowInMillis,
+        boolean routingFromSlice
+    ) {
         if (request.upsertRequest() == null && request.docAsUpsert() == false) {
             throw new DocumentMissingException(shardId, request.id());
         }

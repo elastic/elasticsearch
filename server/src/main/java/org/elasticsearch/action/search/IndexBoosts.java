@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.index.Index;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.Map;
@@ -34,7 +35,7 @@ public final class IndexBoosts {
     /**
      * Returns the boost for the concrete index addressed by {@code shardIt}.
      */
-    public float lookup(SearchShardIterator shardIt) {
-        return boostsByIndexUuid.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
+    public float lookup(Index index) {
+        return boostsByIndexUuid.getOrDefault(index.getUUID(), DEFAULT_INDEX_BOOST);
     }
 }

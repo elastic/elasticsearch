@@ -456,7 +456,7 @@ final class CanMatchPreFilterSearchPhase {
     private CanMatchNodeRequest.Shard buildShardLevelRequest(SearchShardIterator shardIt) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
-        float indexBoost = concreteIndexBoosts.lookup(shardIt);
+        float indexBoost = concreteIndexBoosts.lookup(shardIt.shardId().getIndex());
         int shardRequestIndex = shardItIndexMap.get(shardIt);
         return new CanMatchNodeRequest.Shard(
             shardIt.getOriginalIndices().indices(),

@@ -499,7 +499,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     );
                     perNodeRequest.shards.add(
                         new ShardToQuery(
-                            concreteIndexBoosts.lookup(shardRoutings),
+                            concreteIndexBoosts.lookup(shardRoutings.shardId().getIndex()),
                             getOriginalIndices(shardIndex).indices(),
                             shardIndex,
                             routing.getShardId(),

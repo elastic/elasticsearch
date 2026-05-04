@@ -328,7 +328,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return IndexBoosts.EMPTY;
         }
 
-        // Map index name -> list of indices per remote cluster alias.
+        // Map index name -> map of indices per remote cluster alias.
         final Map<String, Map<String, String>> remoteIndices;
         if (remoteShardIterators.isEmpty()) {
             remoteIndices = Collections.emptyMap();
@@ -369,7 +369,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     // This is a remote index, which has been already resolved for us, so we just add it
                     concreteIndexBoosts.putIfAbsent(remotesOfIndex.get(indexClusterAlias), ib.getBoost());
                 } else {
-                    // This is an index on a different cluster, so we just ignore it
+                    // If this is an index on a different cluster, we just ignore it
                     if (indexClusterAlias.equals(clusterAlias)) {
                         resolveLocalBoost(options, clusterState, ib.getBoost(), indexName, concreteIndexBoosts);
                     }
@@ -378,7 +378,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 // unqualified index - if we have remote indices with this name, we add them
                 if (remoteIndices.isEmpty() == false) {
                     // Add UUIDs from remote iterators with this index name directly
-                    remoteIndices.getOrDefault(indexName, Collections.emptyMap()).forEach((index, uuid) -> {
+                    remoteIndices.getOrDefault(indexName, Collections.emptyMap()).forEach((_cluster, uuid) -> {
                         concreteIndexBoosts.putIfAbsent(uuid, ib.getBoost());
                     });
                 }

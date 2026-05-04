@@ -50,12 +50,12 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
  * <p>When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
  *
  * <p>When the request is sliced, this task can either represent a coordinating task (using
- * {@link BulkByScrollTask#setWorkerCount(int)}) or a worker task that performs search queries (using
+ * {@link BulkByScrollTask#setWorkerCount(int, float)}) or a worker task that performs search queries (using
  * {@link BulkByScrollTask#setWorker(float, Integer)}).
  *
  * <p>We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
  * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
- * class with {@link #setWorkerCount(int)} or {@link #setWorker(float, Integer)}.
+ * class with {@link #setWorkerCount(int, float)} or {@link #setWorker(float, Integer)}.
  */
 public class BulkByScrollTask extends CancellableTask {
 
@@ -118,7 +118,7 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     private BulkByScrollTask.Status emptyStatus() {
-        return new Status(Collections.emptyList(), getReasonCancelled());
+        return new Status(Collections.emptyList(), getReasonCancelled(), 0f);
     }
 
     /**
@@ -130,8 +130,9 @@ public class BulkByScrollTask extends CancellableTask {
 
     /**
      * Sets this task to be a leader task for {@code slices} sliced subtasks
+     * @param requestsPerSecond the initial total RPS for the leader, tracked in leader as source-of-truth RPS for relocation
      */
-    public void setWorkerCount(int slices) {
+    public void setWorkerCount(int slices, float requestsPerSecond) {
         if (isLeader()) {
             throw new IllegalStateException("This task is already a leader for other slice subtasks");
         }
@@ -139,7 +140,7 @@ public class BulkByScrollTask extends CancellableTask {
             throw new IllegalStateException("This task is already a worker");
         }
 
-        leaderState = new LeaderBulkByScrollTaskState(this, slices);
+        leaderState = new LeaderBulkByScrollTaskState(this, slices, requestsPerSecond);
     }
 
     /**
@@ -190,17 +191,15 @@ public class BulkByScrollTask extends CancellableTask {
         return workerState;
     }
 
-    /**
-     * Claims cancellation on the task's {@link RelocationProgress}. Throws {@link ElasticsearchStatusException} with
-     * {@link RestStatus#CONFLICT} if the relocation handoff has already committed, since cancelling the source at
-     * that point would leave the resumed task on the destination unaware.
-     */
+    /// Claims cancellation on the task's [RelocationProgress]. Throws [ElasticsearchStatusException] with
+    /// [RestStatus#SERVICE_UNAVAILABLE] if the relocation handoff has already committed, since cancelling the
+    /// source at that point would leave the resumed task on the destination unaware.
     @Override
     public void ensureCancellable() {
         if (relocationProgress.tryPrepareCancellation() == false) {
             throw new ElasticsearchStatusException(
                 "cannot cancel task [" + getId() + "] because it is being relocated",
-                RestStatus.CONFLICT
+                RestStatus.SERVICE_UNAVAILABLE
             );
         }
     }
@@ -468,7 +467,7 @@ public class BulkByScrollTask extends CancellableTask {
                     throw new IllegalArgumentException("a required field is null when building Status");
                 }
             } else {
-                return new Status(sliceStatuses, reasonCancelled);
+                return new Status(sliceStatuses, reasonCancelled, requestsPerSecond);
             }
         }
     }
@@ -586,13 +585,10 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         /**
-         * Constructor merging many statuses.
-         *
-         * @param sliceStatuses Statuses of sub requests that this task was sliced into.
-         * @param reasonCancelled Reason that this *this* task was cancelled. Note that each entry in {@code sliceStatuses} can be cancelled
-         *        independently of this task but if this task is cancelled then the workers *should* be cancelled.
+         * Constructor merging many statuses. The caller provides the authoritative requestsPerSecond rather than
+         * summing from children, which can be stale after rethrottle with completed slices.
          */
-        public Status(List<StatusOrException> sliceStatuses, @Nullable String reasonCancelled) {
+        public Status(List<StatusOrException> sliceStatuses, @Nullable String reasonCancelled, float requestsPerSecond) {
             sliceId = null;
             this.reasonCancelled = reasonCancelled;
 
@@ -606,7 +602,6 @@ public class BulkByScrollTask extends CancellableTask {
             long mergedBulkRetries = 0;
             long mergedSearchRetries = 0;
             long mergedThrottled = 0;
-            float mergedRequestsPerSecond = 0;
             long mergedThrottledUntil = Long.MAX_VALUE;
 
             for (StatusOrException slice : sliceStatuses) {
@@ -628,7 +623,6 @@ public class BulkByScrollTask extends CancellableTask {
                 mergedBulkRetries += slice.status.getBulkRetries();
                 mergedSearchRetries += slice.status.getSearchRetries();
                 mergedThrottled += slice.status.getThrottled().nanos();
-                mergedRequestsPerSecond += slice.status.getRequestsPerSecond();
                 mergedThrottledUntil = min(mergedThrottledUntil, slice.status.getThrottledUntil().nanos());
             }
 
@@ -642,7 +636,7 @@ public class BulkByScrollTask extends CancellableTask {
             bulkRetries = mergedBulkRetries;
             searchRetries = mergedSearchRetries;
             throttled = timeValueNanos(mergedThrottled);
-            requestsPerSecond = mergedRequestsPerSecond;
+            this.requestsPerSecond = requestsPerSecond;
             throttledUntil = timeValueNanos(mergedThrottledUntil == Long.MAX_VALUE ? 0 : mergedThrottledUntil);
             this.sliceStatuses = sliceStatuses;
         }

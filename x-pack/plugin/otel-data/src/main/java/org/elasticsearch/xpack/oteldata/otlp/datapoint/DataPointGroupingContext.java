@@ -113,22 +113,22 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
     }
 
     @Override
-    public int totalDataPoints() {
+    public int totalItems() {
         return totalDataPoints;
     }
 
     @Override
-    public int getIgnoredDataPoints() {
+    public int getIgnoredItems() {
         return ignoredDataPoints;
     }
 
     @Override
-    public String getIgnoredDataPointsMessage(int limit) {
+    public String getIgnoredItemsMessage(int limit) {
         if (ignoredDataPointMessages.isEmpty()) {
             return "";
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("Ignored ").append(getIgnoredDataPoints()).append(" data points due to the following reasons:\n");
+        sb.append("Ignored ").append(getIgnoredItems()).append(" data points due to the following reasons:\n");
         int count = 0;
         for (String message : ignoredDataPointMessages) {
             sb.append(" - ").append(message).append("\n");

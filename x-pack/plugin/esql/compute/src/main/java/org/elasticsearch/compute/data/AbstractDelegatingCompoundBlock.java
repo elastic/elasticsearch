@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -184,7 +185,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
 
     @Override
     public long ramBytesUsed() {
-        long bytes = firstValueIndexes != null ? (long) Integer.BYTES * firstValueIndexes.length : 0;
+        long bytes = firstValueIndexes != null ? RamUsageEstimator.sizeOf(firstValueIndexes) : 0;
         for (Block b : getSubBlocks()) {
             bytes += b.ramBytesUsed();
         }
@@ -194,7 +195,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     @Override
     protected void closeInternal() {
         if (firstValueIndexes != null) {
-            blockFactory().adjustBreaker((long) -Integer.BYTES * firstValueIndexes.length);
+            blockFactory().adjustBreaker(-RamUsageEstimator.sizeOf(firstValueIndexes));
         }
         Releasables.close(getSubBlocks());
     }
@@ -317,6 +318,9 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
         private int[] firstValueIndexes;
         private int openPositionEntryStartValue = -1;
 
+        /**
+         * The number of values added, including null entries.
+         */
         private int valueCount;
 
         protected final BlockFactory blockFactory;
@@ -429,10 +433,11 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
             } else {
                 AbstractDelegatingCompoundBlock<?> from = (AbstractDelegatingCompoundBlock<?>) block;
                 int numCopiedPositions = endExclusive - beginInclusive;
-                int startSubBlockPos = from.getFirstValueIndex(beginInclusive);
-                int endSubBlockPos = from.getFirstValueIndex(endExclusive);
-                int numCopiedValues = endSubBlockPos - startSubBlockPos;
-                boolean hasNoMultiValues = numCopiedValues == numCopiedPositions;
+                int startSubBlockPos = from.firstValueIndexes == null ? beginInclusive : from.firstValueIndexes[beginInclusive];
+                int endSubBlockPos = from.firstValueIndexes == null ? endExclusive : from.firstValueIndexes[endExclusive];
+                // Remember that both null values and non-multivalued, non-null entries take up exactly one position in the subblocks
+                int numCopiedSubBlockPositions = endSubBlockPos - startSubBlockPos;
+                boolean hasNoMultiValues = numCopiedSubBlockPositions == numCopiedPositions;
                 if (hasNoMultiValues) {
                     if (firstValueIndexes != null) {
                         ensureFirstValueIndexCapacity(positionCount + numCopiedPositions + 1);
@@ -449,7 +454,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
                     }
                 }
                 copySubBlockPositions(from, startSubBlockPos, endSubBlockPos);
-                this.valueCount += numCopiedValues;
+                this.valueCount += numCopiedSubBlockPositions;
                 this.positionCount += numCopiedPositions;
             }
             return this;
@@ -462,7 +467,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
 
         @Override
         public long estimatedBytes() {
-            return firstValueIndexes != null ? Integer.BYTES * (long) firstValueIndexes.length : 0;
+            return firstValueIndexes != null ? RamUsageEstimator.sizeOf(firstValueIndexes) : 0;
         }
 
         @Override

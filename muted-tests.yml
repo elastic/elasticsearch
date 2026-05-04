@@ -205,8 +205,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/146466
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  issue: https://github.com/elastic/elasticsearch/issues/146545
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650
@@ -335,9 +333,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
   method: testEvaluateBlockWithNulls
   issue: https://github.com/elastic/elasticsearch/issues/147773
-- class: org.elasticsearch.cluster.routing.IndexRoutingTests
-  method: testRequiredRoutingUsesSliceMessageWhenSliceEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/147777
 
 # Examples:
 #
@@ -424,9 +419,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
   method: testGenerationalFileBlobReferenceIsRetainedCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/147858
-- class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
-  method: testRetentionLeasesIgnoredForSoftDeletesPolicy
-  issue: https://github.com/elastic/elasticsearch/issues/147859
 - class: org.elasticsearch.search.internal.CancellableBulkScorerTests
   method: testIntervalGrowsGeometrically
   issue: https://github.com/elastic/elasticsearch/issues/147872
@@ -469,12 +461,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.shutdown.SigtermTerminationHandlerTests
   method: testShutdownBlockIgnoreOtherRoles
   issue: https://github.com/elastic/elasticsearch/issues/148037
-- class: org.elasticsearch.search.profile.TimerTests
-  method: testTimingInterval
-  issue: https://github.com/elastic/elasticsearch/issues/148038
-- class: org.elasticsearch.search.sort.NestedSortBuilderTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/148039
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
@@ -484,12 +470,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/148096
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testUnsupportedGroupKeyTypesNotAllowedInStatsBy
-  issue: https://github.com/elastic/elasticsearch/issues/148112
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testUnsupportedGroupKeyTypesNotAllowedInLimitBy
-  issue: https://github.com/elastic/elasticsearch/issues/148113
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
@@ -523,3 +503,51 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/148175
+- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
+  method: testDatasetCrudForbiddenWithoutIndexManage
+  issue: https://github.com/elastic/elasticsearch/issues/148182
+- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
+  method: testDataSourceAdminListEmpty
+  issue: https://github.com/elastic/elasticsearch/issues/148183
+- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
+  method: testDataSourceCrudForbiddenWithoutClusterManage
+  issue: https://github.com/elastic/elasticsearch/issues/148184
+- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
+  method: testDatasetCrudForbiddenWithoutIndexManage
+  issue: https://github.com/elastic/elasticsearch/issues/148185
+- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
+  method: testDataSourceAdminListEmpty
+  issue: https://github.com/elastic/elasticsearch/issues/148186
+- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
+  method: testDataSourceCrudForbiddenWithoutClusterManage
+  issue: https://github.com/elastic/elasticsearch/issues/148187
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148190
+- class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsIntegTests
+  method: testCreateAndRestoreSearchableSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/148217
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
+  method: testRandomActivitiesStatelessSnapshotDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/148219
+- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
+  method: testSyntheticId
+  issue: https://github.com/elastic/elasticsearch/issues/148235
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testSnapshotShardsWhileHollowing
+  issue: https://github.com/elastic/elasticsearch/issues/148236
+- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
+  method: testEstimatedHeapHighWatermarkMonitorTriggersReroute
+  issue: https://github.com/elastic/elasticsearch/issues/148246
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:exponential_histogram.All aggs grouped by Date Trunc and Instance (time series mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/148250
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:spatial.centroidFromAirportsAfterIntersectsCompoundPredicateNotIndexed}
+  issue: https://github.com/elastic/elasticsearch/issues/148251
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:date.monthNameTruncate}
+  issue: https://github.com/elastic/elasticsearch/issues/148252
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:tdigest.Group Aggs By Bucket and Instance (standard mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/148254

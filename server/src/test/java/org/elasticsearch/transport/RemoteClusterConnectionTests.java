@@ -149,15 +149,17 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
                     SearchHits searchHits;
                     if ("null_target".equals(request.preference())) {
-                        searchHits = SearchHits.unpooled(
-                            new SearchHit[] { SearchHit.unpooled(0) },
+                        searchHits = new SearchHits(
+                            new SearchHit[] { new SearchHit(0) },
                             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                             1F
                         );
                     } else {
                         searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
-                    try (var searchResponseRef = ReleasableRef.of(SearchResponseUtils.successfulResponse(searchHits))) {
+                    var searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+                    searchHits.decRef(); // transfer ownership to searchResponse
+                    try (var searchResponseRef = ReleasableRef.of(searchResponse)) {
                         channel.sendResponse(searchResponseRef.get());
                     }
                 }

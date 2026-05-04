@@ -1464,11 +1464,13 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
         final StatelessSharedBlobCacheService mockCacheService = mock(StatelessSharedBlobCacheService.class);
 
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
             createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
-            null,
+            metrics,
             System::currentTimeMillis,
             mockCacheService
         );
@@ -1494,6 +1496,110 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             eq(cacheBlobReader),
             any(ActionListener.class)
         );
+
+        // No outcome metric is recorded yet because the async listener has not been completed by the (mocked) service.
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testAsyncPrefetchSuccessIsRecorded() throws IOException {
+        final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(false);
+        final FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), randomNonNegativeLong(), "test-file");
+        when(cacheFile.getCacheKey()).thenReturn(cacheKey);
+        final long fileLength = randomLongBetween(200, 10_000);
+        when(cacheFile.getLength()).thenReturn(fileLength);
+
+        final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
+        final StatelessSharedBlobCacheService mockCacheService = mock(StatelessSharedBlobCacheService.class);
+        // Synchronously complete the listener with success.
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(5);
+            listener.onResponse(null);
+            return null;
+        }).when(mockCacheService)
+            .asyncPrefetch(any(), anyLong(), anyLong(), anyLong(), any(CacheBlobReader.class), any(ActionListener.class));
+
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        final CacheFileReader cacheFileReader = new CacheFileReader(
+            cacheFile,
+            cacheBlobReader,
+            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            metrics,
+            System::currentTimeMillis,
+            mockCacheService
+        );
+        final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
+            "test-file",
+            randomIOContext(),
+            cacheFileReader,
+            null,
+            fileLength,
+            0
+        );
+
+        long offset = randomLongBetween(0, fileLength - 2);
+        long length = randomLongBetween(1, fileLength - offset);
+
+        indexInput.prefetch(offset, length);
+
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 1);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testAsyncPrefetchFailureIsRecorded() throws IOException {
+        final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(false);
+        final FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), randomNonNegativeLong(), "test-file");
+        when(cacheFile.getCacheKey()).thenReturn(cacheKey);
+        final long fileLength = randomLongBetween(200, 10_000);
+        when(cacheFile.getLength()).thenReturn(fileLength);
+
+        final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
+        final StatelessSharedBlobCacheService mockCacheService = mock(StatelessSharedBlobCacheService.class);
+        // Synchronously fail the listener to exercise the AsyncFailed branch without a real thread pool.
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(5);
+            listener.onFailure(new IOException("emulate issue while prefetching"));
+            return null;
+        }).when(mockCacheService)
+            .asyncPrefetch(any(), anyLong(), anyLong(), anyLong(), any(CacheBlobReader.class), any(ActionListener.class));
+
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        final CacheFileReader cacheFileReader = new CacheFileReader(
+            cacheFile,
+            cacheBlobReader,
+            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            metrics,
+            System::currentTimeMillis,
+            mockCacheService
+        );
+        final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
+            "test-file",
+            randomIOContext(),
+            cacheFileReader,
+            null,
+            fileLength,
+            0
+        );
+
+        long offset = randomLongBetween(0, fileLength - 2);
+        long length = randomLongBetween(1, fileLength - offset);
+
+        indexInput.prefetch(offset, length);
+
+        // Only AsyncFailed is recorded when the async prefetch listener fails.
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 1);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -1506,11 +1612,13 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final StatelessSharedBlobCacheService mockCacheService = mock(StatelessSharedBlobCacheService.class);
         final long fileLength = randomLongBetween(200, 10_000);
 
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
             createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
-            null,
+            metrics,
             System::currentTimeMillis,
             mockCacheService
         );
@@ -1529,6 +1637,19 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         indexInput.prefetch(offset, length);
 
         verifyNoInteractions(mockCacheService);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 1);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
+    }
+
+    private static void assertPrefetchMetric(RecordingMeterRegistry meterRegistry, BlobCacheMetrics.PrefetchResult result, long expected) {
+        long observed = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BlobCacheMetrics.BLOB_CACHE_PREFETCH_TOTAL)
+            .stream()
+            .filter(m -> result.name().equals(m.attributes().get(BlobCacheMetrics.PREFETCH_RESULT_ATTRIBUTE_KEY)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+        assertEquals("expected " + expected + " [" + result + "] prefetch measurement(s)", expected, observed);
     }
 
     private SparseFileTracker.Gap mockGap(long start, long end) {

@@ -19,7 +19,10 @@ import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_PREFETCH_TOTAL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_ES_EXECUTOR_TO_RECORD;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.PREFETCH_RESULT_ATTRIBUTE_KEY;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 
 public class BlobCacheMetricsTests extends ESTestCase {
@@ -80,6 +83,40 @@ public class BlobCacheMetricsTests extends ESTestCase {
         checkReadsAndMisses(reads, misses, reads);
         recordMisses(metrics, reads);
         checkReadsAndMisses(reads, misses + reads, misses + reads);
+    }
+
+    public void testRecordPrefetch() {
+        int alreadyCached = between(0, 5);
+        int asyncFetched = between(0, 5);
+        int asyncFailed = between(0, asyncFetched);
+        IntStream.range(0, alreadyCached).forEach(i -> metrics.recordPrefetch(BlobCacheMetrics.PrefetchResult.AlreadyCached));
+        IntStream.range(0, asyncFetched).forEach(i -> metrics.recordPrefetch(BlobCacheMetrics.PrefetchResult.Fetched));
+        IntStream.range(0, asyncFailed).forEach(i -> metrics.recordPrefetch(BlobCacheMetrics.PrefetchResult.Failed));
+
+        long observedAlreadyCached = sumPrefetchMeasurementsFor(BlobCacheMetrics.PrefetchResult.AlreadyCached);
+        long observedAsyncFetched = sumPrefetchMeasurementsFor(BlobCacheMetrics.PrefetchResult.Fetched);
+        long observedAsyncFailed = sumPrefetchMeasurementsFor(BlobCacheMetrics.PrefetchResult.Failed);
+
+        assertEquals(alreadyCached, observedAlreadyCached);
+        assertEquals(asyncFetched, observedAsyncFetched);
+        assertEquals(asyncFailed, observedAsyncFailed);
+
+        // Each call records exactly one measurement carrying the result attribute
+        Measurement first = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_PREFETCH_TOTAL)
+            .stream()
+            .findFirst()
+            .orElseThrow();
+        assertThat(first.attributes().keySet(), contains(PREFETCH_RESULT_ATTRIBUTE_KEY));
+    }
+
+    private long sumPrefetchMeasurementsFor(BlobCacheMetrics.PrefetchResult result) {
+        return recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_PREFETCH_TOTAL)
+            .stream()
+            .filter(m -> result.name().equals(m.attributes().get(PREFETCH_RESULT_ATTRIBUTE_KEY)))
+            .mapToLong(Measurement::getLong)
+            .sum();
     }
 
     private void recordMisses(BlobCacheMetrics metrics, int misses) {

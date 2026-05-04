@@ -11,6 +11,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.BlobCacheMetrics.PrefetchResult;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
@@ -107,6 +108,7 @@ public class CacheFileReader {
      */
     public final boolean tryPrefetch(long offset, long length) throws IOException {
         if (cacheFile.tryPrefetch(offset, length)) {
+            blobCacheMetrics.recordPrefetch(PrefetchResult.AlreadyCached);
             return true;
         }
         if (cacheService != null) {
@@ -116,7 +118,12 @@ public class CacheFileReader {
                 offset,
                 length,
                 cacheBlobReader,
-                ActionListener.wrap(v -> {}, e -> logger.debug("async prefetch failed for [{}]", cacheFile.getCacheKey(), e))
+                ActionListener.wrap(v -> {
+                    blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
+                }, e -> {
+                    blobCacheMetrics.recordPrefetch(PrefetchResult.Failed);
+                    logger.debug(() -> "async prefetch failed for [" + cacheFile.getCacheKey() + "]", e);
+                })
             );
         }
         return false;

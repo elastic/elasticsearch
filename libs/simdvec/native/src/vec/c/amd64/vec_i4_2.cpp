@@ -255,6 +255,6 @@ EXPORT void vec_doti4_bulk_sparse_2(
     int32_t count,
     f32_t* results
 ) {
-    doti4_bulk_impl_avx512<const int8_t*, sparse_mapper, 2, 1>(
+    doti4_bulk_impl_avx512<const int8_t*, sparse_mapper, 4, 1>(
         (const int8_t* const*)addresses, query, packed_len, 0, NULL, count, results);
 }

@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -153,6 +154,10 @@ public class Approximation {
                 Enrich.class,
                 EsRelation.class,
                 Eval.class,
+                // FillNull is a SurrogateLogicalPlan that expands to Project(Eval(child)) before
+                // SubstituteApproximationPlan runs, so approximation never sees a FillNull node.
+                // Its expansion is built from supported commands, so the original is supported too.
+                FillNull.class,
                 Filter.class,
                 Grok.class,
                 Insist.class,

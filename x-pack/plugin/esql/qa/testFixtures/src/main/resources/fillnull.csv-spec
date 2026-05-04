@@ -1,7 +1,3 @@
-###############################################
-# FILLNULL command tests — ROW-based
-###############################################
-
 fillNullAllFieldsWithTypeDefaults
 required_capability: fillnull
 
@@ -134,10 +130,6 @@ a:keyword | b:integer
 unknown    | 0
 ;
 
-###############################################
-# Null predicates and composition
-###############################################
-
 fillNullIsNotNullAfterFill
 required_capability: fillnull
 
@@ -164,10 +156,6 @@ b:integer | a:integer | sum_ab:integer
 2          | -1        | 1
 ;
 
-###############################################
-# Mixed types — all-fields mode skips incompatible
-###############################################
-
 fillNullWithValueSkipsIncompatibleAllFields
 required_capability: fillnull
 
@@ -191,10 +179,6 @@ ROW d = null, i = null
 d:datetime | i:integer
 null        | 0
 ;
-
-###############################################
-# WHERE / SORT / STATS after FILLNULL
-###############################################
 
 fillNullThenWhere
 required_capability: fillnull
@@ -221,10 +205,6 @@ ROW g = 1, a = null
 s:long | g:integer
 0       | 1
 ;
-
-###############################################
-# FROM-based tests (indexed data)
-###############################################
 
 fillNullFromGenderKeyword
 required_capability: fillnull
@@ -291,11 +271,6 @@ c:long | gender:keyword
 10      | Unknown
 ;
 
-###############################################
-# METADATA field interactions
-###############################################
-
-# _index is a non-null keyword metadata field. FILLNULL on a non-null field is a no-op.
 fillNullOnIndexMetadata
 required_capability: fillnull
 
@@ -309,9 +284,6 @@ emp_no:integer | _index:keyword
 10001           | employees
 ;
 
-# _id is a non-null keyword metadata field. Targeting it should not change which rows we see;
-# we group by _id and count, so the count must equal the number of matched rows regardless
-# of the (auto-generated) _id values.
 fillNullOnIdMetadata
 required_capability: fillnull
 
@@ -325,7 +297,6 @@ c:long | has_id:boolean
 1       | true
 ;
 
-# _version is a non-null long metadata field. FILLNULL with an integer value (compatible) is a no-op.
 fillNullOnVersionMetadata
 required_capability: fillnull
 
@@ -339,9 +310,6 @@ emp_no:integer | _version:long
 10001           | 1
 ;
 
-# All-fields mode with metadata fields: metadata fields are non-null so they pass through unchanged.
-# emp_no is non-null integer; gender is keyword (null for some rows). With WITH 0, only integer-compatible
-# columns are filled in all-fields mode; keyword/string columns are silently skipped.
 fillNullAllFieldsModeWithMetadata
 required_capability: fillnull
 
@@ -355,12 +323,6 @@ emp_no:integer | _index:keyword | gender:keyword
 10001           | employees      | M
 ;
 
-###############################################
-# Multi-value (MV) field interactions
-###############################################
-
-# job_positions is an MV keyword. For 10001 it has 2 values (non-null), for 10003 it is empty (null in ESQL).
-# FILLNULL must preserve MV values for non-null rows and fill the null with "None".
 fillNullOnMVField
 required_capability: fillnull
 
@@ -376,7 +338,6 @@ emp_no:integer | job_positions:keyword
 10003           | None
 ;
 
-# All-fields mode on a row containing a non-null MV field: the MV must be preserved.
 fillNullAllFieldsModePreservesMV
 required_capability: fillnull
 
@@ -390,7 +351,6 @@ emp_no:integer | job_positions:keyword
 10001           | [Accountant, Senior Python Developer]
 ;
 
-# FILLNULL output composes correctly with MV_COUNT: filled-in single value has count 1.
 fillNullThenMvCount
 required_capability: fillnull
 
@@ -408,7 +368,6 @@ emp_no:integer | n:integer
 10010           | 4
 ;
 
-# FILLNULL feeding STATS with COUNT_DISTINCT must group by the filled value.
 fillNullThenCountDistinctByGender
 required_capability: fillnull
 
@@ -424,9 +383,6 @@ d:long | gender:keyword
 10      | Unknown
 ;
 
-# FILLNULL inside an EVAL chain: filled value participates in arithmetic.
-# emp_no in [10020, 10021, 10022] all have null `languages`. After FILLNULL WITH 0,
-# bonus = 0 + 10 = 10 for every row.
 fillNullCompositionInEval
 required_capability: fillnull
 
@@ -444,7 +400,6 @@ emp_no:integer | languages:integer | bonus:integer
 10022           | 0                 | 10
 ;
 
-# FILLNULL with WHERE filter on the filled column: only rows with the filled default match.
 fillNullThenFilterOnFilled
 required_capability: fillnull
 
@@ -458,7 +413,6 @@ c:long
 10
 ;
 
-# IS NOT NULL after FILLNULL on a previously-nullable column should match every row.
 fillNullThenIsNotNull
 required_capability: fillnull
 
@@ -472,7 +426,6 @@ c:long
 100
 ;
 
-# FILLNULL preserves column ordering (target-fields mode does not reorder).
 fillNullPreservesColumnOrder
 required_capability: fillnull
 
@@ -484,4 +437,204 @@ FROM employees
 
 first_name:keyword | gender:keyword | emp_no:integer
 Georgi              | M              | 10001
+;
+
+fillNullOnNullTypedColumnIsSkipped
+required_capability: fillnull
+
+ROW a = null, b = 1
+| FILLNULL WITH "x" a
+| KEEP a, b
+;
+
+a:null | b:integer
+null    | 1
+;
+
+fillNullAllFieldsWithValueSkipsNullTypedColumn
+required_capability: fillnull
+
+ROW a = null, b = null
+| EVAL b = b::keyword
+| FILLNULL WITH "x"
+;
+
+a:null | b:keyword
+null    | x
+;
+
+fillNullDefaultModeOnMappedFieldIsNoOp
+required_capability: fillnull
+required_capability: unmapped_fields_default_setting_rename
+
+SET unmapped_fields="default"\;
+FROM partial_mapping_sample_data
+| FILLNULL WITH "missing" message
+| KEEP @timestamp, message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+2024-10-23T13:53:55.832Z | Connection error?
+2024-10-23T13:52:55.015Z | Connection error?
+;
+
+fillNullNullifyModeAllFieldsNoValuePreservesNullTyped
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, message, unmapped_message
+| FILLNULL
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:date          | message:keyword        | unmapped_message:null
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | null
+2024-10-23T13:53:55.832Z | Connection error?      | null
+2024-10-23T13:52:55.015Z | Connection error?      | null
+;
+
+fillNullNullifyModeAllFieldsWithStringValue
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, event_duration, message, unmapped_message
+| FILLNULL WITH "missing"
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | event_duration:long | message:keyword        | unmapped_message:null
+2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | null
+2024-10-23T13:53:55.832Z | 5033754             | Connection error?      | null
+;
+
+fillNullNullifyModeExplicitTargetOnNullTypedUnmappedField
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, unmapped_message
+| FILLNULL WITH "missing" unmapped_message
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | unmapped_message:null
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+;
+
+fillNullNullifyModeExplicitTargetOnMappedField
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| FILLNULL WITH "missing" message
+| KEEP @timestamp, message
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+2024-10-23T13:53:55.832Z | Connection error?
+;
+
+fillNullLoadModeOnUnmappedKeywordField
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, message, unmapped_message
+| FILLNULL WITH "missing" unmapped_message
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | message:keyword        | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
+;
+
+fillNullLoadModeFillsExcludedSourceMappedField
+required_capability: fillnull
+required_capability: optional_fields_v5
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_excluded_source_sample_data
+| KEEP @timestamp, message
+| FILLNULL WITH "missing" message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | missing
+2024-10-23T13:53:55.832Z | missing
+2024-10-23T13:52:55.015Z | missing
+;
+
+fillNullLoadModeAllFieldsNoValue
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, message, unmapped_message
+| FILLNULL
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | message:keyword        | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
+;
+
+fillNullLoadModeChainedOnUnmappedField
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, unmapped_message
+| FILLNULL WITH "first" unmapped_message
+| FILLNULL WITH "second" unmapped_message
+| SORT @timestamp DESC
+| LIMIT 1
+;
+
+@timestamp:date          | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1
+;
+
+fillNullLoadModeStatsByUnmappedField
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FILLNULL WITH "missing" unmapped_message
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1       | 43
+1       | Disconnected from 10.1.0.1
+1       | Disconnected from 10.1.0.2
+1       | Disconnected from 10.1.0.3
+3       | Disconnection error
 ;

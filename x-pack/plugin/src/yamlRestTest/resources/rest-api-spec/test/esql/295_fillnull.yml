@@ -14,6 +14,9 @@ setup:
   #   events_keyword: client_ip = keyword
   # Querying both produces a union-typed `client_ip` (InvalidMappedField).
   #
+  # `events_partial` has dynamic:false so the field `extra_tag` only appears in _source. It is
+  # used to exercise SET unmapped_fields={default,nullify,load} interactions with FILLNULL.
+  #
   - do:
       indices.create:
         index: events_ip
@@ -41,6 +44,17 @@ setup:
               client_ip:
                 type: keyword
   - do:
+      indices.create:
+        index: events_partial
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              event_id:
+                type: integer
+              message:
+                type: keyword
+  - do:
       bulk:
         refresh: true
         body:
@@ -48,6 +62,10 @@ setup:
           - '{"event_id": 1, "message": "ok", "client_ip": "10.0.0.1"}'
           - '{"index": {"_index": "events_keyword"}}'
           - '{"event_id": 2, "message": "ok", "client_ip": "10.0.0.2"}'
+          - '{"index": {"_index": "events_partial"}}'
+          - '{"event_id": 10, "message": "first", "extra_tag": "alpha"}'
+          - '{"index": {"_index": "events_partial"}}'
+          - '{"event_id": 11, "message": "second", "extra_tag": "beta"}'
 
 ---
 'fillnull on union typed field is rejected':
@@ -87,3 +105,97 @@ setup:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Unknown column [nonexistent_field]' }
+
+---
+'fillnull with SET unmapped_fields default rejects reference to unmapped field':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ unmapped_fields_default_setting_rename ]
+      reason: 'requires SET unmapped_fields="default" support'
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # `extra_tag` is in _source but not in the mapping. With explicit default mode the
+          # analyzer must reject it as an unknown column, identical to the implicit default.
+          query: 'SET unmapped_fields="default"; FROM events_partial | FILLNULL WITH "missing" extra_tag'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Unknown column [extra_tag]' }
+
+---
+'fillnull with SET unmapped_fields nullify keeps null typed unmapped column':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_nullify_tech_preview ]
+      reason: 'requires SET unmapped_fields="nullify" support'
+  - do:
+      esql.query:
+        body:
+          # Under SET nullify the unmapped field surfaces as a NULL-typed all-null column.
+          # FILLNULL targeting it must not throw and must leave the column unchanged
+          # (NULL columns cannot be promoted to another type by FILLNULL).
+          query: 'SET unmapped_fields="nullify"; FROM events_partial | KEEP event_id, extra_tag | FILLNULL WITH "missing" extra_tag | SORT event_id | LIMIT 10'
+  - match: { columns.0.name: event_id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: extra_tag }
+  - match: { columns.1.type: 'null' }
+  - length: { values: 2 }
+  - match: { values.0: [ 10, null ] }
+  - match: { values.1: [ 11, null ] }
+
+---
+'fillnull with SET unmapped_fields load fills the loaded keyword column':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_v5 ]
+      reason: 'requires SET unmapped_fields="load" support'
+  - do:
+      esql.query:
+        body:
+          # Under SET load the unmapped field surfaces as KEYWORD loaded from _source. The data
+          # has values for every row so FILLNULL is a no-op on the values, but the column type
+          # and content must be preserved through the FILLNULL surrogate.
+          query: 'SET unmapped_fields="load"; FROM events_partial | KEEP event_id, extra_tag | FILLNULL WITH "missing" extra_tag | SORT event_id | LIMIT 10'
+  - match: { columns.0.name: event_id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: extra_tag }
+  - match: { columns.1.type: keyword }
+  - length: { values: 2 }
+  - match: { values.0: [ 10, 'alpha' ] }
+  - match: { values.1: [ 11, 'beta' ] }
+
+---
+'fillnull all-fields under SET unmapped_fields nullify is safe with null typed columns':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_nullify_tech_preview ]
+      reason: 'requires SET unmapped_fields="nullify" support'
+  - do:
+      esql.query:
+        body:
+          # All-fields FILLNULL with a string value must leave NULL-typed columns unchanged.
+          # event_id (integer) is skipped because it is incompatible with the keyword fill;
+          # message (keyword, no nulls in data) is a no-op; extra_tag (NULL) stays all-null.
+          query: 'SET unmapped_fields="nullify"; FROM events_partial | KEEP event_id, message, extra_tag | FILLNULL WITH "missing" | SORT event_id | LIMIT 10'
+  - match: { columns.0.name: event_id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: message }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: extra_tag }
+  - match: { columns.2.type: 'null' }
+  - length: { values: 2 }
+  - match: { values.0: [ 10, 'first', null ] }
+  - match: { values.1: [ 11, 'second', null ] }

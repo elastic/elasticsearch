@@ -3150,6 +3150,17 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testFillNullOnNullTypedColumnPassesVerification() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // A bare `null` literal in ROW yields a NULL-typed column. The fill value's KEYWORD type
+        // is "compatible" with NULL via the NULL escape clause in DataType.areCompatible, so the
+        // verifier must accept the query (the surrogate logic separately skips NULL-typed columns
+        // at plan time to avoid an unsupported KEYWORD->NULL conversion). The csv-spec test
+        // fillNullOnNullTypedColumnIsSkipped exercises the full surrogate path end-to-end.
+        defaultAnalyzer().query("ROW a = null, b = 1 | FILLNULL WITH \"x\" a");
+    }
+
     public void testFullTextFunctionsInStats() {
         checkFullTextFunctionsInStats("match(title, \"Meditation\")");
         checkFullTextFunctionsInStats("title : \"Meditation\"");

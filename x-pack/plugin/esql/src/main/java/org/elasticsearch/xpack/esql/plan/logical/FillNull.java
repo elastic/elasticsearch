@@ -197,6 +197,16 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     @Nullable
     private Expression resolveDefaultValue(DataType type) {
+        // NULL-typed columns (e.g. unmapped fields surfaced under SET unmapped_fields="nullify",
+        // or bare `null` literals in ROW) cannot be promoted to another type by FILLNULL: every
+        // value is already null and the column type stays NULL. The verifier accepts a fill
+        // literal here because areCompatible(KEYWORD, NULL) is true via the NULL escape clause,
+        // but wrapping the column in Coalesce(col, fillLiteral) would either be a no-op (when
+        // the fill is converted down to NULL) or change the column's declared type. Skipping
+        // matches the existing `defaultForType(NULL)` behavior and keeps the column unchanged.
+        if (DataType.isNull(type)) {
+            return null;
+        }
         if (fillValue != null) {
             DataType fillType = fillValue.dataType();
             if (fillType == type) {

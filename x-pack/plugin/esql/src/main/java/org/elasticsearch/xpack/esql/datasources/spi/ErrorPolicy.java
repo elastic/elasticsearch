@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Configures how format readers handle malformed or unparseable rows.
@@ -152,5 +153,86 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
             return (double) errorsSoFar > maxErrorRatio * rowsSoFar;
         }
         return false;
+    }
+
+    /** Config keys recognised by {@link #fromConfig}. Mirrored as constants so format
+     *  plugins do not have to hard-code the strings. */
+    public static final String CONFIG_MAX_ERRORS = "max_errors";
+
+    public static final String CONFIG_MAX_ERROR_RATIO = "max_error_ratio";
+    public static final String CONFIG_ERROR_MODE = "error_mode";
+
+    /**
+     * Resolves an {@link ErrorPolicy} from the user's {@code WITH} options. Returns
+     * {@code defaultPolicy} when none of {@link #CONFIG_ERROR_MODE},
+     * {@link #CONFIG_MAX_ERRORS}, or {@link #CONFIG_MAX_ERROR_RATIO} are set.
+     *
+     * <p>Validation matches what {@code FileSourceFactory} applied historically: invalid
+     * mode strings, non-numeric budgets, and {@code FAIL_FAST} combined with budget keys
+     * are all rejected with {@link IllegalArgumentException}.
+     */
+    public static ErrorPolicy fromConfig(Map<String, Object> config, ErrorPolicy defaultPolicy) {
+        if (config == null) {
+            return defaultPolicy;
+        }
+        Object maxErrorsValue = config.get(CONFIG_MAX_ERRORS);
+        Object maxErrorRatioValue = config.get(CONFIG_MAX_ERROR_RATIO);
+        Object errorModeValue = config.get(CONFIG_ERROR_MODE);
+        if (maxErrorsValue == null && maxErrorRatioValue == null && errorModeValue == null) {
+            return defaultPolicy;
+        }
+
+        Mode mode = Mode.SKIP_ROW;
+        if (errorModeValue != null) {
+            String modeStr = errorModeValue.toString();
+            try {
+                mode = Mode.parse(modeStr);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid value for [" + CONFIG_ERROR_MODE + "]: [" + errorModeValue + "]", e);
+            }
+            if (mode == null) {
+                throw new IllegalArgumentException("Invalid value for [" + CONFIG_ERROR_MODE + "]: [" + errorModeValue + "]");
+            }
+        }
+
+        if (mode == Mode.FAIL_FAST) {
+            if (maxErrorsValue != null || maxErrorRatioValue != null) {
+                throw new IllegalArgumentException(
+                    "["
+                        + CONFIG_MAX_ERRORS
+                        + "] and ["
+                        + CONFIG_MAX_ERROR_RATIO
+                        + "] cannot be used with ["
+                        + CONFIG_ERROR_MODE
+                        + "="
+                        + mode
+                        + "]; fail_fast always aborts on the first error"
+                );
+            }
+            return STRICT;
+        }
+
+        long maxErrors;
+        if (maxErrorsValue != null) {
+            try {
+                maxErrors = Long.parseLong(maxErrorsValue.toString());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid value for [" + CONFIG_MAX_ERRORS + "]: [" + maxErrorsValue + "]", e);
+            }
+        } else {
+            maxErrors = Long.MAX_VALUE;
+        }
+
+        double maxErrorRatio = 0.0;
+        if (maxErrorRatioValue != null) {
+            try {
+                maxErrorRatio = Double.parseDouble(maxErrorRatioValue.toString());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid value for [" + CONFIG_MAX_ERROR_RATIO + "]: [" + maxErrorRatioValue + "]", e);
+            }
+        }
+
+        boolean logErrors = maxErrors < Long.MAX_VALUE || maxErrorRatio > 0.0;
+        return new ErrorPolicy(mode, maxErrors, maxErrorRatio, logErrors);
     }
 }

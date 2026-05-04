@@ -85,6 +85,8 @@ public abstract class ScoreScript extends DocBasedScript {
 
     private ScriptTermStats termStats = null;
 
+    private Runnable cancellationCheck = null;
+
     public ScoreScript(Map<String, Object> params, SearchLookup searchLookup, DocReader docReader) {
         // searchLookup parameter is ignored but part of the ScriptFactory contract. It is part of that contract because it's required
         // for expressions. Expressions should eventually be transitioned to using DocReader.
@@ -205,6 +207,28 @@ public abstract class ScoreScript extends DocBasedScript {
     public ScriptTermStats get_termStats() {
         assert termStats != null : "termStats is not available";
         return termStats;
+    }
+
+    /**
+     * Sets a {@link Runnable} that is invoked periodically by the painless engine while a script
+     * executes (between loop iterations) to check for search timeout or task cancellation. The
+     * runnable is expected to throw an unchecked exception when execution should abort. Setting
+     * {@code null} disables the check.
+     * <p>
+     * Starting a name with underscore so that the user cannot access this function directly
+     * through a script.
+     */
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    /**
+     * Returns the cancellation check runnable previously set via {@link #_setCancellationCheck},
+     * or {@code null} if no check is registered. Read by the painless engine at the start of
+     * {@code execute} and invoked between loop iterations.
+     */
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
     }
 
     /** A factory to construct {@link ScoreScript} instances. */

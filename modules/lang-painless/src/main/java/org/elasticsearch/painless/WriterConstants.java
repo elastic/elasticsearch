@@ -197,6 +197,19 @@ public final class WriterConstants {
     public static final Type COLLECTION_TYPE = Type.getType(Collection.class);
     public static final Method COLLECTION_SIZE = getAsmMethod(int.class, "size");
 
+    public static final Type RUNNABLE_TYPE = Type.getType(Runnable.class);
+    public static final Method RUNNABLE_RUN = getAsmMethod(void.class, "run");
+
+    /**
+     * Per-loop polling interval used by the cancellation-check mechanism. The {@link Runnable}
+     * returned by {@link org.elasticsearch.painless.PainlessScript#_getCancellationCheck()} is
+     * invoked once every {@code CANCELLATION_POLL_INTERVAL} iterations to amortize the cost.
+     */
+    public static final int CANCELLATION_POLL_INTERVAL = 1024;
+
+    /** Method handle for {@link org.elasticsearch.painless.PainlessScript#_getCancellationCheck()}. */
+    public static final Method GET_CANCELLATION_CHECK = getAsmMethod(Runnable.class, "_getCancellationCheck");
+
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());
     }

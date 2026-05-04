@@ -36,6 +36,7 @@ public class ScriptClassInfo {
     private final List<org.objectweb.asm.commons.Method> needsMethods;
     private final List<org.objectweb.asm.commons.Method> getMethods;
     private final List<Class<?>> getReturns;
+    private final boolean supportsCancellation;
     public final List<FunctionTable.LocalFunction> converters;
     public final FunctionTable.LocalFunction defConverter;
 
@@ -156,6 +157,23 @@ public class ScriptClassInfo {
         this.needsMethods = unmodifiableList(needsMethods);
         this.getMethods = unmodifiableList(getMethods);
         this.getReturns = unmodifiableList(getReturns);
+        this.supportsCancellation = detectCancellationSupport(baseClass);
+    }
+
+    /**
+     * Returns whether {@code baseClass} (or one of its concrete supertypes) overrides
+     * {@code _getCancellationCheck()}. When true, the painless engine emits per-loop cancellation
+     * checks that delegate to the runnable returned by that method instead of the legacy
+     * statement-budget check (see
+     * {@link org.elasticsearch.painless.symbol.IRDecorations.IRCCancellationCheck}).
+     */
+    private static boolean detectCancellationSupport(Class<?> baseClass) {
+        try {
+            java.lang.reflect.Method m = baseClass.getMethod("_getCancellationCheck");
+            return m.isDefault() == false && m.getReturnType() == Runnable.class;
+        } catch (NoSuchMethodException e) {
+            return false;
+        }
     }
 
     /**
@@ -200,6 +218,16 @@ public class ScriptClassInfo {
      */
     public List<org.objectweb.asm.commons.Method> getGetMethods() {
         return getMethods;
+    }
+
+    /**
+     * Whether the script base class provides a non-default {@code _getCancellationCheck()} method.
+     * When true, the painless emitter wires per-loop cancellation checks via
+     * {@link org.elasticsearch.painless.PainlessScript#_getCancellationCheck()} instead of the
+     * legacy max-loop-counter mechanism.
+     */
+    public boolean supportsCancellation() {
+        return supportsCancellation;
     }
 
     /**

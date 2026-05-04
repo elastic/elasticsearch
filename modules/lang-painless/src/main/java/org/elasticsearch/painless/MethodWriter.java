@@ -65,6 +65,8 @@ import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.MAX_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
+import static org.elasticsearch.painless.WriterConstants.RUNNABLE_RUN;
+import static org.elasticsearch.painless.WriterConstants.RUNNABLE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.STRING_CONCAT_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.STRING_TO_CHAR;
 import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
@@ -133,6 +135,44 @@ public final class MethodWriter extends GeneratorAdapter {
         ifICmp(GeneratorAdapter.GT, end);
         throwException(PAINLESS_ERROR_TYPE, "The maximum number of statements that can be executed in a loop has been reached.");
         mark(end);
+    }
+
+    /**
+     * Emits a per-loop cancellation check that delegates to a {@link Runnable} stored in a local
+     * variable (typically populated at function entry from
+     * {@link org.elasticsearch.painless.PainlessScript#_getCancellationCheck()}). The check is
+     * amortized via a poll counter so the runnable is only invoked once every {@code pollInterval}
+     * iterations on the hot path.
+     * <p>
+     * Hot path bytecode (counter still positive): {@code iinc; iload; iconst_0; if_icmpgt skip}.
+     * Cold path: {@code aload; invokeinterface Runnable.run(); reset counter}.
+     * <p>
+     * The runnable itself is expected to throw an unchecked exception (e.g.
+     * {@code TimeExceededException}, {@code TaskCancelledException}) when execution should abort;
+     * the throw propagates straight out of the script.
+     *
+     * @param runnableSlot local-variable slot holding the cancellation {@link Runnable}
+     * @param pollSlot     local-variable slot holding the int poll counter
+     * @param pollInterval value the poll counter is reset to after a cold-path invocation
+     * @param location     source location used for line-number/debug info
+     */
+    public void writeCancellationCheck(int runnableSlot, int pollSlot, int pollInterval, Location location) {
+        assert runnableSlot != -1;
+        assert pollSlot != -1;
+        writeDebugInfo(location);
+        final Label skip = new Label();
+
+        iinc(pollSlot, -1);
+        visitVarInsn(Opcodes.ILOAD, pollSlot);
+        push(0);
+        ifICmp(GeneratorAdapter.GT, skip);
+
+        visitVarInsn(Opcodes.ALOAD, runnableSlot);
+        invokeInterface(RUNNABLE_TYPE, RUNNABLE_RUN);
+        push(pollInterval);
+        visitVarInsn(Opcodes.ISTORE, pollSlot);
+
+        mark(skip);
     }
 
     public void writeCast(PainlessCast cast) {

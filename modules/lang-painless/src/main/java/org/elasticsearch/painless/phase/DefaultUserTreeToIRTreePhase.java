@@ -196,6 +196,7 @@ import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
@@ -265,6 +266,23 @@ import java.util.regex.Pattern;
 public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope> {
 
     protected ClassNode irClassNode;
+
+    /**
+     * Attaches the appropriate per-loop safety mechanism to {@code irFunctionNode}: either the
+     * cancellation-runnable check (when the script base class has opted in by overriding
+     * {@code _getCancellationCheck()}) or the legacy max-loop-counter statement budget. Used at
+     * every site that emits a function whose body may contain loops (the {@code execute} body,
+     * user-defined functions, and lambdas).
+     */
+    protected static void attachLoopProtection(FunctionNode irFunctionNode, ScriptScope scriptScope) {
+        if (scriptScope.getScriptClassInfo().supportsCancellation()) {
+            irFunctionNode.attachCondition(IRCCancellationCheck.class);
+            // Disable the legacy counter so the bytecode emitter only wires the cancellation path.
+            irFunctionNode.attachDecoration(new IRDMaxLoopCounter(0));
+        } else {
+            irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+        }
+    }
 
     /**
      * This injects additional ir nodes required for resolving the def type at runtime.
@@ -645,7 +663,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFunctionNode.attachCondition(IRCSynthetic.class);
         }
 
-        irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+        attachLoopProtection(irFunctionNode, scriptScope);
 
         scriptScope.putDecoration(userFunctionNode, new IRNodeDecoration(irFunctionNode));
     }
@@ -1406,7 +1424,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFunctionNode.attachCondition(IRCStatic.class);
         }
         irFunctionNode.attachCondition(IRCSynthetic.class);
-        irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+        attachLoopProtection(irFunctionNode, scriptScope);
         irClassNode.addFunctionNode(irFunctionNode);
 
         irExpressionNode.attachDecoration(new IRDExpressionType(scriptScope.getDecoration(userLambdaNode, ValueType.class).valueType()));

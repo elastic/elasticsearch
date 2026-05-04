@@ -33,6 +33,7 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScoreScript.ExplanationHolder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptTermStats;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -104,6 +105,11 @@ public class ScriptScoreQuery extends Query {
         if (needsTermStatistics) {
             this.visit(QueryVisitor.termCollector(terms));
         }
+
+        // Captured once per createWeight; the script invokes it between loop iterations to honor
+        // the surrounding search's timeout and task-cancellation. Null when the searcher is not a
+        // ContextIndexSearcher (e.g. some test paths) — script execution then has no deadline.
+        final Runnable cancellationCheck = (searcher instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null;
 
         return new Weight(this) {
 
@@ -192,6 +198,7 @@ public class ScriptScoreQuery extends Query {
                 final ScoreScript scoreScript = scriptBuilder.newInstance(new DocValuesDocReader(lookup, context));
                 scoreScript._setIndexName(indexName);
                 scoreScript._setShard(shardId);
+                scoreScript._setCancellationCheck(cancellationCheck);
                 if (needsTermStatistics) {
                     scoreScript._setTermStats(new ScriptTermStats(searcher, context, scoreScript::_getDocId, terms));
                 }

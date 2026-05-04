@@ -589,3 +589,54 @@
 
   - match: {hits.hits.0._id: "1"}
   - is_true: hits.hits.0._source
+
+---
+"Search timeout aborts a long-running script_score loop":
+  # Verifies that the per-search timeout fires from inside a painless score script's
+  # loop. Prior to the cancellation-runnable wiring, painless honored only the
+  # statement-budget (max_loop_counter) which is unrelated to wall-clock time; the
+  # search timeout fired only between document collections, so a tight loop on a
+  # single doc would run to completion regardless. With one shard and one document
+  # the timeout has no other opportunity to fire — only the in-script check can.
+  - do:
+      indices.create:
+          index: test_script_score_timeout
+          body:
+              settings:
+                  number_of_shards: 1
+              mappings:
+                  properties:
+                      val:
+                          type: double
+  - do:
+      index:
+          index: test_script_score_timeout
+          id: d1
+          body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test_script_score_timeout
+          timeout: 100ms
+          body:
+              query:
+                  script_score:
+                      query: {match_all: {}}
+                      script:
+                          # Busy-wait on the wall clock for up to 60 seconds. Independent of
+                          # hardware speed: on any machine the loop runs until the search
+                          # timeout (100 ms) cancels it via the in-script poll. Without the
+                          # cancellation wiring this loop would run for the full 60 seconds.
+                          # System.currentTimeMillis() is whitelisted (annotated
+                          # @nondeterministic) so neither the JIT nor the painless optimizer
+                          # can fold the loop away.
+                          source: |
+                              long start = System.currentTimeMillis();
+                              while (System.currentTimeMillis() - start < 60000L) {
+                                  /* deliberately empty: rely on timeout to cancel */
+                              }
+                              return 0.0;
+  - is_true: timed_out

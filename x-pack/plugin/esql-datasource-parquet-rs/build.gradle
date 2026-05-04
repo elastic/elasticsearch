@@ -33,7 +33,10 @@ def nativeDir = "${project.projectDir}/native"
 // To build and publish multi-platform libraries, see "native/Makefile"
 def buildLocally = {
   def envValue = System.getenv("LOCAL_NATIVE_BUILD")
-  if (envValue != null) {
+  if (gradle.startParameter.taskNames.any { it.matches("build.*DockerImage") }) {
+    // Never build locally if we're building a docker image.
+    false
+  } else if (envValue != null) {
     Boolean.valueOf(envValue)
   } else {
     buildParams.ci == false && file("${nativeDir}/target").isDirectory()

@@ -268,20 +268,18 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     protected ClassNode irClassNode;
 
     /**
-     * Attaches the appropriate per-loop safety mechanism to {@code irFunctionNode}: either the
-     * cancellation-runnable check (when the script base class has opted in by overriding
-     * {@code _getCancellationCheck()}) or the legacy max-loop-counter statement budget. Used at
-     * every site that emits a function whose body may contain loops (the {@code execute} body,
-     * user-defined functions, and lambdas).
+     * Attaches per-loop safety mechanisms to {@code irFunctionNode}. Opted-in contexts (those whose
+     * base class overrides {@code _getCancellationCheck()}) get the cancellation-runnable check
+     * <em>and</em> the legacy max-loop counter. The cancellation path fires when a deadline or
+     * task-cancel is registered on the search context; the legacy counter remains the no-timeout
+     * fallback so a runaway loop can't run unbounded when no deadline is set. Non-opted-in
+     * contexts get only the legacy counter (unchanged behavior).
      */
     protected static void attachLoopProtection(FunctionNode irFunctionNode, ScriptScope scriptScope) {
         if (scriptScope.getScriptClassInfo().supportsCancellation()) {
             irFunctionNode.attachCondition(IRCCancellationCheck.class);
-            // Disable the legacy counter so the bytecode emitter only wires the cancellation path.
-            irFunctionNode.attachDecoration(new IRDMaxLoopCounter(0));
-        } else {
-            irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
         }
+        irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
     }
 
     /**

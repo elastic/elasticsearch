@@ -318,37 +318,65 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitCode();
 
-        if (irFunctionNode.hasCondition(IRCCancellationCheck.class)) {
-            // Per-loop cancellation check. Once at function entry:
-            // Runnable #cancelRunnable = this._getCancellationCheck();
-            // int #poll = (#cancelRunnable != null) ? CANCELLATION_POLL_INTERVAL : Integer.MAX_VALUE;
-            // The non-null branch sets the poll counter so loop backedges decrement-and-call.
-            // The null branch sets a value large enough that the per-loop counter never reaches
-            // zero in practice — keeps the bytecode shape uniform without per-iteration null checks.
-            Variable cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
-            Variable poll = writeScope.defineInternalVariable(int.class, "poll");
+        // Two counters guard loop backedges in opted-in functions: the cancellation poll counter
+        // (drives a runnable invocation that throws TimeExceededException / TaskCancelledException
+        // when a deadline or cancel is registered on the search context) and the legacy max-loop
+        // counter (throws PainlessError after a fixed budget). At function entry we make exactly
+        // one of them "active": when a cancellation runnable is bound on the script we set the
+        // legacy counter to Integer.MAX_VALUE so it can't trip; when no runnable is bound we set
+        // the poll counter to Integer.MAX_VALUE instead so the legacy counter remains the sole
+        // safety net. This means scripts running under a search-with-timeout get cancellation
+        // semantics, while scripts running outside a search context (no runnable supplied) fall
+        // back exactly to the historical max_loop_counter behavior.
+        boolean cancellation = irFunctionNode.hasCondition(IRCCancellationCheck.class);
+        int maxLoopCounter = irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class);
+        Variable cancelRunnable = null;
+        Variable poll = null;
+        Variable loop = null;
+
+        if (cancellation) {
+            cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
+            poll = writeScope.defineInternalVariable(int.class, "poll");
 
             methodWriter.loadThis();
             methodWriter.invokeInterface(WriterConstants.BASE_INTERFACE_TYPE, WriterConstants.GET_CANCELLATION_CHECK);
             methodWriter.visitVarInsn(Opcodes.ASTORE, cancelRunnable.getSlot());
+        }
 
+        if (maxLoopCounter > 0) {
+            loop = writeScope.defineInternalVariable(int.class, "loop");
+        }
+
+        if (cancellation) {
+            // Branch on cancelRunnable:
+            // non-null → poll = CANCELLATION_POLL_INTERVAL (cancellation active),
+            // loop = Integer.MAX_VALUE (legacy disabled)
+            // null → poll = Integer.MAX_VALUE (cancellation inert),
+            // loop = maxLoopCounter (legacy active fallback)
             Label nullCancel = new Label();
-            Label storePoll = new Label();
+            Label done = new Label();
             methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
             methodWriter.ifNull(nullCancel);
+            // non-null branch
             methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
-            methodWriter.goTo(storePoll);
+            methodWriter.visitVarInsn(Opcodes.ISTORE, poll.getSlot());
+            if (loop != null) {
+                methodWriter.push(Integer.MAX_VALUE);
+                methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
+            }
+            methodWriter.goTo(done);
+            // null branch
             methodWriter.mark(nullCancel);
             methodWriter.push(Integer.MAX_VALUE);
-            methodWriter.mark(storePoll);
             methodWriter.visitVarInsn(Opcodes.ISTORE, poll.getSlot());
-        } else if (irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class) > 0) {
-            // if there is infinite loop protection, we do this once:
-            // int #loop = settings.getMaxLoopCounter()
-
-            Variable loop = writeScope.defineInternalVariable(int.class, "loop");
-
-            methodWriter.push(irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class));
+            if (loop != null) {
+                methodWriter.push(maxLoopCounter);
+                methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
+            }
+            methodWriter.mark(done);
+        } else if (loop != null) {
+            // Legacy-only path: int #loop = settings.getMaxLoopCounter()
+            methodWriter.push(maxLoopCounter);
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
@@ -358,15 +386,15 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     }
 
     /**
-     * Emits the per-iteration safety check at a loop's backedge: a cancellation poll-counter
-     * delegate when {@code cancelRunnable}/{@code poll} internal variables are in scope (the
-     * function had {@link IRCCancellationCheck} attached at user-tree-to-IR time), or the legacy
-     * max-loop-counter when only {@code loop} is in scope, or nothing when neither applies.
+     * Emits the per-iteration safety check at a loop's backedge. Opted-in (cancellation-aware)
+     * functions emit <em>both</em> the cancellation poll-counter delegate and the legacy max-loop
+     * counter so the legacy counter remains the no-deadline fallback. Non-opted-in functions emit
+     * only the legacy counter (unchanged behavior). When neither variable is in scope (e.g.
+     * synthetic injected functions with {@code IRDMaxLoopCounter(0)} and no cancellation), nothing
+     * is emitted.
      */
     private static void writeLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
-        if (writeCancellationGuard(writeScope, methodWriter, location)) {
-            return;
-        }
+        writeCancellationGuard(writeScope, methodWriter, location);
         Variable loop = writeScope.getInternalVariable("loop");
         if (loop != null) {
             methodWriter.writeLoopCounter(loop.getSlot(), location);
@@ -390,6 +418,19 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         Variable poll = writeScope.getInternalVariable("poll");
         methodWriter.writeCancellationCheck(cancelRunnable.getSlot(), poll.getSlot(), WriterConstants.CANCELLATION_POLL_INTERVAL, location);
         return true;
+    }
+
+    /**
+     * Emits the per-iteration safety check for a for-each loop body — only the cancellation
+     * guard, never the legacy max-loop counter. For opted-in contexts: when a cancellation
+     * runnable is registered at runtime, the timeout/cancel fires; when it's null (no
+     * deadline/cancel set) the poll counter never trips (initialized to {@link Integer#MAX_VALUE}
+     * at function entry) and the for-each runs unprotected — matching the historical
+     * "for-each loops are uncovered by max_loop_counter" behavior. For legacy contexts: nothing
+     * is emitted at all (cancellation guard returns immediately).
+     */
+    private static void writeForEachLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
+        writeCancellationGuard(writeScope, methodWriter, location);
     }
 
     @Override
@@ -593,7 +634,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.arrayLength();
         methodWriter.ifICmp(MethodWriter.GE, end);
 
-        writeCancellationGuard(writeScope, methodWriter, irForEachSubArrayNode.getLocation());
+        writeForEachLoopGuard(writeScope, methodWriter, irForEachSubArrayNode.getLocation());
 
         methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ILOAD), array.getSlot());
         methodWriter.visitVarInsn(index.getAsmType().getOpcode(Opcodes.ILOAD), index.getSlot());
@@ -643,7 +684,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_HASNEXT);
         methodWriter.ifZCmp(MethodWriter.EQ, end);
 
-        writeCancellationGuard(writeScope, methodWriter, irForEachSubIterableNode.getLocation());
+        writeForEachLoopGuard(writeScope, methodWriter, irForEachSubIterableNode.getLocation());
 
         methodWriter.visitVarInsn(iterator.getAsmType().getOpcode(Opcodes.ILOAD), iterator.getSlot());
         if (painlessMethod != null || variable.getType().isPrimitive() == false) {

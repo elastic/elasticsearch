@@ -626,12 +626,13 @@
                   script_score:
                       query: {match_all: {}}
                       script:
-                          # Busy-wait on the wall clock for up to 60 seconds. Independent of
-                          # hardware speed: on any machine the loop runs until the search
-                          # timeout (100 ms) cancels it via the in-script poll. Without the
-                          # cancellation wiring this loop would run for the full 60 seconds.
-                          # System.currentTimeMillis() is whitelisted (annotated
-                          # @nondeterministic) so neither the JIT nor the painless optimizer
+                          # Busy-wait on the wall clock until the search timeout cancels the
+                          # script. With a request timeout set, the cancellation runnable is
+                          # bound on the script and the legacy max_loop_counter is disabled at
+                          # function entry — so the cancellation poll is the sole stop signal,
+                          # making the test deterministic regardless of hardware speed or JIT
+                          # behavior. System.currentTimeMillis() is whitelisted as
+                          # @nondeterministic so neither the JIT nor the painless optimizer
                           # can fold the loop away.
                           source: |
                               long start = System.currentTimeMillis();

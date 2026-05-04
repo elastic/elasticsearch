@@ -100,7 +100,6 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
                         queryVector,
-                        VectorSimilarityFunction.COSINE,
                         k,
                         k,
                         innerQuery
@@ -182,7 +181,6 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
                         queryVector,
-                        VectorSimilarityFunction.COSINE,
                         k,
                         k,
                         innerQuery
@@ -193,14 +191,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     assertThat(rescoredDocs.scoreDocs, arrayWithSize(k));
 
                     searcher = newSearcher(new SingleVectorQueryIndexReader(reader), true, false);
-                    rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
-                        FIELD_NAME,
-                        queryVector,
-                        VectorSimilarityFunction.COSINE,
-                        k,
-                        k,
-                        innerQuery
-                    );
+                    rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, innerQuery);
                     TopDocs singleRescored = searcher.search(rescoreKnnVectorQuery, numDocs);
                     assertThat(singleRescored.scoreDocs, arrayWithSize(k));
 
@@ -235,14 +226,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     }
 
     private void checkProfiling(int k, int numDocs, float[] queryVector, IndexReader reader, Query innerQuery) throws IOException {
-        var rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
-            FIELD_NAME,
-            queryVector,
-            VectorSimilarityFunction.COSINE,
-            k,
-            k,
-            innerQuery
-        );
+        var rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, innerQuery);
         IndexSearcher searcher = newSearcher(reader, true, false);
         searcher.search(rescoreKnnVectorQuery, numDocs);
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -54,6 +55,10 @@ public class StorageProviderRegistry implements Closeable {
     private final Map<String, ConcurrencyLimiter> limiters = new ConcurrentHashMap<>();
     private final Map<String, ConcurrencyBudgetAllocator> allocators = new ConcurrentHashMap<>();
     private final Map<String, AdaptiveBackoff> backoffs = new ConcurrentHashMap<>();
+
+    // Cache for providers created with a non-empty config (WITH clause queries).
+    // Avoids reconstructing cloud clients (S3, GCS, Azure) for repeated calls with the same config.
+    private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;
     private volatile int maxConcurrentRequests;
@@ -111,7 +116,18 @@ public class StorageProviderRegistry implements Closeable {
         if (factory == null) {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
-        return wrapProvider(factory.create(settings, config), normalizedScheme);
+
+        // Cache providers by (scheme, config) so queries with the same WITH-clause config
+        // reuse the same cloud client and connection pool instead of constructing a new one.
+        StorageProviderCache.CacheKey cacheKey = new StorageProviderCache.CacheKey(normalizedScheme, config);
+        try {
+            return configuredProviderCache.getOrCreate(cacheKey, () -> wrapProvider(factory.create(settings, config), normalizedScheme));
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            // The factory does not declare checked exceptions, so this path is unreachable.
+            throw new RuntimeException("Unexpected checked exception from StorageProviderFactory", e);
+        }
     }
 
     private synchronized StorageProvider createDefaultProvider(String normalizedScheme) {
@@ -182,6 +198,8 @@ public class StorageProviderRegistry implements Closeable {
         List<StorageProvider> toClose = new ArrayList<>(createdProviders);
         createdProviders.clear();
         providers.clear();
+        // Close default (zero-config) providers first, then the config-keyed cache.
         IOUtils.close(toClose);
+        configuredProviderCache.close();
     }
 }

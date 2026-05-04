@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -493,6 +494,7 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRequiredRoutingUsesSliceMessageWhenSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
             IndexMetadata.builder("test")
                 .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build())

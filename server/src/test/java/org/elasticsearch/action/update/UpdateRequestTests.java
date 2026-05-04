@@ -570,26 +570,32 @@ public class UpdateRequestTests extends ESTestCase {
         GetResult getResult = new GetResult("test", "1", UNASSIGNED_SEQ_NO, 0, 0, false, null, null, null);
         IndexRequest indexRequest = new IndexRequest("test").id("1");
 
-        // There is no routing and parent because the document doesn't exist
-        assertNull(UpdateHelper.calculateRouting(getResult, null));
+        // There is no routing anywhere
+        assertNull(UpdateHelper.calculateRouting(getResult, null, null));
 
-        // There is no routing and parent the indexing request
-        assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
+        // No routing on the inner doc request, no routing fallback
+        assertNull(UpdateHelper.calculateRouting(getResult, indexRequest, null));
 
-        // Doc exists but has no source or fields
+        // Doc exists but has no source or fields, no routing anywhere
         getResult = new GetResult("test", "1", 0, 1, 0, true, null, null, null);
+        assertNull(UpdateHelper.calculateRouting(getResult, indexRequest, null));
 
-        // There is no routing and parent on either request
-        assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
+        // Routing available only via the update request (e.g. _routing stored as doc values)
+        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest, "routing1"), equalTo("routing1"));
 
         Map<String, DocumentField> fields = new HashMap<>();
         fields.put("_routing", new DocumentField("_routing", Collections.singletonList("routing1")));
 
-        // Doc exists and has the parent and routing fields
+        // Doc exists and has the routing stored field — stored field wins over request routing
         getResult = new GetResult("test", "1", 0, 1, 0, true, null, fields, null);
+        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest, null), equalTo("routing1"));
+        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest, "other"), equalTo("routing1"));
 
         // Use the get result parent and routing
-        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest), equalTo("routing1"));
+        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest, null), equalTo("routing1"));
+        // Inner doc request routing takes highest priority
+        IndexRequest routedIndexRequest = new IndexRequest("test").id("1").routing("doc-routing");
+        assertThat(UpdateHelper.calculateRouting(getResult, routedIndexRequest, "request-routing"), equalTo("doc-routing"));
     }
 
     public void testNoopDetection() throws Exception {

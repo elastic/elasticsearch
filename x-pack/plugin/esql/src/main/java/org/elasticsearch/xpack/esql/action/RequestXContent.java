@@ -426,6 +426,19 @@ final class RequestXContent {
                 );
                 return;
             }
+            if (valueList.isEmpty()) {
+                errors.add(
+                    new XContentParseException(
+                        loc,
+                        "Empty lists are not allowed as named parameter values. Got parameter ["
+                            + entry.getKey()
+                            + "] with value ["
+                            + valueList
+                            + "]"
+                    )
+                );
+                return;
+            }
             // Multivalued field
             DataType arrayType = null;
             for (Object currentValue : valueList) {

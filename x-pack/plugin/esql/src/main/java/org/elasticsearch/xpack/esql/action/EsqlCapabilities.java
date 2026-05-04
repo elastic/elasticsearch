@@ -1640,6 +1640,11 @@ public class EsqlCapabilities {
         TSTEP_EXPLICIT_BOUNDS(TSTEP.isEnabled()),
 
         /**
+         * Support for tstep bucket count variant: TSTEP(count, from, to)
+         */
+        TSTEP_BUCKET_COUNT(TSTEP.isEnabled()),
+
+        /**
          * Allow qualifiers in attribute names.
          */
         NAME_QUALIFIERS(Build.current().isSnapshot()),
@@ -1987,6 +1992,11 @@ public class EsqlCapabilities {
          * TS window functions use backward window semantics only.
          */
         FIX_TIME_SERIES_WINDOW_BACKWARD(Build.current().isSnapshot()),
+
+        /**
+         * PromQL uses TSTEP instead of TBUCKET.
+         */
+        FIX_PROMQL_TIME_BUCKET(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
 
         /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356

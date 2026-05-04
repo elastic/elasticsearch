@@ -78,6 +78,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
+    | {this.isDevVersion()}? fillnullCommand
     ;
 
 whereCommand
@@ -379,6 +380,14 @@ lookupCommand
 
 insistCommand
     : DEV_INSIST qualifiedNamePatterns
+    ;
+
+fillnullCommand
+    : DEV_FILLNULL (WITH fillnullValue)? (qualifiedName (COMMA qualifiedName)*)?
+    ;
+
+fillnullValue
+    : NULL | integerValue | decimalValue | booleanValue | string | parameter
     ;
 
 uriPartsCommand

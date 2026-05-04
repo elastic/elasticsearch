@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -3468,6 +3469,51 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         expectError("FROM text | EVAL x = 4 | INSIST_🐔 *", "INSIST doesn't support wildcards, found [*]");
         expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "INSIST doesn't support wildcards, found [foo*]");
+    }
+
+    public void testFillNullAllFields() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = processingCommand("fillnull");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNull(fillNull.fillValue());
+        assertTrue(fillNull.targetFields().isEmpty());
+    }
+
+    public void testFillNullWithValue() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = processingCommand("fillnull WITH 0");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNotNull(fillNull.fillValue());
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        assertEquals(0, ((Literal) fillNull.fillValue()).value());
+        assertTrue(fillNull.targetFields().isEmpty());
+    }
+
+    public void testFillNullNamedFields() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = processingCommand("fillnull a, b");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNull(fillNull.fillValue());
+        assertEquals(2, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+        assertThat(fillNull.targetFields().get(1), equalToIgnoringIds(attribute("b")));
+    }
+
+    public void testFillNullWithValueAndFields() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = processingCommand("fillnull WITH \"N/A\" status, category");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertEquals(BytesRefs.toBytesRef("N/A"), lit.value());
+        assertEquals(KEYWORD, lit.dataType());
+        assertEquals(2, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("status")));
+        assertThat(fillNull.targetFields().get(1), equalToIgnoringIds(attribute("category")));
     }
 
     public void testValidFork() {

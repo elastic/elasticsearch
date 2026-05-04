@@ -1,0 +1,89 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ fillnull ]
+      reason: 'requires the FILLNULL command (snapshot only)'
+  #
+  # Two indices with conflicting mapping for `client_ip`:
+  #   events_ip:      client_ip = ip
+  #   events_keyword: client_ip = keyword
+  # Querying both produces a union-typed `client_ip` (InvalidMappedField).
+  #
+  - do:
+      indices.create:
+        index: events_ip
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              event_id:
+                type: integer
+              message:
+                type: keyword
+              client_ip:
+                type: ip
+  - do:
+      indices.create:
+        index: events_keyword
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              event_id:
+                type: integer
+              message:
+                type: keyword
+              client_ip:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "events_ip"}}'
+          - '{"event_id": 1, "message": "ok", "client_ip": "10.0.0.1"}'
+          - '{"index": {"_index": "events_keyword"}}'
+          - '{"event_id": 2, "message": "ok", "client_ip": "10.0.0.2"}'
+
+---
+'fillnull on union typed field is rejected':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # client_ip is ip in events_ip and keyword in events_keyword, so the analyzer
+          # exposes it as an InvalidMappedField. FILLNULL targeting it must fail at verify time.
+          query: 'FROM events_ip,events_keyword | FILLNULL WITH "missing" client_ip | KEEP event_id, client_ip'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Cannot use field [client_ip]' }
+
+---
+'fillnull on a non-union aliased field after cross-index query':
+  # Cross-index queries are still allowed as long as FILLNULL targets a field that is NOT union-typed.
+  # Here we FILLNULL `event_id` (integer in both indices) instead of the conflicting `client_ip`.
+  - do:
+      esql.query:
+        body:
+          query: 'FROM events_ip,events_keyword | FILLNULL WITH 0 event_id | KEEP event_id | SORT event_id | LIMIT 100'
+  - match: { columns.0.name: event_id }
+  - match: { columns.0.type: integer }
+  - length: { values: 2 }
+  - match: { values.0: [ 1 ] }
+  - match: { values.1: [ 2 ] }
+
+---
+'fillnull on a target field that is unmapped in every participating index is rejected':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # `nonexistent_field` is not in any mapping. Resolution fails before postAnalysisVerification.
+          query: 'FROM events_ip | FILLNULL WITH 0 nonexistent_field'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Unknown column [nonexistent_field]' }

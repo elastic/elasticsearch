@@ -129,6 +129,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -691,6 +692,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case Insist i -> resolveInsist(i, childrenOutput, context);
+                case FillNull f -> resolveFillNull(f, childrenOutput);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
@@ -1218,6 +1220,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return resolved;
+        }
+
+        private LogicalPlan resolveFillNull(FillNull fillNull, List<Attribute> childrenOutput) {
+            if (fillNull.targetFields().isEmpty()) {
+                return fillNull;
+            }
+            List<Attribute> resolved = new ArrayList<>(fillNull.targetFields().size());
+            for (Attribute attr : fillNull.targetFields()) {
+                if (attr instanceof UnresolvedAttribute ua) {
+                    Attribute resolvedAttr = maybeResolveAttribute(ua, childrenOutput);
+                    resolved.add(resolvedAttr);
+                } else {
+                    resolved.add(attr);
+                }
+            }
+            return fillNull.withTargetFields(resolved);
         }
 
         private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, AnalyzerContext context) {

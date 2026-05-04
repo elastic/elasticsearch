@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -451,6 +452,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             input,
             fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
         );
+    }
+
+    @Override
+    public PlanFactory visitFillnullCommand(EsqlBaseParser.FillnullCommandContext ctx) {
+        var source = source(ctx);
+        Expression fillValue = ctx.fillnullValue() != null ? expression(ctx.fillnullValue()) : null;
+        List<Attribute> targetFields = new ArrayList<>();
+        for (EsqlBaseParser.QualifiedNameContext nameCtx : ctx.qualifiedName()) {
+            UnresolvedAttribute attr = visitQualifiedName(nameCtx);
+            targetFields.add(attr);
+        }
+        return input -> new FillNull(source, input, fillValue, targetFields);
     }
 
     @Override

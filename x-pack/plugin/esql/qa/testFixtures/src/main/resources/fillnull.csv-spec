@@ -1,0 +1,487 @@
+###############################################
+# FILLNULL command tests — ROW-based
+###############################################
+
+fillNullAllFieldsWithTypeDefaults
+required_capability: fillnull
+
+ROW a = null, b = 1, c = null
+| EVAL a = a::keyword, c = c::integer
+| FILLNULL
+;
+
+b:integer | a:keyword | c:integer
+1          |           | 0
+;
+
+fillNullSpecificFieldsWithTypeDefaults
+required_capability: fillnull
+
+ROW a = null, b = 1, c = null
+| EVAL a = a::keyword, c = c::integer
+| FILLNULL a, c
+;
+
+b:integer | a:keyword | c:integer
+1          |           | 0
+;
+
+fillNullWithIntegerValue
+required_capability: fillnull
+
+ROW a = null, b = 1, c = null
+| EVAL a = a::integer, c = c::integer
+| FILLNULL WITH 0 a, c
+;
+
+b:integer | a:integer | c:integer
+1          | 0         | 0
+;
+
+fillNullWithStringValue
+required_capability: fillnull
+
+ROW a = null, b = "hello", c = null
+| EVAL a = a::keyword, c = c::keyword
+| FILLNULL WITH "N/A" a, c
+;
+
+b:keyword | a:keyword | c:keyword
+hello      | N/A       | N/A
+;
+
+fillNullPreservesNonNullValues
+required_capability: fillnull
+
+ROW a = "existing", b = null
+| EVAL b = b::keyword
+| FILLNULL WITH "default" a, b
+;
+
+a:keyword | b:keyword
+existing   | default
+;
+
+fillNullWithBooleanDefault
+required_capability: fillnull
+
+ROW a = null, b = true
+| EVAL a = a::boolean
+| FILLNULL a
+;
+
+b:boolean | a:boolean
+true       | false
+;
+
+fillNullWithDoubleValue
+required_capability: fillnull
+
+ROW a = null, b = 3.14
+| EVAL a = a::double
+| FILLNULL WITH 0.0 a
+;
+
+b:double | a:double
+3.14      | 0.0
+;
+
+fillNullLongDefault
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::long
+| FILLNULL a
+;
+
+a:long
+0
+;
+
+fillNullNoNulls
+required_capability: fillnull
+
+ROW a = 1, b = 2
+| FILLNULL WITH 0 a, b
+;
+
+a:integer | b:integer
+1          | 2
+;
+
+fillNullSingleField
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL WITH "filled" a
+;
+
+a:keyword
+filled
+;
+
+fillNullChained
+required_capability: fillnull
+
+ROW a = null, b = null
+| EVAL a = a::keyword, b = b::integer
+| FILLNULL WITH "unknown" a
+| FILLNULL WITH 0 b
+;
+
+a:keyword | b:integer
+unknown    | 0
+;
+
+###############################################
+# Null predicates and composition
+###############################################
+
+fillNullIsNotNullAfterFill
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL a
+| EVAL is_missing = a IS NULL
+;
+
+a:keyword | is_missing:boolean
+           | false
+;
+
+fillNullComposition
+required_capability: fillnull
+
+ROW a = null, b = 2
+| EVAL a = a::integer
+| FILLNULL WITH -1 a
+| EVAL sum_ab = a + b
+;
+
+b:integer | a:integer | sum_ab:integer
+2          | -1        | 1
+;
+
+###############################################
+# Mixed types — all-fields mode skips incompatible
+###############################################
+
+fillNullWithValueSkipsIncompatibleAllFields
+required_capability: fillnull
+
+ROW i = null, k = null
+| EVAL i = i::integer, k = k::keyword
+| FILLNULL WITH 0
+;
+
+i:integer | k:keyword
+0          | null
+;
+
+fillNullUnsupportedTypeLeftNull
+required_capability: fillnull
+
+ROW d = null, i = null
+| EVAL d = d::datetime, i = i::integer
+| FILLNULL
+;
+
+d:datetime | i:integer
+null        | 0
+;
+
+###############################################
+# WHERE / SORT / STATS after FILLNULL
+###############################################
+
+fillNullThenWhere
+required_capability: fillnull
+
+ROW a = null, b = 1
+| EVAL a = a::integer
+| FILLNULL WITH 0 a
+| WHERE a == 0 AND b == 1
+;
+
+b:integer | a:integer
+1          | 0
+;
+
+fillNullThenStats
+required_capability: fillnull
+
+ROW g = 1, a = null
+| EVAL a = a::integer
+| FILLNULL a
+| STATS s = SUM(a) BY g
+;
+
+s:long | g:integer
+0       | 1
+;
+
+###############################################
+# FROM-based tests (indexed data)
+###############################################
+
+fillNullFromGenderKeyword
+required_capability: fillnull
+
+FROM employees
+| WHERE gender IS NULL
+| FILLNULL WITH "Unknown" gender
+| KEEP emp_no, first_name, gender
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | gender:keyword
+10010           | Duangkaew          | Unknown
+10011           | Mary               | Unknown
+10012           | Patricio           | Unknown
+;
+
+fillNullFromNonNullUntouched
+required_capability: fillnull
+
+FROM employees
+| WHERE gender IS NOT NULL
+| FILLNULL WITH "Unknown" gender
+| KEEP emp_no, first_name, gender
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | gender:keyword
+10001           | Georgi             | M
+10002           | Bezalel            | F
+10003           | Parto              | M
+;
+
+fillNullFromThenSort
+required_capability: fillnull
+
+FROM employees
+| FILLNULL WITH "Unknown" gender
+| KEEP emp_no, gender
+| SORT gender, emp_no
+| LIMIT 3
+;
+
+emp_no:integer | gender:keyword
+10002           | F
+10006           | F
+10007           | F
+;
+
+fillNullFromThenStats
+required_capability: fillnull
+
+FROM employees
+| FILLNULL WITH "Unknown" gender
+| STATS c = COUNT(*) BY gender
+| SORT gender
+;
+
+c:long | gender:keyword
+33      | F
+57      | M
+10      | Unknown
+;
+
+###############################################
+# METADATA field interactions
+###############################################
+
+# _index is a non-null keyword metadata field. FILLNULL on a non-null field is a no-op.
+fillNullOnIndexMetadata
+required_capability: fillnull
+
+FROM employees METADATA _index
+| WHERE emp_no == 10001
+| FILLNULL WITH "missing" _index
+| KEEP emp_no, _index
+;
+
+emp_no:integer | _index:keyword
+10001           | employees
+;
+
+# _id is a non-null keyword metadata field. Targeting it should not change which rows we see;
+# we group by _id and count, so the count must equal the number of matched rows regardless
+# of the (auto-generated) _id values.
+fillNullOnIdMetadata
+required_capability: fillnull
+
+FROM employees METADATA _id
+| WHERE emp_no == 10001
+| FILLNULL WITH "missing" _id
+| STATS c = COUNT(*) BY has_id = (_id IS NOT NULL)
+;
+
+c:long | has_id:boolean
+1       | true
+;
+
+# _version is a non-null long metadata field. FILLNULL with an integer value (compatible) is a no-op.
+fillNullOnVersionMetadata
+required_capability: fillnull
+
+FROM employees METADATA _version
+| WHERE emp_no == 10001
+| FILLNULL WITH 0 _version
+| KEEP emp_no, _version
+;
+
+emp_no:integer | _version:long
+10001           | 1
+;
+
+# All-fields mode with metadata fields: metadata fields are non-null so they pass through unchanged.
+# emp_no is non-null integer; gender is keyword (null for some rows). With WITH 0, only integer-compatible
+# columns are filled in all-fields mode; keyword/string columns are silently skipped.
+fillNullAllFieldsModeWithMetadata
+required_capability: fillnull
+
+FROM employees METADATA _index
+| WHERE emp_no == 10001
+| FILLNULL WITH 0
+| KEEP emp_no, _index, gender
+;
+
+emp_no:integer | _index:keyword | gender:keyword
+10001           | employees      | M
+;
+
+###############################################
+# Multi-value (MV) field interactions
+###############################################
+
+# job_positions is an MV keyword. For 10001 it has 2 values (non-null), for 10003 it is empty (null in ESQL).
+# FILLNULL must preserve MV values for non-null rows and fill the null with "None".
+fillNullOnMVField
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no IN (10001, 10003)
+| FILLNULL WITH "None" job_positions
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10001           | [Accountant, Senior Python Developer]
+10003           | None
+;
+
+# All-fields mode on a row containing a non-null MV field: the MV must be preserved.
+fillNullAllFieldsModePreservesMV
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no == 10001
+| FILLNULL WITH "None"
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10001           | [Accountant, Senior Python Developer]
+;
+
+# FILLNULL output composes correctly with MV_COUNT: filled-in single value has count 1.
+fillNullThenMvCount
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no IN (10003, 10005, 10010)
+| FILLNULL WITH "None" job_positions
+| EVAL n = MV_COUNT(job_positions)
+| KEEP emp_no, n
+| SORT emp_no
+;
+
+emp_no:integer | n:integer
+10003           | 1
+10005           | 1
+10010           | 4
+;
+
+# FILLNULL feeding STATS with COUNT_DISTINCT must group by the filled value.
+fillNullThenCountDistinctByGender
+required_capability: fillnull
+
+FROM employees
+| FILLNULL WITH "Unknown" gender
+| STATS d = COUNT_DISTINCT(emp_no) BY gender
+| SORT gender
+;
+
+d:long | gender:keyword
+33      | F
+57      | M
+10      | Unknown
+;
+
+# FILLNULL inside an EVAL chain: filled value participates in arithmetic.
+# emp_no in [10020, 10021, 10022] all have null `languages`. After FILLNULL WITH 0,
+# bonus = 0 + 10 = 10 for every row.
+fillNullCompositionInEval
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no IN (10020, 10021, 10022)
+| FILLNULL WITH 0 languages
+| EVAL bonus = languages + 10
+| KEEP emp_no, languages, bonus
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer | bonus:integer
+10020           | 0                 | 10
+10021           | 0                 | 10
+10022           | 0                 | 10
+;
+
+# FILLNULL with WHERE filter on the filled column: only rows with the filled default match.
+fillNullThenFilterOnFilled
+required_capability: fillnull
+
+FROM employees
+| FILLNULL WITH "Unknown" gender
+| WHERE gender == "Unknown"
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+# IS NOT NULL after FILLNULL on a previously-nullable column should match every row.
+fillNullThenIsNotNull
+required_capability: fillnull
+
+FROM employees
+| FILLNULL WITH "Unknown" gender
+| WHERE gender IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+# FILLNULL preserves column ordering (target-fields mode does not reorder).
+fillNullPreservesColumnOrder
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no == 10001
+| FILLNULL WITH "Unknown" gender
+| KEEP first_name, gender, emp_no
+;
+
+first_name:keyword | gender:keyword | emp_no:integer
+Georgi              | M              | 10001
+;

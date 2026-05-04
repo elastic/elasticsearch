@@ -3100,6 +3100,56 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testFillNullIncompatibleType() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        defaultAnalyzer().error(
+            "FROM test | FILLNULL WITH 0 first_name",
+            containsString("[FILLNULL] fill value type [integer] is incompatible with field [first_name] type [keyword]")
+        );
+    }
+
+    public void testFillNullIncompatibleTypeReportedPerField() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // Mixed: emp_no (integer) is compatible with the integer fill, first_name (keyword) and gender (keyword)
+        // are not. The verifier must report each incompatible field separately.
+        defaultAnalyzer().error(
+            "FROM test | FILLNULL WITH 0 emp_no, first_name, gender",
+            allOf(
+                containsString("[FILLNULL] fill value type [integer] is incompatible with field [first_name] type [keyword]"),
+                containsString("[FILLNULL] fill value type [integer] is incompatible with field [gender] type [keyword]")
+            )
+        );
+    }
+
+    public void testFillNullAllFieldsModeSkipsIncompatibleSilently() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // All-fields mode (no explicit targets) silently skips columns whose type is incompatible
+        // with the fill value, so this query must analyze cleanly. We assert success by parsing
+        // and analyzing the query through the standard analyzer.
+        defaultAnalyzer().query("FROM test | FILLNULL WITH 0");
+    }
+
+    public void testFillNullDuplicateField() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        defaultAnalyzer().error("FROM test | FILLNULL emp_no, emp_no", containsString("[FILLNULL] duplicate field [emp_no]"));
+    }
+
+    public void testFillNullDuplicateFieldReportedPerField() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // Each distinct field that is repeated must be flagged independently.
+        // Failures are deduplicated per attribute node (so listing the same field three times only
+        // produces one report), but two different repeated fields must still surface two reports.
+        defaultAnalyzer().error(
+            "FROM test | FILLNULL emp_no, salary, emp_no, salary",
+            allOf(containsString("[FILLNULL] duplicate field [emp_no]"), containsString("[FILLNULL] duplicate field [salary]"))
+        );
+    }
+
     public void testFullTextFunctionsInStats() {
         checkFullTextFunctionsInStats("match(title, \"Meditation\")");
         checkFullTextFunctionsInStats("title : \"Meditation\"");

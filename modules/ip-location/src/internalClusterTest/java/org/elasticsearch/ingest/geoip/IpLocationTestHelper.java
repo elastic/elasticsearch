@@ -61,7 +61,7 @@ public final class IpLocationTestHelper {
 
     /**
      * Requests IP database downloads for the {@link IpLocationConsumer#INGEST INGEST} consumer.
-     * The request is routed to the master node via a transport action, so a single call suffices.
+     * The request is internally routed to the master node via a transport action, so a single call suffices.
      */
     public static void requestDownloads(InternalTestCluster cluster, String projectId) {
         requestDownloads(cluster, projectId, IpLocationConsumer.INGEST);
@@ -69,20 +69,20 @@ public final class IpLocationTestHelper {
 
     /**
      * Requests IP database downloads for the specified consumer type.
-     * The request is routed to the master node via a transport action and updates
-     * cluster state metadata, so a single call from any node suffices.
+     * The {@link IpLocationService} implementation internally routes the request to the master node via a
+     * transport action that updates cluster state metadata, so a single call from any node suffices.
      */
     public static void requestDownloads(InternalTestCluster cluster, String projectId, IpLocationConsumer consumer) {
-        cluster.getAnyMasterNodeInstance(IpLocationService.class).requestDownloads(projectId, consumer);
+        cluster.getInstance(IpLocationService.class).requestDownloads(projectId, consumer);
     }
 
     /**
      * Cancels a previous IP database download request for the specified consumer type.
-     * Like {@link #requestDownloads}, the cancellation is routed to the master node via a
-     * transport action and updates cluster state metadata, so a single call suffices.
+     * Like {@link #requestDownloads}, the cancellation is internally routed to the master node via a
+     * transport action and updates cluster state metadata, so a single call from any node suffices.
      */
     public static void cancelDownloadRequest(InternalTestCluster cluster, String projectId, IpLocationConsumer consumer) {
-        cluster.getAnyMasterNodeInstance(IpLocationService.class).cancelDownloadRequest(projectId, consumer);
+        cluster.getInstance(IpLocationService.class).cancelDownloadRequest(projectId, consumer);
     }
 
     /**

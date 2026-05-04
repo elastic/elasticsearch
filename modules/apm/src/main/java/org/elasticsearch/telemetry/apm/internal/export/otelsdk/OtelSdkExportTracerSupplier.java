@@ -15,11 +15,9 @@ import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporterBuilder;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
-import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
@@ -61,21 +59,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
             .setScheduleDelay(interval.millis(), TimeUnit.MILLISECONDS)
             .build();
 
-        // Resource.getDefault() supplies the OTel SemConv telemetry.sdk.{name,version,language} keys.
-        // The APM-intake-style equivalents (service.agent.{name,version}, service.language.name) are
-        // layered on top so downstream consumers that read either naming scheme see both.
-        Resource resource = Resource.getDefault()
-            .merge(
-                Resource.builder()
-                    .put("service.name", "elasticsearch")
-                    .put("service.version", Build.current().version())
-                    .put("service.agent.name", "elasticsearch-otel-sdk")
-                    .put("service.agent.version", Build.current().version())
-                    .put("service.language.name", "java")
-                    .build()
-            );
-
-        this.tracerProvider = SdkTracerProvider.builder().setResource(resource).addSpanProcessor(processor).build();
+        this.tracerProvider = SdkTracerProvider.builder().setResource(OtelSdkResource.get()).addSpanProcessor(processor).build();
 
         this.openTelemetrySdk = OpenTelemetrySdk.builder()
             .setTracerProvider(tracerProvider)

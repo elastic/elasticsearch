@@ -457,7 +457,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitFillnullCommand(EsqlBaseParser.FillnullCommandContext ctx) {
         var source = source(ctx);
-        Expression fillValue = ctx.fillnullValue() != null ? expression(ctx.fillnullValue()) : null;
+        // The fillnullValue grammar rule lists `NULL` as a bare-token alternative without a
+        // labeled sub-rule, so the default ANTLR visitor walks into a TerminalNode and returns
+        // null. Translate the NULL token to an explicit NULL-typed Literal here; all other
+        // alternatives (integerValue / decimalValue / booleanValue / string / parameter) have
+        // ExpressionBuilder visitors that produce a Literal directly.
+        EsqlBaseParser.FillnullValueContext valueCtx = ctx.fillnullValue();
+        final Expression fillValue;
+        if (valueCtx == null) {
+            fillValue = null;
+        } else if (valueCtx.NULL() != null) {
+            fillValue = new Literal(source(valueCtx), null, DataType.NULL);
+        } else {
+            fillValue = expression(valueCtx);
+        }
         List<Attribute> targetFields = new ArrayList<>();
         for (EsqlBaseParser.QualifiedNameContext nameCtx : ctx.qualifiedName()) {
             UnresolvedAttribute attr = visitQualifiedName(nameCtx);

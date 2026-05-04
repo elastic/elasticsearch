@@ -482,6 +482,17 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
     }
 
+    public static final class BulkOperation429Exception extends ElasticsearchException {
+        public BulkOperation429Exception(String msg) {
+            super(msg);
+        }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.TOO_MANY_REQUESTS;
+        }
+    }
+
     /**
      * A bulk operation to a data stream with a failure store enabled should NOT redirect any documents that fail at a shard level to the
      * failure store if the exception thrown is of an invalid type (backpressure, version conflict, etc.)
@@ -497,12 +508,7 @@ public class BulkOperationTests extends ESTestCase {
             new EsRejectedExecutionException("test"),
             new CircuitBreakingException("test", randomFrom(CircuitBreaker.Durability.values())),
             new ClusterBlockException(Set.of(MetadataIndexStateService.createIndexClosingBlock())),
-            new ElasticsearchException("test") {
-                @Override
-                public RestStatus status() {
-                    return RestStatus.TOO_MANY_REQUESTS;
-                }
-            }
+            new BulkOperation429Exception("test")
         );
 
         NodeClient client = getNodeClient(

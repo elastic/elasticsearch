@@ -176,7 +176,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         private class TimeOutCheckingKnnCollector extends KnnCollector.Decorator {
             private final KnnCollector in;
-            private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
+            private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 16;
             private int calls;
 
             private TimeOutCheckingKnnCollector(KnnCollector in) {

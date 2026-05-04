@@ -21,11 +21,16 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+import java.util.zip.GZIPInputStream;
 
 @FunctionName("st_simplify")
 public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
@@ -101,6 +106,29 @@ public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
                 "Tolerance `1.0` reduces the circle to a regular octagon.",
                 circle,
                 1.0
+            ),
+            // Real-world coastline (France, MultiPolygon) at two tolerance levels. Each diagram
+            // shows the simplified result on its own — both shapes visibly differ from the
+            // unsimplified original and from each other.
+            simplifiedDiagram(
+                "france_medium",
+                "Simplifying a coastline at moderate tolerance",
+                "France's coastline simplified at tolerance `0.1` (roughly 10 km). Small bays and "
+                    + "peninsulas survive but the coastline is noticeably smoother.",
+                loadResourceWkt("France.wkt.gz"),
+                0.1,
+                480,
+                480
+            ),
+            simplifiedDiagram(
+                "france_coarse",
+                "Simplifying a coastline at coarse tolerance",
+                "France's coastline simplified at tolerance `0.5` (roughly 50 km). Only the "
+                    + "high-level shape of the country remains.",
+                loadResourceWkt("France.wkt.gz"),
+                0.5,
+                480,
+                480
             )
         );
     }
@@ -116,6 +144,39 @@ public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
             240,
             List.of(GeometryDocSvg.Layer.filled(toEs(simplified)), GeometryDocSvg.Layer.outline(parseEs(inputWkt)))
         );
+    }
+
+    /** A diagram showing only the simplified geometry — useful when the original would be too dense to read. */
+    private static DocsV3Support.GeometryDiagram simplifiedDiagram(
+        String name,
+        String title,
+        String description,
+        String inputWkt,
+        double tolerance,
+        int width,
+        int height
+    ) {
+        Geometry simplified = DouglasPeuckerSimplifier.simplify(jts(inputWkt), tolerance);
+        return new DocsV3Support.GeometryDiagram(
+            name,
+            title,
+            description,
+            width,
+            height,
+            List.of(GeometryDocSvg.Layer.filled(toEs(simplified)))
+        );
+    }
+
+    private static String loadResourceWkt(String name) {
+        try (
+            InputStream raw = StSimplifyTests.class.getResourceAsStream(name);
+            GZIPInputStream gz = new GZIPInputStream(raw);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(gz, StandardCharsets.UTF_8))
+        ) {
+            return reader.readLine();
+        } catch (IOException e) {
+            throw new AssertionError("failed to load test resource " + name, e);
+        }
     }
 
     private static Geometry jts(String wkt) {

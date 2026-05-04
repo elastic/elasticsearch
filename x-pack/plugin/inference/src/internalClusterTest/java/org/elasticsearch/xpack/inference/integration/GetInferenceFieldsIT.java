@@ -14,7 +14,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -42,6 +45,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
 import static org.hamcrest.Matchers.containsString;
@@ -178,6 +182,19 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             ),
             Map.of(EMBEDDING_INDEX, Set.of(new InferenceFieldWithTestMetadata(EMBEDDING_FIELD, EMBEDDING_INFERENCE_ID, 1.0f))),
             Map.of()
+        );
+
+        assertSuccessfulRequest(
+            new GetInferenceFieldsInternalAction.Request(
+                new String[] { EMBEDDING_INDEX },
+                Map.of(EMBEDDING_FIELD, 1.0f),
+                false,
+                false,
+                new InferenceStringGroup(new InferenceString(DataType.IMAGE, TEST_DATA_URI)),
+                null
+            ),
+            Map.of(EMBEDDING_INDEX, Set.of(new InferenceFieldWithTestMetadata(EMBEDDING_FIELD, EMBEDDING_INFERENCE_ID, 1.0f))),
+            EMBEDDING_EXPECTED_INFERENCE_RESULTS
         );
     }
 

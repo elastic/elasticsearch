@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
@@ -24,8 +25,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -39,6 +42,24 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(AnalysisICUPlugin.class);
+    }
+
+    @ParametersFactory(argumentFormatting = "binaryDocValues=%b")
+    public static List<Object[]> args() {
+        return List.of(new Object[] { false }, new Object[] { true });
+    }
+
+    private final boolean binaryDocValues;
+
+    public ICUCollationKeywordFieldMapperIT(boolean binaryDocValues) {
+        this.binaryDocValues = binaryDocValues;
+        if (binaryDocValues) {
+            assumeTrue("cardinality option must be available", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        }
+    }
+
+    private void binaryDocValuesConfig(XContentBuilder builder) throws IOException {
+        builder.startObject("doc_values").field("cardinality", "high").endObject();
     }
 
     /*
@@ -60,10 +81,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .startObject("collate")
             .field("type", "icu_collation_keyword")
             .field("language", "tr")
-            .field("strength", "primary")
-            .endObject()
-            .endObject()
-            .endObject();
+            .field("strength", "primary");
+        if (binaryDocValues) {
+            binaryDocValuesConfig(builder);
+        }
+        builder.endObject().endObject().endObject();
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
@@ -102,10 +124,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .startObject("collate")
             .field("type", "icu_collation_keyword")
-            .field("language", "en")
-            .endObject()
-            .endObject()
-            .endObject();
+            .field("language", "en");
+        if (binaryDocValues) {
+            binaryDocValuesConfig(builder);
+        }
+        builder.endObject().endObject().endObject();
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
@@ -167,10 +190,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .field("type", "icu_collation_keyword")
             .field("language", "tr")
             .field("strength", "primary")
-            .field("decomposition", "canonical")
-            .endObject()
-            .endObject()
-            .endObject();
+            .field("decomposition", "canonical");
+        if (binaryDocValues) {
+            binaryDocValuesConfig(builder);
+        }
+        builder.endObject().endObject().endObject();
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
@@ -213,10 +237,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .field("type", "icu_collation_keyword")
             .field("language", "en")
             .field("strength", "secondary")
-            .field("decomposition", "no")
-            .endObject()
-            .endObject()
-            .endObject();
+            .field("decomposition", "no");
+        if (binaryDocValues) {
+            binaryDocValuesConfig(builder);
+        }
+        builder.endObject().endObject().endObject();
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
@@ -259,10 +284,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .field("type", "icu_collation_keyword")
             .field("language", "en")
             .field("strength", "primary")
-            .field("alternate", "shifted")
-            .endObject()
-            .endObject()
-            .endObject();
+            .field("alternate", "shifted");
+        if (binaryDocValues) {
+            binaryDocValuesConfig(builder);
+        }
+        builder.endObject().endObject().endObject();
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
@@ -305,10 +331,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .field("strength", "primary")
             .field("alternate", "shifted")
             .field("variable_top", " ")
-            .field("index", false)
-            .endObject()
-            .endObject()
-            .endObject();
+            .field("index", false);
+        if (binaryDocValues) {
+            binaryDocValuesConfig(builder);
+        }
+        builder.endObject().endObject().endObject();
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
@@ -347,10 +374,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .field("type", "icu_collation_keyword")
             .field("language", "en")
             .field("numeric", true)
-            .field("index", false)
-            .endObject()
-            .endObject()
-            .endObject();
+            .field("index", false);
+        if (binaryDocValues) {
+            binaryDocValuesConfig(builder);
+        }
+        builder.endObject().endObject().endObject();
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
@@ -385,10 +413,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .field("language", "en")
             .field("strength", "primary")
             .field("case_level", true)
-            .field("index", false)
-            .endObject()
-            .endObject()
-            .endObject();
+            .field("index", false);
+        if (binaryDocValues) {
+            binaryDocValuesConfig(builder);
+        }
+        builder.endObject().endObject().endObject();
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
@@ -422,10 +451,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .field("language", "en")
             .field("strength", "tertiary")
             .field("case_first", "upper")
-            .field("index", false)
-            .endObject()
-            .endObject()
-            .endObject();
+            .field("index", false);
+        if (binaryDocValues) {
+            binaryDocValuesConfig(builder);
+        }
+        builder.endObject().endObject().endObject();
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
@@ -471,10 +501,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .startObject("collate")
             .field("type", "icu_collation_keyword")
             .field("rules", tailoredRules)
-            .field("strength", "primary")
-            .endObject()
-            .endObject()
-            .endObject();
+            .field("strength", "primary");
+        if (binaryDocValues) {
+            binaryDocValuesConfig(builder);
+        }
+        builder.endObject().endObject().endObject();
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 

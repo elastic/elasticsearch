@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * Writes the ordinal stream of a single sorted or sorted-set field to a segment.
  *
- * <p>{@link #writeField} owns the entire field lifecycle: it iterates the doc values source,
+ * <p>{@link #writeFieldEntry} owns the entire field lifecycle: it iterates the doc values source,
  * accumulates statistics, and emits both the per-field metadata and the encoded ordinal blocks.
  * {@link #encoder()} exposes the per-block {@link Encoder} so callers can drive block encoding
  * directly when needed.
@@ -36,7 +36,7 @@ public interface OrdinalFieldWriter {
      *                            or {@code null} when no observer is attached
      * @return the field's doc value count statistics
      */
-    DocValueFieldCountStats writeField(
+    DocValueFieldCountStats writeFieldEntry(
         FieldInfo field,
         TsdbDocValuesProducer valuesSource,
         long maxOrd,

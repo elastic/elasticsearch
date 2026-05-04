@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -27,8 +28,10 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
@@ -47,6 +50,8 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
+        .feature(FeatureFlag.OTLP_TRACES)
+        .feature(FeatureFlag.OTLP_LOGS)
         .build();
 
     @Override
@@ -67,6 +72,8 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
     public void setUp() throws Exception {
         super.setUp();
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/metrics-otel@template"))));
+        assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/traces-otel@template"))));
+        assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/logs-otel@template"))));
     }
 
     @After
@@ -90,6 +97,17 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
     }
 
     protected static String createApiKey(String indexPattern) throws IOException {
+        return createApiKey(new String[] { indexPattern });
+    }
+
+    protected static String createApiKey(String... indexPatterns) throws IOException {
+        StringBuilder indexPatternsJson = new StringBuilder();
+        for (int i = 0; i < indexPatterns.length; i++) {
+            if (i > 0) {
+                indexPatternsJson.append(", ");
+            }
+            indexPatternsJson.append('"').append(indexPatterns[i]).append('"');
+        }
         Request createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity("""
             {
@@ -98,15 +116,36 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
                 "writer": {
                   "index": [
                     {
-                      "names": ["$INDEX_PATTERN"],
+                      "names": [$INDEX_PATTERNS],
                       "privileges": ["create_doc", "auto_configure"]
                     }
                   ]
                 }
               }
             }
-            """.replace("$INDEX_PATTERN", indexPattern));
+            """.replace("$INDEX_PATTERNS", indexPatternsJson.toString()));
         ObjectPath createApiKeyResponse = ObjectPath.createFromResponse(client().performRequest(createApiKeyRequest));
         return createApiKeyResponse.evaluate("encoded");
+    }
+
+    protected ObjectPath search(String target) throws IOException {
+        var response = client().performRequest(new Request("GET", target + "/_search"));
+        assertOK(response);
+        return ObjectPath.createFromResponse(response);
+    }
+
+    protected ObjectPath search(String target, String body) throws IOException {
+        Request request = new Request("GET", target + "/_search");
+        request.setJsonEntity(body);
+        var response = client().performRequest(request);
+        assertOK(response);
+        return ObjectPath.createFromResponse(response);
+    }
+
+    protected static ObjectPath getIndexMappingPath(String target) throws IOException {
+        Map<String, Object> mappings = ObjectPath.createFromResponse(client().performRequest(new Request("GET", target + "/_mapping")))
+            .evaluate("");
+        assertThat(mappings, aMapWithSize(1));
+        return new ObjectPath(new ObjectPath(mappings.values().iterator().next()).evaluate("mappings"));
     }
 }

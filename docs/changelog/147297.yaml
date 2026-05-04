@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 147297
-summary: Cache schema for single-file external paths
-type: enhancement

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147829
+summary: "Parquet decode-in-place: eliminate scratch-to-block copy"
+type: enhancement

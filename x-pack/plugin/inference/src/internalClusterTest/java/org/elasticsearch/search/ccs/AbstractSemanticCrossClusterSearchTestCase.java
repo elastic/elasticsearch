@@ -116,7 +116,7 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
             Map<String, Object> serviceSettings = new HashMap<>();
             serviceSettings.put("model", randomAlphaOfLength(5));
             serviceSettings.put("api_key", randomAlphaOfLength(5));
-            if (minimalServiceSettings.taskType() == TaskType.TEXT_EMBEDDING) {
+            if (minimalServiceSettings.taskType() == TaskType.TEXT_EMBEDDING || minimalServiceSettings.taskType() == TaskType.EMBEDDING) {
                 serviceSettings.put("dimensions", minimalServiceSettings.dimensions());
                 serviceSettings.put("similarity", minimalServiceSettings.similarity());
                 serviceSettings.put("element_type", minimalServiceSettings.elementType());
@@ -257,6 +257,14 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         DenseVectorFieldMapper.ElementType elementType
     ) {
         return new MinimalServiceSettings(null, TaskType.TEXT_EMBEDDING, dimensions, similarity, elementType);
+    }
+
+    protected static MinimalServiceSettings embeddingServiceSettings(
+        int dimensions,
+        SimilarityMeasure similarity,
+        DenseVectorFieldMapper.ElementType elementType
+    ) {
+        return new MinimalServiceSettings(null, TaskType.EMBEDDING, dimensions, similarity, elementType);
     }
 
     protected static Map<String, Object> semanticTextMapping(String inferenceId) {

@@ -26,7 +26,6 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BulkIndexByScrollResponseTests extends ESTestCase {
@@ -76,7 +75,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
             responses.add(new BulkByScrollResponse(thisTook, status, bulkFailures, searchFailures, thisTimedOut));
         }
 
-        BulkByScrollResponse merged = new BulkByScrollResponse(responses, reasonCancelled);
+        BulkByScrollResponse merged = new BulkByScrollResponse(responses, reasonCancelled, null, 0f);
 
         assertEquals(timeValueMillis(took), merged.getTook());
         assertEquals(allBulkFailures, merged.getBulkFailures());
@@ -85,7 +84,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
         assertEquals(reasonCancelled, merged.getReasonCancelled());
     }
 
-    /** Verifies the 3-arg merge constructor with pitId preserves the pitId in the merged response. */
+    /** Verifies the merge constructor with pitId preserves the pitId in the merged response. */
     public void testMergeConstructorWithPitId() {
         BytesReference pitId = new BytesArray("merged-pit-id".getBytes(StandardCharsets.UTF_8));
         List<BulkByScrollResponse> responses = new ArrayList<>();
@@ -109,7 +108,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
             responses.add(new BulkByScrollResponse(timeValueMillis(100), status, emptyList(), emptyList(), false));
         }
 
-        BulkByScrollResponse merged = new BulkByScrollResponse(responses, null, pitId);
+        BulkByScrollResponse merged = new BulkByScrollResponse(responses, null, pitId, 0f);
 
         assertTrue(merged.getPitId().isPresent());
         assertThat(merged.getPitId().get(), equalTo(pitId));

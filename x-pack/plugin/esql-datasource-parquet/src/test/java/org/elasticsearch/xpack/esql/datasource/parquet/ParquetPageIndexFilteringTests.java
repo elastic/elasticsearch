@@ -218,6 +218,65 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
         );
     }
 
+    /**
+     * Strict parity: both the baseline and optimized paths perform page-level filtering (the
+     * baseline iterator reads pages directly from {@code FilteredPageReadStore} via
+     * {@code ColumnReadStoreImpl}, which honours {@code RowRanges} but does NOT apply record-level
+     * filtering — that would require a {@code RecordReader}). So both paths return the same
+     * page-aligned superset. Assert that they produce identical id lists, not just supersets,
+     * to catch any divergence in page selection between {@code RowGroupFilter} +
+     * {@code ColumnIndexRowRangesComputer} (optimized) and parquet-mr's
+     * {@code readNextFilteredRowGroup} (baseline).
+     */
+    public void testOptimizedAndBaselinePagesetsAreIdentical() throws IOException {
+        byte[] parquetData = createSortedParquetFile();
+
+        // eq(id, 500) — sparse match (single matching page)
+        {
+            Expression esqlFilter = new Equals(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER),
+                new Literal(Source.EMPTY, 500, DataType.INTEGER),
+                null
+            );
+            FilterPredicate parquetFilter = FilterApi.eq(FilterApi.intColumn("id"), 500);
+            List<Integer> baselineIds = readIdsWithBaselineFilter(parquetData, parquetFilter);
+            List<Integer> optimizedIds = readIdsWithPushedExpressions(parquetData, esqlFilter);
+            assertTrue("baseline must contain matching id", baselineIds.contains(500));
+            assertEquals("optimized vs baseline page-aligned ids", baselineIds, optimizedIds);
+        }
+
+        // [100, 200) — dense match (multiple pages)
+        {
+            Expression esqlFilter = new org.elasticsearch.xpack.esql.expression.predicate.logical.And(
+                Source.EMPTY,
+                new GreaterThanOrEqual(
+                    Source.EMPTY,
+                    new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER),
+                    new Literal(Source.EMPTY, 100, DataType.INTEGER),
+                    null
+                ),
+                new LessThan(
+                    Source.EMPTY,
+                    new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER),
+                    new Literal(Source.EMPTY, 200, DataType.INTEGER),
+                    null
+                )
+            );
+            FilterPredicate parquetFilter = FilterApi.and(
+                FilterApi.gtEq(FilterApi.intColumn("id"), 100),
+                FilterApi.lt(FilterApi.intColumn("id"), 200)
+            );
+            List<Integer> baselineIds = readIdsWithBaselineFilter(parquetData, parquetFilter);
+            List<Integer> optimizedIds = readIdsWithPushedExpressions(parquetData, esqlFilter);
+            assertTrue(
+                "baseline must contain all matching ids",
+                baselineIds.containsAll(java.util.stream.IntStream.range(100, 200).boxed().toList())
+            );
+            assertEquals("optimized vs baseline page-aligned ids", baselineIds, optimizedIds);
+        }
+    }
+
     // --- helpers ---
 
     /**

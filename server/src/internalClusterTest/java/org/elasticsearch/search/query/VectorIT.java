@@ -90,7 +90,7 @@ public class VectorIT extends ESIntegTestCase {
         );
         assertResponse(client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true), acornResponse -> {
             assertNotEquals(0, acornResponse.getHits().getHits().length);
-            var profileResults = acornResponse.getProfileResults();
+            var profileResults = acornResponse.getSearchProfileShardResults();
             long vectorOpsSum = profileResults.values()
                 .stream()
                 .mapToLong(
@@ -115,7 +115,7 @@ public class VectorIT extends ESIntegTestCase {
                 .get();
             assertResponse(client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true), fanoutResponse -> {
                 assertNotEquals(0, fanoutResponse.getHits().getHits().length);
-                var fanoutProfileResults = fanoutResponse.getProfileResults();
+                var fanoutProfileResults = fanoutResponse.getSearchProfileShardResults();
                 long fanoutVectorOpsSum = fanoutProfileResults.values()
                     .stream()
                     .mapToLong(
@@ -157,7 +157,7 @@ public class VectorIT extends ESIntegTestCase {
         var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, 10f, null, null);
         assertResponse(client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true), response -> {
             assertNotEquals(0, response.getHits().getHits().length);
-            var profileResults = response.getProfileResults();
+            var profileResults = response.getSearchProfileShardResults();
             long vectorOpsSum = profileResults.values()
                 .stream()
                 .mapToLong(
@@ -178,7 +178,7 @@ public class VectorIT extends ESIntegTestCase {
                 client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true),
                 earlyTerminationResponse -> {
                     assertNotEquals(0, earlyTerminationResponse.getHits().getHits().length);
-                    var earlyTerminationResults = earlyTerminationResponse.getProfileResults();
+                    var earlyTerminationResults = earlyTerminationResponse.getSearchProfileShardResults();
                     long earlyTerminationVectorOpsSum = earlyTerminationResults.values()
                         .stream()
                         .mapToLong(

@@ -42,6 +42,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -1318,6 +1319,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
+    private final boolean writeDimensionRouting;
     private final boolean forceDocValuesSkipper;
     private final boolean storeIgnoredFieldsInBinaryDocValues;
     private final String offsetsFieldName;
@@ -1350,6 +1352,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
+        this.writeDimensionRouting = builder.dimension.getValue()
+            && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
+            && efs.extractDimensionsWhileMapping();
         this.forceDocValuesSkipper = builder.forceDocValuesSkipper;
         this.storeIgnoredFieldsInBinaryDocValues = builder.storeIgnoredFieldsInBinaryDocValues;
         this.offsetsFieldName = offsetsFieldName;
@@ -1378,6 +1383,20 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue().isSingleValued();
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Plain keyword mappers can be driven through parseCreateField by the bulk batch path.
+        // ignore_above is allowed — it's handled by indexValue and only needs addIgnoredField on
+        // the context, which BatchDocumentParserContext records. Dimensions, non-default
+        // normalizers, copy_to, multi-fields, and scripts all pull in behavior that the v1 batch
+        // path does not support.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && normalizerName == null
+            && fieldType().isDimension() == false;
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {
@@ -1465,7 +1484,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         var utfBytes = value.bytes();
         var binaryValue = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-        if (fieldType().isDimension()) {
+        if (writeDimensionRouting) {
             context.getRoutingFields().addString(fieldType().name(), binaryValue);
         }
 

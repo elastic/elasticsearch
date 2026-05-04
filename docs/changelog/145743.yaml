@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 141827
+pr: 145743
+summary: Fix nullify under join and enrich
+type: bug

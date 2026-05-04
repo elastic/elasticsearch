@@ -11,18 +11,23 @@ package org.elasticsearch.search.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,9 +45,21 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     private static final String SHARD_ID_FIELD = "shard_id";
     public static final String SHARDS_FIELD = "shards";
     public static final String PROFILE_FIELD = "profile";
+    public static final String REQUEST_FIELD = "request";
+    public static final String SOURCE_FIELD = "source";
+    public static final String QUERY_FIELD = "indices";
+
+    public static final TransportVersion originalQueryIndicesInProfileResults = TransportVersion.fromName(
+        "include_original_query_indices_in_search_profile_results"
+    );
 
     // map key is the composite "id" of form [nodeId][(clusterName:)indexName][shardId] created from SearchShardTarget.toString
     private final Map<String, SearchProfileShardResult> shardResults;
+
+    @Nullable
+    private SearchSourceBuilder originalSource;
+    @Nullable
+    private String[] requestIndices;
 
     public SearchProfileResults(Map<String, SearchProfileShardResult> shardResults) {
         this.shardResults = Collections.unmodifiableMap(shardResults);
@@ -50,20 +67,59 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
 
     public SearchProfileResults(StreamInput in) throws IOException {
         shardResults = in.readMap(SearchProfileShardResult::new);
+        if (in.getTransportVersion().supports(originalQueryIndicesInProfileResults)) {
+            originalSource = in.readOptionalWriteable(SearchSourceBuilder::new);
+            requestIndices = in.readOptionalStringArray();
+        } else {
+            originalSource = null;
+            requestIndices = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(shardResults, StreamOutput::writeWriteable);
+        if (out.getTransportVersion().supports(originalQueryIndicesInProfileResults)) {
+            out.writeOptionalWriteable(originalSource);
+            out.writeOptionalStringArray(requestIndices);
+        }
     }
 
     public Map<String, SearchProfileShardResult> getShardResults() {
         return shardResults;
     }
 
+    /**
+     * The {@link SearchRequest#source()} from the originating coordinator request when included with profile
+     * results; otherwise {@code null}.
+     */
+    @Nullable
+    public SearchSourceBuilder getOriginalSource() {
+        return originalSource;
+    }
+
+    public void setOriginalSource(@Nullable SearchSourceBuilder originalSource) {
+        this.originalSource = originalSource;
+    }
+
+    /**
+     * The {@link SearchRequest#indices()} from the originating coordinator request when included with profile
+     * results; otherwise {@code null}.
+     */
+    @Nullable
+    public String[] getRequestIndices() {
+        return requestIndices;
+    }
+
+    public void setRequestIndices(@Nullable String[] requestIndices) {
+        this.requestIndices = requestIndices;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(PROFILE_FIELD).startArray(SHARDS_FIELD);
+        builder.startObject(PROFILE_FIELD);
+
+        builder.startArray(SHARDS_FIELD);
         // shardResults is a map, but we print entries in a json array, which is ordered.
         // we sort the keys of the map, so that toXContent always prints out the same array order
         TreeSet<String> sortedKeys = new TreeSet<>(shardResults.keySet());
@@ -87,8 +143,20 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
             shardResult.toXContent(builder, params);
             builder.endObject();
         }
+        builder.endArray();
 
-        builder.endArray().endObject();
+        if (originalSource != null || requestIndices != null) {
+            builder.startObject(REQUEST_FIELD);
+            if (originalSource != null) {
+                builder.field(SOURCE_FIELD, originalSource);
+            }
+            if (requestIndices != null) {
+                builder.field(QUERY_FIELD, requestIndices);
+            }
+            builder.endObject();
+        }
+
+        builder.endObject();
         return builder;
     }
 
@@ -98,17 +166,24 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
             return false;
         }
         SearchProfileResults other = (SearchProfileResults) obj;
-        return shardResults.equals(other.shardResults);
+        return shardResults.equals(other.shardResults)
+            && Objects.equals(originalSource, other.originalSource)
+            && Arrays.equals(requestIndices, other.requestIndices);
     }
 
     @Override
     public int hashCode() {
-        return shardResults.hashCode();
+        return Objects.hash(shardResults, originalSource, Arrays.hashCode(requestIndices));
     }
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.format(
+            "SearchProfileResults[shardResults=%s, originalSource=%s, requestIndices=%s]",
+            shardResults,
+            originalSource,
+            Arrays.toString(requestIndices)
+        );
     }
 
     /**

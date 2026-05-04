@@ -2,7 +2,7 @@ setup:
   - requires:
       cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [allowed_warnings_regex, capabilities]
 
 ---
 disjoint_mappings:
@@ -396,4 +396,25 @@ same_name_different_type_same_family:
   - match: { values.1.0: foo2 }
   - match: { values.2.0: foo3 }
   - match: { values.3.0: foo4 }
+
+---
+"_index LIKE with overly complex pattern":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ fix_index_like_question_mark_wildcard ]
+      reason: "determinization complexity for _index LIKE not handled until fix"
+  - do:
+      indices.create:
+        index: test-complex-pattern
+  - do:
+      catch: /Pattern was too complex to determinize/
+      esql.query:
+        body:
+          query: 'FROM test-complex-pattern METADATA _index | WHERE _index LIKE "*a?????????????"'
+  - do:
+      indices.delete:
+        index: test-complex-pattern
 

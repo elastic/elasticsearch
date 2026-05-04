@@ -20,6 +20,828 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.4.0 [elasticsearch-9.4.0-release-notes]
+```{applies_to}
+stack: ga 9.4.0
+```
+
+### Highlights [elasticsearch-9.4.0-highlights]
+
+::::{dropdown} ES|QL Views support
+ES|QL now supports Views: virtual indices whose fields are produced by an ES|QL query.
+A view is referenced inside a `FROM` clause exactly like a regular index, alongside other indices, views, and wildcards.
+Complex processing pipelines can be hidden behind a view, exposing a stable set of columns without requiring callers to know the underlying source structure.
+A single query can combine multiple pre-processed data sources by listing several views in one `FROM` clause, with each view's pipeline running independently.
+Common transformations such as renames, type conversions, derived fields, and aggregations can be defined once in a view and reused across many queries, dashboards, and alerts.
+::::
+
+::::{dropdown} Enable PromQL command in ES|QL
+PromQL is now supported as a source command in ES|QL (Tech Preview). Users can now leverage their existing knowledge of PromQL
+while benefiting from the powerful features and scalability of Elasticsearch. This enhancement expands the
+versatility of ES|QL and makes it easier for users to integrate with Prometheus data sources.
+
+The syntax is illustrated in the following example:
+
+[source,yaml]
+----
+PROMQL index=k8s-downsampled start="2026-02-17T08:00:00Z" end="2026-02-17T09:00:00Z" step=30m avg_bytes=(avg(rate(network.total_bytes_in[30m])))
+| SORT avg_bytes DESC, step;
+----
+::::
+
+::::{dropdown} Discover time series metrics with ES|QL `METRICS_INFO`
+ES|QL adds the `METRICS_INFO` command for queries that start with a time series (`TS`) source. It returns one row per
+distinct metric, with columns such as `metric_name`, `data_stream`, `unit`, `metric_type`, `field_type`, and
+`dimension_fields`, derived from time series metadata in the index. It unlocks inspecting which metrics exist and how they
+are typed before you aggregate with `STATS`.
+
+For example, list metrics sorted by name:
+
+[source,esql]
+----
+TS my_data_stream
+| METRICS_INFO
+| SORT metric_name
+----
+
+Or filter to counters only:
+
+[source,esql]
+----
+TS my_data_stream
+| METRICS_INFO
+| WHERE metric_type == "counter"
+| SORT metric_name
+----
+::::
+
+::::{dropdown} Implement Prometheus remote write indexing support
+We're introducing a Prometheus-compatible `POST /_prometheus/api/v1/write` REST entrypoint that allows receiving data via
+Prometheus remote write protocol (Tech Preview). Elasticsearch can now be used as a Prometheus storage backend, consuming data
+sent in Prometheus native format.
+::::
+
+::::{dropdown} Inspect each time series with ES|QL `TS_INFO`
+ES|QL adds the `TS_INFO` command for time series (`TS`) queries. It returns one row per metric and time series combination.
+You get the same metadata columns as `METRICS_INFO`, plus a `dimensions` column with a JSON object of dimension keys and values for
+that series. That unlocks inferring which labels apply to each series when exploring or validating
+time series data.
+
+For example:
+
+[source,esql]
+----
+TS my_data_stream
+| TS_INFO
+| SORT metric_name, dimensions
+----
+::::
+
+::::{dropdown} Downsampling preserves the resets of counters when the `aggregate` sampling method is used.
+Until {es} `9.3`, both downsampling methods (`aggregate` and `last_value`) used to store only the last value of a counter
+in the downsampled document. This works great for the `last_value` method where we optimise for storage efficiency, but
+it is not ideal for the `aggregate` method where we optimise for accuracy.
+
+In {es} `9.4`, we change the way the (default) `aggregate` sampling method is working. We store the first encountered
+value for a counter in the downsampled document and then we add auxiliary documents when we detect counter resets.
+This enables the rate calculation to take the counter resets into account and produce more accurate results. This change
+is backwards compatible.
+::::
+
+::::{dropdown} Time series aggregations support windows that are smaller than the time bucket
+Time series aggregations in ES|QL are enhanced to support windows smaller than the time bucket.
+
+[source,yaml]
+----
+TS metrics | STATS AVG(RATE(requests, 5m)) BY TBUCKET(10m), host
+----
+
+Previously, only window values that were equal or exact multiples of the time bucket were supported.
+::::
+
+::::{dropdown} Time series aggregations support windows that are not an exact multiple of the bucket
+Time series aggregations in ES|QL are enhanced to support windows that are not an exact multiple of the time bucket.
+
+[source,yaml]
+----
+TS metrics | STATS AVG(RATE(requests, 15m)) BY TBUCKET(10m), host
+----
+
+Previously, only window values that were exact multiples of the time bucket were supported.
+::::
+
+::::{dropdown} Upgrade DiskBBQ algorithm
+This updates our diskbbq algorithm and format.
+
+ - It now provides 3x or more better search performance on very restrictive filters (prefilters on centroids)
+ - Provides a way to condition non iid vectors (expert API for now)
+ - Gives more bit options (1, 2, 4, and 7 bits!)
+ - More native code improvements for overall performance
+::::
+
+::::{dropdown} Synthetic IDs for indices in time-series mode
+The `_id` field has a significant storage footprint in metrics applications, as it requires both storing and indexing
+unique document identifiers that are rarely used for direct lookups. To alleviate this, we are introducing synthetic
+IDs for indices in time-series mode. Instead of indexing the `_id` field, a Bloom filter is used for fast, lightweight
+duplicate detection at ingest time. Lookups and operations that previously relied on `_id` are delegated to other
+indexed fields on the document, such as timestamps, or dimension fields, preserving the same query and
+retrieval functionality.
+
+This offers up to 40% storage improvement for OTLP metrics and reduces the cpu overhead for segment merging due to the
+lack of an inverted index for `_id` fields.
+::::
+
+::::{dropdown} Add Prometheus query_range endpoint
+We're introducing a Prometheus-compatible /_prometheus/api/v1/query_range REST endpoint (Tech Preview) that:
+
+ - Accepts the standard Prometheus range query parameters (query, start, end, step, optional index)
+ - Translates the PromQL expression into an ES|QL PROMQL command and executes it via EsqlQueryAction
+ - Converts the columnar ES|QL response into the Prometheus matrix JSON format and returns it to the caller
+::::
+
+::::{dropdown} Add Prometheus series REST endpoint
+We're introducing a Prometheus-compatible `GET /_prometheus/api/v1/series` REST entrypoint that accepts Prometheus
+series selectors and returns matching label sets (Tech Preview). This is typically used for auto-completion in web UIs.
+::::
+
+::::{dropdown} Counter rate aggregations use tsid prefixes to parallelize execution
+The first bytes of a time series id (tsid) include a hash of the metric name(s) for each doc of a time-series index.
+Counter rate evaluation leverages these bytes to assign tsids to workers inside the ES|QL compute engine. This
+(a) improves parallelism by dividing work in a granular and uniform fashion, and (b) leads to dense, sequential
+access patterns per time series that have been optimized to avoid copies between counter value decoding and rate calculations.
+
+Rate execution performance thus improves substantially, with up to 5x faster query responses.
+::::
+
+::::{dropdown} Add Prometheus labels REST endpoint
+We're introducing a Prometheus-compatible `GET /_prometheus/api/v1/labels` REST entrypoint for time series discovery and
+label enumeration and introspection (Tech Preview). Web UIs can use this for label auto-completion.
+::::
+
+::::{dropdown} Add Prometheus instant query REST endpoint
+We're introducing a Prometheus-compatible `GET /_prometheus/api/v1/query` REST endpoint that evaluates a PromQL
+expression at a single point in time and returns vector results (Tech Preview). The instant query endpoint currently runs a
+short range query under the hood and returns the last sample.
+::::
+
+::::{dropdown} Improve the supportability of `aggregate_metric_double` by ES|QL.
+In Elasticsearch `9.4` we expand the supportability of `aggregate_metric_double` to include non-native operations in ES|QL,
+such as `std_dev`, using the average. The average is calculated using the `sum` and `value_count` sub-fields.
+The average was selected because in most cases it is a more representative signal compared to a single sub-field. Native
+operations such as `max`, `min`, `sum`, `avg`, and `count` will be supported natively by the respective sub-fields.
+
+For example, the following query is now supported where `network.eth0.tx` is a an `aggregate_metric_double`:
+[source]
+----
+  FROM k8s-downsampled
+  | STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
+  | sort pod
+
+  max:double | std_dev:double | pod:keyword
+  1060.0     | 275.6970067    | one
+  824.0      | 184.1213952    | three
+  1419.0     | 356.9865993    | two
+----
+::::
+
+### Features and enhancements [elasticsearch-9.4.0-features-enhancements]
+
+Aggregations:
+* Bump heap usage limits for INLINE STATS [#144679](https://github.com/elastic/elasticsearch/pull/144679)
+
+Analysis:
+* Inject circuit breaker into forked `SynonymMapBuilder` [#144800](https://github.com/elastic/elasticsearch/pull/144800)
+* Support custom rulesets in analysis-icu/icu-transform plugin [#143060](https://github.com/elastic/elasticsearch/pull/143060)
+
+Authentication:
+* Add Clone API Key endpoint [#142633](https://github.com/elastic/elasticsearch/pull/142633) (issue: [#59304](https://github.com/elastic/elasticsearch/issues/59304))
+
+Authorization:
+* Update View CRUD Actions to be Index Actions [#141570](https://github.com/elastic/elasticsearch/pull/141570)
+* [Entity Store] Add permissions for Entity Store datastream [#145981](https://github.com/elastic/elasticsearch/pull/145981)
+
+CCS:
+* CPS and project routing support for templated searches [#139446](https://github.com/elastic/elasticsearch/pull/139446)
+
+CRUD:
+* Do not mark bulk indexing requests as retried after primary relocations [#142157](https://github.com/elastic/elasticsearch/pull/142157) (issue: [#141586](https://github.com/elastic/elasticsearch/issues/141586))
+
+Codec:
+* Add dynamic bloom filter sizing based on document count [#141342](https://github.com/elastic/elasticsearch/pull/141342)
+* Add panama simd implementation of `contains` function for `BinaryDocValuesContainsTermQuery` [#143922](https://github.com/elastic/elasticsearch/pull/143922)
+* Allow loading BYTE_LENGTH without decompressing Zstd byte ref blocks [#141322](https://github.com/elastic/elasticsearch/pull/141322)
+* ES819 Binary doc values: compact doc offsets using bit packing [#142772](https://github.com/elastic/elasticsearch/pull/142772)
+* Enable large blocks for binary doc values by default. This mainly affects fields of type wildcard, ignored source, values hitting ignore above threshold and ignore malformed numbers and dates. [#145216](https://github.com/elastic/elasticsearch/pull/145216)
+* Fast `codePointCount` implementation for `BytesRef` [#140388](https://github.com/elastic/elasticsearch/pull/140388)
+* Push contains binary doc values query down to es819 codec [#143898](https://github.com/elastic/elasticsearch/pull/143898)
+* Rewrite `*substring*` wildcard queries to contains term queries for binary doc values keywords [#143433](https://github.com/elastic/elasticsearch/pull/143433)
+* Track bloom filter disk usage in `IndexDiskUsageAnalyzer` [#142106](https://github.com/elastic/elasticsearch/pull/142106)
+* Upgrade zstd to version 1.5.7 [#140530](https://github.com/elastic/elasticsearch/pull/140530)
+* Use `DirectAccessInput` in `ZstdDecompressor` to avoid intermediate heap copy [#145658](https://github.com/elastic/elasticsearch/pull/145658)
+* Use max instead of median for merged bloom filter size [#143302](https://github.com/elastic/elasticsearch/pull/143302)
+* `CodePointCount` implementation using Panama vectors API [#140693](https://github.com/elastic/elasticsearch/pull/140693) (issue: [#140567](https://github.com/elastic/elasticsearch/issues/140567))
+
+Data streams:
+* Add 'logs.otel' and 'logs.ecs' stream types [#141564](https://github.com/elastic/elasticsearch/pull/141564) (issue: [#141040](https://github.com/elastic/elasticsearch/issues/141040))
+* Ensure DLM only runs one general loop at a time [#143883](https://github.com/elastic/elasticsearch/pull/143883)
+* Support Failure Stores in Cross Cluster Search [#139316](https://github.com/elastic/elasticsearch/pull/139316)
+
+Distributed:
+* Batch index creation [#144074](https://github.com/elastic/elasticsearch/pull/144074)
+* Batch snapshot update tasks after external change [#142091](https://github.com/elastic/elasticsearch/pull/142091)
+* Ensure that synthetic `_id` is usable after restarts/relocations [#138678](https://github.com/elastic/elasticsearch/pull/138678)
+* Health reports GREEN when provisionally unassigned replica [#144773](https://github.com/elastic/elasticsearch/pull/144773)
+* Increase the per-index limit for merges to half the CPUs [#141389](https://github.com/elastic/elasticsearch/pull/141389)
+* Opt-in persistent task reassignment on node shutdown [#143306](https://github.com/elastic/elasticsearch/pull/143306)
+
+Downsampling:
+* Collect dimensions only once per tsid when downsampling [#145089](https://github.com/elastic/elasticsearch/pull/145089)
+* Rate calculation for downsampled counters becomes aware of counter resets when the `aggregate` sampling method is used. [#143381](https://github.com/elastic/elasticsearch/pull/143381) (issue: [#136178](https://github.com/elastic/elasticsearch/issues/136178))
+* Use the tdigest type and compression from TDigest in downsampling [#143247](https://github.com/elastic/elasticsearch/pull/143247)
+
+ES|QL:
+* Add APM telemetry for SET statement [#141719](https://github.com/elastic/elasticsearch/pull/141719)
+* Add Arrow-native Block & Vector implementations [#142981](https://github.com/elastic/elasticsearch/pull/142981)
+* Add CCS Remote Views Detection [#143384](https://github.com/elastic/elasticsearch/pull/143384)
+* Add Connector SPI and gRPC/Arrow Flight module [#142667](https://github.com/elastic/elasticsearch/pull/142667)
+* Add Google Cloud Storage data source plugin [#142563](https://github.com/elastic/elasticsearch/pull/142563)
+* Add JSON_EXTRACT ES|QL scalar function [#142375](https://github.com/elastic/elasticsearch/pull/142375)
+* Add LZ4, Snappy, and Brotli decompression codecs [#144688](https://github.com/elastic/elasticsearch/pull/144688)
+* Add METRICS_INFO command [#141667](https://github.com/elastic/elasticsearch/pull/141667) (issue: [#139296](https://github.com/elastic/elasticsearch/issues/139296))
+* Add MMR command for result diversification [#143867](https://github.com/elastic/elasticsearch/pull/143867)
+* Add MV_UNION Function [#139664](https://github.com/elastic/elasticsearch/pull/139664)
+* Add ORC predicate pushdown via `SearchArgument` [#144686](https://github.com/elastic/elasticsearch/pull/144686)
+* Add Parquet filter pushdown with bloom filter, statistics, and dictionary row-group skipping [#144832](https://github.com/elastic/elasticsearch/pull/144832)
+* Add TS_INFO information retrieval command [#142721](https://github.com/elastic/elasticsearch/pull/142721) (issue: [#139296](https://github.com/elastic/elasticsearch/issues/139296))
+* Add Views Security Model [#141050](https://github.com/elastic/elasticsearch/pull/141050)
+* Add Warning for Sort Under Lookup Join [#141482](https://github.com/elastic/elasticsearch/pull/141482) (issue: [#141483](https://github.com/elastic/elasticsearch/issues/141483))
+* Add `FormatReadContext` to consolidate `FormatReader` API [#143928](https://github.com/elastic/elasticsearch/pull/143928)
+* Add `IntRangeVector` for selected groups in aggregation [#141205](https://github.com/elastic/elasticsearch/pull/141205)
+* Add `LongLongSwissHash` - specialization for grouping by two long fields [#140838](https://github.com/elastic/elasticsearch/pull/140838)
+* Add `appliesTo` to the TRange and TBucket functions [#142160](https://github.com/elastic/elasticsearch/pull/142160)
+* Add anonymous Azure access via auth=none [#144475](https://github.com/elastic/elasticsearch/pull/144475)
+* Add anonymous GCS access via auth=none [#144476](https://github.com/elastic/elasticsearch/pull/144476)
+* Add anonymous S3 access via auth=none [#144471](https://github.com/elastic/elasticsearch/pull/144471)
+* Add blocks and vectors for more Arrow numeric types [#145111](https://github.com/elastic/elasticsearch/pull/145111)
+* Add cloud API rate limiting for external sources [#144734](https://github.com/elastic/elasticsearch/pull/144734)
+* Add column pruning for external datasources [#143903](https://github.com/elastic/elasticsearch/pull/143903)
+* Add configurable bracket-based multi-value support for CSV reader [#143890](https://github.com/elastic/elasticsearch/pull/143890)
+* Add coordinator-only caching for external source metadata [#145300](https://github.com/elastic/elasticsearch/pull/145300)
+* Add data node execution for external sources [#143209](https://github.com/elastic/elasticsearch/pull/143209)
+* Add dense_vector equality and inequality support in ES|QL [#140005](https://github.com/elastic/elasticsearch/pull/140005) (issue: [#139929](https://github.com/elastic/elasticsearch/issues/139929))
+* Add error handling and propagation for external source execution [#143333](https://github.com/elastic/elasticsearch/pull/143333)
+* Add error policy and configurable options for CSV format reader [#143779](https://github.com/elastic/elasticsearch/pull/143779)
+* Add extended distribution tests and fault injection for external sources [#143420](https://github.com/elastic/elasticsearch/pull/143420)
+* Add info into the profile of METRICS_INFO and TS_INFO [#145634](https://github.com/elastic/elasticsearch/pull/145634)
+* Add limit pushdown for external data sources [#143515](https://github.com/elastic/elasticsearch/pull/143515)
+* Add local parallelism and partition detection for external sources [#143154](https://github.com/elastic/elasticsearch/pull/143154)
+* Add logic to fold project tags metadata on data nodes [#141935](https://github.com/elastic/elasticsearch/pull/141935)
+* Add mapper-size plugin's `_size` metadata attribute [#141427](https://github.com/elastic/elasticsearch/pull/141427) (issue: [#136956](https://github.com/elastic/elasticsearch/issues/136956))
+* Add memory tracking for TS_INFO and METRICS_INFO [#143491](https://github.com/elastic/elasticsearch/pull/143491) (issue: [#139296](https://github.com/elastic/elasticsearch/issues/139296))
+* Add parallel execution for Arrow Flight multi-endpoint sources [#143345](https://github.com/elastic/elasticsearch/pull/143345)
+* Add parameter support in PromQL query durations [#139873](https://github.com/elastic/elasticsearch/pull/139873) (issue: [#139508](https://github.com/elastic/elasticsearch/issues/139508))
+* Add pluggable partition detection and virtual columns [#143120](https://github.com/elastic/elasticsearch/pull/143120)
+* Add positional `readBytes` API to `StorageObject` SPI [#143703](https://github.com/elastic/elasticsearch/pull/143703)
+* Add schema reconciliation for multi-file external sources [#145220](https://github.com/elastic/elasticsearch/pull/145220)
+* Add split SPI, partition detection, and filter hint extraction [#143005](https://github.com/elastic/elasticsearch/pull/143005)
+* Add split discovery and distribution for external sources [#143114](https://github.com/elastic/elasticsearch/pull/143114)
+* Add support for ORC file format [#142900](https://github.com/elastic/elasticsearch/pull/142900)
+* Add support for `dense_vector` in `COALESCE` [#142974](https://github.com/elastic/elasticsearch/pull/142974) (issue: [#139928](https://github.com/elastic/elasticsearch/issues/139928))
+* Add support for binary operators with AMD [#143996](https://github.com/elastic/elasticsearch/pull/143996) (issue: [#142094](https://github.com/elastic/elasticsearch/issues/142094))
+* Add support for project METADATA [#140592](https://github.com/elastic/elasticsearch/pull/140592)
+* Add support for top-level arithmetic ops to TS|STATS [#140135](https://github.com/elastic/elasticsearch/pull/140135) (issue: [#139570](https://github.com/elastic/elasticsearch/issues/139570))
+* Add syntax support and parsing for SET approximate [#139908](https://github.com/elastic/elasticsearch/pull/139908)
+* Add telemetry (stack) for query settings [#141836](https://github.com/elastic/elasticsearch/pull/141836)
+* Add timezone to add and sub operators, and `ConfigurationAware` planning support [#140101](https://github.com/elastic/elasticsearch/pull/140101)
+* Add xerial snappy-java to compression-libs [#145393](https://github.com/elastic/elasticsearch/pull/145393)
+* Added three new simple but useful spatial functions: ST_Dimension, ST_GeometryType, ST_IsEmpty [#144703](https://github.com/elastic/elasticsearch/pull/144703)
+* Added timezone support to `date_format` [#138517](https://github.com/elastic/elasticsearch/pull/138517)
+* Adding ES|QL USER_AGENT command [#144384](https://github.com/elastic/elasticsearch/pull/144384) (issue: [#134886](https://github.com/elastic/elasticsearch/issues/134886))
+* Adding ES|QL command REGISTERED_DOMAIN [#142680](https://github.com/elastic/elasticsearch/pull/142680) (issue: [#133942](https://github.com/elastic/elasticsearch/issues/133942))
+* Adding ES|QL command URI_PART [#140004](https://github.com/elastic/elasticsearch/pull/140004) (issue: [#134885](https://github.com/elastic/elasticsearch/issues/134885))
+* Adding MV_INTERSECTS function [#140662](https://github.com/elastic/elasticsearch/pull/140662)
+* Adding sparkline aggregate function [#141388](https://github.com/elastic/elasticsearch/pull/141388)
+* Adds LIMIT BY ESQL command in Tech Preview [#145225](https://github.com/elastic/elasticsearch/pull/145225) (issue: [#112918](https://github.com/elastic/elasticsearch/issues/112918))
+* Adds ST_SIMPLIFY geospatial function [#136309](https://github.com/elastic/elasticsearch/pull/136309) (issue: [#44747](https://github.com/elastic/elasticsearch/issues/44747))
+* Allow TBUCKET to skip the from/to parameters when Kibana adds a timestamp range filter. Exmaple: `TBUCKET(100)` [#144057](https://github.com/elastic/elasticsearch/pull/144057)
+* Allow evaluatable grouping functions (Like BUCKET) in LIMIT BY [#146642](https://github.com/elastic/elasticsearch/pull/146642)
+* Attribute ES|QL shard search load in Lucene operators [#142841](https://github.com/elastic/elasticsearch/pull/142841)
+* Avoid caching multiple times in doc-partitioning [#142913](https://github.com/elastic/elasticsearch/pull/142913)
+* Bridge Connector SPI to `ExternalSplit` [#143331](https://github.com/elastic/elasticsearch/pull/143331)
+* Buffer reuse in `ParquetStorageObjectAdapter` and `StorageObject` [#143700](https://github.com/elastic/elasticsearch/pull/143700)
+* Byte-based buffer backpressure for external sources [#144218](https://github.com/elastic/elasticsearch/pull/144218)
+* CSV schema inference and parsing enhancements [#144050](https://github.com/elastic/elasticsearch/pull/144050)
+* Case Support for Compound Types [#140677](https://github.com/elastic/elasticsearch/pull/140677)
+* Converted `PackedValuesBlockHash.bytes` to `BreakingBytesRefBuilder` for better memory tracking [#140171](https://github.com/elastic/elasticsearch/pull/140171)
+* Count aggregation for histograms [#141138](https://github.com/elastic/elasticsearch/pull/141138)
+* DS: Parquet file handling improvements [#145123](https://github.com/elastic/elasticsearch/pull/145123)
+* Data sources: Azure plugin [#143236](https://github.com/elastic/elasticsearch/pull/143236)
+* Data sources: ZSTD, BZIP2 [#143228](https://github.com/elastic/elasticsearch/pull/143228)
+* Datasources: GZIP [#143035](https://github.com/elastic/elasticsearch/pull/143035)
+* Document and test Parquet page-index filtering [#145571](https://github.com/elastic/elasticsearch/pull/145571)
+* ESQL - Add `dense_vector` field type to SUM function [#142129](https://github.com/elastic/elasticsearch/pull/142129)
+* ESQL - Improve search performance by adding min competitive aware collection when using multiple shards / threads [#142406](https://github.com/elastic/elasticsearch/pull/142406) (issue: [#136267](https://github.com/elastic/elasticsearch/issues/136267))
+* ESQL 137269 some csv tests for lookup join behavior with multivalues [#144520](https://github.com/elastic/elasticsearch/pull/144520)
+* ESQL `mv_difference` function [#141895](https://github.com/elastic/elasticsearch/pull/141895)
+* ESQL: Improve field reference tracking in `FORK` command [#137678](https://github.com/elastic/elasticsearch/pull/137678) (issue: [#137283](https://github.com/elastic/elasticsearch/issues/137283))
+* ESQL: Prune unused regex extract nodes in optimizer [#140982](https://github.com/elastic/elasticsearch/pull/140982) (issue: [#132437](https://github.com/elastic/elasticsearch/issues/132437))
+* ESQL: Support intra-row field references in ROW command [#140217](https://github.com/elastic/elasticsearch/pull/140217) (issue: [#140119](https://github.com/elastic/elasticsearch/issues/140119))
+* ESQL: enable `unmapped_fields="load"` in tech preview [#145052](https://github.com/elastic/elasticsearch/pull/145052) (issue: [#142369](https://github.com/elastic/elasticsearch/issues/142369))
+* ES|QL - Add parsing, preanalysis and analysis timing information to profile [#139540](https://github.com/elastic/elasticsearch/pull/139540)
+* ES|QL - Top N queries are parallelized [#143133](https://github.com/elastic/elasticsearch/pull/143133)
+* ES|QL - `dense_vector` support for COUNT, PRESENT, ABSENT aggregator functions [#139914](https://github.com/elastic/elasticsearch/pull/139914) (issue: [#135688](https://github.com/elastic/elasticsearch/issues/135688))
+* ES|QL CHUNK function multi-valued field support [#141240](https://github.com/elastic/elasticsearch/pull/141240)
+* ES|QL Improve LOOKUP JOIN on single keyword [#144704](https://github.com/elastic/elasticsearch/pull/144704)
+* ES|QL Top Snippets multi-valued field support [#142117](https://github.com/elastic/elasticsearch/pull/142117)
+* ES|QL Views support [#134995](https://github.com/elastic/elasticsearch/pull/134995)
+* ES|QL [TEXT_EMBEDDING function](/reference/query-languages/esql/functions-operators/dense-vector-functions/text_embedding.md) is GA [#140555](https://github.com/elastic/elasticsearch/pull/140555)
+* ES|QL [dense vector functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md) are GA [#140545](https://github.com/elastic/elasticsearch/pull/140545)
+* ES|QL approximate analytical queries [#131828](https://github.com/elastic/elasticsearch/pull/131828)
+* ES|QL command RERANK is GA [#141508](https://github.com/elastic/elasticsearch/pull/141508)
+* Enable PromQL command in ES|QL [#140808](https://github.com/elastic/elasticsearch/pull/140808)
+* Enable distributed pipeline breakers for external sources via `FragmentExec` [#143696](https://github.com/elastic/elasticsearch/pull/143696)
+* Enable doc-partitioning for more queries [#143095](https://github.com/elastic/elasticsearch/pull/143095)
+* Extract centroid from doc values for ST_CENTROID_AGG over `geo_shape` and `cartesian_shape` [#142528](https://github.com/elastic/elasticsearch/pull/142528) (issue: [#142640](https://github.com/elastic/elasticsearch/issues/142640))
+* Fix ORC type support gaps [#145074](https://github.com/elastic/elasticsearch/pull/145074)
+* Fix Parquet and ORC datasource allocation overhead [#143791](https://github.com/elastic/elasticsearch/pull/143791)
+* Fix Parquet type support gaps [#144059](https://github.com/elastic/elasticsearch/pull/144059)
+* Fix review feedback and add test coverage for PR #143703 [#143900](https://github.com/elastic/elasticsearch/pull/143900)
+* Fix window validation in time-series aggregations when TBUCKET uses a numeric target count [#144291](https://github.com/elastic/elasticsearch/pull/144291)
+* Format "_query" response dates using the given timezone [#139529](https://github.com/elastic/elasticsearch/pull/139529)
+* GCS native async I/O via `ReadChannel` [#144733](https://github.com/elastic/elasticsearch/pull/144733)
+* Harden distributed external source execution [#144277](https://github.com/elastic/elasticsearch/pull/144277)
+* Implement EXPLAIN for local data node plans [#142748](https://github.com/elastic/elasticsearch/pull/142748)
+* Implementing rerank on multi values [#140672](https://github.com/elastic/elasticsearch/pull/140672)
+* Improve Lookup Join performance with `CachedDirectoryReader` [#139314](https://github.com/elastic/elasticsearch/pull/139314) (issue: [#137268](https://github.com/elastic/elasticsearch/issues/137268))
+* Improve memory usage and tracking by moving union types into `ValuesSourceReaderOperator` [#140384](https://github.com/elastic/elasticsearch/pull/140384)
+* Improve ndjson schema inference for date-time [#145553](https://github.com/elastic/elasticsearch/pull/145553)
+* Introduce "Swiss Table"-based hashing to ES|QL, a SIMD-accelerated hash table resulting in significantly higher throughput on uniform, high-cardinality workloads [#145010](https://github.com/elastic/elasticsearch/pull/145010)
+* Introduce Geospatial functions ST_Buffer and ST_SimplifyPreserveTopology [#145154](https://github.com/elastic/elasticsearch/pull/145154)
+* Introduce SwissTable-based hashing for ES|QL STATS [#139343](https://github.com/elastic/elasticsearch/pull/139343)
+* Introduce adaptive block hash for long/int [#141237](https://github.com/elastic/elasticsearch/pull/141237)
+* JSON_EXTRACT: zero-copy byte slicing for object, array, and number extraction [#143702](https://github.com/elastic/elasticsearch/pull/143702)
+* LIMIT BY fixed telemetry and tests [#146992](https://github.com/elastic/elasticsearch/pull/146992)
+* MMR Command: Grammar and Logical Plan [#140684](https://github.com/elastic/elasticsearch/pull/140684)
+* Make MV_EXPAND GA [#144543](https://github.com/elastic/elasticsearch/pull/144543)
+* Make datasources plugins lazy [#142815](https://github.com/elastic/elasticsearch/pull/142815)
+* Minimize Hadoop dependencies for ORC plugin [#146944](https://github.com/elastic/elasticsearch/pull/146944)
+* Optimize TopNOperator to avoid resorting when input is already sorted [#141094](https://github.com/elastic/elasticsearch/pull/141094) (issue: [#131221](https://github.com/elastic/elasticsearch/issues/131221))
+* Partition rate query using tsid prefixes [#144818](https://github.com/elastic/elasticsearch/pull/144818)
+* Per-file filter pushdown awareness [#145755](https://github.com/elastic/elasticsearch/pull/145755)
+* Periodically emit partial aggregation results [#141392](https://github.com/elastic/elasticsearch/pull/141392)
+* Push STARTS_WITH/LIKE prefix to Parquet and ORC [#145640](https://github.com/elastic/elasticsearch/pull/145640)
+* Push stats to external source via metadata [#143940](https://github.com/elastic/elasticsearch/pull/143940)
+* Reapply "Introduce pluggable external datasource framework" [#142707](https://github.com/elastic/elasticsearch/pull/142707)
+* Reapply "NDJSON datasource" [#142855](https://github.com/elastic/elasticsearch/pull/142855)
+* Refactor inference operator architecture for multi-value field support [#139694](https://github.com/elastic/elasticsearch/pull/139694)
+* Register TSV as a separate format with tab delimiter [#143906](https://github.com/elastic/elasticsearch/pull/143906)
+* Remove Hadoop JARs from Parquet plugin [#146780](https://github.com/elastic/elasticsearch/pull/146780) (issue: [#146716](https://github.com/elastic/elasticsearch/issues/146716))
+* Remove hadoop-client-runtime from datasource plugins [#146206](https://github.com/elastic/elasticsearch/pull/146206) (issue: [#146203](https://github.com/elastic/elasticsearch/issues/146203))
+* Remove implicit `limit` appended for each subquery branch [#139058](https://github.com/elastic/elasticsearch/pull/139058)
+* Remove implicit limit for FORK [#145429](https://github.com/elastic/elasticsearch/pull/145429)
+* Remove snapshot protection from node reduce late materialization [#142834](https://github.com/elastic/elasticsearch/pull/142834)
+* Review fixes for datasource framework [#142565](https://github.com/elastic/elasticsearch/pull/142565)
+* Route external source I/O through esql_worker thread pool [#144596](https://github.com/elastic/elasticsearch/pull/144596)
+* Schema-aware filter pushdown for DATETIME and DECIMAL [#145641](https://github.com/elastic/elasticsearch/pull/145641)
+* Shrink description [#140089](https://github.com/elastic/elasticsearch/pull/140089)
+* Skip files with no projected column overlap in UNION_BY_NAME [#145701](https://github.com/elastic/elasticsearch/pull/145701)
+* Skip time series field type merge for non-TS agg queries [#143262](https://github.com/elastic/elasticsearch/pull/143262)
+* Speed up remote Parquet reads [#144454](https://github.com/elastic/elasticsearch/pull/144454)
+* Stats pushdown past EVAL/RENAME for external sources [#144806](https://github.com/elastic/elasticsearch/pull/144806)
+* Stream results from topn [#140088](https://github.com/elastic/elasticsearch/pull/140088)
+* Support arithmetic operations for dense_vectors: scalar version [#141060](https://github.com/elastic/elasticsearch/pull/141060) (issue: [#140538](https://github.com/elastic/elasticsearch/issues/140538))
+* Support arithmetic operations for dense_vectors: vector version [#140539](https://github.com/elastic/elasticsearch/pull/140539) (issue: [#140537](https://github.com/elastic/elasticsearch/issues/140537))
+* Support of a window that is not an exact multiple of the bucket [#143704](https://github.com/elastic/elasticsearch/pull/143704)
+* Support shapes in ST_CENTROID_AGG [#141657](https://github.com/elastic/elasticsearch/pull/141657)
+* Support target bucket count in `TBUCKET` with explicit from/to date range [#142747](https://github.com/elastic/elasticsearch/pull/142747)
+* Support window smaller than time bucket [#143661](https://github.com/elastic/elasticsearch/pull/143661)
+* TRange timezone support [#139911](https://github.com/elastic/elasticsearch/pull/139911)
+* Type conflict resolution in unmapped-fields load [#143693](https://github.com/elastic/elasticsearch/pull/143693) (issues: [#142004](https://github.com/elastic/elasticsearch/issues/142004), [#141912](https://github.com/elastic/elasticsearch/issues/141912))
+* Use avg metric for AMD default metric [#141331](https://github.com/elastic/elasticsearch/pull/141331)
+* Use less memory in `ValuesFromMany` [#140062](https://github.com/elastic/elasticsearch/pull/140062)
+* Validate TOP_SNIPPETS query argument is foldable at verification [#142763](https://github.com/elastic/elasticsearch/pull/142763) (issue: [#142462](https://github.com/elastic/elasticsearch/issues/142462))
+* Various fixes to spatial functions (ST_ENVELOPE and ST_NPOINTS) [#139618](https://github.com/elastic/elasticsearch/pull/139618)
+* [ES|QL|DS] Add circuit breaker to the Parquet datasource [#144491](https://github.com/elastic/elasticsearch/pull/144491)
+* [ES|QL|DS] Parquet row-group level split parallelism [#144018](https://github.com/elastic/elasticsearch/pull/144018)
+* [ES|QL|DS] Wire parallel parsing into production for text formats [#143997](https://github.com/elastic/elasticsearch/pull/143997)
+* `ToString/ToDatetime/ToDateNanos` converters timezone support [#138985](https://github.com/elastic/elasticsearch/pull/138985)
+* support DATE_RANGE field type [#133309](https://github.com/elastic/elasticsearch/pull/133309)
+* 🐔 Add CHICKEN function to ES|QL [#140645](https://github.com/elastic/elasticsearch/pull/140645)
+
+Engine:
+* Ensure acquired snapshot commit is always flushed [#144067](https://github.com/elastic/elasticsearch/pull/144067) (issue: [#143993](https://github.com/elastic/elasticsearch/issues/143993))
+
+Indices APIs:
+* More actionable `PUT /{index}/_settings` error [#138611](https://github.com/elastic/elasticsearch/pull/138611)
+
+Inference:
+* Add FireworksAI chat completion support [#142664](https://github.com/elastic/elasticsearch/pull/142664)
+* Add FireworksAI inference service for embeddings [#137130](https://github.com/elastic/elasticsearch/pull/137130)
+* Add embedding task support to `ElasticInferenceService` [#141547](https://github.com/elastic/elasticsearch/pull/141547)
+* Add provider validation call to Update Inference Endpoint operation [#140003](https://github.com/elastic/elasticsearch/pull/140003) (issue: [#122356](https://github.com/elastic/elasticsearch/issues/122356))
+* Added Reasoning support for Chat Completion in the Inference Plugin [#143242](https://github.com/elastic/elasticsearch/pull/143242)
+* Added service settings update logic for AI21 provider in the Inference Plugin [#142597](https://github.com/elastic/elasticsearch/pull/142597) (issue: [#122356](https://github.com/elastic/elasticsearch/issues/122356))
+* Added service settings update logic for Alibaba Cloud Search provider in the Inference Plugin [#142738](https://github.com/elastic/elasticsearch/pull/142738) (issue: [#122356](https://github.com/elastic/elasticsearch/issues/122356))
+* Enable multimodal inputs for all chat completion integrations [#144509](https://github.com/elastic/elasticsearch/pull/144509)
+* Removed the `max_tokens` request parameter for Chat Completion with Reasoning in the Inference Plugin [#143242](https://github.com/elastic/elasticsearch/pull/143242)
+* [Inference API] Add Chat Completion to Amazon Bedrock for the Inference API [#139411](https://github.com/elastic/elasticsearch/pull/139411)
+* [Inference API] Add custom headers for Azure OpenAI Service [#142969](https://github.com/elastic/elasticsearch/pull/142969)
+* [Inference API] Add support for embedding task to JinaAI service [#140323](https://github.com/elastic/elasticsearch/pull/140323)
+* [Inference API] Adding OAuth2 support for Azure OpenAI [#143896](https://github.com/elastic/elasticsearch/pull/143896)
+* [Inference API] Expose Endpoint Heuristics through Inference API [#141393](https://github.com/elastic/elasticsearch/pull/141393)
+* [Inference API] Handle preconfigured endpoints with embedding task type [#141788](https://github.com/elastic/elasticsearch/pull/141788)
+* [Inference API] Parse endpoint metadata from persisted endpoints [#143081](https://github.com/elastic/elasticsearch/pull/143081)
+* [Inference API] Support multimodal inputs for chat completion [#142736](https://github.com/elastic/elasticsearch/pull/142736)
+* [Inference API] Update authorized endpoints when their fingerprint or version changed [#143567](https://github.com/elastic/elasticsearch/pull/143567)
+
+Infra/Core:
+* Add `DateFormatter.tryParse()` [#144474](https://github.com/elastic/elasticsearch/pull/144474)
+* Expose byte offsets on XContentParser via getCurrentLocation() [#143501](https://github.com/elastic/elasticsearch/pull/143501) (issue: [#142873](https://github.com/elastic/elasticsearch/issues/142873))
+
+Infra/Plugins:
+* [Fleet] Add OpAMP field mappings to fleet-agents [#142550](https://github.com/elastic/elasticsearch/pull/142550)
+* [Fleet] Add metadata mappings for OpAMP [#145824](https://github.com/elastic/elasticsearch/pull/145824)
+
+Infra/Scripting:
+* Painless hoist constant collection `.contains` calls [#143311](https://github.com/elastic/elasticsearch/pull/143311) (issue: [#137849](https://github.com/elastic/elasticsearch/issues/137849))
+
+Ingest Node:
+* Update Grok to use the new Matcher#setTimeout [#139405](https://github.com/elastic/elasticsearch/pull/139405)
+* [INGEST] `GrokProcessor:` add `validate_only` option to skip field extraction [#145126](https://github.com/elastic/elasticsearch/pull/145126)
+
+Logs:
+* Default `index.mapping.use_doc_values_skipper` to true for logsdb [#142851](https://github.com/elastic/elasticsearch/pull/142851)
+* Store fallback match only text fields in binary doc values [#140189](https://github.com/elastic/elasticsearch/pull/140189)
+
+Machine Learning:
+* Add a suggestion for fixing the ML node allocation error [#139520](https://github.com/elastic/elasticsearch/pull/139520)
+* Add exponential-backoff retry for AD job opening during system-initiated reassignments [#144478](https://github.com/elastic/elasticsearch/pull/144478)
+* Add support for nested NDJSON records in `TextStructure` endpoints [#141045](https://github.com/elastic/elasticsearch/pull/141045) (issue: [#127777](https://github.com/elastic/elasticsearch/issues/127777))
+
+Mapping:
+* Add option to enable accurate leaf arrays for flattened fields [#145376](https://github.com/elastic/elasticsearch/pull/145376)
+* Add passthrough support to flattened field type for mapped sub-fields [#145131](https://github.com/elastic/elasticsearch/pull/145131)
+* Add properties support to flattened field type [#144451](https://github.com/elastic/elasticsearch/pull/144451)
+* Aggregate metric double use average [#142135](https://github.com/elastic/elasticsearch/pull/142135)
+* Improve the supportability of `aggregate_metric_double` by non-native ES|QL aggregation functions, such as std_dev. [#145742](https://github.com/elastic/elasticsearch/pull/145742)
+* Remove redundant root doc values from flattened fields if index=false [#143907](https://github.com/elastic/elasticsearch/pull/143907)
+* Set default `semantic_text` index type to `disk_bbq` by using `dense_vector` defaults [#145374](https://github.com/elastic/elasticsearch/pull/145374)
+* Store flattened field data in binary doc values [#140246](https://github.com/elastic/elasticsearch/pull/140246)
+* Update semantic text to use BFLOAT16 by default [#144236](https://github.com/elastic/elasticsearch/pull/144236)
+
+Monitoring:
+* Add mode and codec fields to Stack Monitoring index template [#143673](https://github.com/elastic/elasticsearch/pull/143673)
+
+Packaging:
+* Flip cloud-ess-fips default from FIPS 140-2 to FIPS 140-3 [#140788](https://github.com/elastic/elasticsearch/pull/140788)
+
+Performance:
+* Allow intermediate builds in PR-based benchmarks [#142472](https://github.com/elastic/elasticsearch/pull/142472)
+* Correctly reference non-main branches in benchmark script [#142303](https://github.com/elastic/elasticsearch/pull/142303)
+* Relax PR-based benchmarks target branch [#142297](https://github.com/elastic/elasticsearch/pull/142297)
+
+PromQL:
+* Add Prometheus instant query REST endpoint [#145321](https://github.com/elastic/elasticsearch/pull/145321)
+* Add Prometheus labels REST endpoint [#144952](https://github.com/elastic/elasticsearch/pull/144952)
+* Add Prometheus query_range endpoint [#144416](https://github.com/elastic/elasticsearch/pull/144416)
+* Add Prometheus series REST endpoint [#144494](https://github.com/elastic/elasticsearch/pull/144494)
+* Implement Prometheus remote write indexing support [#141957](https://github.com/elastic/elasticsearch/pull/141957)
+
+Ranking:
+* Use `VectorScorer` to consume `AcceptDocs` iterator for lazy bulk scoring in `VectorScoringUtils` [#145835](https://github.com/elastic/elasticsearch/pull/145835) (issue: [#145834](https://github.com/elastic/elasticsearch/issues/145834))
+
+Reindex:
+* Add reindex-from-remote blocklist setting [#145357](https://github.com/elastic/elasticsearch/pull/145357)
+* Disable OCC in update/delete-by-query for seq_no-less indices [#143465](https://github.com/elastic/elasticsearch/pull/143465)
+
+Relevance:
+* GA `chunk_rescorer` in `text_similarity_reranker` [#139830](https://github.com/elastic/elasticsearch/pull/139830)
+
+SQL:
+* Add `project_routing` to CLI [#138965](https://github.com/elastic/elasticsearch/pull/138965)
+* Add support for API key to JDBC and CLI [#142021](https://github.com/elastic/elasticsearch/pull/142021)
+
+Search:
+* Account for ES|QL Lucene query rewrite in recent search load [#141819](https://github.com/elastic/elasticsearch/pull/141819)
+* Add `semantic_text` field type to MMR Result Diversification Retriever [#141666](https://github.com/elastic/elasticsearch/pull/141666)
+* Add search task watchdog to log hot threads on slow search [#142746](https://github.com/elastic/elasticsearch/pull/142746)
+* Added return_intermediate_results query param to toggle when partial results are returned for a get async results operation [#141073](https://github.com/elastic/elasticsearch/pull/141073) (issue: [#139828](https://github.com/elastic/elasticsearch/issues/139828))
+* CPS handles datastreams [#140637](https://github.com/elastic/elasticsearch/pull/140637)
+* Expose keep_alive in async task status [#144010](https://github.com/elastic/elasticsearch/pull/144010)
+* Fail `MatchQueryParser` if it generates a query with more clauses than allowed by `max_clause_count` [#143233](https://github.com/elastic/elasticsearch/pull/143233) (issue: [#143032](https://github.com/elastic/elasticsearch/issues/143032))
+* Ids Query: Use max result window as upper limit [#140515](https://github.com/elastic/elasticsearch/pull/140515) (issue: [#138758](https://github.com/elastic/elasticsearch/issues/138758))
+* Makes scroll CPS compatible [#140977](https://github.com/elastic/elasticsearch/pull/140977)
+* Making use of sort optimization written from search in search shards [#144247](https://github.com/elastic/elasticsearch/pull/144247) (issue: [#143945](https://github.com/elastic/elasticsearch/issues/143945))
+* Only consider the primary sort when determining concurrency [#143608](https://github.com/elastic/elasticsearch/pull/143608)
+* Optimize script sorts that do not require query scores [#139748](https://github.com/elastic/elasticsearch/pull/139748)
+* Optimize search shard iterator sort [#140747](https://github.com/elastic/elasticsearch/pull/140747) (issue: [#135472](https://github.com/elastic/elasticsearch/issues/135472))
+* PIT context relocation work on main repo [#137675](https://github.com/elastic/elasticsearch/pull/137675)
+* Prevent creating too many nested boolean clauses while creating the lucene query to avoid query explosion [#143220](https://github.com/elastic/elasticsearch/pull/143220)
+* Ref-counting `SearchHits` from `InternalTopHits` to `SearchResponse` [#142732](https://github.com/elastic/elasticsearch/pull/142732)
+* Search/query logging support for _search, ES|QL, EQL, SQL [#139920](https://github.com/elastic/elasticsearch/pull/139920)
+* Semantic text default inference id setting [#143486](https://github.com/elastic/elasticsearch/pull/143486)
+* Switch default model for `semantic_text` to jina-v5 [#142980](https://github.com/elastic/elasticsearch/pull/142980)
+* Take control of max clause count verification in Lucene searcher [#139752](https://github.com/elastic/elasticsearch/pull/139752)
+* Update `text_similarity_rank_retriever` to default to chunking settings optimal for inference ID [#137397](https://github.com/elastic/elasticsearch/pull/137397)
+* Upgrade Elasticsearch to Apache Lucene 10.4 [#141882](https://github.com/elastic/elasticsearch/pull/141882)
+* Use `IndexOrDocValuesQuery` in `IpFieldType#termQuery` [#140735](https://github.com/elastic/elasticsearch/pull/140735)
+* Use `IndexOrDocValuesQuery` in `NumberFieldType#termQuery` implementations [#140734](https://github.com/elastic/elasticsearch/pull/140734)
+* `CanMatch` returns `numSkipped` per cluster instead of all skipped shards [#142170](https://github.com/elastic/elasticsearch/pull/142170)
+
+Searchable Snapshots:
+* Add `SparseFileTracker.getAbsentBytesWithin` [#141179](https://github.com/elastic/elasticsearch/pull/141179)
+* Split blob-cache freelist using decays [#142545](https://github.com/elastic/elasticsearch/pull/142545)
+* Trigger cache decay at 5% left on freq 0 [#142685](https://github.com/elastic/elasticsearch/pull/142685)
+
+Security:
+* Allow deleting multiple views in one request [#145816](https://github.com/elastic/elasticsearch/pull/145816)
+* Don't allow querying views with DLS or FLS [#144903](https://github.com/elastic/elasticsearch/pull/144903)
+* Make `ServiceAccountToken` APIs Available in Serverless [#140631](https://github.com/elastic/elasticsearch/pull/140631)
+* Upgrade bouncycastle to 1.84 [#147197](https://github.com/elastic/elasticsearch/pull/147197)
+* Use opaque random session IDs for ESQL compute sessions [#142249](https://github.com/elastic/elasticsearch/pull/142249)
+
+Snapshot/Restore:
+* Batching of snapshot-delete start updates [#141998](https://github.com/elastic/elasticsearch/pull/141998)
+* Identify Elasticsearch as user-agent in S3 calls [#141881](https://github.com/elastic/elasticsearch/pull/141881)
+* Reduce memory usage of `TransportGetSnapshotsAction` [#142468](https://github.com/elastic/elasticsearch/pull/142468)
+* Report shard snapshot pauses in shutdown status [#144717](https://github.com/elastic/elasticsearch/pull/144717)
+* Strengthen MPU-based CAS in S3 repo [#141411](https://github.com/elastic/elasticsearch/pull/141411)
+* Use common retry logic for Azure [#139422](https://github.com/elastic/elasticsearch/pull/139422)
+
+Store:
+* Simple thread local store metric capture [#138790](https://github.com/elastic/elasticsearch/pull/138790)
+
+TSDB:
+* Add indexing pressure tracking to OTLP endpoints [#144009](https://github.com/elastic/elasticsearch/pull/144009)
+* By using synthetic `_id` field for indices in time_series mode, storage footprint is significantly reduced [#144184](https://github.com/elastic/elasticsearch/pull/144184)
+* Disable sequence numbers for new TSDB indices [#145097](https://github.com/elastic/elasticsearch/pull/145097)
+* Enable Prometheus plugin by default [#144311](https://github.com/elastic/elasticsearch/pull/144311)
+* Improve error message when TS rejects non-TSDS indices [#145625](https://github.com/elastic/elasticsearch/pull/145625)
+* Make TDigest field type a time series metric [#141386](https://github.com/elastic/elasticsearch/pull/141386)
+* Rolling upgrade test for synthetic id [#141525](https://github.com/elastic/elasticsearch/pull/141525)
+* Small optimization in `SyntheticIdPostingsEnum` [#140956](https://github.com/elastic/elasticsearch/pull/140956)
+* Support `best_compression` for synthetic ID indices [#144851](https://github.com/elastic/elasticsearch/pull/144851)
+* Support nested documents in time-series indices with synthetic id [#143151](https://github.com/elastic/elasticsearch/pull/143151)
+
+Vector Search:
+* AVX-512 int8 kernels with cascade unrolling [#145683](https://github.com/elastic/elasticsearch/pull/145683)
+* Add bulk-gather native vector scoring for searchable snapshots via `DirectAccessInput` [#144557](https://github.com/elastic/elasticsearch/pull/144557)
+* Add flat_index_threshold parameter for hnsw dense_vector fields [#141074](https://github.com/elastic/elasticsearch/pull/141074)
+* Always do bulk scoring for rescoring when possible [#139777](https://github.com/elastic/elasticsearch/pull/139777)
+* Create bfloat16-specific scorers [#144959](https://github.com/elastic/elasticsearch/pull/144959)
+* Create native byte vector scorers [#142015](https://github.com/elastic/elasticsearch/pull/142015) (issue: [#140317](https://github.com/elastic/elasticsearch/issues/140317))
+* Default to `bbq_disk` (DiskBBQ) on new indices [#144885](https://github.com/elastic/elasticsearch/pull/144885)
+* Define bulk operations for vector square distance [#139198](https://github.com/elastic/elasticsearch/pull/139198)
+* DiskBBQ - Always block encode doc vectors [#141598](https://github.com/elastic/elasticsearch/pull/141598)
+* DiskBBQ tail centroids should always be block encoded too [#139835](https://github.com/elastic/elasticsearch/pull/139835)
+* Embedding query vector builder [#143410](https://github.com/elastic/elasticsearch/pull/143410)
+* Enable zero-copy SIMD vector scoring on searchable snapshots (frozen tier) [#141718](https://github.com/elastic/elasticsearch/pull/141718)
+* Improve locality by placing parent - child centroids next to each other [#140293](https://github.com/elastic/elasticsearch/pull/140293)
+* Increase DiskBBQ vector block bulk size to 32 [#138217](https://github.com/elastic/elasticsearch/pull/138217) (issue: [#134224](https://github.com/elastic/elasticsearch/issues/134224))
+* Make quantization level of indexed vectors for 'bbq_disk' configurable [#139944](https://github.com/elastic/elasticsearch/pull/139944)
+* New optimized (native) functions for BBQ Int4 to 1-bit scoring [#140264](https://github.com/elastic/elasticsearch/pull/140264) (issue: [#128523](https://github.com/elastic/elasticsearch/issues/128523))
+* Optimize ARM sqri8/sqri7u kernels using vabdq + vdotq [#145116](https://github.com/elastic/elasticsearch/pull/145116)
+* Preconditioning [#140198](https://github.com/elastic/elasticsearch/pull/140198) (issue: [#131223](https://github.com/elastic/elasticsearch/issues/131223))
+* Prefetch vectors during rescoring [#139955](https://github.com/elastic/elasticsearch/pull/139955)
+* Prefix centroid index clustering [#144599](https://github.com/elastic/elasticsearch/pull/144599)
+* Switch to int4 packed [#145221](https://github.com/elastic/elasticsearch/pull/145221)
+* Upgrade DiskBBQ algorithm [#143760](https://github.com/elastic/elasticsearch/pull/143760)
+* Use bulk scoring for filtered scenarios in DiskBBQ [#144008](https://github.com/elastic/elasticsearch/pull/144008) (issue: [#143901](https://github.com/elastic/elasticsearch/issues/143901))
+* Use native operations for scoring floats [#140169](https://github.com/elastic/elasticsearch/pull/140169)
+* [Native] Optimized ARM (SVE) functions for BBQ Int4 to 1-bit dot product [#141047](https://github.com/elastic/elasticsearch/pull/141047)
+* [Native] SIMD implementations for native `int4` vector scoring [#144429](https://github.com/elastic/elasticsearch/pull/144429)
+* [Native] Use vdotq_s32 for int7u/int8 distances on ARM [#144505](https://github.com/elastic/elasticsearch/pull/144505)
+* [Native] Using native scorers in BBQ [#141762](https://github.com/elastic/elasticsearch/pull/141762)
+* [Native] `int4` x86 SIMD optimizations [#144649](https://github.com/elastic/elasticsearch/pull/144649)
+
+
+### Fixes [elasticsearch-9.4.0-fixes]
+
+Aggregations:
+* Aggs: Fix class cast exceptions in pipeline aggs [#140069](https://github.com/elastic/elasticsearch/pull/140069) (issues: [#137624](https://github.com/elastic/elasticsearch/issues/137624), [#136173](https://github.com/elastic/elasticsearch/issues/136173))
+
+Allocation:
+* Allow allocation to replacement target node on vacate completion [#140150](https://github.com/elastic/elasticsearch/pull/140150)
+* Handle not preferred in replica shards allocator [#142575](https://github.com/elastic/elasticsearch/pull/142575) (issue: [#142424](https://github.com/elastic/elasticsearch/issues/142424))
+
+CCR:
+* Fix `FollowingEngine#lookupPrimaryTerm` when sequence numbers are disabled [#143935](https://github.com/elastic/elasticsearch/pull/143935)
+
+CCS:
+* Always error out if CCS expression shows up when CCS is not supported [#139009](https://github.com/elastic/elasticsearch/pull/139009) (issue: [#138987](https://github.com/elastic/elasticsearch/issues/138987))
+* CPS: Copy existing resolved index expressions when constructing a new `SearchRequest` from an existing one [#139596](https://github.com/elastic/elasticsearch/pull/139596)
+* Fix: ensure CPS project routing appears in the right places for `_msearch/template` [#140166](https://github.com/elastic/elasticsearch/pull/140166)
+
+Codec:
+* Ensure bloom filter is not shared across threads [#146002](https://github.com/elastic/elasticsearch/pull/146002)
+* Fix NPE when querying `pattern_text` field in segment with no field values [#142767](https://github.com/elastic/elasticsearch/pull/142767)
+* Share the same doc values producer for `IdBloomFilterSupplier` and TSDBSyntheticIdFieldsProducer [#147910](https://github.com/elastic/elasticsearch/pull/147910)
+
+Data streams:
+* [One workflow] Make workflows system data stream hidden [#146713](https://github.com/elastic/elasticsearch/pull/146713)
+
+Distributed:
+* Do not attempt marking store as corrupted if the check is rejected due to shutdown [#145209](https://github.com/elastic/elasticsearch/pull/145209) (issue: [#123773](https://github.com/elastic/elasticsearch/issues/123773))
+* Ensure that the buffer used for ES93BloomFilterStoredFieldsFormat is zeroed [#139034](https://github.com/elastic/elasticsearch/pull/139034)
+* Fix race in FsBlobContainer.moveBlobAtomic by replacing move op with hard link [#147405](https://github.com/elastic/elasticsearch/pull/147405) (issue: [#147171](https://github.com/elastic/elasticsearch/issues/147171))
+
+Downsampling:
+* Fix downsampling configuration validation [#141873](https://github.com/elastic/elasticsearch/pull/141873) (issue: [#141541](https://github.com/elastic/elasticsearch/issues/141541))
+
+EQL:
+* Fix management of PIT close failures after successful query [#146634](https://github.com/elastic/elasticsearch/pull/146634) (issues: [#146263](https://github.com/elastic/elasticsearch/issues/146263), [#146187](https://github.com/elastic/elasticsearch/issues/146187))
+* Fix propagation of filters on join keys for missing events [#145813](https://github.com/elastic/elasticsearch/pull/145813) (issue: [#145402](https://github.com/elastic/elasticsearch/issues/145402))
+
+ES|QL:
+* AMD return 0 on Count with no rows [#144462](https://github.com/elastic/elasticsearch/pull/144462) (issue: [#141852](https://github.com/elastic/elasticsearch/issues/141852))
+* Account for field readers in breaker [#140666](https://github.com/elastic/elasticsearch/pull/140666)
+* Added missing ST_SIMPLIFY error test and fixed bug with missing errors [#143480](https://github.com/elastic/elasticsearch/pull/143480)
+* Better error on some queries missing timestamps [#141503](https://github.com/elastic/elasticsearch/pull/141503) (issue: [#140606](https://github.com/elastic/elasticsearch/issues/140606))
+* Better estimation on loading large text field from `_source` [#143105](https://github.com/elastic/elasticsearch/pull/143105) (issue: [#141550](https://github.com/elastic/elasticsearch/issues/141550))
+* Better validation for fulltext functions after LIMIT BY [#147682](https://github.com/elastic/elasticsearch/pull/147682) (issue: [#147681](https://github.com/elastic/elasticsearch/issues/147681))
+* Catch `DateTimeException` in `EsqlDataTypeConverter` [#137744](https://github.com/elastic/elasticsearch/pull/137744) (issue: [#137741](https://github.com/elastic/elasticsearch/issues/137741))
+* Cleanup and bug fixes in NDJSON datasource [#143969](https://github.com/elastic/elasticsearch/pull/143969)
+* Correctly manage NULL data type for SUM [#144942](https://github.com/elastic/elasticsearch/pull/144942) (issue: [#144914](https://github.com/elastic/elasticsearch/issues/144914))
+* Do not enable doc-partitioning for count [#143544](https://github.com/elastic/elasticsearch/pull/143544) (issue: [#134512](https://github.com/elastic/elasticsearch/issues/134512))
+* Do not push sort on many keyword fields to lucene [#142700](https://github.com/elastic/elasticsearch/pull/142700) (issues: [#140134](https://github.com/elastic/elasticsearch/issues/140134), [#141083](https://github.com/elastic/elasticsearch/issues/141083))
+* Don't use a Literal for `constant_keyword` fields when used inside full-text functions [#145632](https://github.com/elastic/elasticsearch/pull/145632) (issue: [#145570](https://github.com/elastic/elasticsearch/issues/145570))
+* ESQL - Fix performance loading source when vectors are excluded [#146223](https://github.com/elastic/elasticsearch/pull/146223) (issue: [#145799](https://github.com/elastic/elasticsearch/issues/145799))
+* ESQL: Preserve type conflict error metadata for subqueries [#143954](https://github.com/elastic/elasticsearch/pull/143954) (issue: [#142499](https://github.com/elastic/elasticsearch/issues/142499))
+* ESQL: Validate unsupported grouping types earlier [#147650](https://github.com/elastic/elasticsearch/pull/147650) (issue: [#147596](https://github.com/elastic/elasticsearch/issues/147596))
+* Fix Analyzer infinite loop for subquery referencing indices with empty mappings [#141371](https://github.com/elastic/elasticsearch/pull/141371) (issue: [#141029](https://github.com/elastic/elasticsearch/issues/141029))
+* Fix BUCKET date rounding selection [#144425](https://github.com/elastic/elasticsearch/pull/144425)
+* Fix CSV-escaped quotes rendering in generated ES|QL docs examples [#143449](https://github.com/elastic/elasticsearch/pull/143449)
+* Fix CsvIT overflow tests failing on JDK 25 due to missing OmitStackTraceInFastThrow flag [#145415](https://github.com/elastic/elasticsearch/pull/145415) (issues: [#145415](https://github.com/elastic/elasticsearch/issues/145415), [#145424](https://github.com/elastic/elasticsearch/issues/145424))
+* Fix Decay cast to Double to be a cast to Number instead [#144118](https://github.com/elastic/elasticsearch/pull/144118) (issue: [#143351](https://github.com/elastic/elasticsearch/issues/143351))
+* Fix ES:QL Driver logging for 4xx errors and cancellations [#140905](https://github.com/elastic/elasticsearch/pull/140905) (issue: [#138008](https://github.com/elastic/elasticsearch/issues/138008))
+* Fix ESQL TS requests with LIMIT 0 [#144031](https://github.com/elastic/elasticsearch/pull/144031) (issue: [#144024](https://github.com/elastic/elasticsearch/issues/144024))
+* Fix KNN with LIMIT BY [#146844](https://github.com/elastic/elasticsearch/pull/146844)
+* Fix LIMIT after all columns are dropped [#143463](https://github.com/elastic/elasticsearch/pull/143463) (issue: [#142473](https://github.com/elastic/elasticsearch/issues/142473))
+* Fix MMR NPE when initial doc has a null vector [#146005](https://github.com/elastic/elasticsearch/pull/146005) (issue: [#142939](https://github.com/elastic/elasticsearch/issues/142939))
+* Fix NPE on query log when CCS remotes are unavailable [#142933](https://github.com/elastic/elasticsearch/pull/142933) (issue: [#142915](https://github.com/elastic/elasticsearch/issues/142915))
+* Fix TBUCKET(n) on empty filter range [#146366](https://github.com/elastic/elasticsearch/pull/146366) (issue: [#146354](https://github.com/elastic/elasticsearch/issues/146354))
+* Fix `_index` LIKE with ? wildcard [#147462](https://github.com/elastic/elasticsearch/pull/147462) (issue: [#146364](https://github.com/elastic/elasticsearch/issues/146364))
+* Fix async logging consistency and severity [#142401](https://github.com/elastic/elasticsearch/pull/142401) (issues: [#142374](https://github.com/elastic/elasticsearch/issues/142374), [#142316](https://github.com/elastic/elasticsearch/issues/142316))
+* Fix bzip2 decompressor and NDJSON error recovery [#143844](https://github.com/elastic/elasticsearch/pull/143844)
+* Fix checks to define if a JOIN is remote [#139461](https://github.com/elastic/elasticsearch/pull/139461)
+* Fix datasource test failures on Windows and FIPS [#143417](https://github.com/elastic/elasticsearch/pull/143417)
+* Fix deriv aggregation function intermediate state [#146160](https://github.com/elastic/elasticsearch/pull/146160) (issue: [#141305](https://github.com/elastic/elasticsearch/issues/141305))
+* Fix false circular view reference with shared wildcards [#146144](https://github.com/elastic/elasticsearch/pull/146144) (issues: [#146097](https://github.com/elastic/elasticsearch/issues/146097), [#146118](https://github.com/elastic/elasticsearch/issues/146118))
+* Fix handling of values on the time bucket boundaries for ES|QL increase [#145794](https://github.com/elastic/elasticsearch/pull/145794)
+* Fix more views exclusions bugs [#147323](https://github.com/elastic/elasticsearch/pull/147323)
+* Fix nested fields loading under NULLIFY [#145741](https://github.com/elastic/elasticsearch/pull/145741) (issue: [#142616](https://github.com/elastic/elasticsearch/issues/142616))
+* Fix null folding of nested COALESCE [#140028](https://github.com/elastic/elasticsearch/pull/140028)
+* Fix nullify under join and enrich [#145743](https://github.com/elastic/elasticsearch/pull/145743) (issue: [#141827](https://github.com/elastic/elasticsearch/issues/141827))
+* Fix rate/increase single-value bucket handling for delta temporality [#146518](https://github.com/elastic/elasticsearch/pull/146518)
+* Fix starts_with/ends_with with special chars [#146348](https://github.com/elastic/elasticsearch/pull/146348) (issue: [#130851](https://github.com/elastic/elasticsearch/issues/130851))
+* Fix to tdigest implicit eval [#140690](https://github.com/elastic/elasticsearch/pull/140690) (issue: [#140670](https://github.com/elastic/elasticsearch/issues/140670))
+* Forbid MV_EXPAND before full text functions [#143249](https://github.com/elastic/elasticsearch/pull/143249) (issue: [#143121](https://github.com/elastic/elasticsearch/issues/143121))
+* Identify correctly a renamed attribute in full text functions as a field attribute [#143893](https://github.com/elastic/elasticsearch/pull/143893) (issue: [#143859](https://github.com/elastic/elasticsearch/issues/143859))
+* KQL and QSTR were incorrectly rejected when used before SAMPLE [#145456](https://github.com/elastic/elasticsearch/pull/145456)
+* Keywords mv count fix [#145390](https://github.com/elastic/elasticsearch/pull/145390)
+* Loading unmapped fields on synthetic `_source` [#144112](https://github.com/elastic/elasticsearch/pull/144112) (issue: [#143916](https://github.com/elastic/elasticsearch/issues/143916))
+* Log compute engine server failures as ERROR [#142330](https://github.com/elastic/elasticsearch/pull/142330) (issue: [#139883](https://github.com/elastic/elasticsearch/issues/139883))
+* Make unmapped_fields="load" automatically trigger for partially mapped KEYWORD fields, and allow projecting partially mapped non-KEYWORD fields [#144228](https://github.com/elastic/elasticsearch/pull/144228) (issues: [#145206](https://github.com/elastic/elasticsearch/issues/145206), [#141994](https://github.com/elastic/elasticsearch/issues/141994))
+* Prevent pushdown of unmapped fields in filters and sorts [#143460](https://github.com/elastic/elasticsearch/pull/143460) (issues: [#141920](https://github.com/elastic/elasticsearch/issues/141920), [#141925](https://github.com/elastic/elasticsearch/issues/141925))
+* Propagate ambiguous field type errors correctly [#143737](https://github.com/elastic/elasticsearch/pull/143737) (issue: [#142761](https://github.com/elastic/elasticsearch/issues/142761))
+* Propagate converted fields through projections [#137923](https://github.com/elastic/elasticsearch/pull/137923)
+* Propagate empty local relation past joins [#144826](https://github.com/elastic/elasticsearch/pull/144826) (issue: [#144329](https://github.com/elastic/elasticsearch/issues/144329))
+* Prune `no_fields` from project in subquery [#145164](https://github.com/elastic/elasticsearch/pull/145164) (issue: [#145148](https://github.com/elastic/elasticsearch/issues/145148))
+* Report correct location for SET errors [#147582](https://github.com/elastic/elasticsearch/pull/147582) (issue: [#145873](https://github.com/elastic/elasticsearch/issues/145873))
+* Restore TEXT field size estimate for Enrich and `LookupJoin` [#147357](https://github.com/elastic/elasticsearch/pull/147357)
+* SUM long overflow fix [#141272](https://github.com/elastic/elasticsearch/pull/141272) (issue: [#110437](https://github.com/elastic/elasticsearch/issues/110437))
+* Split aggs results [#139973](https://github.com/elastic/elasticsearch/pull/139973)
+* Use standard logic for conflicting types in TS [#141496](https://github.com/elastic/elasticsearch/pull/141496) (issue: [#141379](https://github.com/elastic/elasticsearch/issues/141379))
+* [TEST] Fix discrepancy in docs & kibana generation [#141651](https://github.com/elastic/elasticsearch/pull/141651) (issue: [#141199](https://github.com/elastic/elasticsearch/issues/141199))
+* `DocValuesBlockLoader` should return `ConstantNullsReader` rather than null [#140136](https://github.com/elastic/elasticsearch/pull/140136)
+* overflowing division in ROW gives wrong error message [#138973](https://github.com/elastic/elasticsearch/pull/138973) (issue: [#138798](https://github.com/elastic/elasticsearch/issues/138798))
+
+Engine:
+* Fix `ShardFieldStats.liveDocsBytes` [#142711](https://github.com/elastic/elasticsearch/pull/142711)
+
+Highlighting:
+* Fix BoundedBreakIteratorScanner IllegalStateException when used with SplittingBreakIterator during highlighting [#143440](https://github.com/elastic/elasticsearch/pull/143440)
+
+Indices APIs:
+* Correctly ignore system indices when validating dot-prefixed indices [#128868](https://github.com/elastic/elasticsearch/pull/128868)
+
+Inference:
+* Fix RecursiveChunkingSettings.validate() logic bug where separator validation was skipped [#145314](https://github.com/elastic/elasticsearch/pull/145314) (issue: [#144815](https://github.com/elastic/elasticsearch/issues/144815))
+* Make similarity required for `SageMaker` `ElasticTextEmbeddingPayload` [#146885](https://github.com/elastic/elasticsearch/pull/146885)
+* Validate base64 embedding inputs use data URI format [#145038](https://github.com/elastic/elasticsearch/pull/145038) (issue: [#144900](https://github.com/elastic/elasticsearch/issues/144900))
+* [Inference API] Fix NPE in multimodal check [#144107](https://github.com/elastic/elasticsearch/pull/144107)
+* [Inference API] Use 504 for timeout REST status code response [#145838](https://github.com/elastic/elasticsearch/pull/145838)
+* [Inference] Correctly preserve class information for internal endpoints on update [#142380](https://github.com/elastic/elasticsearch/pull/142380)
+
+Infra/Core:
+* Fix potential OOME on `SearchResponse#toString()` for extemely large responses [#147267](https://github.com/elastic/elasticsearch/pull/147267)
+
+Ingest Node:
+* Fix pipeline resolution cache for bulk requests [#144648](https://github.com/elastic/elasticsearch/pull/144648)
+* Fix waiting for enrich policy execution for users without the `monitor` privilege [#145751](https://github.com/elastic/elasticsearch/pull/145751)
+
+Logs:
+* Fixed a bug where match only text delegates loading to an incorrect parent keyword field [#141399](https://github.com/elastic/elasticsearch/pull/141399)
+
+Machine Learning:
+* Fix AD job update overrides `categorization_examples_limit` with default [#140524](https://github.com/elastic/elasticsearch/pull/140524)
+* Fix NPE when preview datafeed checks `date_nanos` for an unmapped time field [#144909](https://github.com/elastic/elasticsearch/pull/144909) (issue: [#144888](https://github.com/elastic/elasticsearch/issues/144888))
+* Fix validation of anomaly detection job config [#139946](https://github.com/elastic/elasticsearch/pull/139946) (issue: [#29843](https://github.com/elastic/elasticsearch/issues/29843))
+* Handle null columns in ES|QL CHANGE_POINT [#144388](https://github.com/elastic/elasticsearch/pull/144388) (issue: [#142858](https://github.com/elastic/elasticsearch/issues/142858))
+* Omit uncomputed model stats [#146186](https://github.com/elastic/elasticsearch/pull/146186)
+* Preserve zero-allocation trained-model deployments in cluster state during ML-node shutdown rebalances [#146910](https://github.com/elastic/elasticsearch/pull/146910) (issue: [#146806](https://github.com/elastic/elasticsearch/issues/146806))
+* Reduce priority of clear-cache tasks [#139685](https://github.com/elastic/elasticsearch/pull/139685)
+
+Mapping:
+* Date fields with ignore malformed do not ignore object and array values [#143533](https://github.com/elastic/elasticsearch/pull/143533) (issue: [#109539](https://github.com/elastic/elasticsearch/issues/109539))
+* Don't serialize endpoint metadata in semantic text mappings [#145021](https://github.com/elastic/elasticsearch/pull/145021) (issue: [#144969](https://github.com/elastic/elasticsearch/issues/144969))
+* Drop deprecation warnings when updating a mapping in the cluster state applier [#144040](https://github.com/elastic/elasticsearch/pull/144040) (issues: [#142544](https://github.com/elastic/elasticsearch/issues/142544), [#142964](https://github.com/elastic/elasticsearch/issues/142964), [#142410](https://github.com/elastic/elasticsearch/issues/142410), [#143884](https://github.com/elastic/elasticsearch/issues/143884), [#142477](https://github.com/elastic/elasticsearch/issues/142477))
+* Fix match only text decoding surrogate pairs [#146567](https://github.com/elastic/elasticsearch/pull/146567) (issue: [#146538](https://github.com/elastic/elasticsearch/issues/146538))
+* Re-use previously seen dynamically-created Mappers during document parsing [#143377](https://github.com/elastic/elasticsearch/pull/143377)
+* Resolve *.geo.location as geopoint in otel dynamic mappings [#141397](https://github.com/elastic/elasticsearch/pull/141397) (issue: [#140506](https://github.com/elastic/elasticsearch/issues/140506))
+
+PromQL:
+* PromQL: absent labels must match empty-string label matchers [#146116](https://github.com/elastic/elasticsearch/pull/146116)
+
+Reindex:
+* Restore initial thread context during reindex etc [#146134](https://github.com/elastic/elasticsearch/pull/146134)
+
+SQL:
+* Fix NPE in aggregations [#139829](https://github.com/elastic/elasticsearch/pull/139829)
+* Fix SQL client parsing of array header values [#143408](https://github.com/elastic/elasticsearch/pull/143408) (issues: [#143018](https://github.com/elastic/elasticsearch/issues/143018), [#143019](https://github.com/elastic/elasticsearch/issues/143019))
+* Refresh PIT id after each response [#141736](https://github.com/elastic/elasticsearch/pull/141736)
+
+Search:
+* Add cancellation support to `IndicesRequestCache` [#141708](https://github.com/elastic/elasticsearch/pull/141708)
+* Adjust the formula for "adaptive replica selection" [#144562](https://github.com/elastic/elasticsearch/pull/144562)
+* Async Search: Ensure cleanup is also done against aliases [#146356](https://github.com/elastic/elasticsearch/pull/146356) (issue: [#146184](https://github.com/elastic/elasticsearch/issues/146184))
+* Bugfix for CCS BWC in `SearchShardsAction` [#145820](https://github.com/elastic/elasticsearch/pull/145820)
+* Bugfix: Deleted async search won't show on any API [#140385](https://github.com/elastic/elasticsearch/pull/140385) (issue: [#132423](https://github.com/elastic/elasticsearch/issues/132423))
+* Collapse pathological regex quantifier stacking to prevent NFA construction OOM [#145452](https://github.com/elastic/elasticsearch/pull/145452)
+* Fix `terminate_after` not honored for aggs when size=0 [#146199](https://github.com/elastic/elasticsearch/pull/146199) (issue: [#126665](https://github.com/elastic/elasticsearch/issues/126665))
+* Fix bug parsing "request" parameter in clear cache API, it should clear the request cache only [#145726](https://github.com/elastic/elasticsearch/pull/145726)
+* Fix nested aggregation `top_hits` with query `inner_hits` [#137351](https://github.com/elastic/elasticsearch/pull/137351) (issue: [#136893](https://github.com/elastic/elasticsearch/issues/136893))
+* Fix pooled `SearchHits` leak in `MergeResult#writeTo` on transport version mismatch [#146431](https://github.com/elastic/elasticsearch/pull/146431) (issue: [#146420](https://github.com/elastic/elasticsearch/issues/146420))
+* Fix: correctly serialise sparse field pruning options in mixed cluster scenarios [#147823](https://github.com/elastic/elasticsearch/pull/147823)
+* Fixes an edge case in "_terms_enum" API for ip fields [#144308](https://github.com/elastic/elasticsearch/pull/144308) (issue: [#142811](https://github.com/elastic/elasticsearch/issues/142811))
+* Fixes bug that prevented retrieving _inference_fields via _source_includes [#141534](https://github.com/elastic/elasticsearch/pull/141534) (issue: [#141075](https://github.com/elastic/elasticsearch/issues/141075))
+* PIT: Throw error when unknown transport version is parsed [#141811](https://github.com/elastic/elasticsearch/pull/141811) (issue: [#140457](https://github.com/elastic/elasticsearch/issues/140457))
+* Record stats for "adaptive replica selection" in batched queries [#144563](https://github.com/elastic/elasticsearch/pull/144563) (issue: [#144146](https://github.com/elastic/elasticsearch/issues/144146))
+* Record stats for adaptive replica selection in dfs queries [#145070](https://github.com/elastic/elasticsearch/pull/145070)
+* Remove Lucene99FlatBulkScoringVectorsReader [#146071](https://github.com/elastic/elasticsearch/pull/146071)
+* Return 404 instead of 500 when scroll/PIT references nodes that have left the cluster. [#142405](https://github.com/elastic/elasticsearch/pull/142405)
+* Update constant-value fields to support normalized wildcard queries [#141784](https://github.com/elastic/elasticsearch/pull/141784) (issue: [#138778](https://github.com/elastic/elasticsearch/issues/138778))
+* Use query circuit breaker for wildcard/regexp determinization [#145427](https://github.com/elastic/elasticsearch/pull/145427) (issue: [#145128](https://github.com/elastic/elasticsearch/issues/145128))
+
+Searchable Snapshots:
+* Fix `SharedBytes` mmap leak by closing parent arena on close [#142460](https://github.com/elastic/elasticsearch/pull/142460)
+
+Security:
+* This changes extends the `read` index privilege to consistently cover all actions required to run cross-cluster search (CCS) queries. Users with the `read` index privilege will be able to run CCS queries irrespective of the `ccs_minimize_roundtrips` query parameter. [#141376](https://github.com/elastic/elasticsearch/pull/141376)
+
+Snapshot/Restore:
+* Ensure deletion of snapshot clone propagate state changes [#142192](https://github.com/elastic/elasticsearch/pull/142192)
+* Finalize failed clone entries [#143024](https://github.com/elastic/elasticsearch/pull/143024) (issue: [#142919](https://github.com/elastic/elasticsearch/issues/142919))
+* Fix incorrect totalTime when shard snapshot never started [#142361](https://github.com/elastic/elasticsearch/pull/142361)
+* Fix read/write counts for copy in repo analysis [#140086](https://github.com/elastic/elasticsearch/pull/140086) (issue: [#126569](https://github.com/elastic/elasticsearch/issues/126569))
+* Limit heap used tracking `IndexMetadata` deletions [#140394](https://github.com/elastic/elasticsearch/pull/140394) (issue: [#140018](https://github.com/elastic/elasticsearch/issues/140018))
+* Synthesize `ShardId` for `SnapshotInfo` of failed clones [#142920](https://github.com/elastic/elasticsearch/pull/142920)
+* Terminate Azure retries when node is shutting down [#142187](https://github.com/elastic/elasticsearch/pull/142187)
+* Use `IllegalArgumentException` over `RepositoryException` for readonly-repository checks [#140200](https://github.com/elastic/elasticsearch/pull/140200)
+
+Store:
+* Fix potential NPE in `SyntheticIdField` empty token stream [#140556](https://github.com/elastic/elasticsearch/pull/140556) (issues: [#140624](https://github.com/elastic/elasticsearch/issues/140624), [#140665](https://github.com/elastic/elasticsearch/issues/140665), [#140492](https://github.com/elastic/elasticsearch/issues/140492))
+
+TSDB:
+* Replace `IllegalStateException` with `IllegalArgumentException` for conflicting time series metadata [#142370](https://github.com/elastic/elasticsearch/pull/142370)
+* Retrieve routing hash from synthetic id for translog operations [#140221](https://github.com/elastic/elasticsearch/pull/140221)
+
+Task Management:
+* Ensure cancellation reason visible when task is canceled [#144629](https://github.com/elastic/elasticsearch/pull/144629) (issue: [#142079](https://github.com/elastic/elasticsearch/issues/142079))
+
+Transform:
+* Exclude clusters in license check [#143146](https://github.com/elastic/elasticsearch/pull/143146) (issues: [#114514](https://github.com/elastic/elasticsearch/issues/114514), [#114509](https://github.com/elastic/elasticsearch/issues/114509))
+
+Vector Search:
+* Check for support for native vector ops before calling them [#142036](https://github.com/elastic/elasticsearch/pull/142036) (issue: [#141863](https://github.com/elastic/elasticsearch/issues/141863))
+* Fix AVX-512 fpclass mask to classify negative infinity as negative in MIP scoring [#142514](https://github.com/elastic/elasticsearch/pull/142514) (issue: [#142289](https://github.com/elastic/elasticsearch/issues/142289))
+* Fix BBQ and INT4 bulk scorers to use sparse vector resolution [#145779](https://github.com/elastic/elasticsearch/pull/145779) (issue: [#145797](https://github.com/elastic/elasticsearch/issues/145797))
+* Fix NPE in GPU resource pool when CuVSResources creation fails [#146632](https://github.com/elastic/elasticsearch/pull/146632)
+* Fix NPE when having double nested field with knn query [#146933](https://github.com/elastic/elasticsearch/pull/146933) (issue: [#141830](https://github.com/elastic/elasticsearch/issues/141830))
+* Fix `PosixCloseableMappedByteBuffer.slice()` to preserve concrete type [#147903](https://github.com/elastic/elasticsearch/pull/147903)
+* Fix int overflow in vector similarity bounds checks for segments larger than 2GB [#143241](https://github.com/elastic/elasticsearch/pull/143241) (issue: [#143232](https://github.com/elastic/elasticsearch/issues/143232))
+* Fix integer overflow in CuVSResourceManager.estimateNNDescentMemory [#147559](https://github.com/elastic/elasticsearch/pull/147559)
+* Fix intercepted query cases that can create orphaned unique async action consumers [#145577](https://github.com/elastic/elasticsearch/pull/145577) (issue: [#145444](https://github.com/elastic/elasticsearch/issues/145444))
+* Only use `MemorySegment` scorers when slices can be obtained from the `IndexInput` [#145343](https://github.com/elastic/elasticsearch/pull/145343)
+* [DiskBBQ] Fix `offHeap` size for empty indices [#146347](https://github.com/elastic/elasticsearch/pull/146347)
+* [DiskBBQ] Fix bug in `NeighborQueue#popRawAndAddRaw` [#145324](https://github.com/elastic/elasticsearch/pull/145324)
+* [DiskBBQ] Wait for queue saturation in `MaxScoreTopKnnCollector` [#145341](https://github.com/elastic/elasticsearch/pull/145341)
+
+Watcher:
+* Clear watch schedules when starting trigger engine [#145325](https://github.com/elastic/elasticsearch/pull/145325) (issues: [#137562](https://github.com/elastic/elasticsearch/issues/137562), [#131964](https://github.com/elastic/elasticsearch/issues/131964))
+
+
+
 ## 9.3.4 [elasticsearch-9.3.4-release-notes]
 
 ### Features and enhancements [elasticsearch-9.3.4-features-enhancements]

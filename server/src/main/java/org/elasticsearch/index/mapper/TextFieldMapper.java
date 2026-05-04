@@ -1717,6 +1717,20 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
+    public boolean supportsBatchIndexing() {
+        // Plain text mappers can be driven through parseCreateField by the bulk batch path.
+        // index_prefixes and index_phrases add sub-field documents that the batch path does
+        // not write, and synthetic-source fallback storage requires extra coordination across
+        // doc fields that we do not handle yet. fielddata is search-time only and is allowed.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && prefixFieldInfo == null
+            && phraseFieldInfo == null
+            && fieldType().needsFallbackStorageForSyntheticSource(indexCreatedVersion) == false;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
 

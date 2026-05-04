@@ -11,15 +11,20 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class VoyageAIRerankServiceSettings extends VoyageAIServiceSettings {
     public static final String NAME = "voyageai_rerank_service_settings";
@@ -29,15 +34,16 @@ public class VoyageAIRerankServiceSettings extends VoyageAIServiceSettings {
     public static VoyageAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var commonServiceSettings = VoyageAICommonServiceSettings.fromMap(map, context, validationException);
+        var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = extractRateLimitSettings(map, context, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new VoyageAIRerankServiceSettings(commonServiceSettings);
+        return new VoyageAIRerankServiceSettings(modelId, rateLimitSettings);
     }
 
-    public VoyageAIRerankServiceSettings(VoyageAICommonServiceSettings commonSettings) {
-        super(commonSettings);
+    public VoyageAIRerankServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+        super(modelId, rateLimitSettings);
     }
 
     public VoyageAIRerankServiceSettings(StreamInput in) throws IOException {
@@ -48,11 +54,17 @@ public class VoyageAIRerankServiceSettings extends VoyageAIServiceSettings {
     public VoyageAIRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
 
-        var updatedCommonSettings = commonSettings().updateCommonServiceSettings(serviceSettings, validationException);
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings(),
+            validationException,
+            VoyageAIService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
 
         validationException.throwIfValidationErrorsExist();
 
-        return new VoyageAIRerankServiceSettings(updatedCommonSettings);
+        return new VoyageAIRerankServiceSettings(this.modelId(), extractedRateLimitSettings);
     }
 
     @Override
@@ -69,12 +81,6 @@ public class VoyageAIRerankServiceSettings extends VoyageAIServiceSettings {
     }
 
     @Override
-    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        commonSettings().toXContent(builder, params);
-        return builder;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
         return VOYAGE_AI_INTEGRATION_ADDED;
@@ -86,21 +92,16 @@ public class VoyageAIRerankServiceSettings extends VoyageAIServiceSettings {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        commonSettings().writeTo(out);
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         VoyageAIRerankServiceSettings that = (VoyageAIRerankServiceSettings) o;
-        return Objects.equals(commonSettings(), that.commonSettings());
+        return Objects.equals(modelId(), that.modelId()) && Objects.equals(rateLimitSettings(), that.rateLimitSettings());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(commonSettings());
+        return Objects.hash(modelId(), rateLimitSettings());
     }
 
     @Override

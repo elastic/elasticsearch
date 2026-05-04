@@ -206,14 +206,16 @@ public class VoyageAIService extends SenderService<VoyageAIModel> implements Rer
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof VoyageAIEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
-            var commonSettings = serviceSettings.commonSettings();
+
+            var modelId = serviceSettings.modelId();
+            var rateLimitSettings = serviceSettings.rateLimitSettings();
             var embeddingType = serviceSettings.embeddingType();
             var similarityToUse = Objects.requireNonNullElse(serviceSettings.similarity(), defaultSimilarity());
             var maxInputTokens = serviceSettings.maxInputTokens();
             var dimensionSetByUser = serviceSettings.dimensionsSetByUser();
-
             var updatedServiceSettings = new VoyageAIEmbeddingsServiceSettings(
-                commonSettings,
+                modelId,
+                rateLimitSettings,
                 embeddingType,
                 similarityToUse,
                 embeddingSize,

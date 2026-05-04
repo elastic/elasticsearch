@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
@@ -39,7 +38,8 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         assertToXContent_WritesAllFields(
             InputType.INTERNAL_SEARCH,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+                TEST_MODEL_ID,
+                new RateLimitSettings(TEST_RATE_LIMIT),
                 embeddingType,
                 SimilarityMeasure.DOT_PRODUCT,
                 VoyageAIEmbeddingsRequestEntityTests.TEST_DIMENSIONS,
@@ -64,7 +64,8 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         assertToXContent_WritesAllFields(
             InputType.INGEST,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+                TEST_MODEL_ID,
+                new RateLimitSettings(TEST_RATE_LIMIT),
                 embeddingType,
                 SimilarityMeasure.DOT_PRODUCT,
                 VoyageAIEmbeddingsRequestEntityTests.TEST_DIMENSIONS,
@@ -89,7 +90,8 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         assertToXContent_WritesAllFields(
             InputType.INTERNAL_SEARCH,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+                TEST_MODEL_ID,
+                new RateLimitSettings(TEST_RATE_LIMIT),
                 embeddingType,
                 SimilarityMeasure.DOT_PRODUCT,
                 VoyageAIEmbeddingsRequestEntityTests.TEST_DIMENSIONS,
@@ -114,7 +116,8 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         assertToXContent_WritesAllFields(
             null,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+                TEST_MODEL_ID,
+                new RateLimitSettings(TEST_RATE_LIMIT),
                 embeddingType,
                 SimilarityMeasure.DOT_PRODUCT,
                 VoyageAIEmbeddingsRequestEntityTests.TEST_DIMENSIONS,
@@ -138,14 +141,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         var embeddingType = VoyageAIEmbeddingType.FLOAT;
         assertToXContent_WritesAllFields(
             null,
-            new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAICommonServiceSettings(TEST_MODEL_ID, null),
-                embeddingType,
-                null,
-                null,
-                null,
-                false
-            ),
+            new VoyageAIEmbeddingsServiceSettings(TEST_MODEL_ID, null, embeddingType, null, null, null, false),
             VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             Strings.format("""
                 {

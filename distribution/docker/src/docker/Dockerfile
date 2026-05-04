@@ -88,7 +88,7 @@ COPY elasticsearch-${version}-linux-${arch}.tar.gz /tmp/elasticsearch.tar.gz
   // It uses the `arch` shell command to fetch the correct distro for the build machine,
   // which is needed for Docker Hub builds.
 %>
-RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
+RUN curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 <% } %>
 
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1

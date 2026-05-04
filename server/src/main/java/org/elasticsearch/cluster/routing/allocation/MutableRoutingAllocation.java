@@ -190,9 +190,6 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         @Override
         public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
             clusterInfo.invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
-            if (startedShard.relocatingNodeId() != null) {
-                clusterInfo.invalidateNodeMaxShardWriteLoadProportion(startedShard.relocatingNodeId());
-            }
         }
 
         @Override

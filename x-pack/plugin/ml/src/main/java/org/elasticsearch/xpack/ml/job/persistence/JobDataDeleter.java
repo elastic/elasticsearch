@@ -150,7 +150,7 @@ public class JobDataDeleter {
     private static BulkByScrollResponse emptyBulkByScrollResponse() {
         return new BulkByScrollResponse(
             TimeValue.ZERO,
-            new BulkByScrollTask.Status(Collections.emptyList(), null),
+            new BulkByScrollTask.Status(Collections.emptyList(), null, 0f),
             Collections.emptyList(),
             Collections.emptyList(),
             false

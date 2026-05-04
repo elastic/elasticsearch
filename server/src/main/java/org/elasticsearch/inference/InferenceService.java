@@ -142,6 +142,25 @@ public interface InferenceService extends Closeable {
     void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
 
     /**
+     * Perform rerank inference on the model.
+     *
+     * @param model The model
+     * @param request Parameters for the request
+     * @param timeout The timeout for the request
+     * @param listener Inference result listener
+     */
+    void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
+
+    /**
+     * Temporary method to allow implementations of this interface to be converted to support the new rerank code path one at a time.
+     * This should be overridden for each service that has been converted to support the new code path.
+     * @return true if the service supports the new rerank code path
+     */
+    default boolean supportsNewRerankCodePath() {
+        return false;
+    }
+
+    /**
      * Chunk long text.
      *
      * @param model            The model

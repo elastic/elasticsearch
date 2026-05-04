@@ -662,7 +662,8 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
     /**
      * Asserts the original wall-clock in the calendar's zone equals the stored wall-clock in UTC.
-     * */
+     * Avoids reverse-mapping the stored instant back to the calendar's zone, which is ambiguous in DST fall-back overlaps.
+     */
     private static void assertCalendarConversionPreservesWallClock(long originalMillis, long storedMillis, Calendar nonDefaultCal) {
         assertEquals(
             LocalDateTime.ofInstant(Instant.ofEpochMilli(originalMillis), nonDefaultCal.getTimeZone().toZoneId()),

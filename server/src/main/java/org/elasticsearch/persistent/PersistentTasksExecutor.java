@@ -116,7 +116,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
                     return node;
                 }
                 long numberOfTasks = allPersistentTasks.stream().mapToLong(p -> p.getNumberOfTasksOnNode(node.getId(), taskName)).sum();
-                // If we find a node with no running tasks, we chose this one directly.
+                // If we find a node with no running tasks, we choose this one directly.
                 if (numberOfTasks == 0) {
                     return node;
                 }

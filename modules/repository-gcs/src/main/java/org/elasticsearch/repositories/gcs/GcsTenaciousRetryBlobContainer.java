@@ -38,7 +38,7 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
         return Map.of(
             "repo_type",
             GoogleCloudStorageRepository.TYPE,
-            "operation_purpose",
+            "purpose",
             purpose.getKey(),
             "operation",
             lookUpOperationNameByMethod(method)

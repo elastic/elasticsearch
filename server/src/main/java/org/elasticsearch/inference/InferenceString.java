@@ -40,7 +40,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
 
     private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:.*/.*;base64,");
 
-    static final String TYPE_FIELD = "type";
+    public static final String TYPE_FIELD = "type";
     static final String FORMAT_FIELD = "format";
     static final String VALUE_FIELD = "value";
 
@@ -126,6 +126,10 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
 
     public boolean isPdf() {
         return DataType.PDF.equals(dataType);
+    }
+
+    public boolean isNonText() {
+        return isText() == false;
     }
 
     /**

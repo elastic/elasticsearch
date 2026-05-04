@@ -37,6 +37,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -323,7 +324,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         try {
             final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             indexShard = indexService.getShard(request.shardId().id());
-            preFlushEngine = ensureIndexOrHollowEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
+            preFlushEngine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -355,7 +356,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
             indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
-                Engine engine = ensureIndexOrHollowEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
+                Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
                 logShardStats("obtained primary context", indexShard, engine);
                 logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
                 final var acquirePermitsDuration = getTimeSince(beforeAcquiringPermits);
@@ -570,14 +571,14 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }
     }
 
-    private Engine ensureIndexOrHollowEngine(Engine engine, IndexShardState indexShardState, ShardRouting shardRouting) {
-        if (engine instanceof IndexEngine indexEngine || engine instanceof HollowIndexEngine) {
+    private Engine ensureIndexTierAllowedEngine(Engine engine, IndexShardState indexShardState, ShardRouting shardRouting) {
+        if (engine instanceof IndexEngine indexEngine || engine instanceof HollowIndexEngine || engine instanceof NoOpEngine) {
             return engine;
         } else if (engine == null) {
             throw new AlreadyClosedException("source shard closed before recovery started: " + shardRouting);
         } else {
             final var message = format(
-                "not an IndexEngine: %s [indexShardState=%s, shardRouting=%s]",
+                "not an allowed engine on indexing tier: %s [indexShardState=%s, shardRouting=%s]",
                 engine,
                 indexShardState,
                 shardRouting

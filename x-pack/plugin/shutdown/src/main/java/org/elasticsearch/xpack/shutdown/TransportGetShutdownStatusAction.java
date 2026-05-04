@@ -339,17 +339,19 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             })
             // If ILM is shrinking the index this shard is part of, it'll look like it's unmovable, but we can just wait for ILM to finish
             .filter(pair -> isIlmRestrictingShardMovement(currentState.metadata().getProject(), pair.v1()) == false)
-            .peek(
-                pair -> logger.debug(
-                    "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
-                    nodeId,
-                    shutdownType,
-                    pair.v1().getId(),
-                    pair.v1().primary() ? "primary" : "replica",
-                    pair.v1().shardId().getIndexName(),
-                    Strings.toString(pair.v2())
-                )
-            )
+            .peek(pair -> {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
+                        nodeId,
+                        shutdownType,
+                        pair.v1().getId(),
+                        pair.v1().primary() ? "primary" : "replica",
+                        pair.v1().shardId().getIndexName(),
+                        Strings.toTruncatedString(pair.v2())
+                    );
+                }
+            })
             .findFirst();
 
         var temporarilyUnmovableShards = unmovableShards.stream()

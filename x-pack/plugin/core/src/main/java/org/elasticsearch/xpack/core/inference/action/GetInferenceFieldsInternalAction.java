@@ -240,15 +240,6 @@ public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFie
             return useDefaultFields;
         }
 
-        /**
-         * Returns the text value of the input, or {@code null} if no input was provided.
-         * Only valid for single-element text inputs; prefer {@link #input()} for new code that may handle non-text data.
-         */
-        @Nullable
-        public String query() {
-            return input != null ? input.textValue() : null;
-        }
-
         @Nullable
         public InferenceStringGroup input() {
             return input;

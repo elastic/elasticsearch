@@ -117,18 +117,21 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.BUCKETS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_BUCKETS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.END;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.INDEX;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.PROMQL_ALLOWED_PARAMS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.SCRAPE_INTERVAL;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.START;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.STEP;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.TIME;
 
 /**
  * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
  * which change the grammar will need to make changes here as well.
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
-
-    private static final String TIME = "time", START = "start", END = "end", STEP = "step", BUCKETS = "buckets", SCRAPE_INTERVAL =
-        "scrape_interval", INDEX = "index";
-    private static final int DEFAULT_PROMQL_BUCKETS = 100;
-    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
-
     /**
      * Maximum number of commands allowed per query
      */

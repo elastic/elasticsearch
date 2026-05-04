@@ -129,6 +129,51 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED));
     }
 
+    public void testMultiValueNoAcceptsSingleValue() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        mapper.parse(source(b -> b.field("field", randomBoolean())));
+    }
+
+    public void testMultiValueNoRejectsArray() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", true, false)))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
+    public void testMultiValueNoUsesNumericDocValues() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomBoolean())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse("expected at least one indexable field for [field]", fields.isEmpty());
+        boolean hasDocValuesField = false;
+        for (IndexableField f : fields) {
+            DocValuesType dvType = f.fieldType().docValuesType();
+            if (dvType != DocValuesType.NONE) {
+                hasDocValuesField = true;
+                assertEquals("multi_value=no must use NUMERIC doc values, not SORTED_NUMERIC", DocValuesType.NUMERIC, dvType);
+            }
+        }
+        assertTrue("expected a doc values field for [field]", hasDocValuesField);
+    }
+
     public void testSerialization() throws IOException {
 
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));

@@ -147,7 +147,9 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
                 0,
                 failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
                 SearchResponse.Clusters.EMPTY,
-                searchContextId
+                searchContextId,
+                null,
+                null
             )
         );
         doneFuture.onResponse(null);

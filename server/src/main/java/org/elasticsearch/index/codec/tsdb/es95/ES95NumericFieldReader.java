@@ -29,7 +29,7 @@ import java.io.IOException;
  * reads the {@link FieldDescriptor} from the field's metadata header so the correct
  * pipeline decoder can be reconstructed at read time.
  *
- * <p>{@link #decoder()} returns a {@link Decoder} backed by the pipeline identified by the
+ * <p>{@link NumericFieldReader#decoder(PipelineDescriptor)} returns a {@link Decoder} backed by the pipeline identified by the
  * {@link FieldDescriptor}, falling back to the provided fallback decoder for ordinal-range
  * and single-ordinal fields that bypass pipeline encoding.
  */
@@ -39,7 +39,6 @@ final class ES95NumericFieldReader implements NumericFieldReader {
 
     private final NumericCodecFactory numericCodecFactory;
     private final Decoder fallbackDecoder;
-    private PipelineDescriptor pipelineDescriptor;
 
     ES95NumericFieldReader(final NumericCodecFactory numericCodecFactory, final Decoder fallbackDecoder) {
         this.numericCodecFactory = numericCodecFactory;
@@ -48,11 +47,11 @@ final class ES95NumericFieldReader implements NumericFieldReader {
 
     @Override
     public void readFieldEntry(final IndexInput meta, final NumericEntry entry, int numericBlockShift) throws IOException {
-        BLOCK_READER.readFieldEntry(meta, entry, numericBlockShift, m -> pipelineDescriptor = FieldDescriptor.read(m));
+        BLOCK_READER.readFieldEntry(meta, entry, numericBlockShift, m -> entry.pipelineDescriptor = FieldDescriptor.read(m));
     }
 
     @Override
-    public Decoder decoder() {
+    public Decoder decoder(PipelineDescriptor pipelineDescriptor) {
         if (pipelineDescriptor != null) {
             final NumericDecoder decoder = numericCodecFactory.createDecoder(pipelineDescriptor);
             final NumericBlockDecoder blockDecoder = decoder.newBlockDecoder();

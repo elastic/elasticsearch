@@ -419,9 +419,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
   method: testGenerationalFileBlobReferenceIsRetainedCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/147858
-- class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
-  method: testRetentionLeasesIgnoredForSoftDeletesPolicy
-  issue: https://github.com/elastic/elasticsearch/issues/147859
 - class: org.elasticsearch.search.internal.CancellableBulkScorerTests
   method: testIntervalGrowsGeometrically
   issue: https://github.com/elastic/elasticsearch/issues/147872
@@ -464,12 +461,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.shutdown.SigtermTerminationHandlerTests
   method: testShutdownBlockIgnoreOtherRoles
   issue: https://github.com/elastic/elasticsearch/issues/148037
-- class: org.elasticsearch.search.profile.TimerTests
-  method: testTimingInterval
-  issue: https://github.com/elastic/elasticsearch/issues/148038
-- class: org.elasticsearch.search.sort.NestedSortBuilderTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/148039
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotAndRelocationEnabled
   issue: https://github.com/elastic/elasticsearch/issues/148041
@@ -482,12 +473,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/148096
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testUnsupportedGroupKeyTypesNotAllowedInStatsBy
-  issue: https://github.com/elastic/elasticsearch/issues/148112
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testUnsupportedGroupKeyTypesNotAllowedInLimitBy
-  issue: https://github.com/elastic/elasticsearch/issues/148113
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
@@ -545,3 +530,12 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsIntegTests
   method: testCreateAndRestoreSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/148217
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
+  method: testRandomActivitiesStatelessSnapshotDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/148219
+- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
+  method: testSyntheticId
+  issue: https://github.com/elastic/elasticsearch/issues/148235
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testSnapshotShardsWhileHollowing
+  issue: https://github.com/elastic/elasticsearch/issues/148236

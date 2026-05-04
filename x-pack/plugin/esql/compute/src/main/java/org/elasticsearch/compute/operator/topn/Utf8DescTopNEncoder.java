@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import static org.elasticsearch.compute.operator.topn.Utf8AscTopNEncoder.CONTINUATION_BYTE;
@@ -22,6 +23,11 @@ final class Utf8DescTopNEncoder extends SortableDescTopNEncoder {
 
     Utf8DescTopNEncoder(Utf8AscTopNEncoder ascEncoder) {
         this.ascEncoder = ascEncoder;
+    }
+
+    @Override
+    protected int maxBytesRefValueSize(Block b) {
+        return b.valueMaxByteSize() + 1; // + 1 for NUL terminator
     }
 
     @Override

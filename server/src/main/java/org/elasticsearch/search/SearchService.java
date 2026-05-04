@@ -1823,10 +1823,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<T> listener,
         Function<T, FetchSearchResult> fetchResultExtractor
     ) {
-        return listener.delegateFailure((delegate, response) -> {
-            try {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T response) {
                 try {
-                    delegate.onResponse(response);
+                    listener.onResponse(response);
                 } finally {
                     // Release bytes after the response handler completes, even if it throws.
                     // Exceptions are intentionally allowed to propagate so that wrapFailureListener
@@ -1836,10 +1837,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
                     }
                 }
-            } catch (Exception e) {
+            }
+
+            @Override
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
-        });
+        };
     }
 
     private <T> ActionListener<T> wrapFailureListener(ActionListener<T> listener, ReaderContext context, Releasable releasable) {
@@ -1860,15 +1864,26 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Releasable releasable,
         Consumer<Exception> onFailureCleanup
     ) {
-        return ActionListener.releaseBefore(releasable, listener.delegateResponse((delegate, e) -> {
-            try {
-                onFailureCleanup.accept(e);
-            } catch (Exception cleanupException) {
-                e.addSuppressed(cleanupException);
-            } finally {
-                delegate.onFailure(e);
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T response) {
+                Releasables.close(releasable);
+                listener.onResponse(response);
             }
-        }));
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    onFailureCleanup.accept(e);
+                } finally {
+                    try {
+                        Releasables.close(releasable);
+                    } finally {
+                        listener.onFailure(e);
+                    }
+                }
+            }
+        };
     }
 
     private static boolean isScrollContext(ReaderContext context) {

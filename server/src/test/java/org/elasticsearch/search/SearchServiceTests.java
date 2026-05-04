@@ -353,7 +353,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         assertSame("original exception must reach the listener", cause, failure.get());
     }
 
-    public void testWrapFailureListenerCleanupExceptionIsHandled() {
+    public void testWrapFailureListenerCleanupThrows() {
         var releasableClosed = new AtomicBoolean(false);
         var failure = new AtomicReference<Exception>();
         var cause = new RuntimeException("search failed");
@@ -365,8 +365,8 @@ public class SearchServiceTests extends IndexShardTestCase {
                 throw new RuntimeException("cleanup exploded");
             }
         );
-        wrapped.onFailure(cause);
 
+        expectThrows(RuntimeException.class, () -> wrapped.onFailure(cause));
         assertTrue("releasable must be closed even when cleanup throws", releasableClosed.get());
         assertSame("listener.onFailure must be called even when cleanup throws", cause, failure.get());
     }

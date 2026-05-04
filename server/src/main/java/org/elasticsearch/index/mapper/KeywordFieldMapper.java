@@ -128,12 +128,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "keyword";
     private static final String HOST_NAME = "host.name";
 
-    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED_SET
-    );
-
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
         public static final FieldType FIELD_TYPE_WITH_SKIP_DOC_VALUES;
@@ -197,10 +191,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sortedSetWithCardinality(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
-        );
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.builder(m -> toType(m).docValuesParameters())
+            .enabled(true)
+            .multiValue(DocValuesParameter.Values.MultiValue.TRUE)
+            .cardinality(DocValuesParameter.Values.Cardinality.LOW)
+            .build();
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).fieldType().nullValue, null)
@@ -347,12 +342,15 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Deprecated()
         public Builder docValues(boolean hasDocValues) {
-            this.docValuesParameters.setValue(hasDocValues ? DEFAULT_DOC_VALUES_PARAMS : DocValuesParameter.Values.DISABLED);
+            DocValuesParameter.Values defaults = this.docValuesParameters.getDefaultValue();
+            this.docValuesParameters.setValue(new DocValuesParameter.Values(hasDocValues, defaults.cardinality(), defaults.multiValue()));
             return this;
         }
 
         public Builder docValues(DocValuesParameter.Values.Cardinality cardinality) {
-            this.docValuesParameters.setValue(new DocValuesParameter.Values(true, cardinality, DEFAULT_DOC_VALUES_PARAMS.multiValue()));
+            this.docValuesParameters.setValue(
+                new DocValuesParameter.Values(true, cardinality, this.docValuesParameters.getDefaultValue().multiValue())
+            );
             return this;
         }
 

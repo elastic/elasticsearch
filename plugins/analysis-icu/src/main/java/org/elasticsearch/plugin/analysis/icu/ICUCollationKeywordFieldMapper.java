@@ -58,12 +58,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "icu_collation_keyword";
 
-    private static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED_SET
-    );
-
     public static final class CollationFieldType extends StringFieldType {
         private final Collator collator;
         private final String nullValue;
@@ -247,10 +241,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
-        final DocValuesParameter docValuesPameters = DocValuesParameter.sortedSetWithCardinality(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParams()
-        );
+        final DocValuesParameter docValuesPameters = DocValuesParameter.builder(m -> toType(m).docValuesParams())
+            .enabled(true)
+            .multiValue(DocValuesParameter.Values.MultiValue.TRUE)
+            .cardinality(DocValuesParameter.Values.Cardinality.LOW)
+            .build();
         final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
         final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);

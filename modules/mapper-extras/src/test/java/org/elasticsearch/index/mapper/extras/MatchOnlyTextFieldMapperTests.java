@@ -818,18 +818,18 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testSingleValueIsAcceptedWhenMultiValueNo() throws IOException {
+    public void testSingleValueIsAcceptedWhenMultiValueFalse() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "match_only_text").startObject("doc_values").field("multi_value", "no").endObject())
+            fieldMapping(b -> b.field("type", "match_only_text").startObject("doc_values").field("multi_value", "false").endObject())
         );
         mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(5))));
     }
 
-    public void testSecondValueIsRejectedWhenMultiValueNo() throws IOException {
+    public void testSecondValueIsRejectedWhenMultiValueFalse() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "match_only_text").startObject("doc_values").field("multi_value", "no").endObject())
+            fieldMapping(b -> b.field("type", "match_only_text").startObject("doc_values").field("multi_value", "false").endObject())
         );
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -837,7 +837,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 }

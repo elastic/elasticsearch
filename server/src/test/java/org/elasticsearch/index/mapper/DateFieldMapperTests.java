@@ -122,11 +122,11 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertFalse(field.fieldType().stored());
     }
 
-    public void testMultiValueSorted() throws IOException {
+    public void testMultiValueTrue() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "sorted").endObject();
+            b.startObject("doc_values").field("multi_value", "true").endObject();
         }));
         DateFieldMapper mapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(
@@ -135,45 +135,33 @@ public class DateFieldMapperTests extends MapperTestCase {
                 new FieldMapper.DocValuesParameter.Values(
                     true,
                     FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
+                    FieldMapper.DocValuesParameter.Values.MultiValue.TRUE
                 )
             )
         );
     }
 
-    public void testMultiValueSortedSetNotAllowed() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        var e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "sorted_set").endObject();
-        })));
-        assertThat(
-            e.getMessage(),
-            containsString("Unknown value [sorted_set] for field [multi_value] - accepted values are [no, sorted, arrays]")
-        );
-    }
-
-    public void testMultiValueDefaultIsSorted() throws IOException {
+    public void testMultiValueDefaultIsTrue() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         DateFieldMapper mapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED));
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.TRUE));
     }
 
-    public void testMultiValueNoAcceptsSingleValue() throws IOException {
+    public void testMultiValueFalseAcceptsSingleValue() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
+            b.startObject("doc_values").field("multi_value", "false").endObject();
         }));
         mapper.parse(source(b -> b.field("field", "2016-03-11")));
     }
 
-    public void testMultiValueNoRejectsArray() throws IOException {
+    public void testMultiValueFalseRejectsArray() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
+            b.startObject("doc_values").field("multi_value", "false").endObject();
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -181,15 +169,15 @@ public class DateFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
-    public void testMultiValueNoUsesNumericDocValues() throws IOException {
+    public void testMultiValueFalseUsesNumericDocValues() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
+            b.startObject("doc_values").field("multi_value", "false").endObject();
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
@@ -199,7 +187,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             DocValuesType dvType = f.fieldType().docValuesType();
             if (dvType != DocValuesType.NONE) {
                 hasDocValuesField = true;
-                assertEquals("multi_value=no must use NUMERIC doc values, not SORTED_NUMERIC", DocValuesType.NUMERIC, dvType);
+                assertEquals("multi_value=false must use NUMERIC doc values, not SORTED_NUMERIC", DocValuesType.NUMERIC, dvType);
             }
         }
         assertTrue("expected a doc values field for [field]", hasDocValuesField);

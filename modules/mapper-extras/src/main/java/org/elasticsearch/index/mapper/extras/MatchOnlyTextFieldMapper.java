@@ -106,12 +106,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "match_only_text";
 
-    private static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
-        false,
-        FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-        FieldMapper.DocValuesParameter.Values.MultiValue.ARRAYS
-    );
-
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
 
@@ -130,10 +124,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.arraysWithCardinality(
-            DEFAULT_DOC_VALUES_PARAMS,
+        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.builder(
             m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters
-        );
+        )
+            .enabled(false)  // doc_values are disabled on match only text fields by default
+            .multiValue(FieldMapper.DocValuesParameter.Values.MultiValue.TRUE)
+            .cardinality(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH)
+            .build();
 
         private final TextParams.Analyzers analyzers;
         private final boolean storedFieldInBinaryFormat;

@@ -112,12 +112,6 @@ public final class TextFieldMapper extends FieldMapper {
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
     private static final String FAST_PREFIX_SUFFIX = "._index_prefix";
 
-    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        false,
-        DocValuesParameter.Values.Cardinality.HIGH,
-        DocValuesParameter.Values.MultiValue.ARRAYS
-    );
-
     public static class Defaults {
         public static final double FIELDDATA_MIN_FREQUENCY = 0;
         public static final double FIELDDATA_MAX_FREQUENCY = Integer.MAX_VALUE;
@@ -267,10 +261,11 @@ public final class TextFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
 
-        final DocValuesParameter docValuesParameters = DocValuesParameter.arraysWithCardinality(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> ((TextFieldMapper) m).docValuesParameters
-        );
+        final DocValuesParameter docValuesParameters = DocValuesParameter.builder(m -> ((TextFieldMapper) m).docValuesParameters)
+            .enabled(false)  // doc_values are disabled on text fields by default
+            .multiValue(DocValuesParameter.Values.MultiValue.TRUE)
+            .cardinality(DocValuesParameter.Values.Cardinality.HIGH)
+            .build();
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
@@ -2046,7 +2041,7 @@ public final class TextFieldMapper extends FieldMapper {
                     // text fields with doc_values may have all values stored in fallback fields; if every value exceeds MAX_TERM_LENGTH.
                     // In that case, there will be no doc values at all, but the "main" field is still going to be indexed. As a result,
                     // we can't use SortedSetDocValuesSyntheticFieldLoaderLayer since it uses DocValues.getSortedSet(), which will throw.
-                    // Check for both SORTED_SET (multi-valued) and SORTED (multi_value=no) doc values types.
+                    // Check for both SORTED_SET (multi-valued) and SORTED (multi_value=false) doc values types.
                     if (reader.getSortedSetDocValues(fieldName()) == null && reader.getSortedDocValues(fieldName()) == null) {
                         return null;
                     }

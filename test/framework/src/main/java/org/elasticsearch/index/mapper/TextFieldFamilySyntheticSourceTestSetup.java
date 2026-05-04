@@ -22,7 +22,7 @@ import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 /**
  * Provides functionality needed to test synthetic source support in text and text-like fields (e.g. "text", "annotated_text").
@@ -58,28 +58,32 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
     private static FieldMapper.DocValuesParameter.Values docValuesParams(boolean supportsDocValues) {
         // currently, only text fields support doc values, so if doc_values aren't supported, then there is no reason to generate them
         if (supportsDocValues == false) {
-            return FieldMapper.DocValuesParameter.Values.DISABLED;
+            return new FieldMapper.DocValuesParameter.Values(
+                false,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                FieldMapper.DocValuesParameter.Values.MultiValue.TRUE
+            );
         }
 
         // text field doc_values support is behind a feature flag
         if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
-            return FieldMapper.DocValuesParameter.Values.DISABLED;
+            return new FieldMapper.DocValuesParameter.Values(
+                false,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                FieldMapper.DocValuesParameter.Values.MultiValue.TRUE
+            );
         }
 
-        return switch (randomInt(2)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(
-                true,
-                FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                FieldMapper.DocValuesParameter.Values.MultiValue.ARRAYS
-            );
-            case 1 -> new FieldMapper.DocValuesParameter.Values(
-                true,
-                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                FieldMapper.DocValuesParameter.Values.MultiValue.ARRAYS
-            );
-            case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
-            default -> throw new IllegalStateException();
-        };
+        // Randomize each axis independently. MultiValue.FALSE is intentionally excluded: text fields' synthetic-source path
+        // would require constraining inputs to a single value per document, which the example generator below does not do.
+        return new FieldMapper.DocValuesParameter.Values(
+            randomBoolean(),
+            randomFrom(FieldMapper.DocValuesParameter.Values.Cardinality.values()),
+            randomFrom(
+                FieldMapper.DocValuesParameter.Values.MultiValue.TRUE,
+                FieldMapper.DocValuesParameter.Values.MultiValue.PRESERVE_ORDER
+            )
+        );
     }
 
     public static void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader) {
@@ -190,6 +194,9 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 } else {
                     b.startObject("doc_values");
                     b.field("cardinality", docValues.cardinality().toString());
+                    if (docValues.multiValue() != FieldMapper.DocValuesParameter.Values.MultiValue.TRUE) {
+                        b.field("multi_value", docValues.multiValue().toString());
+                    }
                     b.endObject();
                 }
             };

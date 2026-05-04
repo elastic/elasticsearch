@@ -44,19 +44,12 @@ public class TokenCountFieldMapper extends FieldMapper {
         return (TokenCountFieldMapper) in;
     }
 
-    public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
-        true,
-        FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-        FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
-    );
-
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.sorted(
-            DEFAULT_DOC_VALUES_PARAMS,
+        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.builder(
             m -> toType(m).docValuesParameters()
-        );
+        ).enabled(true).multiValue(FieldMapper.DocValuesParameter.Values.MultiValue.TRUE).build();
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 
         private final Parameter<NamedAnalyzer> analyzer = Parameter.analyzerParam("analyzer", true, m -> toType(m).analyzer, () -> null);

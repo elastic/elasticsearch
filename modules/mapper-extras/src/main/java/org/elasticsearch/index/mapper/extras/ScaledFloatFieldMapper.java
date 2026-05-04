@@ -89,19 +89,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         return (ScaledFloatFieldMapper) in;
     }
 
-    public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
-        true,
-        FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-        FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
-    );
-
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed;
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.sorted(
-            DEFAULT_DOC_VALUES_PARAMS,
+        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.builder(
             m -> toType(m).docValuesParameters()
-        );
+        ).enabled(true).multiValue(FieldMapper.DocValuesParameter.Values.MultiValue.TRUE).build();
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Explicit<Boolean>> ignoreMalformed;

@@ -47,6 +47,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -282,7 +283,7 @@ public abstract class FieldMapper extends Mapper {
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
     /**
-     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=no}). When {@code true}, a second value for the same
+     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=false}). When {@code true}, a second value for the same
      * document throws. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
      */
     protected boolean isSingleValueEnforced() {
@@ -1486,23 +1487,22 @@ public abstract class FieldMapper extends Mapper {
             /**
              * Controls how multiple values per document are handled in doc values.
              * <p>
-             * {@code NO} restricts the field to a single value per document.
-             * {@code SORTED} stores multiple values sorted per document (numeric types).
-             * {@code SORTED_SET} stores multiple values sorted and deduplicated per document (keyword/IP types).
-             * {@code ARRAYS} allows multiple values, keeps original ordering, and supports null values.
+             * {@code FALSE} restricts the field to a single value per document.
+             * {@code TRUE} stores multiple values per document; ordering and dedup behavior is determined by the field type's underlying
+             * backing doc values field.
+             * {@code PRESERVE_ORDER} stores multiple values, keeps original ordering, and supports nulls.
              */
             public enum MultiValue {
-                NO,
-                SORTED,
-                SORTED_SET,
-                ARRAYS;
+                FALSE,
+                TRUE,
+                PRESERVE_ORDER;
 
                 /**
                  * Whether this mode restricts the field to a single value per document. Callers use this to branch between single-valued
                  * and multi-valued code paths (e.g. Lucene field selection, block loaders, doc-values-fallback queries).
                  */
                 public boolean isSingleValued() {
-                    return this == NO;
+                    return this == FALSE;
                 }
 
                 @Override
@@ -1510,62 +1510,69 @@ public abstract class FieldMapper extends Mapper {
                     return name().toLowerCase(Locale.ROOT);
                 }
             }
-
-            public static Values DISABLED = new Values(false, Cardinality.LOW, MultiValue.SORTED);
         }
 
         public final Optional<Parameter<Values.Cardinality>> cardinalityParameter;
-        public final Parameter<Values.MultiValue> multiValueParameter;
+        public final Optional<Parameter<Values.MultiValue>> multiValueParameter;
 
-        /**
-         * Factory for field types that do not support cardinality. Use for numeric types that use {@code SortedNumericDocValuesField}.
-         */
-        public static DocValuesParameter sorted(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            return new DocValuesParameter(
-                defaultValue,
-                initializer,
-                false,
-                EnumSet.of(Values.MultiValue.NO, Values.MultiValue.SORTED, Values.MultiValue.ARRAYS)
-            );
+        public static DefaultBuilder builder(Function<FieldMapper, Values> initializer) {
+            return new DefaultBuilder(initializer);
         }
 
         /**
-         * Factory for field types that do not support cardinality. Use for types that use {@code SortedSetDocValuesField}
-         * (e.g. IP, flattened).
+         * Builder for default values for each option in the doc values config map.
          */
-        public static DocValuesParameter sortedSet(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            return new DocValuesParameter(
-                defaultValue,
-                initializer,
-                false,
-                EnumSet.of(Values.MultiValue.NO, Values.MultiValue.SORTED_SET, Values.MultiValue.ARRAYS)
-            );
-        }
+        public static final class DefaultBuilder {
 
-        /**
-         * Factory for field types that support cardinality. Use for keyword fields.
-         */
-        public static DocValuesParameter sortedSetWithCardinality(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            return new DocValuesParameter(
-                defaultValue,
-                initializer,
-                true,
-                EnumSet.of(Values.MultiValue.NO, Values.MultiValue.SORTED_SET, Values.MultiValue.ARRAYS)
-            );
-        }
+            private final Function<FieldMapper, Values> initializer;
+            private Boolean enabledDefault;
+            private Values.MultiValue multiValueDefault;
+            private Values.Cardinality cardinalityDefault;
 
-        /**
-         * Factory for field types that support cardinality. Use for text-family fields (text, match_only_text).
-         */
-        public static DocValuesParameter arraysWithCardinality(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            return new DocValuesParameter(defaultValue, initializer, true, EnumSet.of(Values.MultiValue.NO, Values.MultiValue.ARRAYS));
+            private DefaultBuilder(Function<FieldMapper, Values> initializer) {
+                this.initializer = Objects.requireNonNull(initializer);
+            }
+
+            public DefaultBuilder enabled(boolean defaultValue) {
+                if (this.enabledDefault != null) {
+                    throw new IllegalStateException("enabled() already set");
+                }
+                this.enabledDefault = defaultValue;
+                return this;
+            }
+
+            public DefaultBuilder multiValue(Values.MultiValue defaultValue) {
+                if (this.multiValueDefault != null) {
+                    throw new IllegalStateException("multiValue() already set");
+                }
+                this.multiValueDefault = Objects.requireNonNull(defaultValue);
+                return this;
+            }
+
+            public DefaultBuilder cardinality(Values.Cardinality defaultValue) {
+                if (this.cardinalityDefault != null) {
+                    throw new IllegalStateException("cardinality() already set");
+                }
+                this.cardinalityDefault = Objects.requireNonNull(defaultValue);
+                return this;
+            }
+
+            public DocValuesParameter build() {
+                if (enabledDefault == null) {
+                    throw new IllegalStateException("enabled() not set");
+                }
+                Values.Cardinality effectiveCardinality = cardinalityDefault != null ? cardinalityDefault : Values.Cardinality.LOW;
+                Values.MultiValue effectiveMultiValue = multiValueDefault != null ? multiValueDefault : Values.MultiValue.TRUE;
+                Values defaults = new Values(enabledDefault, effectiveCardinality, effectiveMultiValue);
+                return new DocValuesParameter(defaults, initializer, cardinalityDefault != null, multiValueDefault != null);
+            }
         }
 
         private DocValuesParameter(
             Values defaultValue,
             Function<FieldMapper, Values> initializer,
             boolean supportsCardinality,
-            Set<Values.MultiValue> allowedMultiValues
+            boolean supportsMultiValue
         ) {
             super(PARAMETER_NAME, false, () -> defaultValue, null, initializer, null, Values::toString);
 
@@ -1583,14 +1590,20 @@ public abstract class FieldMapper extends Mapper {
                 cardinalityParameter = Optional.empty();
             }
 
-            multiValueParameter = Parameter.restrictedEnumParam(
-                "multi_value",
-                false,
-                m -> initializer.apply(m).multiValue,
-                defaultValue.multiValue,
-                Values.MultiValue.class,
-                allowedMultiValues
-            );
+            if (supportsMultiValue) {
+                multiValueParameter = Optional.of(
+                    Parameter.restrictedEnumParam(
+                        "multi_value",
+                        false,
+                        m -> initializer.apply(m).multiValue,
+                        defaultValue.multiValue,
+                        Values.MultiValue.class,
+                        EnumSet.allOf(Values.MultiValue.class)
+                    )
+                );
+            } else {
+                multiValueParameter = Optional.empty();
+            }
         }
 
         /**
@@ -1602,13 +1615,12 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": true} - doc_values enabled with defaults</li>
          *   <li>{@code "doc_values": { "cardinality": "low" }} - doc_values enabled with LOW cardinality</li>
          *   <li>{@code "doc_values": { "cardinality": "high" }} - doc_values enabled with HIGH cardinality</li>
-         *   <li>{@code "doc_values": { "multi_value": "no" }} - single value enforced per document</li>
-         *   <li>{@code "doc_values": { "multi_value": "sorted" }} - multiple values sorted per document</li>
-         *   <li>{@code "doc_values": { "multi_value": "sorted_set" }} - multiple values sorted and deduplicated per document</li>
-         *   <li>{@code "doc_values": { "multi_value": "arrays" }} - multiple values stored as-is (no sorting or deduplication)</li>
+         *   <li>{@code "doc_values": { "multi_value": "false" }} - single value enforced per document</li>
+         *   <li>{@code "doc_values": { "multi_value": "true" }} - multiple values per document</li>
+         *   <li>{@code "doc_values": { "multi_value": "preserve_order" }} - multiple values stored with original ordering preserved</li>
          * </ul>
          * <p>
-         * Not all {@code multi_value} options are supported by every field type; unsupported options are rejected at mapping parse time.
+         * Sub-parameters that the field type does not expose (e.g. {@code cardinality} on numeric fields) are rejected at parse time.
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
          * additional cardinality and multi_value settings.
@@ -1616,21 +1628,36 @@ public abstract class FieldMapper extends Mapper {
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
             if (value instanceof Map<?, ?> valueMap && EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
-                cardinalityParameter.ifPresent(p -> p.parse(field, context, valueMap.get(p.name)));
-                multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
+                // Verify that the mapping only contains support parameters. For example, numeric fields don't support cardinality.
+                Set<String> knownKeys = new HashSet<>();
+                cardinalityParameter.ifPresent(p -> knownKeys.add(p.name));
+                multiValueParameter.ifPresent(p -> knownKeys.add(p.name));
+                for (Object key : valueMap.keySet()) {
+                    if (knownKeys.contains(Objects.toString(key)) == false) {
+                        throw new MapperParsingException("Unknown subkey [" + key + "] for [" + name + "] on field [" + field + "]");
+                    }
+                }
 
+                // Parse the actual parameters.
+                cardinalityParameter.ifPresent(p -> p.parse(field, context, valueMap.get(p.name)));
+                multiValueParameter.ifPresent(p -> p.parse(field, context, valueMap.get(p.name)));
+
+                // Finally, assign values.
+                Values defaults = getDefaultValue();
                 setValue(
                     new Values(
                         true,
-                        cardinalityParameter.map(Parameter::getValue).orElse(getDefaultValue().cardinality()),
-                        multiValueParameter.getValue()
+                        cardinalityParameter.map(Parameter::getValue).orElse(defaults.cardinality()),
+                        multiValueParameter.map(Parameter::getValue).orElse(defaults.multiValue())
                     )
                 );
             } else {
+                // The mapping doesn't use the extended doc values parameters, so parse doc values as a basic boolean.
+                Values defaults = getDefaultValue();
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
-                    setValue(new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue()));
+                    setValue(new Values(true, defaults.cardinality(), defaults.multiValue()));
                 } else {
-                    setValue(Values.DISABLED);
+                    setValue(new Values(false, defaults.cardinality(), defaults.multiValue()));
                 }
             }
         }
@@ -1639,7 +1666,7 @@ public abstract class FieldMapper extends Mapper {
         public void setValue(Values value) {
             super.setValue(value);
             cardinalityParameter.ifPresent(p -> p.setValue(value.cardinality));
-            multiValueParameter.setValue(value.multiValue);
+            multiValueParameter.ifPresent(p -> p.setValue(value.multiValue));
         }
 
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
@@ -1651,7 +1678,7 @@ public abstract class FieldMapper extends Mapper {
                     builder.field(name, true);
                 } else {
                     boolean cardinalityConfigured = cardinalityParameter.map(Parameter::isConfigured).orElse(false);
-                    boolean multiValueConfigured = multiValueParameter.isConfigured();
+                    boolean multiValueConfigured = multiValueParameter.map(Parameter::isConfigured).orElse(false);
                     if (includeDefaults == false && cardinalityConfigured == false && multiValueConfigured == false) {
                         // no sub-parameters were explicitly set; use the boolean shorthand to match the original source
                         builder.field(name, true);
@@ -1666,9 +1693,15 @@ public abstract class FieldMapper extends Mapper {
                                 }
                             }
                         });
-                        if (includeDefaults || multiValueConfigured) {
-                            builder.field(multiValueParameter.name, value.multiValue);
-                        }
+                        multiValueParameter.ifPresent(p -> {
+                            if (includeDefaults || p.isConfigured()) {
+                                try {
+                                    builder.field(p.name, value.multiValue);
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            }
+                        });
                         builder.endObject();
                     }
                 }

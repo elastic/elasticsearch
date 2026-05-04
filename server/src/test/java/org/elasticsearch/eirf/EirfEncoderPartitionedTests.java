@@ -162,18 +162,17 @@ public class EirfEncoderPartitionedTests extends ESTestCase {
     }
 
     /**
-     * Records every callback the sink receives. Uses {@link EirfEncoder.LeafSink.Mode#RAW_TEXT}
-     * so the encoder routes every primitive through {@link #onTextPrimitive} — keeps the
-     * recorded events comparable across primitive types regardless of the encoder's typed
-     * narrowing.
+     * Records every callback the sink receives. Returns {@code true} from {@link #passRawText()}
+     * so the encoder routes every primitive through {@link #onTextPrimitive} — keeps the recorded
+     * events comparable across primitive types regardless of the encoder's typed narrowing.
      */
     private static final class RecordingSink implements EirfEncoder.LeafSink {
         final List<String> events = new ArrayList<>();
         String lastDottedPath;
 
         @Override
-        public Mode mode() {
-            return Mode.RAW_TEXT;
+        public boolean passRawText() {
+            return true;
         }
 
         @Override

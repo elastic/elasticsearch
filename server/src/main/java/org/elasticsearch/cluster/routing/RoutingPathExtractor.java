@@ -22,8 +22,8 @@ import org.elasticsearch.xcontent.XContentString;
  * <p>Hashing parity with the source-parser-based path
  * ({@link IndexRouting.ExtractFromSource.ForRoutingPath#hashSource}) is preserved by feeding the
  * exact same UTF-8 byte slice ({@link XContentString.UTF8Bytes}) the parser already emits at every
- * leaf — see {@link RoutingHashBuilder#addHash(String, BytesRef)}. Hence the
- * {@link EirfEncoder.LeafSink.Mode#RAW_TEXT RAW_TEXT} mode.
+ * leaf — see {@link RoutingHashBuilder#addHash(String, BytesRef)}. Hence
+ * {@link EirfEncoder.LeafSink#passRawText()} returns {@code true}.
  */
 final class RoutingPathExtractor extends RoutingExtractor {
 
@@ -36,8 +36,8 @@ final class RoutingPathExtractor extends RoutingExtractor {
     }
 
     @Override
-    public EirfEncoder.LeafSink.Mode mode() {
-        return EirfEncoder.LeafSink.Mode.RAW_TEXT;
+    public boolean passRawText() {
+        return true;
     }
 
     @Override

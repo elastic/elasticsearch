@@ -28,9 +28,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Encodes documents into EIRF (Elastic Internal Row Format) batches.
@@ -63,11 +61,12 @@ public class EirfEncoder implements Releasable {
 
     private static final int HEADER_SIZE = 32;
     private static final int INITIAL_CAPACITY = 16;
+    private static final int INITIAL_PARTITION_CAPACITY = 4;
     public static final int DEFAULT_PARTITION = 0;
 
     private final EirfSchema schema;
     private final ScratchBuffers scratch;
-    private final Map<Integer, Partition> partitions = new HashMap<>();
+    private Partition[] partitions;
     /** Cached dotted path per leaf column index. Lazily filled and grown as the schema grows. */
     private String[] cachedPath;
     /** True after {@link #parseToScratch} returns and before {@link #commitScratchTo} is called. */
@@ -77,6 +76,7 @@ public class EirfEncoder implements Releasable {
         this.schema = new EirfSchema();
         this.scratch = new ScratchBuffers(INITIAL_CAPACITY);
         this.cachedPath = new String[INITIAL_CAPACITY];
+        this.partitions = new Partition[INITIAL_PARTITION_CAPACITY];
     }
 
     /**
@@ -168,7 +168,7 @@ public class EirfEncoder implements Releasable {
      * Returns 0 for partitions that have never been written to.
      */
     public int docCount(int partitionKey) {
-        Partition partition = partitions.get(partitionKey);
+        Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
         return partition == null ? 0 : partition.docCount;
     }
 
@@ -177,7 +177,7 @@ public class EirfEncoder implements Releasable {
      * {@code partitionKey}.
      */
     public boolean hasPartition(int partitionKey) {
-        Partition partition = partitions.get(partitionKey);
+        Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
         return partition != null && partition.docCount > 0;
     }
 
@@ -207,10 +207,12 @@ public class EirfEncoder implements Releasable {
 
     @Override
     public void close() {
-        for (Partition partition : partitions.values()) {
-            partition.rowOutput.close();
+        for (Partition partition : partitions) {
+            if (partition != null) {
+                partition.rowOutput.close();
+            }
         }
-        partitions.clear();
+        Arrays.fill(partitions, null);
     }
 
     public static EirfBatch encode(List<BytesReference> sources, XContentType xContentType) throws IOException {
@@ -223,10 +225,17 @@ public class EirfEncoder implements Releasable {
     }
 
     private Partition getOrCreatePartition(int partitionKey) {
-        Partition partition = partitions.get(partitionKey);
+        if (partitionKey >= partitions.length) {
+            int newCap = partitions.length;
+            while (partitionKey >= newCap) {
+                newCap <<= 1;
+            }
+            partitions = Arrays.copyOf(partitions, newCap);
+        }
+        Partition partition = partitions[partitionKey];
         if (partition == null) {
             partition = new Partition(new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE));
-            partitions.put(partitionKey, partition);
+            partitions[partitionKey] = partition;
         }
         return partition;
     }
@@ -262,50 +271,32 @@ public class EirfEncoder implements Releasable {
      * {@code RoutingHashBuilder.extractItem} behavior, which skips nulls), nor for elements inside
      * arrays or empty objects encoded as {@code KEY_VALUE} leaves.
      *
-     * <p>The encoder dispatches differently based on the sink's {@link #mode()} so that consumers
-     * who want typed values (e.g. tsid dimensions) don't pay the cost of materializing
-     * {@code parser.optimizedText().bytes()} on every numeric / boolean leaf, and consumers who
-     * want the raw UTF-8 byte slice (e.g. routing-path hashing) don't see the encoder's typed
-     * narrowing.
+     * <p>The encoder dispatches differently based on {@link #passRawText()}: sinks that want the
+     * raw UTF-8 byte slice for every primitive (e.g. routing-path hashing) get
+     * {@link #onTextPrimitive} for every leaf, and sinks that want typed values (e.g. tsid
+     * dimensions) get {@link #onLongPrimitive} / {@link #onDoublePrimitive} /
+     * {@link #onBooleanPrimitive} for numeric and boolean leaves with no wasted
+     * {@code parser.optimizedText().bytes()} call.
      *
-     * <p>Arrays at leaf positions are signalled via {@link #onArrayLeaf} regardless of mode, so the
-     * caller can choose to fall back (e.g. to a source-parsing routing path) for the affected
-     * document — matters because today's source-parser-based routing extraction descends into
-     * arrays.
+     * <p>Arrays at leaf positions are signalled via {@link #onArrayLeaf} regardless, so the caller
+     * can react (e.g. throw to abandon batch encoding for the bulk).
      */
     public interface LeafSink {
 
-        /** Dispatch mode for {@link EirfEncoder#parseToScratch}. */
-        enum Mode {
-            /**
-             * Sink receives {@link #onTextPrimitive} for every primitive leaf, with the parser's
-             * canonical UTF-8 text bytes. The encoder's typed narrowing is invisible to the sink.
-             * Routing-path hashing uses this mode.
-             */
-            RAW_TEXT,
-            /**
-             * Sink receives type-specific callbacks ({@link #onLongPrimitive},
-             * {@link #onDoublePrimitive}, {@link #onBooleanPrimitive}) for numeric and boolean
-             * leaves, and {@link #onTextPrimitive} for {@code STRING} leaves and any unrecognized
-             * types the encoder can't classify. Tsid dimension extraction uses this mode.
-             */
-            TYPED
-        }
-
-        LeafSink NO_OP = new LeafSink() {
-            @Override
-            public Mode mode() {
-                return Mode.TYPED;
-            }
-        };
-
-        /** Dispatch mode chosen by this sink. The encoder caches this per-document. */
-        Mode mode();
+        LeafSink NO_OP = () -> false;
 
         /**
-         * Called in {@link Mode#RAW_TEXT} mode for every primitive leaf, and in {@link Mode#TYPED}
-         * mode for {@code STRING} leaves and unrecognized number types (BIG_DECIMAL / BIG_INTEGER)
-         * that the encoder narrows to a string representation.
+         * Returns true if this sink wants the parser's UTF-8 text bytes for every primitive leaf
+         * (via {@link #onTextPrimitive}), false if it wants typed values (via
+         * {@link #onLongPrimitive} / {@link #onDoublePrimitive} / {@link #onBooleanPrimitive}) for
+         * numeric and boolean leaves. The encoder reads this once per document.
+         */
+        boolean passRawText();
+
+        /**
+         * Called in raw-text mode ({@link #passRawText()} = {@code true}) for every primitive leaf,
+         * and in typed mode for {@code STRING} leaves and unrecognized number types (BIG_DECIMAL /
+         * BIG_INTEGER) that the encoder narrows to a string representation.
          *
          * @param columnIndex schema leaf index (stable across documents in this encoder)
          * @param dottedPath cached dotted path for the column
@@ -315,21 +306,21 @@ public class EirfEncoder implements Releasable {
         default void onTextPrimitive(int columnIndex, String dottedPath, byte type, XContentString.UTF8Bytes textBytes) {}
 
         /**
-         * Called in {@link Mode#TYPED} mode for {@code INT} and {@code LONG} primitives. The
-         * encoder narrows numerics that fit in the int range to {@code EirfType.INT}; subclasses
-         * can dispatch further on {@code type} if they want to feed e.g. {@code addIntDimension}
-         * vs {@code addLongDimension}.
+         * Called in typed mode ({@link #passRawText()} = {@code false}) for {@code INT} and
+         * {@code LONG} primitives. The encoder narrows numerics that fit in the int range to
+         * {@code EirfType.INT}; subclasses can dispatch further on {@code type} if they want to
+         * feed e.g. {@code addIntDimension} vs {@code addLongDimension}.
          */
         default void onLongPrimitive(int columnIndex, String dottedPath, byte type, long value) {}
 
         /**
-         * Called in {@link Mode#TYPED} mode for {@code FLOAT} and {@code DOUBLE} primitives. The
-         * value passed is the actual {@code double} (already reconstructed for narrowed
-         * {@code FLOAT} columns), not raw bits.
+         * Called in typed mode for {@code FLOAT} and {@code DOUBLE} primitives. The value passed is
+         * the actual {@code double} (already reconstructed for narrowed {@code FLOAT} columns),
+         * not raw bits.
          */
         default void onDoublePrimitive(int columnIndex, String dottedPath, byte type, double value) {}
 
-        /** Called in {@link Mode#TYPED} mode for boolean primitives. */
+        /** Called in typed mode for boolean primitives. */
         default void onBooleanPrimitive(int columnIndex, String dottedPath, boolean value) {}
 
         /**
@@ -432,7 +423,7 @@ public class EirfEncoder implements Releasable {
             }
 
             boolean firePathSink = sink != LeafSink.NO_OP;
-            boolean rawTextMode = firePathSink && sink.mode() == LeafSink.Mode.RAW_TEXT;
+            boolean rawTextMode = firePathSink && sink.passRawText();
             switch (token) {
                 case START_ARRAY -> {
                     PackedArray arr = parseArray(parser, scratch);

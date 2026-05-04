@@ -26,9 +26,9 @@ import org.elasticsearch.xcontent.XContentString;
  * org.elasticsearch.common.bytes.BytesReference) ForIndexDimensions.buildTsid}, which feeds
  * {@link XContentParserTsidFunnel}) is preserved by mapping each {@link EirfType} the encoder
  * produces to the same {@link TsidBuilder} call the funnel would have made for the same parser
- * token. The extractor opts into {@link EirfEncoder.LeafSink.Mode#TYPED TYPED} mode so it gets
- * unboxed values directly, avoiding a wasteful {@code parser.optimizedText().bytes()} call per
- * numeric / boolean leaf.
+ * token. The extractor returns {@code false} from {@link EirfEncoder.LeafSink#passRawText()} so
+ * the encoder hands it unboxed values directly, avoiding a wasteful
+ * {@code parser.optimizedText().bytes()} call per numeric / boolean leaf.
  *
  * <p>The encoder narrows numeric values by range — values that fit in an int land at
  * {@code EirfType.INT} regardless of how Jackson reported {@code numberType()}; values that don't
@@ -50,8 +50,8 @@ final class DimensionsExtractor extends RoutingExtractor {
     }
 
     @Override
-    public EirfEncoder.LeafSink.Mode mode() {
-        return EirfEncoder.LeafSink.Mode.TYPED;
+    public boolean passRawText() {
+        return false;
     }
 
     @Override

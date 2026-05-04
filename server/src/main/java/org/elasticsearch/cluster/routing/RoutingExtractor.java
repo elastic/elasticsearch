@@ -23,36 +23,6 @@ import org.elasticsearch.xcontent.XContentString;
  * {@code Partitioned}) return {@code null} from that factory and callers should use
  * {@link IndexRouting#indexShard(IndexRequest)} directly.
  *
- * <p>Lifecycle:
- * <ol>
- *   <li>Caller plugs the extractor into {@link EirfEncoder#parseToScratch} as the
- *       {@link EirfEncoder.LeafSink LeafSink}.</li>
- *   <li>The encoder fires the per-type primitive callbacks ({@link #onTextPrimitive},
- *       {@link #onLongPrimitive}, {@link #onDoublePrimitive}, {@link #onBooleanPrimitive}) and
- *       {@link #onArrayLeaf} for every leaf in the document, dispatched based on
- *       {@link Mode mode()}.</li>
- *   <li>If the parse completes normally, the caller invokes {@link #computeShardId(IndexRequest)}
- *       to obtain the shard id and apply any post-routing state (e.g. tsid stash on the request).</li>
- *   <li>If the parse throws (today: an array at a matched routing column, which the encoder
- *       packs into a single packed-array column and cannot replay element-by-element), the caller
- *       catches the exception, abandons EIRF encoding for the entire bulk, and routes every item
- *       through the inline-source path instead.</li>
- *   <li>{@link #reset()} prepares the extractor for the next document in the same bulk.</li>
- * </ol>
- *
- * <p>Concrete subclasses provide:
- * <ul>
- *   <li>{@link Mode mode()} — whether this extractor wants raw UTF-8 text bytes for every
- *       primitive leaf or typed values per primitive type.</li>
- *   <li>{@link #matchesField} — the strategy's path predicate, invoked at most once per leaf
- *       column on first encounter and cached for the remainder of the encoder's lifetime.</li>
- *   <li>One or more of {@link #handleTextPrimitive}, {@link #handleLongPrimitive},
- *       {@link #handleDoublePrimitive}, {@link #handleBooleanPrimitive} — the per-type builder
- *       feed for primitive leaves at matched columns.</li>
- *   <li>{@link #resetBuilderState} — per-document builder reset, called from {@link #reset()}.</li>
- *   <li>{@link #computeShardId} — strategy-specific finalization.</li>
- * </ul>
- *
  * <p>The column-level cache is intentionally <b>not</b> cleared between documents: column indices
  * are stable for the lifetime of the {@link EirfEncoder} they're attached to (the schema is built
  * up cumulatively across all docs in the bulk), so once column N's predicate result is known it
@@ -94,10 +64,7 @@ public abstract class RoutingExtractor implements EirfEncoder.LeafSink {
     @Override
     public final void onArrayLeaf(int columnIndex, String dottedPath) {
         // Both routing strategies' source-parser paths descend into arrays at matched columns and
-        // emit one entry per element; the encoder packs arrays into a single column and cannot
-        // replay that here. Throwing aborts the parse and is caught by BulkBatchEncoders, which
-        // disables EIRF encoding for the rest of the bulk and routes every item through the
-        // inline-source path.
+        // emit one entry per element.
         if (isMatchedColumn(columnIndex, dottedPath)) {
             throw new RoutingExtractionException("array at routing column [" + dottedPath + "] is not supported in batch encoding");
         }
@@ -121,25 +88,26 @@ public abstract class RoutingExtractor implements EirfEncoder.LeafSink {
     protected abstract boolean matchesField(String dottedPath);
 
     /**
-     * Called for {@code STRING} leaves at matched columns in any mode, and for every primitive
-     * leaf at matched columns when {@link #mode()} is {@link Mode#RAW_TEXT}. Default no-op so
-     * typed-mode subclasses that don't care about strings can leave it alone.
+     * Called for {@code STRING} leaves at matched columns regardless of {@link #passRawText()},
+     * and for every primitive leaf at matched columns when {@link #passRawText()} is {@code true}.
      */
     protected void handleTextPrimitive(String dottedPath, byte type, XContentString.UTF8Bytes textBytes) {}
 
     /**
-     * Called for {@code INT} / {@code LONG} leaves at matched columns when {@link #mode()} is
-     * {@link Mode#TYPED}. Default no-op so raw-mode subclasses can ignore typed callbacks.
+     * Called for {@code INT} / {@code LONG} leaves at matched columns when {@link #passRawText()}
+     * is {@code false}. Default no-op so raw-text subclasses can ignore typed callbacks.
      */
     protected void handleLongPrimitive(String dottedPath, byte type, long value) {}
 
     /**
-     * Called for {@code FLOAT} / {@code DOUBLE} leaves at matched columns when {@link #mode()} is
-     * {@link Mode#TYPED}.
+     * Called for {@code FLOAT} / {@code DOUBLE} leaves at matched columns when
+     * {@link #passRawText()} is {@code false}.
      */
     protected void handleDoublePrimitive(String dottedPath, byte type, double value) {}
 
-    /** Called for boolean leaves at matched columns when {@link #mode()} is {@link Mode#TYPED}. */
+    /**
+     * Called for boolean leaves at matched columns when {@link #passRawText()} is {@code false}.
+     */
     protected void handleBooleanPrimitive(String dottedPath, boolean value) {}
 
     /** Reset per-document builder state. The column-level cache is preserved across documents. */

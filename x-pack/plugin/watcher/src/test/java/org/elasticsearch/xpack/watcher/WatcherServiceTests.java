@@ -58,22 +58,32 @@ import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
+import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Clock;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -370,6 +380,154 @@ public class WatcherServiceTests extends ESTestCase {
         service.reload(csBuilder.metadata(metadata).build(), "whatever", exception -> {});
         verify(triggerService).pauseExecution();
         verify(triggerService, never()).start(any());
+    }
+
+    public void testOnWatchAddedSchedulesInRunningEngine() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+        final var watchId = randomAlphaOfLengthBetween(3, 12);
+
+        triggerService.start(List.of());
+
+        final Watch watch = createScheduleWatch(watchId);
+        service.onWatchAdded(watch);
+
+        assertThat(engine.getWatches(), hasKey(watchId));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+        assertThat(triggerService.count(), is(1L));
+    }
+
+    public void testOnWatchAddedQueuedWhilePaused() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+        final var watchId = randomAlphaOfLengthBetween(3, 12);
+
+        triggerService.pauseExecution();
+
+        final Watch watch = createScheduleWatch(watchId);
+        service.onWatchAdded(watch);
+
+        // engine refused the add (paused), so the watch must be retained in pending only
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+        assertThat(service.pendingWatches(), hasEntry(equalTo(watchId), is(watch)));
+        // stats are gated on the engine accepting the watch
+        assertThat(triggerService.count(), is(0L));
+    }
+
+    public void testOnWatchRemovedClearsScheduledWatchInRunningEngine() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+        final var watchId = randomAlphaOfLengthBetween(3, 12);
+
+        triggerService.start(List.of());
+        final Watch watch = createScheduleWatch(watchId);
+        service.onWatchAdded(watch);
+        assertThat(engine.getWatches(), hasKey(watchId));
+
+        service.onWatchRemoved(watchId);
+
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+        assertThat(triggerService.count(), is(0L));
+    }
+
+    public void testOnWatchRemovedClearsPendingWatchWhilePaused() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+        final var watchId = randomAlphaOfLengthBetween(3, 12);
+
+        triggerService.pauseExecution();
+        final Watch watch = createScheduleWatch(watchId);
+        service.onWatchAdded(watch);
+        assertThat(service.pendingWatches(), hasKey(watchId));
+
+        service.onWatchRemoved(watchId);
+
+        // both views must be empty: a delete that landed during the pause window must not be
+        // resurrected by a subsequent reload merging stale pending entries
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+    }
+
+    public void testOnWatchRemovedIsIdempotentForUnknownId() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+
+        triggerService.start(List.of());
+
+        // removing a watch that was never added must not throw and must leave both views untouched
+        service.onWatchRemoved("never-existed");
+
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+    }
+
+    public void testOnWatchAddedReplacesPreviousVersionInRunningEngine() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+        final var watchId = randomAlphaOfLengthBetween(3, 12);
+
+        triggerService.start(List.of());
+        final Watch first = createScheduleWatch(watchId);
+        final Watch second = createScheduleWatch(watchId);
+        service.onWatchAdded(first);
+        service.onWatchAdded(second);
+
+        // the second add replaces the first under the same id; pending must remain empty
+        assertThat(engine.getWatches().get(watchId), is(second));
+        assertThat(engine.getWatches().get(watchId), is(not(first)));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+    }
+
+    private WatcherService createWatcherService(TriggerService triggerService) {
+        return new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            mock(TriggeredWatchStore.class),
+            mock(ExecutionService.class),
+            mock(WatchParser.class),
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
+            @Override
+            void stopExecutor() {}
+        };
+    }
+
+    private static ScheduleTriggerEngineMock newEngineMock() {
+        return new ScheduleTriggerEngineMock(new ScheduleRegistry(Collections.emptySet()), Clock.systemUTC());
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static Watch createScheduleWatch(String id) {
+        final Watch watch = mock(Watch.class);
+        when(watch.id()).thenReturn(id);
+        // TriggerService.addToStats reads trigger().getSchedule().type() for schedule-typed watches
+
+        final Schedule schedule = mock(Schedule.class);
+        when(schedule.type()).thenReturn("interval");
+
+        final ScheduleTrigger trigger = mock(ScheduleTrigger.class);
+        when(trigger.type()).thenReturn(ScheduleTrigger.TYPE);
+        when(trigger.getSchedule()).thenReturn(schedule);
+        when(watch.trigger()).thenReturn(trigger);
+
+        final ExecutableInput noneInput = new ExecutableNoneInput();
+        when(watch.input()).thenReturn(noneInput);
+        when(watch.condition()).thenReturn(InternalAlwaysCondition.INSTANCE);
+        when(watch.actions()).thenReturn(Collections.emptyList());
+
+        final WatchStatus status = mock(WatchStatus.class);
+        final WatchStatus.State state = new WatchStatus.State(true, ZonedDateTime.now(ZoneOffset.UTC));
+        when(status.state()).thenReturn(state);
+        when(watch.status()).thenReturn(status);
+        return watch;
     }
 
     private static DiscoveryNode newNode() {

@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.Configuration;
-import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
 
@@ -81,7 +80,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     private WatcherIndexingListener listener;
     private WatchParser parser = mock(WatchParser.class);
     private ClockMock clock = new ClockMock();
-    private TriggerService triggerService = mock(TriggerService.class);
+    private WatcherIndexingEventConsumer indexingEventConsumer = mock(WatcherIndexingEventConsumer.class);
 
     private ShardId shardId = mock(ShardId.class);
     private Engine.IndexResult result = mock(Engine.IndexResult.class);
@@ -95,7 +94,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         clock.freeze();
         // Wire onWatchActive/onWatchInactive directly to triggerService so the existing verify(triggerService)
         // assertions still observe what the listener decides to do.
-        listener = new WatcherIndexingListener(parser, clock, () -> WatcherState.STARTED, triggerService::add, triggerService::remove);
+        listener = new WatcherIndexingListener(parser, clock, () -> WatcherState.STARTED, indexingEventConsumer);
 
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
@@ -139,15 +138,15 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         if (isNewWatch) {
             if (watchActive) {
-                verify(triggerService).add(eq(watch));
+                verify(indexingEventConsumer).onWatchAdded(eq(watch));
             } else {
-                verify(triggerService).remove(eq("_id"));
+                verify(indexingEventConsumer).onWatchRemoved(eq("_id"));
             }
         }
     }
 
     public void testPostIndexWhenStopped() throws Exception {
-        listener = new WatcherIndexingListener(parser, clock, () -> WatcherState.STOPPED, triggerService::add, triggerService::remove);
+        listener = new WatcherIndexingListener(parser, clock, () -> WatcherState.STOPPED, indexingEventConsumer);
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
         listener.setConfiguration(new Configuration(Watch.INDEX, map));
@@ -166,11 +165,10 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         listener.postIndex(shardId, operation, result);
         ZonedDateTime now = DateUtils.nowWithMillisResolution(clock);
         verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), any(), anyLong(), anyLong());
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(indexingEventConsumer);
     }
 
-    // this test emulates an index with 10 shards, and ensures that triggering only happens on a
-    // single shard
+    // this test emulates an index with 10 shards and ensures that triggering only happens on a single shard
     public void testPostIndexWatchGetsOnlyTriggeredOnceAcrossAllShards() throws Exception {
         String id = randomAlphaOfLength(10);
         int totalShardCount = randomIntBetween(1, 10);
@@ -192,9 +190,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         // no matter how many shards we had, this should have been only called once
         if (isNewWatch) {
             if (watchActive) {
-                verify(triggerService, times(1)).add(eq(watch));
+                verify(indexingEventConsumer, times(1)).onWatchAdded(eq(watch));
             } else {
-                verify(triggerService, times(1)).remove(eq(watch.id()));
+                verify(indexingEventConsumer, times(1)).onWatchRemoved(eq(watch.id()));
             }
         }
     }
@@ -241,7 +239,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, result);
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(indexingEventConsumer);
     }
 
     public void testPostIndexRemoveTriggerOnDocumentRelatedException_ignoreNonWatcherDocument() throws Exception {
@@ -251,7 +249,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(randomAlphaOfLength(4));
 
         listener.postIndex(shardId, operation, result);
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(indexingEventConsumer);
     }
 
     public void testPostIndexRemoveTriggerOnEngineLevelException() throws Exception {
@@ -259,7 +257,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(indexingEventConsumer);
     }
 
     public void testPostIndexRemoveTriggerOnEngineLevelException_ignoreNonWatcherDocument() throws Exception {
@@ -268,14 +266,14 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(indexingEventConsumer);
     }
 
     public void testPreDeleteCheckActive() throws Exception {
         listener.setConfiguration(INACTIVE);
         listener.preDelete(shardId, delete);
 
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(indexingEventConsumer);
     }
 
     public void testPreDeleteCheckIndex() throws Exception {
@@ -283,7 +281,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         listener.preDelete(shardId, delete);
 
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(indexingEventConsumer);
     }
 
     public void testPreDelete() throws Exception {
@@ -292,7 +290,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         listener.preDelete(shardId, delete);
 
-        verify(triggerService).remove(eq("_id"));
+        verify(indexingEventConsumer).onWatchRemoved(eq("_id"));
     }
 
     //
@@ -306,7 +304,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     public void testClusterChangedNoWatchIndex() throws Exception {
-        final var localShards = Map.of(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
+        final var localShards = Map.of(shardId, new ShardAllocationConfiguration(0, 1, List.of("foo")));
         Configuration randomConfiguration = new Configuration(randomAlphaOfLength(10), localShards);
         listener.setConfiguration(randomConfiguration);
 

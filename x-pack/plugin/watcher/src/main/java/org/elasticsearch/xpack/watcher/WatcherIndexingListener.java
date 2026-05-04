@@ -43,7 +43,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -68,32 +67,19 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     private final WatchParser parser;
     private final Clock clock;
     private final Supplier<WatcherState> watcherState;
-    /**
-     * Atomically registers an active watch with the trigger engine and records it in the pending-watches map. Both
-     * mutations happen under the same lock in {@link WatcherService}, so a concurrent {@link #preDelete} cannot
-     * interleave between the engine update and the pending update and leave the two views inconsistent.
-     */
-    private final Consumer<Watch> onWatchAdded;
-    /**
-     * Atomically removes a watch from the pending-watches map and the trigger engine. Same locking guarantee as
-     * {@link #onWatchAdded}: a concurrent {@code postIndex} cannot resurrect a deleted watch by sneaking a put in
-     * between the two halves of the removal.
-     */
-    private final Consumer<String> onWatchRemoved;
+    private final WatcherIndexingEventConsumer indexingEventConsumer;
     private volatile Configuration configuration = INACTIVE;
 
     WatcherIndexingListener(
         WatchParser parser,
         Clock clock,
         Supplier<WatcherState> watcherState,
-        Consumer<Watch> onWatchAdded,
-        Consumer<String> onWatchRemoved
+        WatcherIndexingEventConsumer indexingEventConsumer
     ) {
         this.parser = parser;
         this.clock = clock;
         this.watcherState = watcherState;
-        this.onWatchAdded = onWatchAdded;
-        this.onWatchRemoved = onWatchRemoved;
+        this.indexingEventConsumer = indexingEventConsumer;
     }
 
     // package private for testing
@@ -156,10 +142,10 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                 if (shouldBeTriggered && EnumSet.of(WatcherState.STOPPING, WatcherState.STOPPED).contains(currentState) == false) {
                     if (watch.status().state().isActive()) {
                         logger.debug("adding watch [{}] to trigger service", watch.id());
-                        onWatchAdded.accept(watch);
+                        indexingEventConsumer.onWatchAdded(watch);
                     } else {
                         logger.debug("removing watch [{}] from trigger service", watch.id());
-                        onWatchRemoved.accept(watch.id());
+                        indexingEventConsumer.onWatchRemoved(watch.id());
                     }
                 } else {
                     logger.debug("watch [{}] should not be triggered. watcher state [{}]", watch.id(), currentState);
@@ -197,7 +183,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
         if (isWatchDocument(shardId.getIndexName())) {
             logger.debug("removing watch [{}] from trigger service via delete", delete.id());
-            onWatchRemoved.accept(delete.id());
+            indexingEventConsumer.onWatchRemoved(delete.id());
         }
         return delete;
     }

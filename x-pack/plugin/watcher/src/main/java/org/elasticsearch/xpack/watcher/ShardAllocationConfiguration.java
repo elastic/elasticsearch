@@ -22,13 +22,12 @@ import static java.util.stream.Collectors.toMap;
 /// number of those allocations, and the sorted allocation ids themselves.
 ///
 /// Given a watch id, [#shouldBeTriggered] returns whether the local node is the owner of the watch according to
-/// the consistent-hash mapping `Murmur3(id) mod shardCount == index`. Used by both
-/// [WatcherIndexingListener#postIndex] and [WatcherService] to keep the routing decision in one place.
+/// the consistent-hash mapping `Murmur3(id) mod shardCount == index`.
 record ShardAllocationConfiguration(int index, int shardCount, List<String> allocationIds) {
 
     public boolean shouldBeTriggered(String id) {
-        int hash = Murmur3HashFunction.hash(id);
-        int shardIndex = Math.floorMod(hash, shardCount);
+        final int hash = Murmur3HashFunction.hash(id);
+        final int shardIndex = Math.floorMod(hash, shardCount);
         return shardIndex == index;
     }
 
@@ -38,7 +37,6 @@ record ShardAllocationConfiguration(int index, int shardCount, List<String> allo
     /// [#shouldBeTriggered] can be made without further routing-table lookups.
     ///
     /// Example:
-    ///
     ///   - ShardId(".watches", 0)
     ///   - all sorted allocation ids in the cluster: `[a, b, c, d]`
     ///   - local allocation id: `b` (index position 1)
@@ -49,14 +47,14 @@ record ShardAllocationConfiguration(int index, int shardCount, List<String> allo
     }
 
     private static ShardAllocationConfiguration shardAllocationConfiguration(IndexRoutingTable routingTable, ShardRouting shardRouting) {
-        List<String> allocationIds = routingTable.shard(shardRouting.shardId().getId())
+        final List<String> allocationIds = routingTable.shard(shardRouting.shardId().getId())
             .activeShards()
             .stream()
             .map(ShardRouting::allocationId)
             .map(AllocationId::getId)
             .sorted()
             .toList();
-        int idx = allocationIds.indexOf(shardRouting.allocationId().getId());
+        final int idx = allocationIds.indexOf(shardRouting.allocationId().getId());
         return new ShardAllocationConfiguration(idx, allocationIds.size(), allocationIds);
     }
 }

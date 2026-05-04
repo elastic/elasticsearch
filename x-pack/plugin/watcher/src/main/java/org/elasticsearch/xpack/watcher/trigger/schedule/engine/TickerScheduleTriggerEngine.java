@@ -107,8 +107,8 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         if (isRunning.get() == false) {
             return false;
         }
-        ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
-        ActiveSchedule currentSchedule = schedules.get(watch.id());
+        final ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
+        final ActiveSchedule currentSchedule = schedules.get(watch.id());
         // only update the schedules data structure if the scheduled trigger really has changed, otherwise the time would be reset again
         // resulting in later executions, as the time would only count after a watch has been stored, as this code is triggered by the
         // watcher indexing listener

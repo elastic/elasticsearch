@@ -67,7 +67,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalState;
 import static org.elasticsearch.xpack.core.watcher.watch.Watch.INDEX;
 
-public class WatcherService {
+public class WatcherService implements WatcherIndexingEventConsumer {
 
     private static final String LIFECYCLE_THREADPOOL_NAME = "watcher-lifecycle";
     private static final Logger logger = LogManager.getLogger(WatcherService.class);
@@ -82,13 +82,6 @@ public class WatcherService {
     private final TimeValue defaultSearchTimeout;
     private final AtomicLong processedClusterStateVersion = new AtomicLong(0);
     private final ExecutorService executor;
-    /**
-     * Watches that {@link WatcherIndexingListener#postIndex} observed since the last reload finished. Drained at the
-     * start of {@link #loadWatches} and merged with the index search results so a watch that is indexed while a reload
-     * is in flight (i.e. between the search and {@code triggerService.start}) is still scheduled by that reload.
-     * Entries are filtered through the same shard-routing predicate as the search results, so an entry that no longer
-     * belongs on this node by the time the reload runs is simply dropped instead of polluting the trigger engine.
-     */
     private final Map<String, Watch> pendingWatches = new ConcurrentHashMap<>();
 
     WatcherService(
@@ -331,10 +324,9 @@ public class WatcherService {
         try {
             refreshWatches(indexMetadata);
 
-            final Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigurations(clusterState, indexMetadata);
-
+            final Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigs(clusterState, indexMetadata);
             if (shardConfigs == null) {
-                return List.of(); // no shard configs mean the index is not yet ready, so we can't load watches yet'
+                return List.of(); // no shard configs means the index is not yet ready, so we can't load watches yet'
             }
 
             SearchRequest searchRequest = new SearchRequest(INDEX).scroll(scrollTimeout)
@@ -381,12 +373,9 @@ public class WatcherService {
         return watches;
     }
 
-    private static Map<ShardId, ShardAllocationConfiguration> shardAllocationConfigurations(
-        ClusterState clusterState,
-        IndexMetadata indexMetadata
-    ) {
+    private static Map<ShardId, ShardAllocationConfiguration> shardAllocationConfigs(ClusterState state, IndexMetadata indexMetadata) {
         // find out local shards
-        final RoutingNode routingNode = clusterState.getRoutingNodes().node(clusterState.nodes().getLocalNodeId());
+        final RoutingNode routingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         // yes, this can happen, if the state is not recovered
         if (routingNode == null) {
             return null;
@@ -396,13 +385,25 @@ public class WatcherService {
         final List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
 
         @NotMultiProjectCapable(description = "Watcher is not available in serverless")
-        final IndexRoutingTable indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(watchIndexName);
+        final IndexRoutingTable indexRoutingTable = state.routingTable(ProjectId.DEFAULT).index(watchIndexName);
         return ShardAllocationConfiguration.forLocalShards(localShards, indexRoutingTable);
     }
 
-    private void addPendingWatches(ClusterState state) {
+    // Non private for unit testing purposes
+    void addPendingWatches(ClusterState state) {
         final IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, state.metadata());
-        final Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigurations(state, indexMetadata);
+        if (indexMetadata == null) {
+            // no index means there is nothing to schedule against; drop anything that was buffered
+            synchronized (pendingWatches) {
+                pendingWatches.clear();
+            }
+            return;
+        }
+        final Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigs(state, indexMetadata);
+        if (shardConfigs == null) {
+            // routing not yet recovered on this node — keep pending watches around for the next reload
+            return;
+        }
         final int numShards = indexMetadata.getNumberOfShards();
         synchronized (pendingWatches) {
             for (Watch pendingWatch : pendingWatches.values()) {
@@ -438,14 +439,8 @@ public class WatcherService {
         return null;
     }
 
-    /**
-     * Atomically attempt to schedule an active watch and, if the engine refuses (paused), retain the watch in the
-     * pending-watches map so the next reload picks it up. A running engine accepts the watch immediately and we skip
-     * the pending entry — the next reload will reload the watch from the index search anyway. Both branches happen
-     * under the same lock so a concurrent {@link #onWatchRemoved} cannot interleave between the engine call and the
-     * pending update.
-     */
-    void onWatchAdded(Watch watch) {
+    @Override
+    public void onWatchAdded(Watch watch) {
         synchronized (pendingWatches) {
             if (triggerService.add(watch) == false) {
                 pendingWatches.put(watch.id(), watch);
@@ -453,16 +448,17 @@ public class WatcherService {
         }
     }
 
-    /**
-     * Atomically remove a watch from the pending-watches map and the trigger engine. Both happen under the same lock
-     * so a concurrent {@link #onWatchAdded} for the same id cannot resurrect a deleted watch by sneaking an add in
-     * between the two halves of the removal.
-     */
-    void onWatchRemoved(String watchId) {
+    @Override
+    public void onWatchRemoved(String watchId) {
         synchronized (pendingWatches) {
             pendingWatches.remove(watchId);
             triggerService.remove(watchId);
         }
+    }
+
+    // visible for testing
+    Map<String, Watch> pendingWatches() {
+        return Collections.unmodifiableMap(pendingWatches);
     }
 
     // Non private for unit testing purposes

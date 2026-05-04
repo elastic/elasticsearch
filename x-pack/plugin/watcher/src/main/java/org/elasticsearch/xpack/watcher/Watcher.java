@@ -540,13 +540,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
         final WatcherLifeCycleService watcherLifeCycleService = new WatcherLifeCycleService(clusterService, watcherService);
 
-        listener = new WatcherIndexingListener(
-            watchParser,
-            getClock(),
-            watcherLifeCycleService.getState(),
-            watcherService::onWatchAdded,
-            watcherService::onWatchRemoved
-        );
+        listener = new WatcherIndexingListener(watchParser, getClock(), watcherLifeCycleService.getState(), watcherService);
         clusterService.addListener(listener);
 
         logger.info("Watcher initialized components at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(getClock().millis()));

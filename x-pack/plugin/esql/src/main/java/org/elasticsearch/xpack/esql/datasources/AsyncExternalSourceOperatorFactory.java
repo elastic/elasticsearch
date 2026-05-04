@@ -17,23 +17,30 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -79,6 +86,8 @@ import static org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.
  * @see AsyncExternalSourceOperator
  */
 public class AsyncExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
+
+    private static final Logger logger = LogManager.getLogger(AsyncExternalSourceOperatorFactory.class);
 
     private final StorageProvider storageProvider;
     private final FormatReader formatReader;
@@ -487,6 +496,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages;
         @Nullable
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo;
+        @Nullable
+        StoragePath lastRangeFilePath;
+        @Nullable
+        Object lastFileContext;
 
         ProducerState(
             @Nullable ExternalSliceQueue queue,
@@ -679,20 +692,31 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     ? storageProvider.newObject(fileSplit.path(), Long.parseLong(fileLengthStr))
                     : storageProvider.newObject(fileSplit.path());
                 long rangeEnd = fileSplit.offset() + fileSplit.length();
-                pages = rangeReader.readRange(fullObj, cols, batchSize, fileSplit.offset(), rangeEnd, attributes, errorPolicy);
+                Object fileContext = fileSplit.path().equals(state.lastRangeFilePath) ? state.lastFileContext : null;
+                RangeReadContext rangeCtx = new RangeReadContext(cols, batchSize, fileSplit.offset(), rangeEnd, attributes, errorPolicy);
+                if (fileContext != null) {
+                    rangeCtx.setFileContext(fileContext);
+                }
+                pages = rangeReader.readRange(fullObj, rangeCtx);
+                state.lastRangeFilePath = fileSplit.path();
+                state.lastFileContext = rangeCtx.fileContext();
             } else {
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
-                boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-                boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
-                FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(cols)
-                    .batchSize(batchSize)
-                    .rowLimit(FormatReader.NO_LIMIT)
-                    .errorPolicy(errorPolicy)
-                    .firstSplit(firstSplit)
-                    .lastSplit(lastSplit)
-                    .build();
-                pages = fileReader.read(obj, ctx);
+                pages = openWithParallelism(fileReader, obj, cols, errorPolicy);
+                if (pages == null) {
+                    boolean firstSplit = fileSplit.offset() == 0
+                        || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+                    boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+                    FormatReadContext ctx = FormatReadContext.builder()
+                        .projectedColumns(cols)
+                        .batchSize(batchSize)
+                        .rowLimit(FormatReader.NO_LIMIT)
+                        .errorPolicy(errorPolicy)
+                        .firstSplit(firstSplit)
+                        .lastSplit(lastSplit)
+                        .build();
+                    pages = fileReader.read(obj, ctx);
+                }
             }
             CloseableIterator<Page> adapted = adaptSchema(pages, fileSplit.columnMapping(), state.driverContext);
             state.pages = wrapWithInjector(adapted, injector);
@@ -717,22 +741,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
         int fileIndex = state.fileIndex++;
         List<String> cols = state.projectedColumns;
-        boolean useParallel = rowLimit == FormatReader.NO_LIMIT && formatReader instanceof SegmentableFormatReader;
 
         CloseableIterator<Page> pages = null;
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
-            if (useParallel) {
-                pages = ParallelParsingCoordinator.parallelRead(
-                    (SegmentableFormatReader) formatReader,
-                    obj,
-                    cols,
-                    batchSize,
-                    parsingParallelism,
-                    executor,
-                    errorPolicy
-                );
-            } else {
+            pages = openWithParallelism(formatReader, obj, cols, errorPolicy);
+            if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(cols)
@@ -791,18 +805,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     ) {
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
-            CloseableIterator<Page> pages;
-            if (rowLimit == FormatReader.NO_LIMIT && formatReader instanceof SegmentableFormatReader segmentable) {
-                pages = ParallelParsingCoordinator.parallelRead(
-                    segmentable,
-                    storageObject,
-                    projectedColumns,
-                    batchSize,
-                    parsingParallelism,
-                    executor,
-                    errorPolicy
-                );
-            } else {
+            CloseableIterator<Page> pages = openWithParallelism(formatReader, storageObject, projectedColumns, errorPolicy);
+            if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
                     .batchSize(batchSize)
@@ -942,13 +946,129 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
     }
 
+    /**
+     * Resolves the effective inner reader and codec from a possibly-wrapped format reader.
+     * Used by dispatch sites to determine whether streaming parallel parsing is applicable.
+     */
+    static SegmentableFormatReader resolveSegmentableReader(FormatReader reader) {
+        if (reader instanceof SegmentableFormatReader seg) {
+            return seg;
+        }
+        if (reader instanceof CompressionDelegatingFormatReader cdr && cdr.unwrap() instanceof SegmentableFormatReader seg) {
+            return seg;
+        }
+        return null;
+    }
+
+    /**
+     * Single source of truth for how a {@link FormatReader} should be dispatched against parsing parallelism.
+     * Both {@link #openWithParallelism} and {@link #describe} resolve the same enum so the runtime path
+     * and the diagnostic string cannot drift.
+     */
+    enum ParallelDispatchMode {
+        /** Reader is a {@link SegmentableFormatReader} over an uncompressed input. */
+        SEGMENTABLE_UNCOMPRESSED,
+        /** Reader wraps a stream-only codec (gzip, zstd); use the streaming-parallel coordinator. */
+        STREAM_ONLY_COMPRESSED,
+        /** Reader wraps a splittable / indexed codec (bzip2); falls back to single-threaded reads for now. */
+        SPLITTABLE_OR_INDEXED_COMPRESSED,
+        /** Reader is not segmentable; parallel parsing does not apply. */
+        NOT_PARALLELIZABLE
+    }
+
+    static ParallelDispatchMode resolveDispatchMode(FormatReader reader) {
+        SegmentableFormatReader seg = resolveSegmentableReader(reader);
+        if (seg == null) {
+            return ParallelDispatchMode.NOT_PARALLELIZABLE;
+        }
+        if (reader instanceof CompressionDelegatingFormatReader cdr) {
+            DecompressionCodec codec = cdr.codec();
+            if (codec instanceof SplittableDecompressionCodec || codec instanceof IndexedDecompressionCodec) {
+                return ParallelDispatchMode.SPLITTABLE_OR_INDEXED_COMPRESSED;
+            }
+            return ParallelDispatchMode.STREAM_ONLY_COMPRESSED;
+        }
+        return ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED;
+    }
+
+    CloseableIterator<Page> openWithParallelism(FormatReader reader, StorageObject obj, List<String> cols, ErrorPolicy policy)
+        throws IOException {
+        if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
+            return null;
+        }
+        ParallelDispatchMode mode = resolveDispatchMode(reader);
+        switch (mode) {
+            case NOT_PARALLELIZABLE -> {
+                return null;
+            }
+            case SEGMENTABLE_UNCOMPRESSED -> {
+                SegmentableFormatReader seg = resolveSegmentableReader(reader);
+                return ParallelParsingCoordinator.parallelRead(seg, obj, cols, batchSize, parsingParallelism, executor, policy);
+            }
+            case STREAM_ONLY_COMPRESSED -> {
+                CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
+                SegmentableFormatReader seg = resolveSegmentableReader(reader);
+                DecompressionCodec codec = cdr.codec();
+                InputStream raw = obj.newStream();
+                InputStream decompressed;
+                try {
+                    decompressed = codec.decompress(raw);
+                } catch (Exception e) {
+                    raw.close();
+                    throw e;
+                }
+                try {
+                    // The stream-only codecs reachable here (gzip via GZIPInputStream, zstd via
+                    // ZstdInputStream) follow the JDK FilterInputStream convention: closing the
+                    // wrapper closes the underlying `raw`. New stream-only codecs added to this
+                    // path must preserve that contract.
+                    return StreamingParallelParsingCoordinator.parallelRead(
+                        seg,
+                        decompressed,
+                        cols,
+                        batchSize,
+                        parsingParallelism,
+                        executor,
+                        policy
+                    );
+                } catch (Exception e) {
+                    decompressed.close();
+                    throw e;
+                }
+            }
+            case SPLITTABLE_OR_INDEXED_COMPRESSED -> {
+                // Splittable / indexed codecs (e.g. bzip2) need codec-aware segmenting because
+                // ParallelParsingCoordinator works in raw-file byte space and would feed the inner
+                // line-oriented reader compressed bytes (yielding "Unrecognized token 'BZh91A...'"
+                // for bzip2). Until we wire splittable parallel decompression here, fall back to
+                // the single-threaded path through the CompressionDelegatingFormatReader, which
+                // wraps the StorageObject in a DecompressingStorageObject before reading.
+                CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
+                logger.debug(
+                    "falling back to single-threaded read for splittable/indexed codec [{}]: "
+                        + "codec-aware parallel decompression not yet wired",
+                    cdr.codec().name()
+                );
+                return null;
+            }
+            default -> throw new IllegalStateException("Unhandled dispatch mode: " + mode);
+        }
+    }
+
     @Override
     public String describe() {
         String asyncMode;
         if (formatReader instanceof RangeAwareFormatReader) {
             asyncMode = "range-split";
-        } else if (formatReader instanceof SegmentableFormatReader && parsingParallelism > 1) {
-            asyncMode = "parallel-parse(" + parsingParallelism + ")";
+        } else if (parsingParallelism > 1) {
+            asyncMode = switch (resolveDispatchMode(formatReader)) {
+                case SEGMENTABLE_UNCOMPRESSED -> "parallel-parse(" + parsingParallelism + ")";
+                case STREAM_ONLY_COMPRESSED -> "streaming-parallel-parse(" + parsingParallelism + ")";
+                // Splittable / indexed compressed paths fall back to single-threaded reads
+                // until codec-aware parallel decompression is wired in openWithParallelism.
+                case SPLITTABLE_OR_INDEXED_COMPRESSED -> "sync-wrapper";
+                case NOT_PARALLELIZABLE -> formatReader.supportsNativeAsync() ? "native-async" : "sync-wrapper";
+            };
         } else if (formatReader.supportsNativeAsync()) {
             asyncMode = "native-async";
         } else {

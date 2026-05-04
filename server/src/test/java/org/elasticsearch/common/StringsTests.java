@@ -339,6 +339,28 @@ public class StringsTests extends ESTestCase {
         assertEquals(1024 * 1024 + "[...]".length(), result.length());
     }
 
+    public void testToTruncatedStringPrettyHumanReadableOutputWithDefaultLimit() {
+        ChunkedToXContent chunkedToXContent = __ -> List.of(new TestToXContent(1, false), new TestToXContent(2, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, true, true);
+
+        assertFalse(result.endsWith("[...]"));
+        assertEquals("""
+            {
+              "field1" : "this is a value number 1",
+              "field2" : "this is a value number 2"
+            }""", result);
+    }
+
+    public void testToTruncatedStringPrettyHumanReadableOutputWithDefaultLimitEndsWithEllipsis() {
+        ChunkedToXContent chunkedToXContent = __ -> IntStream.range(1, 1_000_000).mapToObj(i -> new TestToXContent(i, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, true, false);
+
+        assertThat(result, endsWith("[...]"));
+        assertEquals(1024 * 1024 + "[...]".length(), result.length());
+    }
+
     public void testToTruncatedStringException() {
         ToXContent chunk = (b, p) -> { throw new IOException("boom!"); };
         ChunkedToXContent chunkedToXContent = __ -> List.of(chunk).iterator();

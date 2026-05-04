@@ -50,14 +50,7 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 
     @Override
     protected Map<String, Object> getMetricsAttributes(RetryMethod method, OperationPurpose purpose) {
-        return Map.of(
-            "repo_type",
-            S3Repository.TYPE,
-            "purpose",
-            purpose.getKey(),
-            "operation",
-            lookUpOperationNameByMethod(method)
-        );
+        return Map.of("repo_type", S3Repository.TYPE, "purpose", purpose.getKey(), "operation", lookUpOperationNameByMethod(method));
     }
 
     @Override

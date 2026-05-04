@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -44,11 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Resolver for external data sources (Iceberg tables, Parquet files, etc.).
@@ -407,63 +404,26 @@ public class ExternalSourceResolver {
 
     /**
      * Reads metadata from all files in parallel with bounded concurrency.
-     * Uses a semaphore to cap the number of concurrent metadata reads.
+     * Delegates to {@link BoundedParallelGather} which handles semaphore backpressure,
+     * fast-fail on error, and result ordering.
      */
     private Map<StoragePath, SourceMetadata> readAllFileMetadata(FileList fileList, Map<String, Object> config) throws Exception {
         int fileCount = fileList.fileCount();
-
-        if (fileCount == 1) {
-            StoragePath filePath = fileList.path(0);
-            SourceMetadata meta = resolveSingleSource(filePath.toString(), config);
-            return Map.of(filePath, meta);
-        }
-
-        Semaphore semaphore = new Semaphore(Math.min(fileCount, MAX_PARALLEL_METADATA_READS));
-        AtomicBoolean failed = new AtomicBoolean(false);
-
-        @SuppressWarnings("unchecked")
-        CompletableFuture<Map.Entry<StoragePath, SourceMetadata>>[] futures = new CompletableFuture[fileCount];
-
+        List<StoragePath> paths = new ArrayList<>(fileCount);
         for (int i = 0; i < fileCount; i++) {
-            StoragePath filePath = fileList.path(i);
-            futures[i] = CompletableFuture.supplyAsync(() -> {
-                if (failed.get()) {
-                    return null;
-                }
-                try {
-                    semaphore.acquire();
-                    try {
-                        SourceMetadata meta = resolveSingleSource(filePath.toString(), config);
-                        return Map.entry(filePath, meta);
-                    } finally {
-                        semaphore.release();
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Interrupted while reading metadata from [" + filePath + "]", e);
-                } catch (Exception e) {
-                    failed.set(true);
-                    throw new RuntimeException("Failed to read metadata from [" + filePath + "]: " + e.getMessage(), e);
-                }
-            }, executor);
+            paths.add(fileList.path(i));
         }
 
-        try {
-            CompletableFuture.allOf(futures).join();
-        } catch (CompletionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException rte) {
-                throw rte;
-            }
-            throw new RuntimeException("Failed to read file metadata in parallel", cause != null ? cause : e);
-        }
+        List<Map.Entry<StoragePath, SourceMetadata>> entries = BoundedParallelGather.gather(
+            paths,
+            filePath -> Map.entry(filePath, resolveSingleSource(filePath.toString(), config)),
+            MAX_PARALLEL_METADATA_READS,
+            executor
+        );
 
         Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
-        for (CompletableFuture<Map.Entry<StoragePath, SourceMetadata>> future : futures) {
-            Map.Entry<StoragePath, SourceMetadata> entry = future.get();
-            if (entry != null) {
-                result.put(entry.getKey(), entry.getValue());
-            }
+        for (Map.Entry<StoragePath, SourceMetadata> entry : entries) {
+            result.put(entry.getKey(), entry.getValue());
         }
         return result;
     }

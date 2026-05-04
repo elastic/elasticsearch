@@ -2739,13 +2739,13 @@ public class VerifierTests extends ESTestCase {
         airports.error("FROM airports | CHANGE_POINT scalerank", equalTo("1:17: Unknown column [@timestamp]"));
     }
 
-    public void testChangePointBy_unknownColumn() {
+    public void testChangePointByUnknownColumn() {
         assumeTrue("change_point_by must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
         var airports = analyzer().addAirports().stripErrorPrefix(true);
         airports.error("FROM airports | CHANGE_POINT scalerank ON scalerank BY blahblah", equalTo("1:56: Unknown column [blahblah]"));
     }
 
-    public void testChangePoint_keySortable() {
+    public void testChangePointKeySortable() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         for (DataType type : SORTABLE_TYPES) {
             defaultAnalyzer().query(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type));
@@ -2758,7 +2758,7 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testChangePointBy_groupingSortable() {
+    public void testChangePointByGroupingSortable() {
         assumeTrue("change_point_by must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
         for (DataType type : SORTABLE_TYPES) {
             defaultAnalyzer().query(Strings.format("ROW key=0, value=0, grp=NULL::%s\n | CHANGE_POINT value ON key BY grp", type));
@@ -2771,7 +2771,7 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testChangePoint_valueNumeric() {
+    public void testChangePointValueNumeric() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> numericTypes = List.of(DOUBLE, INTEGER, LONG, UNSIGNED_LONG);
         List<DataType> nonNumericTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()

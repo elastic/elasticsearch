@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.SupportsObservabilityTier;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -133,7 +135,7 @@ public class ChangePoint extends UnaryPlan
 
     @Override
     public boolean expressionsResolved() {
-        return value.resolved() && key.resolved() && groupings.stream().allMatch(Expression::resolved);
+        return value.resolved() && key.resolved() && Resolvables.resolved(groupings);
     }
 
     @Override
@@ -156,7 +158,7 @@ public class ChangePoint extends UnaryPlan
         if (groupings.isEmpty()) {
             return List.of(keyOrder);
         }
-        var orders = new java.util.ArrayList<Order>(groupings.size() + 1);
+        var orders = new ArrayList<Order>(groupings.size() + 1);
         for (Expression grouping : groupings) {
             orders.add(new Order(source(), grouping, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
         }

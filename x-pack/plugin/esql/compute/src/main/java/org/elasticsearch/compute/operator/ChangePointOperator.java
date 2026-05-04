@@ -144,7 +144,7 @@ public class ChangePointOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(
+        Releasables.closeExpectNoException(
             () -> Releasables.close(currentGroupPages),
             () -> Releasables.close(outputPages),
             encoder,
@@ -228,7 +228,7 @@ public class ChangePointOperator implements Operator {
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(encoderRow, encoder);
+                Releasables.closeExpectNoException(encoderRow);
             }
         }
     }

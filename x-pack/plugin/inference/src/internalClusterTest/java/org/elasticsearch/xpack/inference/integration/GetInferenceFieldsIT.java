@@ -71,11 +71,12 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     private static final String INDEX_1 = "index-1";
     private static final String INDEX_2 = "index-2";
-    private static final String[] ALL_INDICES = new String[] { INDEX_1, INDEX_2 };
     private static final String INDEX_ALIAS = "index-alias";
 
     private static final String EMBEDDING_INDEX = "embedding-index";
     private static final String EMBEDDING_FIELD = "embedding-field";
+
+    private static final String[] ALL_INDICES = new String[] { INDEX_1, INDEX_2, EMBEDDING_INDEX };
 
     private static final String INFERENCE_FIELD_1 = "inference-field-1";
     private static final String INFERENCE_FIELD_2 = "inference-field-2";
@@ -85,7 +86,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     private static final String TEXT_FIELD_2 = "text-field-2";
     private static final Map<String, Float> ALL_FIELDS = Collections.unmodifiableMap(
         generateDefaultWeightFieldMap(
-            Set.of(INFERENCE_FIELD_1, INFERENCE_FIELD_2, INFERENCE_FIELD_3, INFERENCE_FIELD_4, TEXT_FIELD_1, TEXT_FIELD_2)
+            Set.of(INFERENCE_FIELD_1, INFERENCE_FIELD_2, INFERENCE_FIELD_3, INFERENCE_FIELD_4, TEXT_FIELD_1, TEXT_FIELD_2, EMBEDDING_FIELD)
         )
     );
 
@@ -101,11 +102,22 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         new InferenceFieldWithTestMetadata(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID, 1.0f),
         new InferenceFieldWithTestMetadata(INFERENCE_FIELD_4, TEXT_EMBEDDING_INFERENCE_ID, 1.0f)
     );
+    private static final Set<InferenceFieldWithTestMetadata> EMBEDDING_INDEX_EXPECTED_INFERENCE_FIELDS = Set.of(
+        new InferenceFieldWithTestMetadata(EMBEDDING_FIELD, EMBEDDING_INFERENCE_ID, 1.0f)
+    );
 
     private static final Map<String, Class<? extends InferenceResults>> ALL_EXPECTED_INFERENCE_RESULTS = Map.of(
         SPARSE_EMBEDDING_INFERENCE_ID,
         TextExpansionResults.class,
         TEXT_EMBEDDING_INFERENCE_ID,
+        MlDenseEmbeddingResults.class
+    );
+    private static final Map<String, Class<? extends InferenceResults>> ALL_INDICES_EXPECTED_INFERENCE_RESULTS = Map.of(
+        SPARSE_EMBEDDING_INFERENCE_ID,
+        TextExpansionResults.class,
+        TEXT_EMBEDDING_INFERENCE_ID,
+        MlDenseEmbeddingResults.class,
+        EMBEDDING_INFERENCE_ID,
         MlDenseEmbeddingResults.class
     );
 
@@ -181,7 +193,9 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
                 INDEX_1,
                 Set.of(new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, SPARSE_EMBEDDING_INFERENCE_ID, 2.0f)),
                 INDEX_2,
-                Set.of(new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, TEXT_EMBEDDING_INFERENCE_ID, 2.0f))
+                Set.of(new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, TEXT_EMBEDDING_INFERENCE_ID, 2.0f)),
+                EMBEDDING_INDEX,
+                Set.of()
             ),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
@@ -196,7 +210,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
                 false,
                 "foo"
             ),
-            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
+            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of(), EMBEDDING_INDEX, Set.of()),
             Map.of()
         );
     }
@@ -204,8 +218,15 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     public void testResolveFieldWildcards() {
         assertSuccessfulRequest(
             new GetInferenceFieldsInternalAction.Request(ALL_INDICES, generateDefaultWeightFieldMap(Set.of("*")), true, false, "foo"),
-            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
-            ALL_EXPECTED_INFERENCE_RESULTS
+            Map.of(
+                INDEX_1,
+                INDEX_1_EXPECTED_INFERENCE_FIELDS,
+                INDEX_2,
+                INDEX_2_EXPECTED_INFERENCE_FIELDS,
+                EMBEDDING_INDEX,
+                EMBEDDING_INDEX_EXPECTED_INFERENCE_FIELDS
+            ),
+            ALL_INDICES_EXPECTED_INFERENCE_RESULTS
         );
 
         assertSuccessfulRequest(
@@ -226,7 +247,9 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
                 Set.of(
                     new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, TEXT_EMBEDDING_INFERENCE_ID, 3.5f),
                     new InferenceFieldWithTestMetadata(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID, 2.0f)
-                )
+                ),
+                EMBEDDING_INDEX,
+                Set.of()
             ),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
@@ -295,7 +318,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
                 false,
                 "foo"
             ),
-            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
+            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of(), EMBEDDING_INDEX, Set.of()),
             Map.of()
         );
 
@@ -307,7 +330,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
                 false,
                 "foo"
             ),
-            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
+            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of(), EMBEDDING_INDEX, Set.of()),
             Map.of()
         );
     }
@@ -316,8 +339,15 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         // By default, an empty index set will be interpreted as _all
         assertSuccessfulRequest(
             new GetInferenceFieldsInternalAction.Request(Strings.EMPTY_ARRAY, ALL_FIELDS, false, false, "foo"),
-            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS, EMBEDDING_INDEX, Set.of()),
-            ALL_EXPECTED_INFERENCE_RESULTS
+            Map.of(
+                INDEX_1,
+                INDEX_1_EXPECTED_INFERENCE_FIELDS,
+                INDEX_2,
+                INDEX_2_EXPECTED_INFERENCE_FIELDS,
+                EMBEDDING_INDEX,
+                EMBEDDING_INDEX_EXPECTED_INFERENCE_FIELDS
+            ),
+            ALL_INDICES_EXPECTED_INFERENCE_RESULTS
         );
 
         // We can provide an IndicesOptions that changes this behavior to interpret an empty index set as no indices
@@ -339,8 +369,15 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         // By default, _all expands to all indices
         assertSuccessfulRequest(
             new GetInferenceFieldsInternalAction.Request(new String[] { "_all" }, ALL_FIELDS, false, false, "foo"),
-            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS, EMBEDDING_INDEX, Set.of()),
-            ALL_EXPECTED_INFERENCE_RESULTS
+            Map.of(
+                INDEX_1,
+                INDEX_1_EXPECTED_INFERENCE_FIELDS,
+                INDEX_2,
+                INDEX_2_EXPECTED_INFERENCE_FIELDS,
+                EMBEDDING_INDEX,
+                EMBEDDING_INDEX_EXPECTED_INFERENCE_FIELDS
+            ),
+            ALL_INDICES_EXPECTED_INFERENCE_RESULTS
         );
 
         // We can provide an IndicesOptions that changes this behavior to interpret it as no indices
@@ -396,7 +433,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     public void testNoFields() {
         assertSuccessfulRequest(
             new GetInferenceFieldsInternalAction.Request(ALL_INDICES, Map.of(), false, false, "foo"),
-            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
+            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of(), EMBEDDING_INDEX, Set.of()),
             Map.of()
         );
     }
@@ -434,8 +471,15 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     private void explicitIndicesAndFieldsTestCase(String query) {
         assertSuccessfulRequest(
             new GetInferenceFieldsInternalAction.Request(ALL_INDICES, ALL_FIELDS, false, false, query),
-            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
-            query == null ? Map.of() : ALL_EXPECTED_INFERENCE_RESULTS
+            Map.of(
+                INDEX_1,
+                INDEX_1_EXPECTED_INFERENCE_FIELDS,
+                INDEX_2,
+                INDEX_2_EXPECTED_INFERENCE_FIELDS,
+                EMBEDDING_INDEX,
+                EMBEDDING_INDEX_EXPECTED_INFERENCE_FIELDS
+            ),
+            query == null ? Map.of() : ALL_INDICES_EXPECTED_INFERENCE_RESULTS
         );
 
         Map<String, Class<? extends InferenceResults>> expectedInferenceResultsSparseOnly = filterExpectedInferenceResults(
@@ -454,7 +498,9 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
                 INDEX_1,
                 filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3)),
                 INDEX_2,
-                filterExpectedInferenceFieldSet(INDEX_2_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3))
+                filterExpectedInferenceFieldSet(INDEX_2_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3)),
+                EMBEDDING_INDEX,
+                Set.of()
             ),
             query == null ? Map.of() : expectedInferenceResultsSparseOnly
         );
@@ -473,7 +519,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
         assertSuccessfulRequest(
             new GetInferenceFieldsInternalAction.Request(ALL_INDICES, generateDefaultWeightFieldMap(Set.of("*")), false, false, query),
-            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
+            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of(), EMBEDDING_INDEX, Set.of()),
             Map.of()
         );
     }

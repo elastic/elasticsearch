@@ -733,14 +733,26 @@ public class TaskManager implements ClusterStateApplier {
             return task;
         }
 
-        synchronized void registerChildConnection(Transport.Connection connection) {
-            if (banChildrenReason != null) {
-                throw new TaskCancelledException("parent task was cancelled [" + banChildrenReason + ']');
+        void registerChildConnection(Transport.Connection connection) {
+            try {
+                synchronized (this) {
+                    if (banChildrenReason != null) {
+                        throw new TaskCancelledException("parent task was cancelled [" + banChildrenReason + ']');
+                    }
+                    if (childTasksPerConnection == null) {
+                        childTasksPerConnection = new HashMap<>();
+                    }
+                    childTasksPerConnection.merge(connection, 1, Integer::sum);
+                }
+            } catch (TaskCancelledException taskCancelledException) {
+                assert banChildrenReason != null;
+                // After a children ban is set, task cancellation should soon follow,
+                // see {@link org.elasticsearch.tasks.TaskCancellationService#doCancelTaskAndDescendants}.
+                // However, someone might really expect that a task is really cancelled when they see a {@link TaskCancelledException},
+                // so we call {@link org.elasticsearch.tasks.CancellableTask.cancel} now too, before propagating the exception.
+                task.cancel(banChildrenReason);
+                throw taskCancelledException;
             }
-            if (childTasksPerConnection == null) {
-                childTasksPerConnection = new HashMap<>();
-            }
-            childTasksPerConnection.merge(connection, 1, Integer::sum);
         }
 
         void unregisterChildConnection(Transport.Connection node) {

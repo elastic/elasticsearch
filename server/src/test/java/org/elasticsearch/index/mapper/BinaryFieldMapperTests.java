@@ -54,16 +54,6 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("store", b -> b.field("store", true));
     }
 
-    @Override
-    public void testDisableIndex() {
-        throw new AssumptionViolatedException("mapper must support the 'index' parameter");
-    }
-
-    @Override
-    public void testDisableDefaultIndex() {
-        throw new AssumptionViolatedException("mapper must support the 'index' parameter");
-    }
-
     public void testExistsQueryDocValuesEnabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

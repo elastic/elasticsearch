@@ -277,16 +277,6 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         return freq;
     }
 
-    @Override
-    public void testDisableIndex() {
-        throw new AssumptionViolatedException("mapper must support the 'index' parameter");
-    }
-
-    @Override
-    public void testDisableDefaultIndex() {
-        throw new AssumptionViolatedException("mapper must support the 'index' parameter");
-    }
-
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());

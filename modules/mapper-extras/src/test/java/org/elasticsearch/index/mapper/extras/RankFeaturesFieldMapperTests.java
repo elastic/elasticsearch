@@ -71,16 +71,6 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    public void testDisableIndex() {
-        throw new AssumptionViolatedException("mapper must support the 'index' parameter");
-    }
-
-    @Override
-    public void testDisableDefaultIndex() {
-        throw new AssumptionViolatedException("mapper must support the 'index' parameter");
-    }
-
-    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
     }

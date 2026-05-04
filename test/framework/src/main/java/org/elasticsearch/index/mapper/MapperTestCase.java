@@ -543,6 +543,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testDisableIndex() throws IOException {
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+        assumeTrue("mapper must support the 'index' parameter", checker.checkedParameters.contains("index"));
+
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("index", false);
@@ -555,7 +559,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testDisableDefaultIndex() throws IOException {
-        assumeTrue("feature under test must be present", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+        assumeTrue("mapper must support the 'index' parameter", checker.checkedParameters.contains("index"));
 
         var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
         var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));

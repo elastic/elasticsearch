@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -117,6 +118,41 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     protected void minimalMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
         indexMapping(b, indexVersion);
+    }
+
+    @Override
+    public void testDisableIndex() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "dense_vector").field("dims", dims).field("index", false);
+            if (elementType != ElementType.FLOAT) {
+                b.field("element_type", elementType.toString());
+            }
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get(0).fieldType().vectorDimension(), equalTo(0));
+        assertThat(fields.get(0).fieldType().docValuesType(), equalTo(DocValuesType.BINARY));
+    }
+
+    @Override
+    public void testDisableDefaultIndex() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+
+        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var mapperService = createMapperService(settings, fieldMapping(b -> {
+            b.field("type", "dense_vector").field("dims", dims);
+            if (elementType != ElementType.FLOAT) {
+                b.field("element_type", elementType.toString());
+            }
+        }));
+        var documentMapper = mapperService.documentMapper();
+
+        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", this.getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get(0).fieldType().vectorDimension(), equalTo(0));
+        assertThat(fields.get(0).fieldType().docValuesType(), equalTo(DocValuesType.BINARY));
     }
 
     private void indexMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
@@ -620,16 +656,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b -> b.startObject("index_options").field("type", "bbq_disk").field("precondition", true).endObject(),
             b -> b.startObject("index_options").field("type", "bbq_disk").field("precondition", false).endObject()
         );
-    }
-
-    @Override
-    public void testDisableIndex() {
-        throw new AssumptionViolatedException("mapper must support the 'index' parameter");
-    }
-
-    @Override
-    public void testDisableDefaultIndex() {
-        throw new AssumptionViolatedException("mapper must support the 'index' parameter");
     }
 
     @Override

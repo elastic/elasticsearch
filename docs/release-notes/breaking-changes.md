@@ -24,11 +24,11 @@ There are no breaking changes associated with this release.
 
 There are no breaking changes associated with this release.
 
-## 9.3.2 [elasticsearch-9.3.2-breaking-changes]
+## 9.2.7 [elasticsearch-9.2.7-breaking-changes]
 
 There are no breaking changes associated with this release.
 
-## 9.2.7 [elasticsearch-9.2.7-breaking-changes]
+## 9.3.2 [elasticsearch-9.3.2-breaking-changes]
 
 There are no breaking changes associated with this release.
 

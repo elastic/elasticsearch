@@ -82,7 +82,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         // Derive retry numCands from this query's k/numCands ratio so HNSW beam scales with retry K.
-        int retryNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.max(remainingK, Math.ceil((double) remainingK * numCandsParam / kParam)));
+        int retryNumCands = (int) Math.clamp(Math.ceil((double) remainingK * numCandsParam / kParam), remainingK, NUM_CANDS_LIMIT);
         AtomicReference<DocTrackingCollectorManager> knnCollectorManagerRef = new AtomicReference<>();
         var knnQuery = new ESKnnFloatVectorQuery(
             field,
@@ -108,9 +108,10 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
         double zMargin = PostFilterableKnnQuery.zMargin(kParam, filterSelectivity);
-        int scaledK = (int) Math.min(
-            NUM_CANDS_LIMIT,
-            Math.max(Math.ceil(kParam * POST_FILTER_OVERSAMPLE_FLOOR), Math.ceil((kParam + zMargin) / filterSelectivity))
+        int scaledK = (int) Math.clamp(
+            Math.ceil((kParam + zMargin) / filterSelectivity),
+            Math.ceil(kParam * POST_FILTER_OVERSAMPLE_FLOOR),
+            NUM_CANDS_LIMIT
         );
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCandsParam / kParam));
         AtomicReference<DocTrackingCollectorManager> knnCollectorManagerRef = new AtomicReference<>();

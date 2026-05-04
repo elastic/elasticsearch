@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.diskbbq;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -26,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.license.DiskBBQLicensingIT.enableLicensing;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
 
@@ -93,6 +95,44 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         createIVFNestedIndex(indexName);
         indexNestedDocs(indexName);
         assertPostFilterNested(indexName);
+    }
+
+    public void testPostFilterReportsVectorOpsInProfile() throws IOException {
+        String indexName = "ivf_profile_test";
+        createIVFIndex(indexName);
+        indexFlatDocs(indexName);
+
+        int k = 5;
+        var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, makeVector(500), k, 500, 100f, null, null).addFilterQuery(
+            QueryBuilders.termQuery(TAG_FIELD, "common")
+        );
+
+        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k).setProfile(true), response -> {
+            assertNotEquals(0, response.getHits().getHits().length);
+            assertProfileReportsVectorOps(response);
+        });
+    }
+
+    /**
+     * Asserts the profile reports a non-zero {@code vector_operations_count}. Exercises the
+     * post-filter accounting path that accumulates round-0 + retry (and, on fallback, the inner
+     * query's) vector operations into {@code PostFilterKnnQuery#totalVectorOps}.
+     */
+    private static void assertProfileReportsVectorOps(SearchResponse response) {
+        var shardResults = response.getSearchProfileShardResults();
+        assertFalse("Profile results should not be empty", shardResults.isEmpty());
+        long vectorOpsSum = shardResults.values()
+            .stream()
+            .mapToLong(
+                pr -> pr.getQueryPhase()
+                    .getSearchProfileDfsPhaseResult()
+                    .getQueryProfileShardResult()
+                    .stream()
+                    .mapToLong(qpr -> qpr.getVectorOperationsCount().longValue())
+                    .sum()
+            )
+            .sum();
+        assertThat("Expected vector operations to be reported in profile", vectorOpsSum, greaterThan(0L));
     }
 
     private void createIVFIndex(String indexName) throws IOException {
@@ -245,11 +285,14 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
             QueryBuilders.termQuery(TAG_FIELD, "pass")
         );
 
-        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k), response -> {
+        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k).setProfile(true), response -> {
             assertEquals("Expected exactly k results from fallback", k, response.getHits().getHits().length);
             for (SearchHit hit : response.getHits().getHits()) {
                 assertEquals("pass", hit.getSourceAsMap().get(TAG_FIELD));
             }
+            // Fallback path runs the inner query after post-filter retry comes up short — its
+            // vectorOps must still be reported in the profile.
+            assertProfileReportsVectorOps(response);
         });
     }
 

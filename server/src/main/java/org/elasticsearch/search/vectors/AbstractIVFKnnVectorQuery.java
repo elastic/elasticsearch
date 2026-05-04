@@ -106,6 +106,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (filter != null && filterWeight == null) {
             return MatchNoDocsQuery.INSTANCE;
         }
+        // we request numCands as we are using it as an approximation measure
+        // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
+        // TODO move the logic for automatically adjusting percentages to the query, so we can only pass
+        // 2k to the collector.
         IVFCollectorManager collectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
         return executeSearch(indexSearcher, leaves, filterWeight, collectorManager, providedVisitRatio);
     }

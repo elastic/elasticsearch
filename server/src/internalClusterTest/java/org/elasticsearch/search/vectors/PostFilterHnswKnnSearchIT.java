@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -104,21 +105,30 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
 
         assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k).setProfile(true), response -> {
             assertNotEquals(0, response.getHits().getHits().length);
-            var profileResults = response.getProfileResults();
-            assertFalse("Profile results should not be empty", profileResults.isEmpty());
-            long vectorOpsSum = profileResults.values()
-                .stream()
-                .mapToLong(
-                    pr -> pr.getQueryPhase()
-                        .getSearchProfileDfsPhaseResult()
-                        .getQueryProfileShardResult()
-                        .stream()
-                        .mapToLong(qpr -> qpr.getVectorOperationsCount().longValue())
-                        .sum()
-                )
-                .sum();
-            assertThat("Expected vector operations to be reported in profile", vectorOpsSum, greaterThan(0L));
+            assertProfileReportsVectorOps(response);
         });
+    }
+
+    /**
+     * Asserts the profile reports a non-zero {@code vector_operations_count}. Exercises the
+     * post-filter accounting path that accumulates round-0 + retry (and, on fallback, the inner
+     * query's) vector operations into {@code PostFilterKnnQuery#totalVectorOps}.
+     */
+    private static void assertProfileReportsVectorOps(SearchResponse response) {
+        var shardResults = response.getSearchProfileShardResults();
+        assertFalse("Profile results should not be empty", shardResults.isEmpty());
+        long vectorOpsSum = shardResults.values()
+            .stream()
+            .mapToLong(
+                pr -> pr.getQueryPhase()
+                    .getSearchProfileDfsPhaseResult()
+                    .getQueryProfileShardResult()
+                    .stream()
+                    .mapToLong(qpr -> qpr.getVectorOperationsCount().longValue())
+                    .sum()
+            )
+            .sum();
+        assertThat("Expected vector operations to be reported in profile", vectorOpsSum, greaterThan(0L));
     }
 
     private void createHnswIndex(String indexName, String elementType) throws IOException {
@@ -271,11 +281,14 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
             QueryBuilders.termQuery(TAG_FIELD, "pass")
         );
 
-        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k), response -> {
+        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k).setProfile(true), response -> {
             assertEquals("Expected exactly k results", k, response.getHits().getHits().length);
             for (SearchHit hit : response.getHits().getHits()) {
                 assertEquals("pass", hit.getSourceAsMap().get(TAG_FIELD));
             }
+            // Fallback path runs the inner query after post-filter retry comes up short — its
+            // vectorOps must still be reported in the profile.
+            assertProfileReportsVectorOps(response);
         });
     }
 

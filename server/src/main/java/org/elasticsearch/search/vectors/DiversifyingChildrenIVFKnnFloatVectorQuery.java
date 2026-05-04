@@ -87,12 +87,13 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
         double zMargin = PostFilterableKnnQuery.zMargin(k, filterSelectivity);
-        int scaledK = (int) Math.min(
-            NUM_CANDS_LIMIT,
-            Math.max(Math.ceil(k * POST_FILTER_OVERSAMPLE_FLOOR), Math.ceil((k + zMargin) / filterSelectivity))
+        int scaledK = (int) Math.clamp(
+            Math.ceil((k + zMargin) / filterSelectivity),
+            Math.ceil(k * POST_FILTER_OVERSAMPLE_FLOOR),
+            NUM_CANDS_LIMIT
         );
         // numCands and visit ratio share the scaledK/k multiplier (see IVFKnnFloatVectorQuery for rationale).
-        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.max(scaledK, Math.ceil((double) scaledK * numCands / k)));
+        int scaledNumCands = (int) Math.clamp(Math.ceil((double) scaledK * numCands / k), scaledK, NUM_CANDS_LIMIT);
         double oversampleMultiplier = (double) scaledK / k;
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, (float) (providedVisitRatio * oversampleMultiplier)) : 0f;
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(
@@ -114,7 +115,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         Map<Integer, FixedBitSet> skipCentroids = buildSkipCentroids();
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         // Derive retry numCands from this query's k/numCands ratio so the IVF beam scales with retry K.
-        int retryNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.max(remainingK, Math.ceil((double) remainingK * numCands / k)));
+        int retryNumCands = (int) Math.clamp(Math.ceil((double) remainingK * numCands / k), remainingK, NUM_CANDS_LIMIT);
         // Widen visit ratio by POST_FILTER_OVERSAMPLE_FLOOR for the retry round.
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * POST_FILTER_OVERSAMPLE_FLOOR) : 0f;
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(

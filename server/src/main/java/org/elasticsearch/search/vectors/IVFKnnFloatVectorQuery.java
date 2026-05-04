@@ -283,15 +283,16 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
         double zMargin = PostFilterableKnnQuery.zMargin(k, filterSelectivity);
-        int scaledK = (int) Math.min(
-            NUM_CANDS_LIMIT,
-            Math.max(Math.ceil(k * POST_FILTER_OVERSAMPLE_FLOOR), Math.ceil((k + zMargin) / filterSelectivity))
+        int scaledK = (int) Math.clamp(
+            Math.ceil((k + zMargin) / filterSelectivity),
+            Math.ceil(k * POST_FILTER_OVERSAMPLE_FLOOR),
+            NUM_CANDS_LIMIT
         );
         // numCands and visit ratio share the same scaledK/k multiplier so heap width and posting-list
         // coverage grow together. When providedVisitRatio is 0 (DYNAMIC_VISIT_RATIO), the codec
         // computes the visit ratio at search time from (numCands, k) — scaling numCands up is enough
         // to widen dynamic coverage without overriding the auto path.
-        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.max(scaledK, Math.ceil((double) scaledK * numCands / k)));
+        int scaledNumCands = (int) Math.clamp(Math.ceil((double) scaledK * numCands / k), scaledK, NUM_CANDS_LIMIT);
         double oversampleMultiplier = (double) scaledK / k;
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, (float) (providedVisitRatio * oversampleMultiplier)) : 0f;
         return new IVFKnnFloatVectorQuery(
@@ -315,7 +316,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         // ExcludeDocsQuery filter (composed by createFilterWeight in AbstractIVFKnnVectorQuery.rewrite).
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         // Derive retry numCands from this query's k/numCands ratio so the IVF beam scales with retry K.
-        int retryNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.max(remainingK, Math.ceil((double) remainingK * numCands / k)));
+        int retryNumCands = (int) Math.clamp(Math.ceil((double) remainingK * numCands / k), remainingK, NUM_CANDS_LIMIT);
         // Widen the visit ratio by POST_FILTER_OVERSAMPLE_FLOOR so the retry explores more
         // posting-list coverage than round 0 (round 1 also starts skipping non-competitive
         // centroids, so the extra coverage lands on previously-unvisited clusters).

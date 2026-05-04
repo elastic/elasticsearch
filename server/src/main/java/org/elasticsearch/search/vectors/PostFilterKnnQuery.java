@@ -137,6 +137,9 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             }
         }
 
+        // Accumulate the post-filter attempt's vector ops regardless of outcome so the profile
+        // reflects the full cost — the caller adds the fallback inner query's own ops on top.
+        this.totalVectorOps += vectorOps;
         if (scoreDocs.length < k) {
             logger.warn(
                 "falling back to original knn query as post filtering retrieved only [{}] results, less than the desired [{}] results.",
@@ -145,7 +148,6 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             );
             return null;
         }
-        this.totalVectorOps += vectorOps;
         if (k < scoreDocs.length) {
             scoreDocs = Arrays.copyOf(scoreDocs, k);
         }

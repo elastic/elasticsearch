@@ -192,12 +192,12 @@ public final class ExponentialHistogramBlockBuilder extends AbstractDelegatingCo
             zeroThresholds = zeroThresholdsBuilder.build();
             encodedHistograms = encodedHistogramsBuilder.build();
             ExponentialHistogramArrayBlock block = new ExponentialHistogramArrayBlock(
+                encodedHistograms,
                 minima,
                 maxima,
                 sums,
                 valueCounts,
                 zeroThresholds,
-                encodedHistograms,
                 positionCount,
                 firstValueIndexes
             );

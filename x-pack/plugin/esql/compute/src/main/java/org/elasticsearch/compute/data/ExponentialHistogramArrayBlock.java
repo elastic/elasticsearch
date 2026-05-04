@@ -61,12 +61,12 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
     private final BytesRefBlock encodedHistograms;
 
     ExponentialHistogramArrayBlock(
+        BytesRefBlock encodedHistograms,
         DoubleBlock minima,
         DoubleBlock maxima,
         DoubleBlock sums,
         DoubleBlock valueCounts,
         DoubleBlock zeroThresholds,
-        BytesRefBlock encodedHistograms,
         int positionCount,
         @Nullable int[] firstValueIndexes
     ) {
@@ -131,12 +131,12 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
         @Nullable int[] newFirstValueIndexes
     ) {
         return new ExponentialHistogramArrayBlock(
+            (BytesRefBlock) subBlocks.get(0),
             (DoubleBlock) subBlocks.get(1),
             (DoubleBlock) subBlocks.get(2),
             (DoubleBlock) subBlocks.get(3),
             (DoubleBlock) subBlocks.get(4),
             (DoubleBlock) subBlocks.get(5),
-            (BytesRefBlock) subBlocks.get(0),
             newPositionCount,
             newFirstValueIndexes
         );
@@ -249,12 +249,12 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
             encodedHistogramBlock = blockFactory.newConstantBytesRefBlockWith(data.encodedHistogram, positionCount);
             success = true;
             return new ExponentialHistogramArrayBlock(
+                encodedHistogramBlock,
                 minBlock,
                 maxBlock,
                 sumBlock,
                 countBlock,
                 zeroThresholdBlock,
-                encodedHistogramBlock,
                 encodedHistogramBlock.getPositionCount(),
                 null
             );
@@ -363,12 +363,12 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
             encodedHistograms = (BytesRefBlock) Block.readTypedBlock(in);
             success = true;
             return new ExponentialHistogramArrayBlock(
+                encodedHistograms,
                 minima,
                 maxima,
                 sums,
                 valueCounts,
                 zeroThresholds,
-                encodedHistograms,
                 firstValueIndexes == null ? encodedHistograms.getPositionCount() : positionCount,
                 firstValueIndexes
             );

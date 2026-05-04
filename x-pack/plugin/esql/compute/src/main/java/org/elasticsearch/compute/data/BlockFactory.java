@@ -607,12 +607,12 @@ public class BlockFactory {
         BytesRefBlock encodedHistograms
     ) {
         return new ExponentialHistogramArrayBlock(
+            encodedHistograms,
             minima,
             maxima,
             sums,
             valueCounts,
             zeroThresholds,
-            encodedHistograms,
             encodedHistograms.getPositionCount(),
             null
         );

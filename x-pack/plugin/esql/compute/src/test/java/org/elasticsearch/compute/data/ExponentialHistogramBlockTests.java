@@ -41,12 +41,12 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
         int elementCount = randomIntBetween(1, 100);
 
         Block block = new ExponentialHistogramArrayBlock(
-            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
-            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
-            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
-            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
-            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (BytesRefBlock) blockFactory().newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             elementCount,
             null
         );

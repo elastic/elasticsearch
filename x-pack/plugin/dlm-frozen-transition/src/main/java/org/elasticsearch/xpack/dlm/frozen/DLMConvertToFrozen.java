@@ -105,7 +105,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         DLM_CREATED_SETTING_KEY,
         false,
         Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
+        Setting.Property.InternalIndex
     );
 
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";

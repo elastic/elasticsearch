@@ -91,13 +91,17 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
     private int[] ids;
     private int[] ordinals;
     private int numVectorsToScore;
+    private long datasetAddress;
     // Scratch buffers in native memory for bulk calls.
     private MemorySegment ordinalsSeg;
+    private MemorySegment addressesSeg;
     private MemorySegment resultsSeg;
     private float[] scores;
 
     private MethodHandle singleImpl;
+    private MethodHandle bulkImpl;
     private MethodHandle bulkOffsetsImpl;
+    private MethodHandle bulkSparseImpl;
 
     record VectorData(int numVectorsToScore, short[][] bf16Vectors, float[] f32QueryVector, int[] ordinals, int targetOrd) {
 
@@ -138,6 +142,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         for (int v = 0; v < numVectors; v++) {
             MemorySegment.copy(vectorData.bf16Vectors[v], 0, dataset, LAYOUT_LE_SHORT, (long) v * bytesPerVector, dims);
         }
+        datasetAddress = dataset.address();
 
         // Query vector: use the target ordinal's vector in the appropriate type
         switch (queryType) {
@@ -155,6 +160,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         ordinals = vectorData.ordinals;
 
         ordinalsSeg = arena.allocate((long) bulkSize * Integer.BYTES);
+        addressesSeg = arena.allocate((long) bulkSize * Long.BYTES);
         resultsSeg = arena.allocate((long) bulkSize * Float.BYTES);
         scores = new float[bulkSize];
 
@@ -164,11 +170,9 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
             default -> throw new IllegalArgumentException(function.toString());
         };
         singleImpl = vectorSimilarityFunctions.getBFloat16Handle(nativeFunc, queryType, VectorSimilarityFunctions.Operation.SINGLE);
-        bulkOffsetsImpl = vectorSimilarityFunctions.getBFloat16Handle(
-            nativeFunc,
-            queryType,
-            VectorSimilarityFunctions.Operation.BULK_OFFSETS
-        );
+        bulkImpl = vectorSimilarityFunctions.getBFloat16Handle(nativeFunc, queryType, VectorSimilarityFunctions.Operation.BULK);
+        bulkOffsetsImpl = vectorSimilarityFunctions.getBFloat16Handle(nativeFunc, queryType, VectorSimilarityFunctions.Operation.BULK_OFFSETS);
+        bulkSparseImpl = vectorSimilarityFunctions.getBFloat16Handle(nativeFunc, queryType, VectorSimilarityFunctions.Operation.BULK_SPARSE);
     }
 
     @TearDown
@@ -176,8 +180,9 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         arena.close();
     }
 
+    /** Single-pair scoring, sequential ids (control). */
     @Benchmark
-    public float[] scoreMultipleSequential() {
+    public float[] scoreSequential() {
         int v = 0;
         int bytesPerVector = dims * Short.BYTES;
         try {
@@ -193,8 +198,9 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         return scores;
     }
 
+    /** Single-pair scoring, shuffled ordinals (control). */
     @Benchmark
-    public float[] scoreMultipleRandom() {
+    public float[] scoreRandom() {
         int v = 0;
         int bytesPerVector = dims * Short.BYTES;
         try {
@@ -210,13 +216,31 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         return scores;
     }
 
+    /** BULK: contiguous slice — sequential by construction. */
     @Benchmark
-    public float[] scoreMultipleSequentialBulk() {
+    public float[] scoreBulk() {
         int bytesPerVector = dims * Short.BYTES;
         try {
             for (int i = 0; i < numVectorsToScore; i += bulkSize) {
                 int count = Math.min(bulkSize, numVectorsToScore - i);
-                MemorySegment.copy(ids, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
+                MemorySegment slice = dataset.asSlice((long) i * bytesPerVector, (long) count * bytesPerVector);
+                bulkImpl.invokeExact(slice, query, dims, count, resultsSeg);
+            }
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+        MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
+        return scores;
+    }
+
+    /** BULK_OFFSETS: scattered access driven by an int32 ordinals array. */
+    @Benchmark
+    public float[] scoreBulkOffsets() {
+        int bytesPerVector = dims * Short.BYTES;
+        try {
+            for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+                int count = Math.min(bulkSize, numVectorsToScore - i);
+                MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
                 bulkOffsetsImpl.invokeExact(dataset, query, dims, bytesPerVector, ordinalsSeg, count, resultsSeg);
             }
         } catch (Throwable t) {
@@ -226,14 +250,18 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         return scores;
     }
 
+    /** BULK_SPARSE: scattered access driven by a pre-resolved address array. */
     @Benchmark
-    public float[] scoreMultipleRandomBulk() {
+    public float[] scoreBulkSparse() {
         int bytesPerVector = dims * Short.BYTES;
         try {
             for (int i = 0; i < numVectorsToScore; i += bulkSize) {
                 int count = Math.min(bulkSize, numVectorsToScore - i);
-                MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-                bulkOffsetsImpl.invokeExact(dataset, query, dims, bytesPerVector, ordinalsSeg, count, resultsSeg);
+                for (int j = 0; j < count; j++) {
+                    long addr = datasetAddress + (long) ordinals[i + j] * bytesPerVector;
+                    addressesSeg.set(ValueLayout.JAVA_LONG, (long) j * Long.BYTES, addr);
+                }
+                bulkSparseImpl.invokeExact(addressesSeg, query, dims, count, resultsSeg);
             }
         } catch (Throwable t) {
             throw rethrow(t);

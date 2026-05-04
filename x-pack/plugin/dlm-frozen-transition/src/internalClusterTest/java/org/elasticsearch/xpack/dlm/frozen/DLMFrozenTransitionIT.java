@@ -276,7 +276,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         boolean originalInDataStream = backingIndices.stream().anyMatch(idx -> idx.getName().equals(candidateIndex));
         assertThat("Original index should no longer be in the data stream", originalInDataStream, is(false));
 
-        // Verify the frozen index exists and was created by DLM
+        // Verify the frozen index exists in project metadata and has the DLM-created setting
         IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
         assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
         assertThat(

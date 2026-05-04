@@ -62,6 +62,8 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
@@ -91,6 +93,7 @@ import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 import java.util.regex.Pattern;
@@ -107,6 +110,7 @@ import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTIN
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_CONNECTIONS_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
+import static org.elasticsearch.repositories.s3.S3ClientSettings.S3_TENACIOUS_RETRIES_ENABLED_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettingsTests.DEFAULT_REGION_UNAVAILABLE;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -1792,6 +1796,59 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("operation"), equalTo("ListObjects"));
         assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("operation_purpose"), equalTo(OperationPurpose.INDICES.getKey()));
 
+    }
+
+    public void testTenaciousRetriesFromClientSettingsIsAppliedToS3BlobStore() throws Exception {
+        final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client." + clientName + ".access_key", "access");
+        secureSettings.setString("s3.client." + clientName + ".secret_key", "secret");
+        final Settings nodeClientSettings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .put(S3_TENACIOUS_RETRIES_ENABLED_SETTING.getConcreteSettingForNamespace(clientName).getKey(), true)
+            .build();
+
+        final TestThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            final S3Service s3Service = new S3Service(
+                mock(Environment.class),
+                ClusterServiceUtils.createClusterService(threadPool, nodeClientSettings),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                mock(ResourceWatcherService.class),
+                DEFAULT_REGION_UNAVAILABLE
+            );
+            s3Service.start();
+            try {
+                s3Service.refreshAndClearCache(S3ClientSettings.load(nodeClientSettings));
+                final Settings repoSettings = Settings.builder()
+                    .put(S3Repository.CLIENT_NAME.getKey(), clientName)
+                    .put(S3Repository.GET_REGISTER_RETRY_DELAY.getKey(), TimeValue.ZERO)
+                    .build();
+                final RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repo", S3Repository.TYPE, repoSettings);
+                final S3BlobStore blobStore = new S3BlobStore(
+                    ProjectId.DEFAULT,
+                    s3Service,
+                    "bucket",
+                    S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
+                    S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY),
+                    S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
+                    S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+                    S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getDefault(Settings.EMPTY) == Boolean.FALSE,
+                    repositoryMetadata,
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    threadPool,
+                    new S3RepositoriesMetrics(new RepositoriesMetrics(new RecordingMeterRegistry())),
+                    BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(1), 10)
+                );
+                var setting = S3BlobStore.class.getDeclaredField("tenaciousRetriesEnabled");
+                setting.setAccessible(true);
+                assertTrue((Boolean) setting.get(blobStore));
+            } finally {
+                s3Service.close();
+            }
+        } finally {
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
     }
 
 }
